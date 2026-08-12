@@ -16,18 +16,33 @@ Sem isso, o pre-commit **não roda** nesse clone, e nada bloqueia localmente o c
 git config core.hooksPath   # deve imprimir ".githooks"
 ```
 
-## Fluxo de trabalho
+## Fluxo de trabalho — GitHub Flow (obrigatório, inclusive solo)
+
+Este projeto segue [GitHub Flow](https://docs.github.com/pt/get-started/using-github/github-flow): `main` é sempre estável e **protegida** — nenhum commit chega lá exceto via merge de Pull Request. Não é uma sugestão informal: há dois níveis de aplicação técnica disso:
+
+1. **Localmente**: `.githooks/pre-commit` bloqueia qualquer `git commit` feito diretamente nas branches `main`/`master` (a única exceção é um merge em andamento, detectado via `MERGE_HEAD`).
+2. **No GitHub**: a branch `main` tem *branch protection* configurada — exige Pull Request antes de qualquer mudança chegar nela, não aceita `push` direto nem `force-push`, e só permite squash merge (histórico linear, um commit por PR).
+
+Passo a passo:
 
 1. Confira o [`ROADMAP.md`](./ROADMAP.md) antes de começar — evite trabalhar em algo fora de ordem sem necessidade (ex.: começar o cliente desktop antes de o control-plane da Fase 2 existir gera retrabalho).
-2. Crie uma branch a partir de `main`:
+2. Atualize sua `main` local: `git checkout main && git pull --ff-only`.
+3. Crie uma branch a partir de `main`:
    - `feat/<descrição-curta>` — nova funcionalidade
    - `fix/<descrição-curta>` — correção de bug
    - `chore/<descrição-curta>` — infraestrutura, configuração, tooling, documentação
    - `security/<descrição-curta>` — mudanças relacionadas a hardening/segurança
-3. Faça commits pequenos e coerentes (ver convenção abaixo).
-4. Atualize o [`ROADMAP.md`](./ROADMAP.md) marcando os checkboxes concluídos **no mesmo commit/PR**, não depois.
-5. Se a mudança alterar uma decisão de arquitetura documentada no [`PLAN.md`](./PLAN.md), atualize o `PLAN.md` também.
-6. Abra PR (ou, em uso solo, faça merge direto após revisão própria) com uma descrição curta do "porquê", não só do "o quê".
+   - `docs/<descrição-curta>` — documentação pura (sem mudança de código/infra)
+4. Faça commits pequenos e coerentes nessa branch (ver convenção de commits abaixo).
+5. Atualize o [`ROADMAP.md`](./ROADMAP.md) marcando os checkboxes concluídos **na mesma branch/PR**, não depois.
+6. Se a mudança alterar uma decisão de arquitetura documentada no [`PLAN.md`](./PLAN.md), atualize o `PLAN.md` também, na mesma branch.
+7. Envie a branch (`git push -u origin <branch>`) e abra um Pull Request (`gh pr create` ou pela interface do GitHub) — mesmo trabalhando sozinho. O PR é onde você revisa o próprio diff completo antes de consolidar; é isso, não a aprovação de terceiros, que dá o valor em uso solo.
+8. Faça o merge do PR via **squash merge** (`gh pr merge --squash --delete-branch`, ou o botão equivalente no GitHub) — mantém a `main` com histórico linear, um commit por PR.
+9. Sincronize sua `main` local (`git checkout main && git pull --ff-only`) e remova a branch local (`git branch -d <branch>`).
+
+### Por que PR mesmo trabalhando sozinho?
+
+Não é burocracia por burocracia: o PR é o checkpoint onde você olha o diff inteiro de uma vez (não arquivo por arquivo enquanto edita), o que pega erros como uma porta exposta por engano, um `console.log` esquecido, ou um arquivo que não deveria estar ali. A branch protection do GitHub está configurada para exigir PR mas com **0 aprovações obrigatórias** — ou seja, você mesmo pode mergear seu próprio PR, sem depender de outra pessoa.
 
 ## Convenção de commits
 

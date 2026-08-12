@@ -22,6 +22,7 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 5. **Mudanças de arquitetura relevantes** (troca de biblioteca WireGuard, mudança de sub-rede, novo domínio, etc.) devem ser refletidas no `PLAN.md`, não só no código.
 6. **Nunca commitar artefatos de build** (binários, `dist/`, instaladores `.exe`/`.deb`/`.AppImage`) — ver convenção em [`PLAN.md` §11.1](./PLAN.md#111-convenção-de-build-e-artefatos-o-que-é-gerado-onde-fica-é-commitado) e `.gitignore`.
 7. **Nunca use `git commit --no-verify`** para contornar o hook `.githooks/pre-commit` sem confirmação explícita do usuário — se o hook bloquear algo que parece um falso positivo, explique o motivo do bloqueio e peça confirmação antes de ignorá-lo.
+8. **Nunca commitar diretamente em `main`/`master`.** Toda mudança nasce numa branch (`feat/`, `fix/`, `chore/`, `security/`, `docs/`) e chega em `main` só via Pull Request com squash merge — ver [`CONTRIBUTING.md`](./CONTRIBUTING.md#fluxo-de-trabalho--github-flow-obrigatório-inclusive-solo). Isso vale também para agentes de IA: antes de editar arquivos para uma tarefa não-trivial, crie a branch primeiro (`git checkout -b <tipo>/<descrição>`). O hook `.githooks/pre-commit` bloqueia commits diretos em `main` (exceto merges), e a branch `main` no GitHub tem *branch protection* (exige PR, sem push direto, sem force-push).
 
 ## Convenções do repositório
 

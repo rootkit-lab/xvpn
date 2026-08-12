@@ -56,22 +56,23 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 1 — Validação manual do túnel WireGuard
 
-- [ ] Confirmar módulo carregado: `modprobe wireguard` + `lsmod | grep wireguard`
-- [ ] Criar interface: `ip link add dev wg0 type wireguard`
-- [ ] Gerar par de chaves do servidor (`wg genkey | tee server.key | wg pubkey > server.pub`), salvar chave privada em `/etc/wireguard/server.key` com permissão `600`
-- [ ] Atribuir IP à interface: `ip addr add 10.66.66.1/24 dev wg0`
-- [ ] Configurar a interface com a chave privada e porta de escuta (`wg set wg0 listen-port 51820 private-key /etc/wireguard/server.key`)
-- [ ] Subir a interface: `ip link set wg0 up`
-- [ ] Habilitar `net.ipv4.ip_forward=1` (persistente via `/etc/sysctl.d/99-xvpn.conf`)
-- [ ] Configurar regra de NAT/MASQUERADE (`nftables` ou `iptables`) para `10.66.66.0/24` saindo por `eth0`
-- [ ] Gerar par de chaves de um peer de teste (no seu notebook/desktop)
-- [ ] Adicionar peer de teste no servidor: `wg set wg0 peer <pubkey_cliente> allowed-ips 10.66.66.2/32`
-- [ ] Configurar peer de teste localmente (`Endpoint = 206.189.224.72:51820`, `AllowedIPs = 0.0.0.0/0, ::/0`, `PersistentKeepalive = 25`)
-- [ ] Subir túnel no peer de teste e validar handshake (`wg show` nos dois lados)
-- [ ] Validar exit: `curl ifconfig.me` de dentro do túnel deve retornar `206.189.224.72`
-- [ ] Validar latência/throughput básico (`ping`, opcionalmente `iperf3`)
-- [ ] Validar que o peer de teste consegue alcançar `10.66.66.1` (o próprio servidor) — confirma que "estar na mesma rede" funciona, não só o exit
-- [ ] Documentar quaisquer ajustes de MTU/roteamento encontrados
+- [x] Confirmar módulo carregado: `modprobe wireguard` + `lsmod | grep wireguard`
+- [x] Criar interface: `ip link add dev wg0 type wireguard`
+- [x] Gerar par de chaves do servidor (`wg genkey | tee server.key | wg pubkey > server.pub`), salvar chave privada em `/etc/wireguard/server.key` com permissão `600` — **nota**: o pacote `wireguard-tools` (comando `wg`) não vinha instalado por padrão, precisou ser instalado antes de gerar as chaves
+- [x] Atribuir IP à interface: `ip addr add 10.66.66.1/24 dev wg0`
+- [x] Configurar a interface com a chave privada e porta de escuta (`wg set wg0 listen-port 51820 private-key /etc/wireguard/server.key`)
+- [x] Subir a interface: `ip link set wg0 up`
+- [x] Habilitar `net.ipv4.ip_forward=1` (persistente via `/etc/sysctl.d/99-xvpn.conf`)
+- [x] Configurar regra de NAT/MASQUERADE (`nftables`) para `10.66.66.0/24` saindo por `eth0` — implementada via `*nat`/`POSTROUTING`/`MASQUERADE` em `/etc/ufw/before.rules` (mecanismo nativo do `ufw` para isso), **mais** uma regra explícita `ufw route allow in on wg0 out on eth0`, já que a chain `FORWARD` do `ufw` tem política padrão `deny` — sem essa regra extra o NAT nunca seria alcançado (achado não previsto no checklist original)
+- [x] Gerar par de chaves de um peer de teste (no seu notebook/desktop) — gerado num **container Docker isolado** na sua máquina (`--cap-add=NET_ADMIN --device=/dev/net/tun`), em vez de instalar `wireguard-tools` diretamente no SO principal: evita mexer na rede/rotas da máquina de uso diário e não exige sudo interativo. A chave privada nunca saiu do container/máquina local, nunca tocou o servidor.
+- [x] Adicionar peer de teste no servidor: `wg set wg0 peer <pubkey_cliente> allowed-ips 10.66.66.2/32`
+- [x] Configurar peer de teste localmente (`Endpoint = 206.189.224.72:51820`, `AllowedIPs = 0.0.0.0/0`, `PersistentKeepalive = 25`) — `::/0` omitido porque o container Docker de teste não tinha rota IPv6 configurada (irrelevante para o resultado do teste)
+- [x] Subir túnel no peer de teste e validar handshake (`wg show` nos dois lados) — handshake confirmado nos dois lados
+- [x] Validar exit: `curl ifconfig.me` de dentro do túnel deve retornar `206.189.224.72` — confirmado, após o ajuste de MTU abaixo
+- [x] Validar latência/throughput básico (`ping`, opcionalmente `iperf3`) — `ping` ~135ms (esperado, tráfego passa por um túnel adicional pré-existente na máquina de teste — ver nota de MTU); download de 10 MB via `curl` em 1.77s (~45 Mbit/s)
+- [x] Validar que o peer de teste consegue alcançar `10.66.66.1` (o próprio servidor) — confirma que "estar na mesma rede" funciona, não só o exit — confirmado via `ping 10.66.66.1`, 0% de perda
+- [x] Documentar quaisquer ajustes de MTU/roteamento encontrados — **achado**: a máquina de teste já tinha uma VPN própria ativa (Cloudflare WARP, MTU 1280) como rota padrão. Com o MTU padrão do WireGuard (1420) para o túnel de teste, pacotes pequenos (ICMP) passavam mas requisições HTTP/TLS "sumiam" (black hole de PMTU, comum quando ICMP "packet too big" é descartado por túneis intermediários). Corrigido definindo `MTU = 1200` no `[Interface]` do peer de teste. **Relevante para o cliente real** (Fase 4/6): o cliente desktop deve permitir configurar/ajustar o MTU manualmente para usuários atrás de outra VPN, CGNAT restritivo ou redes móveis — considerar adicionar isso à tela de Configurações/Diagnóstico.
+- [x] Peer de teste e container Docker removidos ao final (nenhum resíduo no servidor ou na máquina local); auditoria (`vps-security-audit`) confirmando `wg0` limpo, sem peers residuais
 
 ## Fase 2 — Control-plane API (Go)
 

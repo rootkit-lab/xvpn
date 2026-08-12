@@ -26,6 +26,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 - Diretriz em `AGENTS.md` para criação proativa de novas Skills sempre que um comando/sequência de passos se repetir 3+ vezes numa sessão.
 - Itens de checklist no `ROADMAP.md` (Fases 2 e 4) para configurar `release-please-config.json`/`.release-please-manifest.json`/workflow quando `server/` e `client/` existirem.
 - **Fase 0 do `ROADMAP.md` concluída no VPS de produção**: usuário de sistema `xvpn`, pacotes base (`samba`, `fail2ban`; `nginx`/`certbot`/`unattended-upgrades` já vinham na imagem), `ufw` ativo (padrão-nega, liberando só `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`), `fail2ban` protegendo o SSH, server block Nginx + certificado TLS (Let's Encrypt) para `vpn.officeempresa.com`, renovação automática confirmada (`certbot.timer`).
+- **Fase 1 do `ROADMAP.md` concluída — validação manual do túnel WireGuard**: interface `wg0` criada e configurada no VPS (`10.66.66.1/24`, porta `51820`), `ip_forward` habilitado, NAT/MASQUERADE via `ufw`/`nftables` + regra `ufw route allow in on wg0 out on eth0`. Túnel de teste ponta a ponta validado a partir de um container Docker isolado na máquina local (chave privada de teste gerada e mantida só no container, nunca no servidor): handshake confirmado nos dois lados, `10.66.66.1` alcançável (mesma rede), exit IP confirmado como `206.189.224.72`, download de 10 MB em 1.77s através do túnel. Peer e container de teste removidos ao final; auditoria de segurança pós-fase sem resíduos.
 
 ### Changed
 
@@ -38,3 +39,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 ### Security
 
 - Descoberto que o pacote `samba`, recém-instalado na Fase 0, inicia `smbd`/`nmbd` escutando em `0.0.0.0:139`/`0.0.0.0:445` por padrão — víolaria o invariante do `AGENTS.md` de nunca expor Samba publicamente. Mitigado imediatamente parando e desabilitando os dois serviços até a Fase 5, quando o `smb.conf` será restrito a `wg0`/`lo`.
+
+### Known limitations
+
+- Achado na Fase 1: caminhos de rede com MTU efetivo menor que o padrão do WireGuard (1420) — ex.: cliente já atrás de outra VPN, CGNAT restritivo, algumas redes móveis — causam um "black hole" de PMTU (handshake e pacotes pequenos passam, tráfego HTTP/TLS trava silenciosamente). O cliente desktop (Fase 4/6) precisará expor um ajuste manual de MTU em Configurações/Diagnóstico; adicionado à especificação em `PLAN.md` §7.2.

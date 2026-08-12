@@ -177,9 +177,9 @@ graph TB
 - Framework HTTP: **Fiber** ou **Gin** (equivalentes; Fiber tende a ser mais rápido, Gin tem ecossistema maior — qualquer um atende).
 - ORM/DB: **GORM + SQLite** (arquivo único em `/opt/xvpn/data/xvpn.db`), suficiente e sem overhead operacional para 1–15 usuários. Migração para Postgres é trivial via GORM se um dia escalar.
 - Autenticação do painel: JWT + senha com hash Argon2id.
-- Integração WireGuard: **`golang.zx2c4.com/wireguard/wgctrl`** — cria a interface `wg0` uma vez (`ip link add wg0 type wireguard`) e depois adiciona/remove peers **dinamicamente em memória**, sem reiniciar a interface nem escrever/reler arquivos `.conf` a cada mudança.
+- Integração WireGuard: **`golang.zx2c4.com/wireguard/wgctrl`** — cria a interface `wg0` uma vez (`ip link add wg0 type wireguard`) e depois adiciona/remove peers **dinamicamente em memória**, sem reiniciar a interface nem escrever/reler arquivos `.conf` a cada mudança. O pacote `wireguard-tools` (comando `wg`, usado só para operação manual/depuração via as skills do Cursor) precisa ser instalado à parte — o módulo de kernel por si só não traz o CLI.
 - Capacidades: o binário roda como usuário de sistema dedicado `xvpn` (mesmo padrão do `landpages-ops`), mas com `AmbientCapabilities=CAP_NET_ADMIN` no `systemd` — **não precisa rodar como root completo** para manipular a interface WireGuard.
-- NAT/roteamento: `sysctl net.ipv4.ip_forward=1` (persistente via `/etc/sysctl.d/`), regra `nftables`/`iptables` de `MASQUERADE` para o tráfego de `10.66.66.0/24` saindo pelo `eth0`.
+- NAT/roteamento: `sysctl net.ipv4.ip_forward=1` (persistente via `/etc/sysctl.d/`); MASQUERADE de `10.66.66.0/24` saindo por `eth0` implementado via a seção `*nat`/`POSTROUTING` nativa do `/etc/ufw/before.rules` (evita duas ferramentas de firewall concorrentes). **Importante**: a chain `FORWARD` do `ufw` é `deny` por padrão — além do NAT, é preciso uma regra explícita `ufw route allow in on wg0 out on eth0` (least-privilege: só libera encaminhamento partindo de `wg0`, não um `DEFAULT_FORWARD_POLICY=ACCEPT` genérico) para o tráfego não ser descartado antes de chegar ao NAT.
 
 ### 6.2 API — principais endpoints
 
@@ -203,12 +203,12 @@ Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.
 - FileBrowser: binário único, roda como serviço `systemd` separado (`xvpn-filebrowser.service`), banco próprio (SQLite dele), autenticação própria (ou, em fase futura, SSO simples via o mesmo JWT do painel).
 
 ### 6.5 Hardening do servidor (checklist)
-- [ ] Corrigir ambiguidade de `PasswordAuthentication` (criar `/etc/ssh/sshd_config.d/99-xvpn-hardening.conf` com `PasswordAuthentication no` e `PermitRootLogin prohibit-password`, garantindo que seja a última diretiva processada ou forçando via `Match` — validar com `sshd -T | grep -i passwordauth`).
-- [ ] Ativar `ufw`: negar tudo por padrão, permitir `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`.
-- [ ] Instalar `fail2ban` para SSH.
-- [ ] `unattended-upgrades` para patches de segurança automáticos.
-- [ ] Samba/FileBrowser **nunca** nas regras do `ufw` para `eth0` — só respondem em `wg0` por design do próprio serviço (defesa em profundidade, não depender só do firewall).
-- [ ] Backup do `xvpn.db` (cron simples com `sqlite3 .backup` para `/opt/xvpn/backups/`, rotação 7 dias).
+- [x] Corrigir ambiguidade de `PasswordAuthentication` (`/etc/ssh/sshd_config.d/00-xvpn-hardening.conf` — ver §9 para o porquê do nome `00-`, não `99-`).
+- [x] Ativar `ufw`: negar tudo por padrão, permitir `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`.
+- [x] Instalar `fail2ban` para SSH.
+- [x] `unattended-upgrades` para patches de segurança automáticos (já vinha habilitado por padrão na imagem).
+- [ ] Samba/FileBrowser **nunca** nas regras do `ufw` para `eth0` — só respondem em `wg0` por design do próprio serviço (defesa em profundidade, não depender só do firewall). *(pendente: aplicado na Fase 5; por ora `smbd`/`nmbd` ficam parados/desabilitados, ver `ROADMAP.md` Fase 0)*
+- [ ] Backup do `xvpn.db` (cron simples com `sqlite3 .backup` para `/opt/xvpn/backups/`, rotação 7 dias). *(pendente: Fase 2, quando o `xvpn.db` existir)*
 
 ---
 
@@ -227,6 +227,7 @@ Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.
 - Reconexão automática com backoff exponencial.
 - Atalho para abrir o compartilhamento de arquivos (botão "Abrir arquivos do servidor" → monta/abre `\\10.66.66.1\shared` no Windows ou `smb://10.66.66.1/shared` no Linux; e/ou abre `http://10.66.66.1:8081` do FileBrowser no navegador padrão).
 - Auto-start no boot do SO (opcional, configurável).
+- **MTU configurável** em Configurações/Diagnóstico (padrão automático, com override manual). Achado na validação manual da Fase 1 (`ROADMAP.md`): usuários atrás de outra VPN, CGNAT restritivo ou certas redes móveis têm um MTU efetivo menor que o padrão do WireGuard (1420), o que causa um "black hole" de PMTU — handshake e pacotes pequenos (ping) funcionam, mas tráfego HTTP/TLS trava silenciosamente. Sem essa opção, o usuário não teria como contornar o problema sozinho.
 
 ### 7.3 Por que separar GUI e helper (reforçando §3.2)
 No Windows, criar/gerenciar um adaptador de rede exige privilégio de administrador. No Linux, manipular rotas e a interface WireGuard exige root (ou `CAP_NET_ADMIN`). Rodar a GUI inteira como admin/root é **desnecessário e arriscado** (superfície de ataque maior, prompts de UAC/sudo repetidos e irritantes). O padrão usado por produtos sérios (Tailscale, Mullvad, NordVPN, e o projeto de referência open-source `wireguide`, que usa exatamente Go+Wails3+`wireguard-go`) é:

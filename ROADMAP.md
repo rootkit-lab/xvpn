@@ -23,7 +23,12 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Hook real de pre-commit criado (`.githooks/pre-commit`)
 - [x] Repositório Git inicializado (`git init`) e primeiro commit
 - [x] `core.hooksPath` configurado localmente (`.githooks`)
-- [ ] Repositório remoto criado (GitHub/GitLab privado) e push inicial
+- [x] Repositório remoto criado no GitHub (`rootkit-lab/xvpn`, público — ver `SECURITY.md`) e push inicial
+- [x] Repositório configurado para squash merge apenas (merge commit e rebase merge desabilitados)
+- [x] Fluxo de trabalho GitHub Flow documentado e obrigatório (`CONTRIBUTING.md`)
+- [x] Hook `.githooks/pre-commit` bloqueando commit direto em `main`/`master` (exceto merge)
+- [x] Branch protection real aplicada em `main` no GitHub (PR obrigatório, sem push direto, sem force-push, sem deleção, histórico linear, `enforce_admins` ativo) — validado com teste de push direto rejeitado
+- [ ] Definir e adicionar `LICENSE` (pendente — ver README.md)
 
 ---
 

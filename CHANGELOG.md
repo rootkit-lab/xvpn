@@ -18,6 +18,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 - Tabela de convenção de build (`PLAN.md` §11.1): o que é gerado, onde fica, e se é commitado.
 - Hook real de pre-commit (`.githooks/pre-commit`), independente do editor, bloqueando commit de segredos e de artefatos de build — complementar (não substitui) o hook `.cursor/hooks.json`, que só protege ações do agente de IA dentro do Cursor.
 - Repositório Git inicializado, com `core.hooksPath` configurado para `.githooks`.
+- Repositório remoto criado no GitHub (`rootkit-lab/xvpn`), configurado para squash merge exclusivo e delete automático de branch após merge.
+- Fluxo de trabalho GitHub Flow obrigatório documentado em `CONTRIBUTING.md` (branch → PR → squash merge), aplicado tecnicamente em dois níveis: hook local (`.githooks/pre-commit` bloqueia commit direto em `main`) e *branch protection* real no GitHub (PR obrigatório, sem push direto, sem force-push, histórico linear).
+
+### Changed
+
+- Repositório tornado **público** para viabilizar *branch protection* real na `main` (indisponível de graça para repositórios privados em conta pessoal no GitHub). Ver justificativa e mitigação em `SECURITY.md`.
 
 ### Fixed
 

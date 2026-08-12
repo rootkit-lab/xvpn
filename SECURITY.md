@@ -2,6 +2,14 @@
 
 Este documento descreve o modelo de ameaças, as garantias de segurança do design e o que fazer em caso de suspeita de comprometimento. Complementa as decisões justificadas em [`PLAN.md`](./PLAN.md) (seção 3 e 9).
 
+## Repositório público — o que isso muda (e o que não muda)
+
+O repositório do XVPN é público no GitHub (decisão para viabilizar *branch protection* real na `main` — indisponível de graça para repositórios privados em conta pessoal). Isso significa:
+
+- IP do VPS, domínios e decisões de arquitetura em `PLAN.md`/`README.md` são visíveis publicamente. Isso **não é considerado segredo** neste projeto — é informação sobre a topologia, não uma credencial. Conhecer o IP de um servidor não dá acesso a nada por si só, se o hardening (SSH por chave, firewall, Samba/FileBrowser restritos à VPN) estiver correto.
+- O que **continua** proibido de aparecer no repositório, público ou não: chaves privadas WireGuard/SSH, tokens de convite/JWT reais, senhas, o banco `xvpn.db`. Isso é garantido por `.gitignore` + `.githooks/pre-commit`, não pela visibilidade do repositório.
+- Se em algum momento o cálculo de risco mudar (ex.: o projeto crescer e a exposição do IP/domínio real virar um problema), a alternativa é remover as referências ao IP/domínio real da documentação pública e mantê-las só em um arquivo local não versionado — não voltar a deixar o repositório privado só para recuperar a *branch protection* seria um passo atrás.
+
 ## Modelo de ameaças (resumo)
 
 O XVPN assume:

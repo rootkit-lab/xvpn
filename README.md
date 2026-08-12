@@ -71,4 +71,4 @@ O projeto ainda está na fase de provisionamento do servidor (Fase 0/1 do roadma
 
 ## Licença / visibilidade
 
-Ainda não definida — a decidir antes da primeira release pública (uso pessoal/privado por enquanto).
+Repositório **público** no GitHub (decisão tomada para viabilizar *branch protection* real na `main`, que no plano gratuito do GitHub só está disponível para repositórios públicos em conta pessoal). Segredos, chaves e dados sensíveis nunca são commitados (ver [`SECURITY.md`](./SECURITY.md) e `.gitignore`) — IP e domínios do servidor aparecem na documentação porque fazem parte da arquitetura, não são credenciais. Licença de código ainda não definida.

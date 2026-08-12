@@ -14,15 +14,30 @@
 
 set -euo pipefail
 
-staged_files=$(git diff --cached --name-only --diff-filter=ACM || true)
-
-if [ -z "$staged_files" ]; then
-  exit 0
-fi
-
 fail=0
 
 echo "Rodando .githooks/pre-commit..."
+
+# 0. Bloquear commit direto nas branches principais (main/master). O único
+#    jeito legítimo de um commit "aparecer" ali é via merge de uma branch de
+#    trabalho (feat/, fix/, chore/, security/, docs/) — normalmente através
+#    de um PR no GitHub, que já teria squash-mergeado antes. Detectamos um
+#    merge em andamento pela presença de MERGE_HEAD, e permitimos nesse caso.
+git_dir=$(git rev-parse --git-dir)
+current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+protected_branches='^(main|master)$'
+if echo "$current_branch" | grep -qE "$protected_branches" && [ ! -f "$git_dir/MERGE_HEAD" ]; then
+  echo "  BLOQUEADO: commit direto na branch '$current_branch' não é permitido neste projeto."
+  echo "  Crie uma branch de trabalho e abra um PR — ver CONTRIBUTING.md (Fluxo de trabalho)."
+  echo "  Exemplo: git checkout -b feat/nome-da-mudanca"
+  fail=1
+fi
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM || true)
+
+if [ -z "$staged_files" ] && [ "$fail" -eq 0 ]; then
+  exit 0
+fi
 
 # 1. Bloquear arquivos que claramente são segredos, chaves ou bancos de dados.
 secret_patterns='(^|/)\.env(\..+)?$|\.key$|\.pem$|\.p12$|\.pfx$|(^|/)id_rsa$|(^|/)id_ed25519$|\.db$|\.sqlite3?$|(^|/)server\.key$|(^|/)wg0\.conf$'

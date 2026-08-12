@@ -367,7 +367,53 @@ Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o 
 
 ---
 
-## 13. Próximos passos imediatos
+## 13. Versionamento e releases
+
+Cada componente do monorepo tem **versionamento semântico independente** — `server`, `client` e `shared` (tipos Go compartilhados) evoluem em ritmos diferentes (ex.: um `fix` no cliente não deveria forçar um bump de versão do servidor), então cada um tem seu próprio `CHANGELOG.md` e suas próprias tags no formato `server-vX.Y.Z`, `client-vX.Y.Z`, `shared-vX.Y.Z`.
+
+### 13.1 Automação via release-please
+
+A automação usa o [release-please](https://github.com/googleapis/release-please) (ferramenta padrão do Google, sem necessidade de manter lógica própria de bump de versão), dirigida pelos [Conventional Commits](https://www.conventionalcommits.org/) já obrigatórios (ver `CONTRIBUTING.md`):
+
+- `feat` → bump *minor*.
+- `fix` → bump *patch*.
+- `!` no tipo/escopo ou rodapé `BREAKING CHANGE:` → bump *major*.
+
+O `release-please` mantém uma **Pull Request de release sempre atualizada por componente**, acumulando o changelog desde a última versão publicada. Mergear essa PR (via squash, como todas as outras) é o que efetivamente corta a versão: cria a tag, publica a GitHub Release e atualiza o `CHANGELOG.md` do componente.
+
+```mermaid
+flowchart LR
+    commit["Commits Conventional na branch"] --> pr["PR (título também Conventional Commits)"]
+    pr --> squash["Squash merge em main"]
+    squash --> rp["release-please (GitHub Action)"]
+    rp --> relpr["PR de release por componente<br/>(server / client / shared)"]
+    relpr -->|merge| tag["Tag + GitHub Release + CHANGELOG do componente"]
+```
+
+### 13.2 Regra derivada: título do PR precisa ser Conventional Commits
+
+Como a branch `main` só aceita squash merge (§ branch protection em `CONTRIBUTING.md`), **o título do PR — não os commits individuais da branch — vira o commit final em `main`**, e é esse commit que o `release-please` analisa. Um título fora do padrão faz o `release-please` não classificar a mudança corretamente (ou ignorá-la). A skill `ship-pr` (`.cursor/skills/ship-pr/`) valida isso antes de abrir o PR.
+
+### 13.3 Contrato de compatibilidade client↔server
+
+O endpoint `GET /api/status` do servidor (Fase 2) expõe um campo `api_version`. O cliente desktop valida essa versão ao conectar/enrolar e avisa o usuário caso as versões de cliente e servidor sejam incompatíveis, evitando falhas silenciosas por desalinhamento de protocolo. O formato exato de `api_version` (ex.: inteiro incremental vs. semver do `shared`) será formalizado quando a API for implementada.
+
+### 13.4 Implantação faseada (não criar workflow ainda)
+
+Os diretórios `server/` e `client/` (e `shared/`, se aplicável) ainda não existem — criar `release-please-config.json`/`.release-please-manifest.json`/workflow agora, apontando para caminhos inexistentes, seria frágil e sem valor imediato. Em vez disso:
+
+- **Fase 2** (control-plane): adicionar o componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + workflow `.github/workflows/release-please.yml`.
+- **Fase 4** (cliente desktop): adicionar o componente `client` ao mesmo manifesto.
+
+A skill `release-status` (`.cursor/skills/release-status/`) consulta as PRs de release abertas assim que essa automação existir.
+
+### 13.5 Papel do `CHANGELOG.md` da raiz
+
+O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs por componente — ele continua registrando mudanças "de projeto" que não pertencem a um componente específico (documentação, `.cursor/`, workflow de Git, infraestrutura/VPS). Essa separação já está em uso desde a fundação do projeto.
+
+---
+
+## 14. Próximos passos imediatos
 
 1. Aplicar a correção de SSH do §9 (2 minutos, baixo risco).
 2. Rodar a Fase 0 (hardening + pacotes base) e Fase 1 (validação manual do WireGuard) — posso executar isso diretamente no servidor via SSH assim que você confirmar.

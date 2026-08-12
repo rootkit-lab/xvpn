@@ -28,6 +28,8 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Fluxo de trabalho GitHub Flow documentado e obrigatório (`CONTRIBUTING.md`)
 - [x] Hook `.githooks/pre-commit` bloqueando commit direto em `main`/`master` (exceto merge)
 - [x] Branch protection real aplicada em `main` no GitHub (PR obrigatório, sem push direto, sem force-push, sem deleção, histórico linear, `enforce_admins` ativo) — validado com teste de push direto rejeitado
+- [x] Skills de Git/GitHub criadas (`start-task`, `ship-pr`, `release-status` — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases))
+- [x] Estratégia de versionamento independente por componente documentada (`PLAN.md` §13, `CONTRIBUTING.md`)
 - [ ] Definir e adicionar `LICENSE` (pendente — ver README.md)
 
 ---
@@ -86,6 +88,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [ ] `systemd` unit `xvpn-server.service` com `AmbientCapabilities=CAP_NET_ADMIN` (rodando como usuário `xvpn`, não root)
 - [ ] Apontar o server block Nginx de `vpn.officeempresa.com` para `127.0.0.1:8080` (backend real)
 - [ ] Configurar backup automático do `xvpn.db` (cron + `sqlite3 .backup`, rotação de 7 dias)
+- [ ] Adicionar componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + criar workflow `.github/workflows/release-please.yml` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
 
 ## Fase 3 — Painel Web (React + Tailwind + shadcn/ui)
 
@@ -115,6 +118,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [ ] Instalação do serviço/helper (systemd unit no Linux / Windows Service no instalador)
 - [ ] Testar enrollment e conexão ponta a ponta no Linux
 - [ ] Testar enrollment e conexão ponta a ponta no Windows
+- [ ] Adicionar componente `client` ao `release-please-config.json` + `.release-please-manifest.json` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
 
 ## Fase 5 — Compartilhamento de arquivos
 

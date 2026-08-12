@@ -65,6 +65,24 @@ security(infra): restringe Samba à interface wg0
 docs(plan): atualiza domínio do painel após confirmação de DNS
 ```
 
+## Versionamento
+
+Cada componente do monorepo (`server`, `client`, `shared`) tem versionamento semântico **independente**, automatizado via [release-please](https://github.com/googleapis/release-please) a partir dos Conventional Commits — ver detalhes completos em [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases).
+
+O que isso muda no seu dia a dia:
+
+- Como o merge é sempre squash, **o título do PR vira o commit final em `main`** — é ele (não os commits internos da branch) que o `release-please` analisa para decidir o próximo bump de versão (`feat` = minor, `fix` = patch, `!`/`BREAKING CHANGE` = major). Por isso o título do PR também precisa seguir Conventional Commits, com o escopo indicando o componente afetado quando fizer sentido (ex.: `feat(server): ...`, `fix(client): ...`).
+- Você não corta versões manualmente: o `release-please` mantém uma PR de release sempre atualizada por componente (label `autorelease: pending`); mergear essa PR é o que publica a tag + GitHub Release + `CHANGELOG.md` do componente. Use a skill `release-status` para consultar o que está pendente.
+- O `CHANGELOG.md` da raiz continua sendo só para mudanças "de projeto" (docs, `.cursor/`, workflow de Git, infraestrutura) — não duplica os changelogs por componente.
+
+## Skills do Cursor para este fluxo
+
+Este projeto tem [Agent Skills](https://docs.cursor.com/) (`.cursor/skills/`) que automatizam os passos acima — prefira usá-las a repetir os comandos manualmente:
+
+- **`start-task`** — cria uma branch a partir de `main` atualizada, seguindo a convenção de nome acima.
+- **`ship-pr`** — dá push, mostra o checklist abaixo como lembrete, e abre o PR (validando que o título segue Conventional Commits).
+- **`release-status`** — mostra as PRs de release pendentes do `release-please` e o changelog de cada uma.
+
 ## Antes de abrir PR / finalizar uma tarefa
 
 - [ ] `gofmt`/`go vet` limpos no código Go alterado (o hook `afterFileEdit` do Cursor já formata automaticamente, mas confira antes de commitar)
@@ -74,6 +92,7 @@ docs(plan): atualiza domínio do painel após confirmação de DNS
 - [ ] Nenhuma porta/serviço novo exposto publicamente sem estar registrado em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops)
 - [ ] Checkboxes relevantes do `ROADMAP.md` atualizados
 - [ ] Se mexeu em Samba/FileBrowser/firewall no VPS: rodar a skill `vps-security-audit` para confirmar que nada ficou exposto por engano
+- [ ] **Título do PR segue Conventional Commits** — ele vira o commit final na `main` (squash merge) e é o que o `release-please` usa para determinar a próxima versão do componente
 
 ## Testando localmente
 

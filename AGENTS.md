@@ -1,0 +1,48 @@
+# Instruções para agentes de IA — XVPN
+
+Este arquivo contém o contexto que qualquer agente (Cursor, ou outro compatível com o padrão AGENTS.md) precisa ter sempre em mente ao trabalhar neste repositório.
+
+## O que é este projeto
+
+VPN privada própria com exit node via VPS + painel web de administração + cliente desktop (Windows/Linux) em Go/Wails3/React. Arquitetura completa e decisões justificadas estão em [`PLAN.md`](./PLAN.md). Progresso e checklist estão em [`ROADMAP.md`](./ROADMAP.md) — **sempre atualize os checkboxes do `ROADMAP.md`** ao concluir uma tarefa nele listada.
+
+## Fatos que não mudam (não redescubra, não contradiga sem justificar)
+
+- **VPS de produção real**: `206.189.224.72`, Ubuntu 26.04 LTS, acesso root via chave SSH (sem senha configurada de propósito). Trate qualquer comando executado nesse host como produção — não é um ambiente descartável.
+- **Sub-rede WireGuard**: `10.66.66.0/24` (servidor = `10.66.66.1`). **Nunca** usar `10.10.0.0/16` ou `10.136.0.0/16` — já estão em uso por outras interfaces/VPC do servidor.
+- **Domínios**: `vpn.officeempresa.com` (XVPN) e `ldpops.appapisip.com` (outra aplicação Go, `landpages-ops`, hospedada no mesmo servidor). Ambos já resolvem para `206.189.224.72`.
+- **Nginx é compartilhado** entre o XVPN e o `landpages-ops`. Nunca assuma que o XVPN é o único serviço HTTP do servidor. Antes de reservar uma porta/subdomínio novo, confira e atualize a tabela de registro em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops).
+
+## Invariantes de segurança (não negociáveis)
+
+1. **Chave privada WireGuard nunca sai do dispositivo do cliente.** O servidor só recebe e armazena chaves públicas. Nunca implemente um fluxo que gere a chave privada no servidor e a envie ao cliente.
+2. **Samba e FileBrowser nunca são expostos na internet pública.** Eles devem escutar exclusivamente na interface `wg0` (`10.66.66.1`) — nunca em `0.0.0.0` ou na interface pública `eth0`. Isso vale mesmo que o firewall também bloqueie — é defesa em profundidade, não substituível.
+3. **Firewall é padrão-nega.** Qualquer nova porta exposta publicamente precisa de justificativa explícita e deve ser registrada em `PLAN.md` §5.
+4. **Nunca commitar segredos** (chaves privadas, tokens, `.env` com credenciais reais) no repositório.
+5. **Mudanças de arquitetura relevantes** (troca de biblioteca WireGuard, mudança de sub-rede, novo domínio, etc.) devem ser refletidas no `PLAN.md`, não só no código.
+6. **Nunca commitar artefatos de build** (binários, `dist/`, instaladores `.exe`/`.deb`/`.AppImage`) — ver convenção em [`PLAN.md` §11.1](./PLAN.md#111-convenção-de-build-e-artefatos-o-que-é-gerado-onde-fica-é-commitado) e `.gitignore`.
+7. **Nunca use `git commit --no-verify`** para contornar o hook `.githooks/pre-commit` sem confirmação explícita do usuário — se o hook bloquear algo que parece um falso positivo, explique o motivo do bloqueio e peça confirmação antes de ignorá-lo.
+
+## Convenções do repositório
+
+- Documentação e comunicação com o usuário: **português (pt-BR)**. Identificadores de código (variáveis, funções, nomes de pacotes): **inglês**, seguindo convenção idiomática de Go/TypeScript.
+- Estrutura planejada do monorepo: `server/` (control-plane Go + painel React), `client/` (app desktop Wails3), `shared/` (tipos/DTOs Go compartilhados), `docs/`. Consulte [`PLAN.md` §11](./PLAN.md#11-estrutura-de-diretórios-monorepo) antes de criar uma estrutura diferente.
+- Commits e branches: ver [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+- Antes de rodar comandos destrutivos ou que alterem firewall/rede/serviços no VPS, prefira passos read-only primeiro (ex.: `ufw status`, `wg show`, `ss -tulnp`) para confirmar o estado atual antes de alterar algo. Há um hook (`.cursor/hooks.json`) que bloqueia automaticamente padrões claramente destrutivos — não tente contorná-lo sem confirmar explicitamente com o usuário.
+- Há dois níveis de hook distintos e complementares: `.cursor/hooks.json` só protege ações do agente de IA dentro do Cursor; `.githooks/pre-commit` protege qualquer `git commit`, de qualquer origem. Um clone novo do repositório precisa rodar `git config core.hooksPath .githooks` uma vez para ativar o segundo (ver `CONTRIBUTING.md`).
+
+## Regras, hooks e skills do Cursor neste repositório
+
+- `.cursor/rules/*.mdc` — convenções específicas por tipo de arquivo (Go do servidor, Go do cliente, frontend React, infraestrutura). São carregadas automaticamente conforme o contexto.
+- `.cursor/hooks.json` — bloqueia comandos de shell claramente destrutivos e formata arquivos Go/TS automaticamente após edição.
+- `.cursor/skills/` — workflows executáveis para tarefas recorrentes de infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`) e checagem de colisão de porta/domínio (`port-domain-registry-check`). Use-as em vez de reinventar os mesmos comandos SSH a cada vez.
+
+## Onde encontrar mais detalhe
+
+| Pergunta | Arquivo |
+|---|---|
+| Por que escolhemos X em vez de Y? | [`PLAN.md`](./PLAN.md) (seção 3, decisões com tabela comparativa) |
+| O que falta fazer / em que fase estamos? | [`ROADMAP.md`](./ROADMAP.md) |
+| Como contribuir (branch, commit, PR)? | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
+| Modelo de ameaças e resposta a incidentes? | [`SECURITY.md`](./SECURITY.md) |
+| O que mudou entre versões? | [`CHANGELOG.md`](./CHANGELOG.md) |

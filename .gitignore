@@ -1,0 +1,80 @@
+# XVPN — .gitignore
+# Convenção completa em PLAN.md §11.1 (o que é gerado, onde fica, é commitado?)
+# Regra geral: se é gerado por um comando de build, não é commitado.
+
+# ===== Segredos e credenciais (NUNCA commitar — ver SECURITY.md) =====
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+*.db
+*.sqlite
+*.sqlite3
+xvpn.db
+wg0.conf
+*.wg.conf
+server.key
+server.pub
+
+# ===== Go =====
+# Binários compilados do servidor e utilitários
+server/bin/
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# ===== Node / React / Vite (painel web e frontend do cliente) =====
+node_modules/
+server/web/dist/
+client/frontend/dist/
+dist/
+.vite/
+.cache/
+*.local
+
+# ===== Wails (cliente desktop) =====
+client/bin/
+client/build/dist/
+client/build/darwin/
+client/build/windows/*.exe
+client/build/linux/*.deb
+client/build/linux/*.AppImage
+*.AppImage
+*.deb
+*.msi
+*.dmg
+
+# ===== Logs e backups locais =====
+*.log
+logs/
+*.bak
+/opt/xvpn/backups/
+
+# ===== SO =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== Editor / IDE =====
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# ===== Cursor (estado local, não configuração versionada) =====
+.cursor/*.log

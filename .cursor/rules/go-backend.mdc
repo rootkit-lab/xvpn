@@ -1,0 +1,14 @@
+---
+description: Convenções para o código Go do control-plane/servidor (server/) do XVPN — API, integração WireGuard via wgctrl, autenticação e persistência.
+globs: server/**/*.go
+alwaysApply: false
+---
+
+- Estrutura: handlers HTTP em `internal/api/`, lógica de autenticação em `internal/auth/`, integração WireGuard em `internal/wireguard/`, modelos/persistência em `internal/store/`. Não misture lógica de negócio diretamente nos handlers HTTP.
+- Toda manipulação da interface `wg0` deve passar pelo wrapper em `internal/wireguard/` usando `golang.zx2c4.com/wireguard/wgctrl` — nunca faça `exec.Command("wg", ...)` como atalho; a integração deve ser feita via biblioteca, não shell-out, para permitir atualizações de peer em tempo real sem reiniciar a interface.
+- Peers são adicionados/removidos dinamicamente em memória via `wgctrl` — nunca dependa de reescrever e recarregar um arquivo `wg0.conf` para refletir uma mudança de usuário.
+- Toda rota autenticada deve validar o JWT antes de tocar em qualquer dado de usuário/peer. Senhas sempre com hash Argon2id — nunca armazenar ou logar senha em texto plano.
+- Nunca logar chaves privadas, tokens de convite completos, ou o conteúdo de um JWT. Logs de auditoria (`AuditLog`) devem registrar a ação e o ator, não segredos.
+- O binário roda como usuário de sistema `xvpn` com `AmbientCapabilities=CAP_NET_ADMIN` via systemd — não assuma privilégio de root completo ao escrever código; evite operações que exijam mais que `CAP_NET_ADMIN` (ex.: não tente gerenciar Samba diretamente pelo mesmo processo, isso é responsabilidade de configuração do sistema, não do binário Go).
+- Erros retornados pela API devem ser estruturados (código + mensagem), nunca vazar detalhes internos (stack trace, caminho de arquivo, versão de dependência) para o cliente.
+- Ao adicionar um novo endpoint que expõe uma porta ou serviço novo, atualize a tabela de registro em `PLAN.md` §5.

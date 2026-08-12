@@ -1,0 +1,13 @@
+---
+description: Convenções para o código Go do cliente desktop (client/) do XVPN — Wails3, engine WireGuard embarcada e separação de privilégio entre GUI e helper.
+globs: client/**/*.go
+alwaysApply: false
+---
+
+- Mantenha a separação de processos: código de UI/Wails (`cmd/xvpn-client`, sem privilégio) nunca deve manipular diretamente a interface TUN, rotas do sistema ou firewall. Essas operações pertencem exclusivamente ao helper privilegiado (`internal/tunnel/`), acessado via IPC.
+- IPC entre GUI e helper é JSON-RPC sobre Unix Domain Socket (Linux) ou Named Pipe (Windows), implementado em `internal/ipc/`. Não introduza uma segunda forma de comunicação entre os dois processos sem atualizar `PLAN.md` §3.2/§7.3.
+- Código específico de plataforma (manipulação de rotas, DNS, firewall, criação de adaptador TUN) fica em `internal/platform/windows/` e `internal/platform/linux/` — nunca use `runtime.GOOS` espalhado pelo código genérico; isole em arquivos com build tags (`_windows.go`, `_linux.go`).
+- A chave privada WireGuard é gerada localmente pelo helper e nunca deve ser serializada para logs, arquivos de configuração legíveis sem permissão restrita, ou enviada em qualquer chamada de API além do enrollment inicial (que envia só a chave pública).
+- O cliente deve assumir que pode estar atrás de NAT/CGNAT: sempre configurar `PersistentKeepalive` no peer local.
+- Ao implementar o kill switch, o fallback em caso de falha deve ser "bloquear tráfego" (fail-closed), nunca "permitir tráfego fora do túnel silenciosamente" (fail-open) — isso vazaria o IP real do usuário.
+- Erros de conexão devem ser reportados de forma acionável na UI (ex.: "não foi possível resolver vpn.officeempresa.com", não apenas "erro desconhecido").

@@ -1,0 +1,64 @@
+#!/bin/bash
+# Hook de pre-commit REAL do XVPN — roda em todo `git commit`, feito manualmente
+# ou por um agente de IA, independente do editor usado.
+#
+# Isso é diferente e complementar a .cursor/hooks.json: aquele hook só
+# intercepta ações do agente de IA *dentro do Cursor*; este aqui protege
+# o repositório de verdade, para qualquer forma de commit.
+#
+# Ativação (necessária uma vez por clone do repositório):
+#   git config core.hooksPath .githooks
+#
+# Ver PLAN.md §11.1 (convenção de build) e SECURITY.md (segredos) para o
+# racional de cada bloqueio abaixo.
+
+set -euo pipefail
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACM || true)
+
+if [ -z "$staged_files" ]; then
+  exit 0
+fi
+
+fail=0
+
+echo "Rodando .githooks/pre-commit..."
+
+# 1. Bloquear arquivos que claramente são segredos, chaves ou bancos de dados.
+secret_patterns='(^|/)\.env(\..+)?$|\.key$|\.pem$|\.p12$|\.pfx$|(^|/)id_rsa$|(^|/)id_ed25519$|\.db$|\.sqlite3?$|(^|/)server\.key$|(^|/)wg0\.conf$'
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if echo "$f" | grep -qiE "$secret_patterns"; then
+    echo "  BLOQUEADO: '$f' parece ser um segredo/chave/banco de dados (ver SECURITY.md) — não deve ser commitado."
+    fail=1
+  fi
+done <<< "$staged_files"
+
+# 2. Bloquear artefatos de build que deveriam estar no .gitignore (defesa em
+#    profundidade, caso alguém force `git add -f`).
+build_patterns='(^|/)(bin|dist|node_modules)/|\.exe$|\.deb$|\.AppImage$|\.dmg$|\.msi$'
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if echo "$f" | grep -qiE "$build_patterns"; then
+    echo "  BLOQUEADO: '$f' parece ser um artefato de build (ver PLAN.md §11.1) — não deve ser commitado."
+    fail=1
+  fi
+done <<< "$staged_files"
+
+# 3. Buscar conteúdo que pareça uma chave privada dentro do diff staged,
+#    mesmo em arquivos com nome/extensão genéricos.
+if git diff --cached -U0 -- . ':!*.md' 2>/dev/null | grep -qE '^\+.*-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----'; then
+  echo "  BLOQUEADO: o diff contém o que parece ser uma chave privada (BEGIN ... PRIVATE KEY)."
+  fail=1
+fi
+
+if [ "$fail" -eq 1 ]; then
+  echo
+  echo "Commit abortado por .githooks/pre-commit."
+  echo "Se algum bloqueio acima for falso positivo, ajuste .githooks/pre-commit."
+  echo "Contornar com 'git commit --no-verify' não é recomendado neste projeto sem confirmação explícita (ver AGENTS.md)."
+  exit 1
+fi
+
+echo "Pre-commit OK."
+exit 0

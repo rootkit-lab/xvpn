@@ -1,0 +1,59 @@
+# Política de Segurança — XVPN
+
+Este documento descreve o modelo de ameaças, as garantias de segurança do design e o que fazer em caso de suspeita de comprometimento. Complementa as decisões justificadas em [`PLAN.md`](./PLAN.md) (seção 3 e 9).
+
+## Modelo de ameaças (resumo)
+
+O XVPN assume:
+
+- O VPS (`206.189.224.72`) é o único ponto central de confiança da rede privada. Comprometê-lo compromete a VPN inteira — não há redundância/alta disponibilidade neste projeto (uso pessoal, ver `PLAN.md` §10).
+- Clientes desktop podem ser perdidos/roubados — por isso, a revogação de um dispositivo deve ser possível a qualquer momento pelo painel, com efeito imediato (sem esperar expiração de nada).
+- O tráfego entre cliente e servidor passa pela internet pública e é protegido apenas pela criptografia do WireGuard (Curve25519/ChaCha20) — não há camada adicional de TLS no túnel em si (não é necessária, é redundante com o próprio WireGuard).
+- O compartilhamento de arquivos (Samba/FileBrowser) é considerado **dado sensível** e nunca deve ser alcançável fora do túnel VPN.
+
+## Garantias de design (o que já está arquiteturalmente resolvido)
+
+| Garantia | Como é implementada |
+|---|---|
+| Chave privada nunca sai do dispositivo do cliente | Gerada localmente pelo helper privilegiado; servidor só recebe/armazena chave pública ([`PLAN.md` §3.5](./PLAN.md#35-geração-de-chaves-onde-nasce-a-chave-privada)) |
+| Revogação imediata de dispositivo | `DELETE /api/devices/:id` remove o peer da interface `wg0` via `wgctrl` em tempo real, sem reiniciar a interface |
+| Compartilhamento de arquivos nunca exposto à internet | Samba com `bind interfaces only = yes` / `interfaces = wg0 lo`; FileBrowser escutando só em `10.66.66.1` — nunca em `0.0.0.0` nem cadastrado em domínio público/Nginx |
+| Superfície de ataque mínima do painel | Painel/API atrás de Nginx com TLS (Let's Encrypt), autenticação JWT, hash de senha Argon2id |
+| Firewall padrão-nega | `ufw` com política `deny incoming`, liberando só `22`, `80`, `443`, `51820/udp` |
+
+## O que NÃO fazer (violação das garantias acima)
+
+- Nunca fazer bind de Samba, FileBrowser, ou qualquer serviço interno em `0.0.0.0` — sempre bind explícito em `10.66.66.1` (ou `127.0.0.1` para serviços atrás do Nginx).
+- Nunca gerar ou transmitir uma chave privada WireGuard do servidor para um cliente.
+- Nunca desabilitar o `ufw` ou fazer flush de regras (`ufw disable`, `iptables -F`) em produção sem um plano de rollback imediato — há um hook do Cursor que bloqueia isso por padrão.
+- Nunca commitar `xvpn.db`, arquivos `.key`, `.conf` de WireGuard com chaves reais, ou tokens de convite no Git.
+
+## Hardening aplicado/planejado no servidor
+
+Ver checklist completo em [`ROADMAP.md` — Fase 0](./ROADMAP.md#fase-0--hardening-e-provisionamento-base-do-vps). Pontos-chave:
+
+- SSH: apenas autenticação por chave (`PasswordAuthentication no`), `PermitRootLogin prohibit-password`.
+- `fail2ban` para proteção contra força bruta em SSH.
+- `unattended-upgrades` para patches de segurança automáticos do SO.
+- Backups regulares do banco de dados (`xvpn.db`) com rotação.
+
+Use a skill `vps-security-audit` (`.cursor/skills/vps-security-audit/`) para revalidar esses pontos periodicamente — ela roda os mesmos checks read-only usados no diagnóstico inicial do projeto.
+
+## Rotação e revogação de chaves
+
+- **Dispositivo perdido/comprometido**: revogar imediatamente pelo painel (remove o peer do `wg0`). Não é necessário rotacionar a chave do servidor nesse caso — só a chave pública daquele dispositivo específico é invalidada.
+- **Suspeita de comprometimento do servidor**: rotacionar a chave privada do servidor (`wg genkey`), o que invalida *todos* os peers de uma vez — todos os dispositivos precisarão reenrolar. Nesse cenário, também revisar `xvpn.db` em busca de usuários/dispositivos não reconhecidos antes de reconectar qualquer cliente.
+
+## Resposta a incidentes (procedimento de emergência)
+
+Se houver suspeita real de comprometimento do VPS:
+
+1. Isolar: `ufw deny 51820/udp` temporariamente (derruba a VPN, mas contém o problema) e revisar `ss -tulnp` / `who` / `last` no servidor.
+2. Rotacionar credenciais: nova chave WireGuard do servidor, novo JWT secret, revisar/trocar a chave SSH se houver qualquer dúvida sobre como o acesso foi obtido.
+3. Auditar: revisar logs de auditoria do painel (`AuditLog`), logs do `sshd`, e o histórico de comandos relevantes.
+4. Reconstruir se necessário: o provisionamento (Fase 0/1 do `ROADMAP.md`) foi desenhado para ser reproduzível — preferir reprovisionar um VPS novo a "limpar" um comprometido, se a suspeita for séria.
+5. Reenrolar dispositivos legítimos manualmente, um a um, validando a identidade de quem está pedindo o convite.
+
+## Reportando um problema de segurança
+
+Projeto pessoal/privado no momento — reportar diretamente ao mantenedor. Se/quando o projeto se tornar público, este documento será atualizado com um canal formal (e-mail dedicado ou `SECURITY.md` do GitHub com política de divulgação responsável).

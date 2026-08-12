@@ -1,0 +1,13 @@
+---
+description: Convenções para arquivos de infraestrutura e deploy do XVPN — systemd units, configuração de Nginx, Samba e scripts de provisionamento do VPS.
+globs: server/deploy/**/*,server/deploy/**/*.conf,server/deploy/**/*.service,server/deploy/**/*.sh
+alwaysApply: false
+---
+
+- Toda unidade `systemd` de um serviço XVPN deve rodar com o menor privilégio possível (`User=xvpn`, `AmbientCapabilities=CAP_NET_ADMIN` só quando estritamente necessário) — nunca `User=root` por padrão.
+- Server blocks do Nginx: cada aplicação (XVPN, `landpages-ops`) tem seu próprio arquivo em `sites-available/`, seu próprio domínio e certificado. Nunca misture duas aplicações no mesmo server block.
+- Backends internos (API do XVPN, FileBrowser, etc.) devem escutar em `127.0.0.1:<porta>` quando atrás do Nginx, ou em `10.66.66.1:<porta>` quando devem ser acessíveis só pela VPN — nunca em `0.0.0.0` diretamente.
+- Scripts de provisionamento (`setup.sh` e afins) devem ser idempotentes — rodar duas vezes não deve quebrar nada nem duplicar regras de firewall/configuração.
+- Qualquer novo arquivo de configuração de serviço de rede deve ser acompanhado de uma atualização na tabela de portas/domínios de `PLAN.md` §5.
+- Regras de firewall (`ufw`/`nftables`) adicionadas em scripts devem ter um comentário explicando o motivo da porta estar aberta, referenciando a seção correspondente do `PLAN.md`.
+- `smb.conf`: sempre validar que `bind interfaces only = yes` e `interfaces = wg0 lo` estão presentes antes de considerar uma mudança de configuração do Samba como concluída.

@@ -9,6 +9,13 @@
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true
+    },
+    "client": {
+      "release-type": "go",
+      "package-name": "xvpn-client",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true
     }
   }
 }

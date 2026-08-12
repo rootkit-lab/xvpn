@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=XVPN
+Comment=Cliente desktop da VPN privada XVPN
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/xvpn-client %u
+Terminal=false
+Type=Application
+Icon=xvpn-client
+Categories=Utility;
+StartupWMClass=xvpn-client
+
+ 

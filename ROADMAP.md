@@ -127,19 +127,37 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 4 — Cliente Desktop MVP (Wails3)
 
-- [ ] Criar `client/` e inicializar com `wails3 init` (Go + React)
-- [ ] Configurar TailwindCSS + shadcn/ui no frontend do cliente
-- [ ] Implementar helper privilegiado (`internal/tunnel/`: `wireguard-go` + `wgctrl-go`)
-- [ ] Implementar TUN no Linux (dispositivo `wg` nativo do kernel)
-- [ ] Implementar TUN no Windows (`wintun` embutido via `go:embed`)
-- [ ] Implementar IPC GUI ↔ Helper (JSON-RPC via Unix Socket no Linux / Named Pipe no Windows)
-- [ ] Tela de enrollment (inserir código de convite gerado no painel)
-- [ ] Tela principal: Conectar/Desconectar, status (IP, latência, throughput, tempo conectado)
-- [ ] Ícone de bandeja (tray) básico
-- [ ] Instalação do serviço/helper (systemd unit no Linux / Windows Service no instalador)
-- [ ] Testar enrollment e conexão ponta a ponta no Linux
-- [ ] Testar enrollment e conexão ponta a ponta no Windows
-- [ ] Adicionar componente `client` ao `release-please-config.json` + `.release-please-manifest.json` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
+- [x] Criar `client/` e inicializar com `wails3 init` (Go + React)
+- [x] Configurar TailwindCSS + shadcn/ui no frontend do cliente
+- [x] Implementar helper privilegiado (`internal/tunnel/`: `wireguard-go` + `wgctrl-go`)
+- [x] Implementar TUN no Linux (dispositivo `wg` nativo do kernel)
+- [x] Implementar TUN no Windows (`wintun` embutido via `go:embed`) — implementado e compila via cross-compile no Linux; **não testado em Windows real** (ver nota abaixo)
+- [x] Implementar IPC GUI ↔ Helper (JSON-RPC via Unix Socket no Linux / Named Pipe no Windows)
+- [x] Tela de enrollment (inserir código de convite gerado no painel)
+- [x] Tela principal: Conectar/Desconectar, status (IP, latência, throughput, tempo conectado)
+- [x] Ícone de bandeja (tray) básico
+- [x] Instalação do serviço/helper (systemd unit no Linux / Windows Service no instalador) — unit systemd criada (`client/deploy/systemd/`); instalador do Windows Service fica para a Fase 7 (empacotamento)
+- [x] Testar enrollment e conexão ponta a ponta no Linux
+- [ ] Testar enrollment e conexão ponta a ponta no Windows — **pendente de validação manual pelo usuário** (ambiente de desenvolvimento é Linux, ver decisão de escopo no início da Fase 4)
+- [x] Adicionar componente `client` ao `release-please-config.json` + `.release-please-manifest.json` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
+
+**Notas de implementação:**
+
+- Arquitetura em duas partes no mesmo binário: GUI (Wails, sem privilégio) fala por IPC com um **helper privilegiado** (`xvpn-client --helper`, roda como serviço systemd só com `CAP_NET_ADMIN` — não root, ver `client/deploy/systemd/xvpn-client-helper.service`) que é o único a tocar na rede — ver `client/README.md`. Evita rodar WebView/GTK com qualquer privilégio elevado.
+- Engine de túnel por plataforma (`internal/platform/`): Linux usa o WireGuard nativo do **kernel** via `netlink`+`wgctrl` (mesma dupla do `server/`); Windows usa `wireguard-go` (userspace) + driver `wintun`, já que o Windows não tem WireGuard no kernel.
+- `wintun.dll` não é commitado (binário de terceiros) — `internal/platform/windows/wintun/` guarda só um placeholder para o `go:embed` nunca falhar num checkout limpo; `build/windows/fetch-wintun.ps1` baixa o `.dll` real (com verificação de SHA256) antes de um build Windows de verdade.
+- IPC: socket Unix `0660` num grupo `xvpn` dedicado no Linux (mesmo padrão do socket do Docker); named pipe com SDDL restrito a "Authenticated Users" no Windows via `go-winio`.
+- **Achado de MTU (reafirma o da Fase 1)**: o mesmo "PMTU black hole" apareceu no teste E2E do cliente (handshake OK, mas `curl` via TLS travava). Corrigido adicionando um campo `MTU` opcional em todo o caminho — `EnrollRequest` → `config.DeviceState` → `tunnel.Config` — exposto como opção avançada na tela de enrollment da GUI.
+- **Achados de roteamento no teste E2E (Docker, Linux)**, todos em `internal/platform/linux/engine_linux.go`:
+  1. Detecção da rota padrão via `netlink.RouteList` precisa tratar tanto `Dst == nil` quanto um `IPNet` explícito `0.0.0.0/0`, dependendo da versão do kernel/netlink.
+  2. Em túnel completo (`AllowedIPs` contendo `0.0.0.0/0`), a rota adicionada via `xvpn0` **substitui** (não empilha com) a entrada da rota padrão original na tabela principal (`netlink.RouteReplace` é um `NLM_F_REPLACE`) — sem salvar e reaplicar essa rota original em `Disconnect`, a máquina ficava **sem rota padrão nenhuma** depois de desconectar. Corrigido capturando a rota original em `Connect` e restaurando-a explicitamente no `teardown`.
+  3. Qualquer erro no meio de `Connect` (ex.: falha ao configurar uma rota) só desfazia a rota de exceção do IP do servidor, mas **não** removia a interface `xvpn0` já criada/configurada/up — deixando-a "half-configured" segurando a rota padrão mesmo com `Connect()` tendo retornado erro. Corrigido com rollback único via `defer`/flag `success`, que desfaz tudo (interface, rota de exceção, rota padrão original) em qualquer caminho de erro.
+  4. O servidor sempre inclui `::/0` nas `AllowedIPs` do peer como blackhole anti-vazamento de IPv6 (o túnel só tem endereço IPv4). Em ambientes sem stack IPv6 na interface recém-criada (containers Docker restritos, kernels com `ipv6.disable=1`) adicionar essa rota falha com "no such device" — tratado como best-effort (não derruba o túnel IPv4): sem IPv6 utilizável já não há vazamento possível de qualquer forma.
+- `client/frontend/bindings/` (TypeScript gerado pelo `wails3 generate bindings` a partir dos métodos Go expostos) é artefato de build, não é commitado — adicionado ao `.gitignore` e à tabela do `PLAN.md` §11.1 (o `client/.gitignore` gerado pelo `wails3 init` não incluía essa pasta).
+- `cmd/devtool-helper` e `cmd/devtool-e2e`: o binário Wails principal linka `libX11`/GTK/WebKit2GTK mesmo em modo `--helper`, o que quebra em containers headless. Esses dois comandos mínimos (helper sem GUI + cliente IPC de CLI) isolam a lógica de rede para testar em Docker/CI sem esse problema.
+- **Validação de ponta a ponta em Linux**: usando um container Docker (`ubuntu:24.04`, `--cap-add=NET_ADMIN --device /dev/net/tun`) rodando `devtool-helper`, feito enrollment real contra `https://vpn.officeempresa.com` (convite gerado via API), `connect` estabeleceu handshake com o servidor de produção, `curl https://ifconfig.me` de dentro do container retornou o IP público do VPS (`206.189.224.72`), e `disconnect` restaurou a rota padrão original do container. Ciclo connect→disconnect→connect repetido sem vazamento de estado.
+- **Achado na instalação real da unit systemd (fora do Docker)**: `xvpn-client-helper.service` falhava no start com `226/NAMESPACE` — causa era `ReadWritePaths=/etc/xvpn-client` apontando para um diretório que ainda não existia na primeira instalação (`ProtectSystem=strict` + `ReadWritePaths` de um caminho inexistente falha a montagem do namespace nessa versão do systemd). Corrigido trocando por `StateDirectory=xvpn-client` (systemd cria `/var/lib/xvpn-client` automaticamente, já com o dono/permissão certos, antes do processo subir — mesmo mecanismo do `RuntimeDirectory` já usado para `/run/xvpn-client`). Também corrigiu o local convencionalmente certo para estado de serviço no Linux (`/var/lib`, não `/etc`, que é para config fornecida pelo administrador) — `internal/config/path_linux.go` atualizado de `/etc/xvpn-client/device.json` para `/var/lib/xvpn-client/device.json`.
+- **Decisão de escopo Windows** (combinada no início da Fase 4): o ambiente de desenvolvimento é Linux, então o código Windows (`platform/windows`, `wintun`, named pipes) foi escrito multiplataforma e validado até onde o Linux permite (compila via cross-compile, `go vet`/`gofmt` limpos), mas o teste manual real num Windows fica para quando o usuário validar esta fase.
 
 ## Fase 5 — Compartilhamento de arquivos
 

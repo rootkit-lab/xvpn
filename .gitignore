@@ -41,12 +41,20 @@ vendor/
 
 # ===== Node / React / Vite (painel web e frontend do cliente) =====
 node_modules/
-server/web/dist/
 client/frontend/dist/
-dist/
 .vite/
 .cache/
 *.local
+
+# Painel web (server/web) builda direto dentro de server/internal/webui/dist
+# para o go:embed funcionar (ver server/internal/webui/webui.go) — tudo ali é
+# artefato de build, exceto o placeholder que mantém `go build` funcionando
+# num checkout limpo (ver PLAN.md §11.1). Nenhuma regra bare "dist/" acima
+# (removida de propósito): um diretório-pai ignorado bloqueia qualquer
+# reinclusão de arquivo dentro dele, mesmo com "!" mais específico depois —
+# cada dist/ do monorepo é listado explicitamente em vez de um catch-all.
+server/internal/webui/dist/*
+!server/internal/webui/dist/placeholder.txt
 
 # ===== Wails (cliente desktop) =====
 client/bin/

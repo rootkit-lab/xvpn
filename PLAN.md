@@ -199,6 +199,8 @@ Páginas: **Login**, **Dashboard** (peers ativos, throughput agregado), **Usuár
 
 Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.FS`. Resultado: **um único binário** `xvpn-server` sobe API + painel + lógica WireGuard. Simplifica deploy/systemd a um único serviço.
 
+**Implementado na Fase 3** (ver `ROADMAP.md` para o checklist e achados completos): `go:embed` não aceita `..` no caminho do diretório embutido, então o Vite builda direto dentro da árvore do pacote Go que faz o embed (`server/internal/webui/dist/`, não `server/web/dist/`) — ver `server/internal/webui/webui.go` e `server/web/vite.config.ts`. Dois endpoints de leitura foram adicionados além do previsto originalmente na Fase 2, só para alimentar as telas do painel: `GET /api/config` (config de rede não sensível) e `GET /api/audit` (últimas entradas de auditoria).
+
 ### 6.4 Compartilhamento de arquivos
 - Samba: pacote `samba`, config em `/etc/samba/smb.conf`, um share por usuário/propósito (ex.: `[shared]`, `[home-<usuario>]`), autenticação própria do Samba (`smbpasswd`) — **pode ser sincronizada pelo painel** (ao criar usuário no XVPN, opcionalmente cria também o usuário Samba).
 - FileBrowser: binário único, roda como serviço `systemd` separado (`xvpn-filebrowser.service`), banco próprio (SQLite dele), autenticação própria (ou, em fase futura, SSO simples via o mesmo JWT do painel).
@@ -338,7 +340,7 @@ Regra geral: **código-fonte é commitado, artefato de build nunca é**. Todo ca
 | Componente | Comando de build | Caminho de saída | Commitado no Git? |
 |---|---|---|---|
 | Servidor (`xvpn-server`, Go) | `go build -o bin/xvpn-server ./cmd/xvpn-server` (rodado em `server/`) | `server/bin/xvpn-server` | **Não** |
-| Painel Web (Vite, admin) | `npm run build` (rodado em `server/web/`) | `server/web/dist/` | **Não** — é embutido no binário Go via `embed.FS` em tempo de build do servidor, não versionado separadamente |
+| Painel Web (Vite, admin) | `npm run build` (rodado em `server/web/`) | `server/internal/webui/dist/` (não `server/web/dist/` — `go:embed` não aceita `..`, ver §6.3) | **Não** — só um `placeholder.txt` fica commitado ali, para o `go:embed`/`go build` funcionarem num checkout limpo antes do painel ser compilado |
 | Frontend do cliente desktop (Vite, dentro do Wails) | `npm run build` (rodado em `client/frontend/`) | `client/frontend/dist/` | **Não** — consumido pelo `wails3 build` |
 | Cliente desktop (binário, `wails3 build`) | `wails3 build` (rodado em `client/`) | `client/bin/` | **Não** |
 | Instalador Windows (NSIS) | script em `client/build/windows/` | `client/build/dist/*.exe` | **Não** — candidato a virar release asset (GitHub Releases) quando houver CI (Fase 7) |

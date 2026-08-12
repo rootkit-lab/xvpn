@@ -1,0 +1,5 @@
+Placeholder para o go:embed funcionar em um checkout limpo.
+
+O build real do painel (server/web) gera index.html e assets/ aqui via
+`npm run build`. Esses arquivos gerados NÃO são commitados (ver
+PLAN.md §11.1 e .gitignore) — só este placeholder é.

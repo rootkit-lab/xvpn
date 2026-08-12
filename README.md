@@ -2,7 +2,7 @@
 
 Rede privada própria com exit node via VPS, painel web de administração e cliente desktop multiplataforma — construído em **Go**, **Wails3** e **React + Tailwind + shadcn/ui**.
 
-> Status: **em desenvolvimento** — Fases 0–2 concluídas (hardening do VPS, túnel WireGuard validado, control-plane API em Go rodando em produção). Veja o [`ROADMAP.md`](./ROADMAP.md) para o checklist de execução e o [`PLAN.md`](./PLAN.md) para a arquitetura completa e as decisões técnicas (com justificativas).
+> Status: **em desenvolvimento** — Fases 0–3 concluídas (hardening do VPS, túnel WireGuard validado, control-plane API em Go rodando em produção, painel web React+Tailwind+shadcn embutido no binário). Veja o [`ROADMAP.md`](./ROADMAP.md) para o checklist de execução e o [`PLAN.md`](./PLAN.md) para a arquitetura completa e as decisões técnicas (com justificativas).
 
 ---
 
@@ -46,7 +46,7 @@ xvpn/
 ├── SECURITY.md            # Modelo de ameaças e política de segurança
 ├── CHANGELOG.md           # Histórico de mudanças
 ├── .cursor/               # Rules, hooks e skills do Cursor (ver AGENTS.md)
-├── server/                # xvpn-server: control-plane API (Go, Fase 2) + painel web (Fase 3)
+├── server/                # xvpn-server: control-plane API (Go, Fase 2) + painel web React (Fase 3, embutido no binário)
 ├── client/                # xvpn-client: app desktop Wails3 (Go + React, a criar — Fase 4)
 ├── shared/                # Tipos/DTOs Go compartilhados (a criar)
 └── docs/                  # Documentação complementar (a criar)
@@ -56,7 +56,7 @@ xvpn/
 
 ## Como começar (para quem for rodar/desenvolver)
 
-O control-plane (`server/`) já existe e está rodando em produção (Fase 2). Ver [`server/README.md`](./server/README.md) para instruções de build/execução/deploy. O cliente desktop (`client/`) ainda não existe.
+O control-plane (`server/`) já existe e está rodando em produção, agora com painel web embutido (Fases 2–3). Ver [`server/README.md`](./server/README.md) para instruções de build/execução/deploy. O cliente desktop (`client/`) ainda não existe.
 
 1. Leia o [`PLAN.md`](./PLAN.md) para entender a arquitetura completa.
 2. Acompanhe o progresso em [`ROADMAP.md`](./ROADMAP.md).
@@ -65,7 +65,7 @@ O control-plane (`server/`) já existe e está rodando em produção (Fase 2). V
 
 ## Stack tecnológico
 
-- **Servidor**: Go, `wgctrl-go` + `vishvananda/netlink`, Gin, GORM + SQLite, React + Vite + Tailwind + shadcn/ui (painel embutido via `embed.FS`, Fase 3), Nginx + Certbot, Samba, FileBrowser.
+- **Servidor**: Go, `wgctrl-go` + `vishvananda/netlink`, Gin, GORM + SQLite, React + Vite + Tailwind v4 + shadcn/ui (painel embutido via `embed.FS`), Nginx + Certbot, Samba, FileBrowser.
 - **Cliente**: Go, Wails v3 (beta), React + Tailwind + shadcn/ui, `wireguard-go` + `wgctrl-go`, `wintun` (Windows).
 - **Infra**: Ubuntu 26.04, `systemd`, `ufw`, `nftables`/`iptables`, `fail2ban`.
 

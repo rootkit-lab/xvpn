@@ -6,7 +6,18 @@ import (
 
 	"github.com/rootkit-lab/xvpn/client/internal/helper"
 	"github.com/rootkit-lab/xvpn/client/internal/ipc"
+	"github.com/rootkit-lab/xvpn/client/internal/opener"
 )
+
+// serverVPNAddress é o IP fixo do servidor dentro do túnel WireGuard — não
+// muda entre deployments (invariante do projeto, ver PLAN.md §5 e
+// AGENTS.md). Samba/FileBrowser só respondem aqui, nunca no endpoint
+// público do servidor.
+const serverVPNAddress = "10.66.66.1"
+
+// sharedSambaName é o nome do compartilhamento Samba criado na Fase 5 (ver
+// server/deploy/samba/smb.conf).
+const sharedSambaName = "shared"
 
 // VPNService é o serviço Wails vinculado ao frontend (bindings TS gerados
 // automaticamente por `wails3 generate bindings`). Roda no processo GUI,
@@ -102,4 +113,20 @@ func (s *VPNService) Disconnect() error {
 	}
 	defer client.Close()
 	return client.Call(ipc.MethodDisconnect, nil, nil)
+}
+
+// OpenServerFiles abre o acesso a arquivos do servidor (Fase 5) no
+// aplicativo padrão do SO. kind é "smb" (unidade de rede) ou "filebrowser"
+// (interface web). Não passa pelo helper: é uma ação local da GUI que só
+// funciona de fato com o túnel ativo (Samba/FileBrowser só escutam em
+// wg0 — ver PLAN.md §3.4).
+func (s *VPNService) OpenServerFiles(kind string) error {
+	switch kind {
+	case "smb":
+		return opener.OpenSMBShare(serverVPNAddress, sharedSambaName)
+	case "filebrowser":
+		return opener.OpenURL(fmt.Sprintf("http://%s:8081", serverVPNAddress))
+	default:
+		return fmt.Errorf("tipo de acesso a arquivos desconhecido: %q", kind)
+	}
 }

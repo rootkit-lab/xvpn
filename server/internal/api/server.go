@@ -66,8 +66,13 @@ func NewRouter(app *App) *gin.Engine {
 
 			authed.GET("/devices", app.handleListDevices)
 			authed.DELETE("/devices/:id", app.handleDeleteDevice)
+
+			authed.GET("/audit", app.handleListAudit)
+			authed.GET("/config", app.handleGetConfig)
 		}
 	}
+
+	registerWebUI(r)
 
 	return r
 }

@@ -14,6 +14,20 @@ go run ./cmd/xvpn-server
 
 Sem `CAP_NET_ADMIN`/acesso root, a criação/configuração da interface WireGuard (`EnsureInterface`) vai falhar — isso é esperado em ambiente de desenvolvimento sem privilégio. Para iterar só na API/painel sem tocar em WireGuard de verdade, use os testes (abaixo), que substituem a camada WireGuard por um fake.
 
+### Painel web (`server/web`)
+
+O painel React é embutido no binário via `go:embed` (ver `internal/webui/`). Em desenvolvimento, rode os dois lados separados — o Vite tem proxy configurado para `/api` apontar para `127.0.0.1:8080`:
+
+```bash
+# terminal 1 — backend
+go run ./cmd/xvpn-server
+
+# terminal 2 — painel com hot-reload
+cd web && npm install && npm run dev
+```
+
+Sem rodar `npm run build` antes, o binário Go sobe normalmente mas serve uma página de aviso ("painel ainda não foi compilado") em vez do painel — só o `dist/placeholder.txt` está commitado (ver `.gitignore` e `PLAN.md` §11.1).
+
 ## Testes
 
 ```bash
@@ -27,10 +41,11 @@ Os testes de `internal/api` usam um `wireguard.PeerManager` fake (não tocam o k
 ## Build
 
 ```bash
+cd web && npm install && npm run build && cd ..   # gera internal/webui/dist/ (embutido no binário)
 go build -o bin/xvpn-server ./cmd/xvpn-server
 ```
 
-Binário resultante em `bin/` — nunca commitado (ver `PLAN.md` §11.1 e `.gitignore`).
+Binário resultante em `bin/` — nunca commitado (ver `PLAN.md` §11.1 e `.gitignore`). O passo do painel é obrigatório antes do `go build` sempre que `web/` tiver mudado — o `go:embed` captura o que estiver em `internal/webui/dist/` no momento da compilação.
 
 ## Configuração (variáveis de ambiente)
 
@@ -45,7 +60,7 @@ Veja [`deploy/xvpn-server.env.example`](./deploy/xvpn-server.env.example) para o
 
 ## Deploy (produção — VPS)
 
-1. `go build -o bin/xvpn-server ./cmd/xvpn-server` (compilar no próprio VPS, ou cross-compile e copiar o binário).
+1. Compilar o painel e o binário: `cd web && npm ci && npm run build && cd .. && go build -o bin/xvpn-server ./cmd/xvpn-server` (no próprio VPS, ou cross-compile local e copiar o binário resultante — o painel já fica embutido nele).
 2. Copiar para `/opt/xvpn/bin/xvpn-server` (dono `xvpn:xvpn`).
 3. Copiar [`deploy/xvpn-server.env.example`](./deploy/xvpn-server.env.example) para `/opt/xvpn/xvpn-server.env`, preencher os valores reais, `chmod 600`.
 4. Garantir que `/etc/wireguard/server.key` (gerado na Fase 1) é legível pelo usuário `xvpn` (`chown xvpn /etc/wireguard/server.key` ou ACL equivalente — nunca `chmod o+r` num arquivo com chave privada).

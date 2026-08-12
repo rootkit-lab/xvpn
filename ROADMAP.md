@@ -103,17 +103,27 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 3 — Painel Web (React + Tailwind + shadcn/ui)
 
-- [ ] Scaffold Vite + React + TypeScript em `server/web/`
-- [ ] Configurar TailwindCSS + shadcn/ui
-- [ ] Tela de Login
-- [ ] Dashboard (peers ativos, throughput agregado, status geral)
-- [ ] Tela Usuários (CRUD + gerar convite / QR code)
-- [ ] Tela Dispositivos (status, último handshake, revogar)
-- [ ] Tela Compartilhamentos (gerenciar shares Samba/FileBrowser e permissões)
-- [ ] Tela Configurações (rede, DNS, firewall)
-- [ ] Tela Auditoria (log de conexões/ações administrativas)
-- [ ] Build do painel embutido no binário Go via `embed.FS`
-- [ ] Teste end-to-end manual: criar usuário → gerar convite → dispositivo aparece conectado no painel
+- [x] Scaffold Vite + React + TypeScript em `server/web/`
+- [x] Configurar TailwindCSS + shadcn/ui (Tailwind v4, `components.json` com alias `@/`, estilo `new-york`)
+- [x] Tela de Login
+- [x] Dashboard (peers ativos, throughput agregado, status geral)
+- [x] Tela Usuários (CRUD + gerar convite / QR code)
+- [x] Tela Dispositivos (status, último handshake, revogar)
+- [x] Tela Compartilhamentos (placeholder explícito — implementação real chega na Fase 5)
+- [x] Tela Configurações (rede, DNS, firewall) — somente leitura por ora; edição via painel fica para uma fase futura (exigiria desenho de validação/segurança próprio)
+- [x] Tela Auditoria (log de ações administrativas)
+- [x] Build do painel embutido no binário Go via `embed.FS`
+- [x] Teste end-to-end manual: criar usuário → gerar convite → dispositivo aparece conectado no painel
+
+**Notas de implementação:**
+
+- `server/web/` usa Vite + React 19 + TypeScript + Tailwind v4 (`@tailwindcss/vite`, CSS-first, sem `tailwind.config.js`) + shadcn/ui (`components.json`, estilo `new-york`, ícones `lucide-react`).
+- **Gotcha do shadcn CLI**: `npx shadcn@latest add ...` criou os componentes numa pasta literal `@/components/ui/` (não resolveu o alias do `tsconfig`) — precisou mover manualmente para `src/components/ui/`. Rodar `ls` para confirmar o destino real sempre que usar o CLI novamente.
+- **Gotcha do `go:embed`**: não aceita `..` no caminho, então o Vite builda direto dentro da árvore do pacote Go (`outDir: server/internal/webui/dist`, não `server/web/dist`) — ver `server/web/vite.config.ts` e `server/internal/webui/webui.go`. O diretório de saída é ignorado no Git exceto um `placeholder.txt` committado, só para o `go:embed`/`go build` nunca falharem num checkout limpo antes do `npm run build` ter rodado.
+- Dois endpoints novos no backend, necessários para as telas de Configurações e Auditoria (não estavam no escopo original da Fase 2): `GET /api/config` (somente leitura, nunca expõe `JWTSecret` nem a chave privada WireGuard) e `GET /api/audit` (últimas 200 entradas). Cobertos por testes em `internal/api/config_handler_test.go` e `audit_handler_test.go`.
+- Cliente HTTP único em `src/lib/api.ts` (token em `localStorage`, 401 limpa sessão e redireciona a `/login`), contexto de auth em `src/lib/auth-context.tsx`, polling simples via `usePollingData` (dashboard/dispositivos a cada 10s, usuários/auditoria mais devagar).
+- QR code do convite (`qrcode.react`) codifica `{"invite_token": "..."}` — pensado para o cliente desktop (Fase 4) escanear no fluxo de enrollment.
+- Validado localmente: `go build`/`go test` (backend) e `npm run build`/`npm run lint` (frontend) passam limpos; verificação manual via `httptest` confirmou que `/` e rotas SPA (ex.: `/users`) servem `index.html` e que `/api/rota-inexistente` continua devolvendo 404 JSON (teste descartado depois, não é parte da suíte permanente — depende do estado do build do painel).
 
 ## Fase 4 — Cliente Desktop MVP (Wails3)
 

@@ -51,9 +51,19 @@ done <<< "$staged_files"
 
 # 2. Bloquear artefatos de build que deveriam estar no .gitignore (defesa em
 #    profundidade, caso alguém force `git add -f`).
+#
+#    Exceção deliberada: server/internal/webui/dist/placeholder.txt não é um
+#    artefato de build — é o único arquivo commitado dentro de um diretório
+#    "dist/" de propósito, para o go:embed (server/internal/webui/webui.go)
+#    e `go build`/`go test` funcionarem num checkout limpo antes do painel
+#    (server/web) ter sido compilado. Ver PLAN.md §11.1 e .gitignore.
+build_allowlist='^server/internal/webui/dist/placeholder\.txt$'
 build_patterns='(^|/)(bin|dist|node_modules)/|\.exe$|\.deb$|\.AppImage$|\.dmg$|\.msi$'
 while IFS= read -r f; do
   [ -z "$f" ] && continue
+  if echo "$f" | grep -qE "$build_allowlist"; then
+    continue
+  fi
   if echo "$f" | grep -qiE "$build_patterns"; then
     echo "  BLOQUEADO: '$f' parece ser um artefato de build (ver PLAN.md §11.1) — não deve ser commitado."
     fail=1

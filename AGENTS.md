@@ -36,7 +36,11 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 
 - `.cursor/rules/*.mdc` — convenções específicas por tipo de arquivo (Go do servidor, Go do cliente, frontend React, infraestrutura). São carregadas automaticamente conforme o contexto.
 - `.cursor/hooks.json` — bloqueia comandos de shell claramente destrutivos e formata arquivos Go/TS automaticamente após edição.
-- `.cursor/skills/` — workflows executáveis para tarefas recorrentes de infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`) e checagem de colisão de porta/domínio (`port-domain-registry-check`). Use-as em vez de reinventar os mesmos comandos SSH a cada vez.
+- `.cursor/skills/` — workflows executáveis para tarefas recorrentes:
+  - Infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`) e checagem de colisão de porta/domínio (`port-domain-registry-check`).
+  - Git/GitHub: criar branch de tarefa a partir de `main` (`start-task`), enviar branch e abrir PR com título Conventional Commits (`ship-pr`), consultar releases pendentes do `release-please` (`release-status`) — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases).
+  Use-as em vez de reinventar os mesmos comandos a cada vez.
+- **Criação proativa de Skills**: sempre que, numa mesma sessão, um comando ou sequência de passos for repetido 3 ou mais vezes (ou já existir claramente destinado a se repetir no futuro), o agente deve propor ao usuário transformá-lo numa nova Skill em `.cursor/skills/`, seguindo o padrão já estabelecido (`SKILL.md` com frontmatter `name`/`description` + `scripts/`). Não espere o usuário pedir explicitamente — isso mantém o fluxo de trabalho consistente e evita reinventar o mesmo comando de formas ligeiramente diferentes ao longo do tempo.
 
 ## Onde encontrar mais detalhe
 

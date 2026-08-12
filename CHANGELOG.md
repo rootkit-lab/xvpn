@@ -20,6 +20,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 - Repositório Git inicializado, com `core.hooksPath` configurado para `.githooks`.
 - Repositório remoto criado no GitHub (`rootkit-lab/xvpn`), configurado para squash merge exclusivo e delete automático de branch após merge.
 - Fluxo de trabalho GitHub Flow obrigatório documentado em `CONTRIBUTING.md` (branch → PR → squash merge), aplicado tecnicamente em dois níveis: hook local (`.githooks/pre-commit` bloqueia commit direto em `main`) e *branch protection* real no GitHub (PR obrigatório, sem push direto, sem force-push, histórico linear).
+- Skills do Cursor para o fluxo de Git/GitHub do dia a dia: `start-task` (cria branch a partir de `main` atualizada), `ship-pr` (push + checklist + abertura de PR com título validado em Conventional Commits) e `release-status` (consulta PRs de release pendentes do `release-please`).
+- Seção "13. Versionamento e releases" no `PLAN.md`: versionamento semântico independente por componente (`server`, `client`, `shared`), automatizado via [release-please](https://github.com/googleapis/release-please) a partir dos Conventional Commits, e contrato de compatibilidade `api_version` entre cliente e servidor.
+- Seção "Versionamento" em `CONTRIBUTING.md`, com novo item no checklist pré-PR exigindo que o título do PR siga Conventional Commits (por causa do squash merge, o título vira o commit final analisado pelo `release-please`).
+- Diretriz em `AGENTS.md` para criação proativa de novas Skills sempre que um comando/sequência de passos se repetir 3+ vezes numa sessão.
+- Itens de checklist no `ROADMAP.md` (Fases 2 e 4) para configurar `release-please-config.json`/`.release-please-manifest.json`/workflow quando `server/` e `client/` existirem.
 
 ### Changed
 

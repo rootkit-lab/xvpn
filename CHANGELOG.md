@@ -25,6 +25,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 - Seção "Versionamento" em `CONTRIBUTING.md`, com novo item no checklist pré-PR exigindo que o título do PR siga Conventional Commits (por causa do squash merge, o título vira o commit final analisado pelo `release-please`).
 - Diretriz em `AGENTS.md` para criação proativa de novas Skills sempre que um comando/sequência de passos se repetir 3+ vezes numa sessão.
 - Itens de checklist no `ROADMAP.md` (Fases 2 e 4) para configurar `release-please-config.json`/`.release-please-manifest.json`/workflow quando `server/` e `client/` existirem.
+- **Fase 0 do `ROADMAP.md` concluída no VPS de produção**: usuário de sistema `xvpn`, pacotes base (`samba`, `fail2ban`; `nginx`/`certbot`/`unattended-upgrades` já vinham na imagem), `ufw` ativo (padrão-nega, liberando só `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`), `fail2ban` protegendo o SSH, server block Nginx + certificado TLS (Let's Encrypt) para `vpn.officeempresa.com`, renovação automática confirmada (`certbot.timer`).
 
 ### Changed
 
@@ -32,4 +33,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ### Fixed
 
-- Identificada (ainda não corrigida no servidor) ambiguidade de configuração SSH (`PasswordAuthentication` divergente entre `50-cloud-init.conf` e `60-cloudimg-settings.conf`) — correção planejada na Fase 0 do `ROADMAP.md`.
+- Corrigida no VPS a ambiguidade de configuração SSH (`PasswordAuthentication` divergente entre `50-cloud-init.conf` e `60-cloudimg-settings.conf`): criado `/etc/ssh/sshd_config.d/00-xvpn-hardening.conf` (nome escolhido a dedo para ordenar **antes** de `50-cloud-init.conf`, já que o `sshd_config` usa o primeiro valor obtido, não o último — ver `PLAN.md` §9). `PasswordAuthentication no` e `PermitRootLogin prohibit-password` confirmados efetivos via `sshd -T` e validados com uma segunda sessão SSH independente.
+
+### Security
+
+- Descoberto que o pacote `samba`, recém-instalado na Fase 0, inicia `smbd`/`nmbd` escutando em `0.0.0.0:139`/`0.0.0.0:445` por padrão — víolaria o invariante do `AGENTS.md` de nunca expor Samba publicamente. Mitigado imediatamente parando e desabilitando os dois serviços até a Fase 5, quando o `smb.conf` será restrito a `wg0`/`lo`.

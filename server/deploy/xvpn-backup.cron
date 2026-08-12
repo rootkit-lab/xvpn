@@ -1,0 +1,5 @@
+# Instalar com: crontab -u xvpn -e  (cole a linha abaixo)
+# ou: cp este arquivo em /etc/cron.d/xvpn-backup (ajustando o usuário na coluna extra)
+#
+# Roda todo dia às 03:15 (horário do servidor).
+15 3 * * * /opt/xvpn/bin/backup.sh >> /opt/xvpn/data/backup.log 2>&1

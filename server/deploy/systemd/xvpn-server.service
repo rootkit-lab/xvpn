@@ -1,0 +1,38 @@
+[Unit]
+Description=XVPN control-plane API (server)
+Documentation=https://github.com/rootkit-lab/xvpn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xvpn
+Group=xvpn
+WorkingDirectory=/opt/xvpn
+ExecStart=/opt/xvpn/bin/xvpn-server
+
+# CAP_NET_ADMIN é suficiente para criar/configurar a interface WireGuard
+# (ip link add, endereço, wgctrl) — não roda como root (ver PLAN.md §6.1 e
+# .cursor/rules/go-backend.mdc).
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=true
+
+# Variáveis de ambiente específicas do host (segredo do JWT, endpoint
+# público, credenciais do primeiro admin) ficam fora do repositório — ver
+# server/deploy/xvpn-server.env.example.
+EnvironmentFile=/opt/xvpn/xvpn-server.env
+
+Restart=on-failure
+RestartSec=5
+
+# Hardening adicional (systemd sandboxing) — o serviço não precisa de mais
+# acesso ao sistema de arquivos do que isto.
+ProtectSystem=strict
+ReadWritePaths=/opt/xvpn/data
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/etc/wireguard
+
+[Install]
+WantedBy=multi-user.target

@@ -76,22 +76,30 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 2 — Control-plane API (Go)
 
-- [ ] Criar `server/` e inicializar módulo Go (`go mod init`)
-- [ ] Modelagem de dados via GORM: `User`, `Device`/`Peer`, `InviteToken`, `AuditLog`
-- [ ] Camada de autenticação: hash de senha com Argon2id, emissão/validação de JWT
-- [ ] Pacote `internal/wireguard/`: wrapper sobre `wgctrl-go` (`CreateInterface`, `AddPeer`, `RemovePeer`, `ListPeers` com estatísticas rx/tx/handshake)
-- [ ] Endpoint `POST /api/auth/login`
-- [ ] Endpoints CRUD `GET/POST/DELETE /api/users`
-- [ ] Endpoint `POST /api/users/:id/invite` (gera token de convite, expira em 15 min)
-- [ ] Endpoint `POST /api/devices/enroll` (recebe chave pública + token, aloca IP livre em `10.66.66.0/24`, registra peer via `wgctrl`)
-- [ ] Endpoint `GET /api/devices` (lista peers + estatísticas ao vivo)
-- [ ] Endpoint `DELETE /api/devices/:id` (revoga peer imediatamente)
-- [ ] Endpoint `GET /api/status` (saúde do servidor, nº de peers conectados)
-- [ ] Testes unitários dos handlers principais e da camada `wireguard/`
-- [ ] `systemd` unit `xvpn-server.service` com `AmbientCapabilities=CAP_NET_ADMIN` (rodando como usuário `xvpn`, não root)
-- [ ] Apontar o server block Nginx de `vpn.officeempresa.com` para `127.0.0.1:8080` (backend real)
-- [ ] Configurar backup automático do `xvpn.db` (cron + `sqlite3 .backup`, rotação de 7 dias)
-- [ ] Adicionar componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + criar workflow `.github/workflows/release-please.yml` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
+- [x] Criar `server/` e inicializar módulo Go (`go mod init`)
+- [x] Modelagem de dados via GORM: `User`, `Device`/`Peer`, `InviteToken`, `AuditLog`
+- [x] Camada de autenticação: hash de senha com Argon2id, emissão/validação de JWT
+- [x] Pacote `internal/wireguard/`: wrapper sobre `wgctrl-go` (`EnsureInterface`, `AddPeer`, `RemovePeer`, `ListPeers` com estatísticas rx/tx/handshake, `ReconcilePeers`) — **nota**: além do `wgctrl` (que só configura chave/porta/peers), a *criação* da interface (`ip link add ... type wireguard`, atribuição de IP, "link up") usa a lib `github.com/vishvananda/netlink` diretamente (nunca `exec.Command("ip", ...)`), mantendo o espírito de "nunca faça shell-out" do `go-backend.mdc` mesmo para essa parte que o `wgctrl` não cobre
+- [x] Endpoint `POST /api/auth/login`
+- [x] Endpoints CRUD `GET/POST/DELETE /api/users`
+- [x] Endpoint `POST /api/users/:id/invite` (gera token de convite, expira em 15 min)
+- [x] Endpoint `POST /api/devices/enroll` (recebe chave pública + token, aloca IP livre em `10.66.66.0/24`, registra peer via `wgctrl`)
+- [x] Endpoint `GET /api/devices` (lista peers + estatísticas ao vivo)
+- [x] Endpoint `DELETE /api/devices/:id` (revoga peer imediatamente)
+- [x] Endpoint `GET /api/status` (saúde do servidor, nº de peers conectados, `api_version`)
+- [x] Testes unitários dos handlers principais e da camada `wireguard/` — a camada `api/` é testada com um `wireguard.PeerManager` fake (interface extraída especificamente para isso) + SQLite em memória, sem precisar de `CAP_NET_ADMIN`/kernel real; a camada `wireguard/` em si só tem testes unitários da lógica pura de alocação de IP (`AllocateIP`), já que manipular a interface de fato exige privilégio e um kernel com suporte a WireGuard — não reproduzível de forma confiável em CI/sandbox. A validação de ponta a ponta real (API → `wgctrl` → `wg show`) foi feita manualmente em produção (ver abaixo).
+- [x] `systemd` unit `xvpn-server.service` com `AmbientCapabilities=CAP_NET_ADMIN` (rodando como usuário `xvpn`, não root) — inclui hardening adicional (`ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `NoNewPrivileges`)
+- [x] Apontar o server block Nginx de `vpn.officeempresa.com` para `127.0.0.1:8080` (backend real) — o server block já apontava para lá desde a Fase 0 (retornava 502); nenhuma mudança de config necessária, só o backend passou a existir
+- [x] Configurar backup automático do `xvpn.db` (cron + `sqlite3 .backup`, rotação de 7 dias) — `sqlite3` (CLI) precisou ser instalado à parte no VPS (não vem por padrão); testado manualmente com sucesso (`sudo -u xvpn /opt/xvpn/bin/backup.sh`)
+- [x] Adicionar componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + criar workflow `.github/workflows/release-please.yml` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda)) — `shared/` ainda não existe, só `server` foi adicionado por enquanto
+
+**Achados durante o deploy em produção:**
+
+1. **Permissão da chave privada**: `/etc/wireguard/server.key` era `600 root:root` (criada manualmente na Fase 1) — o processo `xvpn-server`, rodando como usuário `xvpn`, não conseguia lê-la. Corrigido com `chgrp xvpn` + `chmod 640` (nunca `chmod o+r` — mantém a chave ilegível para qualquer usuário fora do grupo `xvpn`/root).
+2. **`XVPN_DB_PATH` relativo quebra com `ProtectSystem=strict`**: o valor padrão do caminho do banco (`xvpn.db`, relativo ao `WorkingDirectory=/opt/xvpn`) tentava gravar em um diretório que o hardening do systemd (`ProtectSystem=strict`, só libera escrita em `ReadWritePaths=/opt/xvpn/data`) torna somente leitura. Corrigido definindo `XVPN_DB_PATH=/opt/xvpn/data/xvpn.db` explicitamente no `.env` de produção; o `.env.example` no repo já reflete isso como obrigatório.
+3. **`sqlite3` (CLI) não vem instalado por padrão** no VPS — só a biblioteca é usada pelo Go via `mattn/go-sqlite3` (cgo), o binário `sqlite3` usado pelo script de backup precisou ser instalado à parte (`apt-get install sqlite3`).
+
+**Validação de ponta a ponta em produção** (critério de "pronto" da Fase 2, `PLAN.md` §12): criado um convite via API, gerado um par de chaves de teste, feito o enrollment via `https://vpn.officeempresa.com/api/devices/enroll` — o IP `10.66.66.2/32` foi alocado corretamente e o peer apareceu **imediatamente** em `wg show wg0` no servidor. Revogado o mesmo device via `DELETE /api/devices/:id` — o peer sumiu do `wg show wg0` na mesma hora. Testado também um `systemctl restart xvpn-server`: a interface e a chave pública do servidor permaneceram intactas, e a reconciliação de peers a partir do banco rodou sem erro. Auditoria de segurança pós-deploy confirma `xvpn-server` escutando **só** em `127.0.0.1:8080` (nunca exposto direto).
 
 ## Fase 3 — Painel Web (React + Tailwind + shadcn/ui)
 

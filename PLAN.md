@@ -174,12 +174,13 @@ graph TB
 ## 6. Especificação do Servidor (`xvpn-server`)
 
 ### 6.1 Control-plane (Go)
-- Framework HTTP: **Fiber** ou **Gin** (equivalentes; Fiber tende a ser mais rápido, Gin tem ecossistema maior — qualquer um atende).
-- ORM/DB: **GORM + SQLite** (arquivo único em `/opt/xvpn/data/xvpn.db`), suficiente e sem overhead operacional para 1–15 usuários. Migração para Postgres é trivial via GORM se um dia escalar.
-- Autenticação do painel: JWT + senha com hash Argon2id.
-- Integração WireGuard: **`golang.zx2c4.com/wireguard/wgctrl`** — cria a interface `wg0` uma vez (`ip link add wg0 type wireguard`) e depois adiciona/remove peers **dinamicamente em memória**, sem reiniciar a interface nem escrever/reler arquivos `.conf` a cada mudança. O pacote `wireguard-tools` (comando `wg`, usado só para operação manual/depuração via as skills do Cursor) precisa ser instalado à parte — o módulo de kernel por si só não traz o CLI.
-- Capacidades: o binário roda como usuário de sistema dedicado `xvpn` (mesmo padrão do `landpages-ops`), mas com `AmbientCapabilities=CAP_NET_ADMIN` no `systemd` — **não precisa rodar como root completo** para manipular a interface WireGuard.
+- Framework HTTP: **Gin** (`v1.10.1`, fixado deliberadamente — a `v1.12.x` exige Go ≥1.25 e traz um grafo de dependências bem mais pesado por causa de suporte a HTTP/3, desnecessário para uma API administrativa pequena).
+- ORM/DB: **GORM + SQLite** (`mattn/go-sqlite3`, via cgo; arquivo único em `/opt/xvpn/data/xvpn.db`), suficiente e sem overhead operacional para 1–15 usuários. Migração para Postgres é trivial via GORM se um dia escalar.
+- Autenticação do painel: JWT (`golang-jwt/jwt/v5`, HMAC-SHA256) + senha com hash Argon2id (parâmetros OWASP 2024: 64 MB, t=3, p=2).
+- Integração WireGuard: **`golang.zx2c4.com/wireguard/wgctrl`** cuida só da parte "WireGuard" (chave privada, porta, peers) — ela **não** cria a interface de rede nem atribui IP. Para isso (equivalente a `ip link add wg0 type wireguard` + `ip addr add`), o control-plane usa `github.com/vishvananda/netlink` diretamente, mantendo o princípio de "nunca faça shell-out" (`go-backend.mdc`) também nessa parte. `EnsureInterface` é idempotente: cria a interface só se ela ainda não existir (ex.: primeira vez) e sempre reconfigura chave/porta/endereço, sem depender de estado prévio. Peers são adicionados/removidos **dinamicamente em memória**, sem reiniciar a interface nem escrever/reler arquivos `.conf`. No boot do serviço, `ReconcilePeers` sincroniza o conjunto de peers do kernel com o que está no banco (`ReplacePeers: true`), garantindo consistência mesmo após um restart do serviço. O pacote `wireguard-tools` (comando `wg`, usado só para operação manual/depuração via as skills do Cursor) precisa ser instalado à parte — o módulo de kernel por si só não traz o CLI.
+- Capacidades: o binário roda como usuário de sistema dedicado `xvpn` (mesmo padrão do `landpages-ops`), mas com `AmbientCapabilities=CAP_NET_ADMIN` no `systemd` — **não precisa rodar como root completo** para manipular a interface WireGuard. A unit também usa `ProtectSystem=strict` (só `/opt/xvpn/data` é gravável), `ProtectHome`, `PrivateTmp` e `NoNewPrivileges` como hardening adicional.
 - NAT/roteamento: `sysctl net.ipv4.ip_forward=1` (persistente via `/etc/sysctl.d/`); MASQUERADE de `10.66.66.0/24` saindo por `eth0` implementado via a seção `*nat`/`POSTROUTING` nativa do `/etc/ufw/before.rules` (evita duas ferramentas de firewall concorrentes). **Importante**: a chain `FORWARD` do `ufw` é `deny` por padrão — além do NAT, é preciso uma regra explícita `ufw route allow in on wg0 out on eth0` (least-privilege: só libera encaminhamento partindo de `wg0`, não um `DEFAULT_FORWARD_POLICY=ACCEPT` genérico) para o tráfego não ser descartado antes de chegar ao NAT.
+- Bootstrap do primeiro admin: se a tabela de usuários estiver vazia no boot, um usuário `admin` é criado automaticamente — com `XVPN_ADMIN_USERNAME`/`XVPN_ADMIN_PASSWORD` se definidos no ambiente, ou com uma senha aleatória gerada e logada **uma única vez** no journal (`journalctl -u xvpn-server`). Evita ter que semear o banco manualmente ou hardcodar uma senha padrão conhecida.
 
 ### 6.2 API — principais endpoints
 
@@ -208,7 +209,7 @@ Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.
 - [x] Instalar `fail2ban` para SSH.
 - [x] `unattended-upgrades` para patches de segurança automáticos (já vinha habilitado por padrão na imagem).
 - [ ] Samba/FileBrowser **nunca** nas regras do `ufw` para `eth0` — só respondem em `wg0` por design do próprio serviço (defesa em profundidade, não depender só do firewall). *(pendente: aplicado na Fase 5; por ora `smbd`/`nmbd` ficam parados/desabilitados, ver `ROADMAP.md` Fase 0)*
-- [ ] Backup do `xvpn.db` (cron simples com `sqlite3 .backup` para `/opt/xvpn/backups/`, rotação 7 dias). *(pendente: Fase 2, quando o `xvpn.db` existir)*
+- [x] Backup do `xvpn.db` (cron simples com `sqlite3 .backup` para `/opt/xvpn/backups/`, rotação 7 dias) — implementado na Fase 2 (`server/deploy/backup.sh` + `server/deploy/xvpn-backup.cron`, diário às 03:15).
 
 ---
 
@@ -399,14 +400,12 @@ Como a branch `main` só aceita squash merge (§ branch protection em `CONTRIBUT
 
 ### 13.3 Contrato de compatibilidade client↔server
 
-O endpoint `GET /api/status` do servidor (Fase 2) expõe um campo `api_version`. O cliente desktop valida essa versão ao conectar/enrolar e avisa o usuário caso as versões de cliente e servidor sejam incompatíveis, evitando falhas silenciosas por desalinhamento de protocolo. O formato exato de `api_version` (ex.: inteiro incremental vs. semver do `shared`) será formalizado quando a API for implementada.
+O endpoint `GET /api/status` do servidor expõe um campo `api_version` (implementado na Fase 2 como **inteiro incremental**, começando em `1` — constante `api.APIVersion`, também devolvido em `POST /api/devices/enroll`). O cliente desktop (Fase 4+) valida essa versão ao conectar/enrolar e avisa o usuário caso as versões de cliente e servidor sejam incompatíveis, evitando falhas silenciosas por desalinhamento de protocolo. Bump sempre que um endpoint mudar de forma incompatível com clientes existentes.
 
-### 13.4 Implantação faseada (não criar workflow ainda)
+### 13.4 Implantação faseada
 
-Os diretórios `server/` e `client/` (e `shared/`, se aplicável) ainda não existem — criar `release-please-config.json`/`.release-please-manifest.json`/workflow agora, apontando para caminhos inexistentes, seria frágil e sem valor imediato. Em vez disso:
-
-- **Fase 2** (control-plane): adicionar o componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + workflow `.github/workflows/release-please.yml`.
-- **Fase 4** (cliente desktop): adicionar o componente `client` ao mesmo manifesto.
+- **Fase 2** (control-plane) — ✅ concluído: componente `server` adicionado ao `release-please-config.json` + `.release-please-manifest.json` (versão inicial `0.0.0`) + workflow `.github/workflows/release-please.yml` (`release-type: go`, changelog próprio em `server/CHANGELOG.md`).
+- **Fase 4** (cliente desktop): adicionar o componente `client` ao mesmo manifesto quando `client/` existir.
 
 A skill `release-status` (`.cursor/skills/release-status/`) consulta as PRs de release abertas assim que essa automação existir.
 

@@ -1,0 +1,42 @@
+[Unit]
+Description=XVPN client helper (gerencia o túnel WireGuard com privilégio)
+Documentation=https://github.com/rootkit-lab/xvpn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Usuário/grupo dedicados, sem shell/home — criados pelo instalador (Fase 7)
+# junto com o grupo "xvpn" (ver internal/ipc/transport_linux.go): quem
+# estiver nesse grupo pode falar com o helper via socket sem sudo, mesmo
+# modelo do grupo "docker". Em desenvolvimento manual, ver client/README.md.
+User=xvpn-client-helper
+Group=xvpn
+ExecStart=/usr/local/bin/xvpn-client --helper
+
+# CAP_NET_ADMIN é suficiente para criar/configurar a interface WireGuard
+# (netlink) e ajustar rotas — não precisa rodar como root, mesmo padrão do
+# server/deploy/systemd/xvpn-server.service (ver .cursor/rules/infra-deploy.mdc).
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=true
+
+Restart=on-failure
+RestartSec=3
+
+# RuntimeDirectory cria/limpa /run/xvpn-client automaticamente a cada
+# start/stop, já com o dono correto — dispensa o helper de gerenciar
+# permissões amplas nesse diretório na mão.
+RuntimeDirectory=xvpn-client
+RuntimeDirectoryMode=0750
+
+# Hardening adicional (systemd sandboxing). /etc/xvpn-client guarda o
+# estado do dispositivo (inclui a chave privada WireGuard, nunca a chave do
+# servidor) — é o único caminho de escrita fora de /run liberado.
+ProtectSystem=strict
+ReadWritePaths=/etc/xvpn-client
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

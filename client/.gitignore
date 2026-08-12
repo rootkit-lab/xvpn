@@ -1,0 +1,15 @@
+.task
+bin
+frontend/dist
+frontend/node_modules
+# Gerado por `wails3 generate bindings` (task generate:bindings, -clean=true)
+# a partir dos structs/métodos Go expostos — nunca editado à mão, ver
+# PLAN.md §11.1.
+frontend/bindings
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+# Mobile generated (per-machine; overlays hold absolute paths)
+build/ios/xcode/overlay.json
+build/ios/xcode/gen/
+build/android/overlay.json
+build/android/gen/

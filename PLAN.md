@@ -342,6 +342,7 @@ Regra geral: **código-fonte é commitado, artefato de build nunca é**. Todo ca
 | Servidor (`xvpn-server`, Go) | `go build -o bin/xvpn-server ./cmd/xvpn-server` (rodado em `server/`) | `server/bin/xvpn-server` | **Não** |
 | Painel Web (Vite, admin) | `npm run build` (rodado em `server/web/`) | `server/internal/webui/dist/` (não `server/web/dist/` — `go:embed` não aceita `..`, ver §6.3) | **Não** — só um `placeholder.txt` fica commitado ali, para o `go:embed`/`go build` funcionarem num checkout limpo antes do painel ser compilado |
 | Frontend do cliente desktop (Vite, dentro do Wails) | `npm run build` (rodado em `client/frontend/`) | `client/frontend/dist/` | **Não** — consumido pelo `wails3 build` |
+| Bindings TS do cliente desktop (Wails) | `wails3 generate bindings` (via `task generate:bindings`, roda `-clean=true` antes de cada build) | `client/frontend/bindings/` | **Não** — gerado a partir dos structs/métodos Go expostos (`vpnservice.go`); nunca editado à mão |
 | Cliente desktop (binário, `wails3 build`) | `wails3 build` (rodado em `client/`) | `client/bin/` | **Não** |
 | Instalador Windows (NSIS) | script em `client/build/windows/` | `client/build/dist/*.exe` | **Não** — candidato a virar release asset (GitHub Releases) quando houver CI (Fase 7) |
 | Pacotes Linux (`.deb`/AppImage) | scripts em `client/build/linux/` | `client/build/dist/*.deb`, `client/build/dist/*.AppImage` | **Não** — idem acima |

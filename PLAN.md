@@ -264,19 +264,21 @@ sequenceDiagram
 
 ## 9. Correção de segurança imediata recomendada (independente do resto do projeto)
 
-Antes mesmo de começar a construir o XVPN, vale corrigir a ambiguidade do SSH encontrada em §1, já que ela afeta a segurança do servidor **hoje**:
+**Aplicada na Fase 0 (ver `ROADMAP.md`).** Antes mesmo de começar a construir o XVPN, valia corrigir a ambiguidade do SSH encontrada em §1, já que ela afetava a segurança do servidor **hoje**:
 
 ```bash
 # Verificar o efetivo:
 sshd -T | grep -i passwordauthentication
 
-# Se retornar "yes", criar override explícito:
+# Criar override explícito:
 echo -e "PasswordAuthentication no\nPermitRootLogin prohibit-password\nKbdInteractiveAuthentication no" \
-  > /etc/ssh/sshd_config.d/99-xvpn-hardening.conf
-systemctl reload sshd
+  > /etc/ssh/sshd_config.d/00-xvpn-hardening.conf
+systemctl reload ssh
 ```
 
-Isso é rápido, de baixo risco (sua chave já está configurada, então você não fica trancado para fora) e fecha uma porta de entrada que não tem relação direta com o projeto, mas que descobri durante o diagnóstico.
+> **Gotcha descoberto na implementação**: o nome do arquivo importa mais do que parecia. O `sshd_config` usa a regra "primeiro valor obtido vence" (não o último), e a diretiva `Include /etc/ssh/sshd_config.d/*.conf` do Ubuntu roda **antes** das diretivas explícitas do `sshd_config` principal. Como o servidor já tinha `50-cloud-init.conf` (`PasswordAuthentication yes`) e `60-cloudimg-settings.conf` (`PasswordAuthentication no`) — nessa ordem —, um arquivo `99-xvpn-hardening.conf` seria processado **depois** dos dois e não teria efeito nenhum (o `50-cloud-init.conf` já teria fixado o valor primeiro). A correção precisa de um nome que ordene **antes** de `50-cloud-init.conf`; usamos `00-xvpn-hardening.conf`. Validado com `sshd -T` e com uma segunda sessão SSH independente antes de considerar a mudança segura.
+
+Isso era de baixo risco (a chave já estava configurada, então não havia risco de ficar trancado para fora) e fechou uma porta de entrada que não tinha relação direta com o projeto, mas que foi descoberta durante o diagnóstico.
 
 ---
 

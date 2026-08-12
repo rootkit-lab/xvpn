@@ -36,21 +36,23 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 0 — Hardening e provisionamento base do VPS
 
-- [ ] Verificar efetivo do SSH: `sshd -T | grep -i passwordauthentication`
-- [ ] Criar `/etc/ssh/sshd_config.d/99-xvpn-hardening.conf` (`PasswordAuthentication no`, `PermitRootLogin prohibit-password`, `KbdInteractiveAuthentication no`)
-- [ ] Recarregar sshd e confirmar (`systemctl reload sshd` + reconectar para validar antes de fechar a sessão atual)
-- [ ] Criar usuário de sistema `xvpn` (sem shell de login interativo, home dedicada em `/opt/xvpn`)
-- [ ] Instalar pacotes base: `nginx`, `certbot`, `python3-certbot-nginx`, `samba`, `fail2ban`, `unattended-upgrades`
-- [ ] Configurar `ufw`: política padrão `deny incoming` / `allow outgoing`
-- [ ] `ufw allow 22/tcp`, `ufw allow 80/tcp`, `ufw allow 443/tcp`, `ufw allow 51820/udp`
-- [ ] Ativar `ufw` (`ufw enable`) e confirmar com `ufw status verbose`
-- [ ] Configurar `fail2ban` para o serviço SSH
-- [ ] Habilitar e configurar `unattended-upgrades` (patches de segurança automáticos)
-- [ ] Criar server block Nginx para `vpn.officeempresa.com` (proxy para `127.0.0.1:8080`, ainda sem backend — pode retornar 502 temporariamente)
-- [ ] Emitir certificado: `certbot --nginx -d vpn.officeempresa.com`
-- [ ] Confirmar renovação automática do certificado (`systemctl list-timers | grep certbot`)
-- [ ] Coordenar com o setup do `landpages-ops` para não haver conflito de *server block* em `ldpops.appapisip.com`
-- [ ] Registrar em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops) qualquer porta/domínio novo definido nesta fase
+- [x] Verificar efetivo do SSH: `sshd -T | grep -i passwordauthentication`
+- [x] Criar `/etc/ssh/sshd_config.d/00-xvpn-hardening.conf` (`PasswordAuthentication no`, `PermitRootLogin prohibit-password`, `KbdInteractiveAuthentication no`) — **nota**: usamos `00-` em vez do `99-` originalmente planejado; ver gotcha de ordenação documentado em [`PLAN.md` §9](./PLAN.md#9-correção-de-segurança-imediata-recomendada-independente-do-resto-do-projeto)
+- [x] Recarregar sshd e confirmar (`systemctl reload ssh` + segunda sessão SSH independente validada antes de prosseguir)
+- [x] Criar usuário de sistema `xvpn` (sem shell de login interativo, home dedicada em `/opt/xvpn`)
+- [x] Instalar pacotes base: `nginx`, `certbot`, `python3-certbot-nginx`, `samba`, `fail2ban`, `unattended-upgrades` (`nginx`/`certbot`/`unattended-upgrades` já vinham instalados na imagem; `samba` e `fail2ban` instalados nesta fase)
+- [x] Configurar `ufw`: política padrão `deny incoming` / `allow outgoing`
+- [x] `ufw allow 22/tcp`, `ufw allow 80/tcp`, `ufw allow 443/tcp`, `ufw allow 51820/udp`
+- [x] Ativar `ufw` (`ufw enable`) e confirmar com `ufw status verbose`
+- [x] Configurar `fail2ban` para o serviço SSH (jail `sshd` ativa, já baniu tentativas reais de força bruta ao ser habilitada)
+- [x] Habilitar e configurar `unattended-upgrades` (já vinha habilitado por padrão na imagem cloud do Ubuntu 26.04 — validado, nenhuma mudança necessária)
+- [x] Criar server block Nginx para `vpn.officeempresa.com` (proxy para `127.0.0.1:8080`, retorna 502 temporariamente — validado, sem backend ainda até a Fase 2)
+- [x] Emitir certificado: `certbot --nginx -d vpn.officeempresa.com`
+- [x] Confirmar renovação automática do certificado (`systemctl list-timers | grep certbot` → `certbot.timer` ativo)
+- [x] Coordenar com o setup do `landpages-ops` para não haver conflito de *server block* em `ldpops.appapisip.com` (validado: `ldpops.appapisip.com` continua respondendo normalmente após as mudanças)
+- [x] Registrar em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops) qualquer porta/domínio novo definido nesta fase (nenhuma porta/domínio novo além do já registrado)
+
+**Achado de segurança durante a instalação**: o pacote `samba` sobe `smbd`/`nmbd` com o `smb.conf` padrão, que escuta em `0.0.0.0:139`/`0.0.0.0:445` (todas as interfaces) imediatamente após a instalação — violaria o invariante do `AGENTS.md` de que Samba nunca pode ser exposto publicamente. Como a interface `wg0` só é criada na Fase 1 e o `smb.conf` só é restrito a `wg0`/`lo` na Fase 5, paramos e desabilitamos `smbd`/`nmbd` (`systemctl stop/disable`) logo após a instalação, para não deixar a porta exposta entre esta fase e a Fase 5. Serão reabilitados só quando o `smb.conf` estiver com `bind interfaces only = yes` e `interfaces = wg0 lo`.
 
 ## Fase 1 — Validação manual do túnel WireGuard
 

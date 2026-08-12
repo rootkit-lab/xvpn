@@ -1,10 +1,12 @@
 [Desktop Entry]
 Type=Application
-Name=xvpn-client
-Exec=xvpn-client
+Name=XVPN
+Exec=/usr/local/bin/xvpn-client
 Icon=xvpn-client
-Categories=Development;
+Categories=Network;Security;
+Comment=Conecta à sua VPN privada XVPN
 Terminal=false
 Keywords=wails
 Version=1.0
+GenericName=Cliente VPN
 StartupNotify=false

@@ -78,6 +78,27 @@ task build GOOS=windows     # cross-compile para Windows (ver build/windows/fetc
 
 Binário resultante em `bin/` — nunca commitado (ver `PLAN.md` §11.1 e `.gitignore`).
 
+## Integração com o desktop (ícone, menu, atalho, autostart) — Linux
+
+`task build` já gera `build/linux/xvpn-client.desktop` (via `wails3 generate .desktop`, configurado em `build/linux/Taskfile.yml`). Depois de instalar o binário em `/usr/local/bin/xvpn-client` (seção abaixo), instale a integração gráfica em nível de usuário — não precisa de `sudo`:
+
+```bash
+mkdir -p ~/.local/share/icons/hicolor/128x128/apps ~/.local/share/applications ~/.config/autostart
+
+cp build/appicon.png ~/.local/share/icons/hicolor/128x128/apps/xvpn-client.png
+cp build/linux/xvpn-client.desktop ~/.local/share/applications/xvpn-client.desktop   # menu de aplicativos
+cp build/linux/xvpn-client.desktop ~/Desktop/xvpn-client.desktop                     # atalho na área de trabalho
+cp build/linux/xvpn-client.desktop ~/.config/autostart/xvpn-client.desktop           # abre a GUI no login
+
+chmod +x ~/Desktop/xvpn-client.desktop ~/.local/share/applications/xvpn-client.desktop
+gio set ~/Desktop/xvpn-client.desktop metadata::trusted true 2>/dev/null || true   # GNOME/COSMIC: evita aviso de "não confiável"
+
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
+Autostart aqui é só a **GUI** abrir sozinha no login — o helper privilegiado já sobe independentemente disso via `systemctl enable` (seção abaixo). Um autostart configurável de dentro da própria GUI (ligar/desligar numa tela de Configurações) é item da Fase 6 do `ROADMAP.md`; isso aqui é a integração manual/instalador.
+
 ## Instalação do helper como serviço (Linux)
 
 O helper roda como serviço de sistema, com o mínimo de privilégio necessário (`CAP_NET_ADMIN`, não root) — ver [`deploy/systemd/xvpn-client-helper.service`](./deploy/systemd/xvpn-client-helper.service). O instalador definitivo (empacotamento `.deb`/AppImage, Fase 7) vai automatizar os passos abaixo; por enquanto, manualmente:

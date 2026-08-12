@@ -24,17 +24,22 @@ NoNewPrivileges=true
 Restart=on-failure
 RestartSec=3
 
-# RuntimeDirectory cria/limpa /run/xvpn-client automaticamente a cada
-# start/stop, já com o dono correto — dispensa o helper de gerenciar
-# permissões amplas nesse diretório na mão.
+# RuntimeDirectory e StateDirectory são criados/removidos automaticamente
+# pelo systemd a cada start/stop, já com o dono e a permissão corretos —
+# dispensa qualquer `mkdir`/`chown` manual na instalação, e ficam liberados
+# para escrita mesmo com ProtectSystem=strict abaixo (ao contrário de um
+# ReadWritePaths apontando pra um diretório que pode nem existir ainda —
+# isso causava falha "226/NAMESPACE" no start, achado ao instalar de
+# verdade fora do Docker na Fase 4).
 RuntimeDirectory=xvpn-client
 RuntimeDirectoryMode=0750
+# StateDirectory=xvpn-client -> /var/lib/xvpn-client (estado do dispositivo,
+# incluindo a chave privada WireGuard — nunca a chave do servidor; ver
+# internal/config/path_linux.go).
+StateDirectory=xvpn-client
+StateDirectoryMode=0700
 
-# Hardening adicional (systemd sandboxing). /etc/xvpn-client guarda o
-# estado do dispositivo (inclui a chave privada WireGuard, nunca a chave do
-# servidor) — é o único caminho de escrita fora de /run liberado.
 ProtectSystem=strict
-ReadWritePaths=/etc/xvpn-client
 ProtectHome=true
 PrivateTmp=true
 

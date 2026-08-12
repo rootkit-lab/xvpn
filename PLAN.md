@@ -110,8 +110,8 @@ Como definido em §1, o Nginx será compartilhado entre o XVPN e o `landpages-op
 
 **Decisão crítica de segurança:** diferente do painel de administração (que **precisa** ser público, senão você não consegue nem se cadastrar/enrolar um dispositivo antes de ter VPN), o compartilhamento de arquivos **não tem esse problema de ovo-e-galinha** — então ele fica **inacessível pela internet pública**, só respondendo na interface `wg0` (IP `10.66.66.1`):
 
-- Samba: `smb.conf` com `bind interfaces only = yes` + `interfaces = wg0 lo` — mesmo que o firewall falhe, o serviço fisicamente não aceita conexão vinda do `eth0`.
-- FileBrowser: processo escuta em `10.66.66.1:8081`, **não** cadastrado no Nginx público, sem domínio/certificado público. Acesso via `http://10.66.66.1:8081` só funciona com o túnel ativo.
+- Samba: `smb.conf` com `bind interfaces only = yes` + `interfaces = 10.66.66.1/24 127.0.0.1/8` — mesmo que o firewall falhe, o serviço fisicamente não aceita conexão vinda do `eth0`. Especificado por IP/CIDR, não pelo nome da interface (`wg0`): o Samba detecta interfaces automaticamente supondo broadcast/netmask convencionais, e `wg0` é ponto-a-ponto (sem broadcast) — com `interfaces = wg0 lo` o `smbd` sobe normal mas só fica escutando em `127.0.0.1`, achado ao validar a Fase 5 via túnel real (ver `ROADMAP.md`).
+- FileBrowser: processo escuta em `10.66.66.1:8081`, **não** cadastrado no Nginx público, sem domínio/certificado público. Acesso via `http://10.66.66.1:8081` só funciona com o túnel ativo. Implementado com o fork ativamente mantido **FileBrowser Quantum** (`gtsteffaniak/filebrowser`) — o projeto original (`filebrowser/filebrowser`) foi arquivado em 2026-09-01, sem mais correções de segurança (ver `ROADMAP.md` Fase 5).
 
 Isso é defesa em profundidade: mesmo um erro de firewall não expõe seus arquivos ao mundo.
 
@@ -162,7 +162,7 @@ graph TB
 | Porta WireGuard | `51820/udp` | Público, é o único ponto de entrada da VPN |
 | Painel/API XVPN | `127.0.0.1:8080` (interno) → `https://vpn.officeempresa.com` (via Nginx) | Nunca exposto direto |
 | `landpages-ops-web` | Porta a definir por aquele projeto (ex. `127.0.0.1:3000`) → `https://ldpops.appapisip.com` (via Nginx) | **Não usar `8080`/`51820`/`8081` nem `10.66.66.0/24`** para evitar colisão |
-| Samba (SMB) | `139/tcp`, `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0` |
+| Samba (SMB) | `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0`. NetBIOS/`139` (`nmbd`) desabilitado de propósito: clientes modernos resolvem por IP direto via SMB2/3, dispensando essa superfície extra (ver Fase 5 do `ROADMAP.md`) |
 | FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
 | SSH | `22/tcp` | Mantém, mas hardening (§9) |
 | DNS interno (opcional, fase futura) | `10.66.66.1:53` | Evita vazamento de DNS quando full-tunnel ativo |
@@ -210,7 +210,7 @@ Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.
 - [x] Ativar `ufw`: negar tudo por padrão, permitir `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`.
 - [x] Instalar `fail2ban` para SSH.
 - [x] `unattended-upgrades` para patches de segurança automáticos (já vinha habilitado por padrão na imagem).
-- [ ] Samba/FileBrowser **nunca** nas regras do `ufw` para `eth0` — só respondem em `wg0` por design do próprio serviço (defesa em profundidade, não depender só do firewall). *(pendente: aplicado na Fase 5; por ora `smbd`/`nmbd` ficam parados/desabilitados, ver `ROADMAP.md` Fase 0)*
+- [x] Samba/FileBrowser **nunca** nas regras do `ufw` para `eth0` — só respondem em `wg0` por design do próprio serviço (defesa em profundidade, não depender só do firewall). *(aplicado na Fase 5: `ufw allow in on wg0 to any port 445/8081`, bind exclusivo em `10.66.66.1`/`127.0.0.1`, validado via túnel real e via IP público, ver `ROADMAP.md` Fase 5)*
 - [x] Backup do `xvpn.db` (cron simples com `sqlite3 .backup` para `/opt/xvpn/backups/`, rotação 7 dias) — implementado na Fase 2 (`server/deploy/backup.sh` + `server/deploy/xvpn-backup.cron`, diário às 03:15).
 
 ---
@@ -317,6 +317,7 @@ xvpn/
 │   │   ├── systemd/        # xvpn-server.service, xvpn-filebrowser.service
 │   │   ├── nginx/          # sites-available/xvpn.conf
 │   │   ├── samba/          # smb.conf
+│   │   ├── filebrowser/    # config.yaml (FileBrowser Quantum)
 │   │   └── setup.sh        # script de provisionamento inicial
 │   └── go.mod
 ├── client/

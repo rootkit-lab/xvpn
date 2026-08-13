@@ -53,11 +53,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
-      - name: Build do frontend Wails (client/main.go embute frontend/dist)
-        working-directory: client/frontend
+      - name: Instala go-task e wails3 CLI (ver client/README.md)
         run: |
-          npm ci
-          npm run build
+          go install github.com/go-task/task/v3/cmd/task@v3.52.0
+          WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: task build (gera frontend/bindings + frontend/dist antes do go build — client/main.go embute frontend/dist)
+        run: task build
       - run: go build ./...
       - run: go vet ./...
       - name: gofmt
@@ -85,16 +88,14 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: client/frontend/package-lock.json
-      - name: Build do frontend Wails (client/main.go embute frontend/dist)
-        working-directory: client/frontend
+      - name: Instala go-task e wails3 CLI (ver client/README.md)
         run: |
-          npm ci
-          npm run build
-      - name: Cross-compile para Windows (só valida que compila)
-        env:
-          GOOS: windows
-          GOARCH: amd64
-        run: go build ./...
+          go install github.com/go-task/task/v3/cmd/task@v3.52.0
+          WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: task build GOOS=windows (só valida que compila — sem runner Windows real, ver PLAN.md)
+        run: task build GOOS=windows
 
   web:
     runs-on: ubuntu-latest

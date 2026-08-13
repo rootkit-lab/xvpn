@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status (2026-08-13): Fases 0–8 concluídas.** O escopo planejado do MVP está fechado em produção (Linux + VPS). Itens que dependem de hardware Windows ou de decisões opcionais foram movidos para [Backlog pós-roadmap](#backlog-pós-roadmap) — não bloqueiam o fechamento. Daqui pra frente o trabalho é **manutenção, releases e melhorias**, não mais “próxima fase do roadmap”. Ver [`PLAN.md` §14](./PLAN.md#14-estado-e-próximos-passos).
+> **Status:** Fases **0–8 (MVP)** concluídas em produção. **Parte II (Fases 9+)** aberta — admin geral, marketplace multiplataforma, qualidade (TDD/bugs/perf). Decisões em [`PLAN.md` §6.7–6.8 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -245,23 +245,122 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ---
 
-## Backlog pós-roadmap
+## Backlog legado (MVP / fora das Fases 9+)
 
-Itens **não** fazem parte do critério de conclusão das Fases 0–8. Tratar como issues/PRs avulsas quando houver tempo ou hardware.
+Itens herdados do fechamento das Fases 0–8 — não bloqueiam a Parte II, mas continuam válidos.
 
 - [ ] Definir e adicionar `LICENSE` (repo público — ver README)
 - [ ] Validar enrollment + conexão ponta a ponta no Windows (máquina/VM real)
 - [ ] Validar kill switch / reconexão / split-tunnel no Windows (hardware real)
 - [ ] Testar instalação limpa do instalador NSIS em VM Windows nova
-- [ ] Registrar o helper como Windows Service no instalador (hoje o código Windows Service depende dessa validação)
+- [ ] Registrar o helper como Windows Service no instalador
 - [ ] (Opcional) Certificado de assinatura de código (SmartScreen)
-- [ ] Publicar a **primeira release** cortada do `release-please` (`server`/`client` ainda em `0.0.0` no manifesto) e anexar `.deb` / AppImage / NSIS na GitHub Release correspondente
-- [ ] Operação contínua: auditar o VPS periodicamente (`vps-security-audit`), gerir waitlist/usuários no painel, abrir `fix/`/`feat/` conforme surgirem bugs ou ideias
+- [ ] Publicar a **primeira release** do `release-please` (`server`/`client` ainda em `0.0.0`) e anexar `.deb` / AppImage / NSIS na GitHub Release
+- [ ] Operação contínua: `vps-security-audit` periódico, waitlist/usuários no painel
+
+---
+
+# Parte II — Pós-MVP (Fases 9+)
+
+Escopo deliberado pós-fechamento do MVP: **admin geral (RBAC)**, **marketplace de programas** (Linux / Android / Windows) e **qualidade** (TDD, bugs, performance). Arquitetura: [`PLAN.md` §6.7–6.8](./PLAN.md#67-admin-geral-rbac).
+
+### Diagnóstico (baseline — 2026-08-13)
+
+**TDD / testes hoje:** não há TDD real. Há rede de regressão boa no **server** (`internal/api` ~33 testes + `auth` + `AllocateIP`); **client** quase vazio (`applog` só); **frontends** (painel e desktop) **sem** testes; **CI** só `release-please` (sem `go test` / lint). Pacote `shared/` ainda não existe no repo.
+
+**Bugs / riscos prioritários (código atual):**
+
+| # | Risco | Onde |
+|---|---|---|
+| 1 | Rollback de enroll **queima o convite** se `AddPeer` falhar | `server/internal/api/devices_handler.go` |
+| 2 | Revogar device/user: WG antes do DB — falha de delete pode **reintroduzir peer** no reconcile | `devices_handler.go`, `users_handler.go`, `cmd/xvpn-server/main.go` |
+| 3 | `POST /api/auth/login` e `POST /api/devices/enroll` **sem rate limit** (DoS CPU via Argon2 / força bruta de token) | `server.go`, `auth_handler.go` |
+| 4 | Polling do painel dispara `run()` sobreposto se a API atrasar | `server/web/src/hooks/use-polling-data.ts` |
+| 5 | `Helper.mu` segurado durante `engine.Connect` inteiro — UI/tray travam no IPC | `client/internal/helper/helper.go`, `reconnect.go` |
+
+**Performance (oportunidades):** cache curto em `GET /api/status` (chama `ListPeers`/netlink a cada hit público); enroll carrega todos os devices só para IPs usados; 3 loops de poll no cliente (UI 2s + tray 3s + reconnect 5s); ring do `applog` com slice O(n); embed grande do painel (`webui/dist`).
+
+### Três melhorias sugeridas (priorizar na Fase 9)
+
+1. **Segurança de auth/enrollment** — rate limit em login + enroll; corrigir rollback do convite e ordenação DB↔WG na revogação (itens 1–3 da tabela).
+2. **CI + testes mínimos** — workflow `go test ./...` (server + client) em todo PR; pelo menos testes de regressão para os bugs acima; script de teste no frontend do painel (Vitest) para o hook de polling.
+3. **Performance do status** — cache 1–2s em `GET /api/status`; unificar/serializar polling no painel e no cliente; não segurar `Helper.mu` durante `Connect` longo.
+
+---
+
+## Fase 9 — Qualidade: bugs, TDD/CI e performance
+
+- [ ] Corrigir rollback de enroll (restaurar `invite.UsedAt` / não marcar usado antes do peer OK)
+- [ ] Tornar revogação de device/user atômica ou ordenada fail-safe (DB primeiro com flag, ou compensar se delete falhar; nunca deixar reconcile “ressuscitar” peer revogado)
+- [ ] Rate limit em `POST /api/auth/login` e `POST /api/devices/enroll` (mesmo padrão da waitlist)
+- [ ] Serializar polling do painel (`use-polling-data`: não sobrepor `run()`)
+- [ ] Liberar / afinar `Helper.mu` durante `engine.Connect` (status/disconnect não bloqueiam)
+- [ ] Cache curto (1–2s) em `GET /api/status` + documentar que o endpoint continua público mas barato
+- [ ] Workflow CI: `go test` (+ `go vet`) no server e no client em PRs; falhar o PR se quebrarem
+- [ ] Testes de regressão cobrindo enroll-rollback, revoke+reconcile, rate limit de login
+- [ ] (Opcional nesta fase) Vitest no `use-polling-data`; alinhar ring do `applog` ao padrão capped do helper
+- [ ] Atualizar `CHANGELOG.md` / notas de segurança se aplicável
+
+**Critério de saída:** bugs 1–3 da tabela fechados com teste; CI verde obrigatório; status/polling sem carga óbvia no VPS/desktop em uso normal.
+
+---
+
+## Fase 10 — Admin geral (RBAC)
+
+Hoje todo `User` autentica e tem poder total no painel (JWT sem role). Objetivo: **admin geral** com papéis e operação do dia a dia sem improvisar.
+
+- [ ] Campo `role` no model `User` (`super_admin` | `admin` | `viewer` | `member`) — ver [`PLAN.md` §6.7](./PLAN.md#67-admin-geral-rbac)
+- [ ] Claims JWT com `role`; middleware de autorização por rota (não só “autenticado”)
+- [ ] Migração: usuários existentes → `admin` (ou o bootstrap → `super_admin`); único `super_admin` não pode se auto-apagar
+- [ ] UI: badge de papel; esconder ações de escrita para `viewer`; `member` não acessa telas de admin (só portal mínimo, se existir)
+- [ ] Editar usuário (username/role) + reset de senha pelo admin
+- [ ] Waitlist: ação “aprovar e provisionar” (cria `User` + opcionalmente convite) — caminho único ainda via handlers de users/invite, agora orquestrado
+- [ ] Portal do membro (MVP): ver próprios dispositivos + revogar o próprio (opcional nesta fase; senão só na 11)
+- [ ] Auditoria: registrar mudanças de role / reset de senha / provisionamento via waitlist
+- [ ] Testes: matriz role × endpoint (403 onde couber)
+
+**Critério de saída:** operador com `viewer` só lê; `admin` gerencia users/devices/waitlist; `super_admin` gerencia roles; nenhum endpoint authed antigo fica sem checagem de papel.
+
+---
+
+## Fase 11 — Marketplace de programas (Linux / Android / Windows)
+
+Catálogo interno para distribuir instaladores/APKs/binários aos usuários da VPN — **não** é loja pública na internet aberta. Decisões: [`PLAN.md` §6.8](./PLAN.md#68-marketplace-de-software).
+
+- [ ] Models: `App`, `AppVersion`, `AppAsset` (plataforma `linux` \| `windows` \| `android`, arch, channel `stable`/`beta`, SHA-256, tamanho)
+- [ ] Storage em disco (`/opt/xvpn/data/marketplace/…`), **fora do Git**; path + quota no `PLAN.md` §5 / unit systemd (`ReadWritePaths` / `StateDirectory`)
+- [ ] API admin: CRUD de apps/versões; upload de asset (multipart) com verificação de hash
+- [ ] API usuário autenticado: listar catálogo liberado para o seu papel/ACL; download autenticado (JWT) via mesmo `https://vpn.officeempresa.com` — **sem porta/domínio novo**
+- [ ] ACL: app global (todos os `member`+) vs app restrito a usuários/grupos
+- [ ] UI painel: tela **Marketplace** (admin sobe pacotes; todos autenticados navegam/baixam o que tiverem direito)
+- [ ] Página `/download` do cliente XVPN continua apontando releases do próprio produto; marketplace é catálogo **separado** (outros programas)
+- [ ] Metadados mínimos: nome, descrição curta, ícone, changelog da versão, plataformas suportadas
+- [ ] Audit log: upload, publish, delete, download (actor + app + versão)
+- [ ] Testes: upload+hash, download 401/403, ACL, listagem por plataforma
+- [ ] Documentar limites (tamanho máx. por arquivo, disco do VPS) e backup dos blobs (cron ou inclusão no backup existente)
+
+**Fora de escopo nesta fase (backlog explícito):** cliente nativo Android do XVPN; publicação em Play Store / Microsoft Store; CDN externo; antivírus automático (pode ser melhoria futura).
+
+**Critério de saída:** admin sobe um `.deb`, um `.exe`/`.msi` e um `.apk`; um `member` autentica e baixa só o que a ACL permite; download anônimo pela internet **não** funciona.
+
+---
+
+## Fase 12 — Consumo do marketplace (cliente + endurecimento)
+
+- [ ] Seção “Apps” no cliente desktop (Wails): lista por plataforma do SO atual + botão baixar/abrir pasta
+- [ ] Deep link ou “abrir após baixar” no Linux/Windows
+- [ ] (Opcional) Página web móvel `/apps` otimizada para baixar APK no Android **com VPN ou JWT** (mesmo backend da Fase 11)
+- [ ] Quota por usuário / estatísticas de download no dashboard admin
+- [ ] Assinatura/checksum exibido na UI antes do download
+- [ ] Revisar `vps-security-audit` após expor download autenticado (path traversal, content-type, tamanho)
+
+**Critério de saída:** fluxo completo admin sobe → usuário no Linux baixa pelo app; APK testável via navegador autenticado no telefone (com VPN ou sessão).
 
 ---
 
 ## Como usar este arquivo
 
-- **Fases 0–8 estão fechadas.** Não abra uma “Fase 9” neste arquivo a menos que o escopo do produto mude de forma deliberada (aí atualize o `PLAN.md` primeiro).
-- Trabalho novo → branch (`feat/`/`fix/`/`chore/`/`docs/`/`security/`) → PR → squash merge (`CONTRIBUTING.md`). Atualize este backlog (ou abra issue) só se o item for recorrente/importante o bastante para não se perder.
-- Se uma decisão do `PLAN.md` mudar, atualize o `PLAN.md` **e** o trecho correspondente aqui.
+- **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
+- **Parte II (9+):** ordem sugerida 9 → 10 → 11 → 12 (qualidade antes de superfície nova; RBAC antes do marketplace para não distribuir binários sem papéis).
+- Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
+- Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.

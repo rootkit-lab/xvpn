@@ -8,6 +8,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ### Added
 
+- **ROADMAP Fase 13 (planejamento):** contas Unix reais por usuário (SFTP via chave pública + Samba integrados no mesmo diretório), com provisionamento via binário privilegiado fixo (`xvpn-user-provision`, sudoers sem wildcard) em vez de elevar o `xvpn-server` genericamente. Decisões em `PLAN.md` §6.9.
 - **ROADMAP Parte II (Fases 9–12):** qualidade/TDD/bugs/perf, admin geral (RBAC), marketplace multiplataforma (Linux/Android/Windows), consumo no cliente; diagnóstico baseline e 3 melhorias sugeridas. `PLAN.md` §6.7–6.8 + §5 (storage marketplace) + §14.
 
 ### Changed

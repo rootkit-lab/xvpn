@@ -56,3 +56,22 @@ type AuditLog struct {
 	Detail    string
 	CreatedAt time.Time
 }
+
+// WaitlistEntry é um cadastro de interesse feito na landing pública ("/",
+// sem autenticação) — ver PLAN.md pela decisão de design. Aprovar um
+// cadastro (status "approved") só sinaliza que o admin decidiu liberar
+// aquela pessoa; não cria usuário/convite automaticamente — o admin ainda
+// passa pelo fluxo normal (tela Usuários) usando o e-mail/nome daqui como
+// referência. Mantém o único caminho de provisionamento de acesso real
+// (User + InviteToken) sem mudanças, mesmo com essa porta de entrada nova
+// e pública.
+type WaitlistEntry struct {
+	ID      uint   `gorm:"primaryKey"`
+	Name    string `gorm:"not null"`
+	Email   string `gorm:"index;not null"`
+	Message string
+	// Status: "pending" (padrão) | "approved" | "rejected".
+	Status     string `gorm:"not null;default:pending"`
+	CreatedAt  time.Time
+	ReviewedAt *time.Time
+}

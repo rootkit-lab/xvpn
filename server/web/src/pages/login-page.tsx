@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -18,7 +17,7 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
 
   if (isAuthenticated) {
-    const redirectTo = (location.state as { from?: string } | null)?.from ?? '/'
+    const redirectTo = (location.state as { from?: string } | null)?.from ?? '/dashboard'
     return <Navigate to={redirectTo} replace />
   }
 
@@ -28,7 +27,7 @@ export function LoginPage() {
     setSubmitting(true)
     try {
       await login(username, password)
-      navigate('/', { replace: true })
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Falha ao conectar ao servidor')
     } finally {
@@ -40,7 +39,7 @@ export function LoginPage() {
     <div className="flex min-h-svh items-center justify-center bg-muted/30 p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <ShieldCheck className="mb-2 size-10 text-primary" />
+          <img src="/logo-192.png" alt="XVPN" className="mb-2 size-16" />
           <CardTitle className="text-xl">XVPN — Painel</CardTitle>
           <CardDescription>Entre com sua conta de administrador</CardDescription>
         </CardHeader>

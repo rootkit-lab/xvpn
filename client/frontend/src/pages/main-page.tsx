@@ -46,7 +46,10 @@ export function MainPage({ status, onChange, error }: MainPageProps) {
   return (
     <div className="flex h-full flex-col gap-6 p-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">XVPN</h1>
+        <div className="flex items-center gap-2">
+          <img src="/logo-192.png" alt="" className="h-6 w-6" />
+          <h1 className="text-lg font-semibold">XVPN</h1>
+        </div>
         <Badge variant={status.connected ? 'default' : 'outline'}>
           {status.connected ? 'Conectado' : 'Desconectado'}
         </Badge>

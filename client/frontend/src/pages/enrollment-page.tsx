@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ShieldCheck, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { Button } from '@/components/ui/button'
@@ -43,7 +43,7 @@ export function EnrollmentPage({ onEnrolled }: EnrollmentPageProps) {
     <div className="flex h-full items-center justify-center p-6">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <ShieldCheck className="mb-1 h-8 w-8 text-primary" />
+          <img src="/logo-192.png" alt="XVPN" className="mb-1 h-12 w-12" />
           <CardTitle>Conectar este dispositivo</CardTitle>
           <CardDescription>
             Insira o código de convite gerado no painel web XVPN.

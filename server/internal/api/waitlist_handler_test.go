@@ -1,0 +1,156 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"testing"
+)
+
+func TestHandleJoinWaitlist_Success(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	rec := doJSON(t, router, http.MethodPost, "/api/waitlist", joinWaitlistRequest{
+		Name:  "Alice",
+		Email: "alice@example.com",
+	}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("esperado 201, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp waitlistResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("erro decodificando resposta: %v", err)
+	}
+	if resp.Status != waitlistStatusPending {
+		t.Fatalf("esperava status pending, obtido %q", resp.Status)
+	}
+}
+
+func TestHandleJoinWaitlist_InvalidEmailRejected(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	rec := doJSON(t, router, http.MethodPost, "/api/waitlist", joinWaitlistRequest{
+		Name:  "Bob",
+		Email: "não-é-um-email",
+	}, "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("esperado 400 para e-mail inválido, obtido %d", rec.Code)
+	}
+}
+
+func TestHandleJoinWaitlist_MissingNameRejected(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	rec := doJSON(t, router, http.MethodPost, "/api/waitlist", joinWaitlistRequest{
+		Email: "carol@example.com",
+	}, "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("esperado 400 para nome ausente, obtido %d", rec.Code)
+	}
+}
+
+func TestHandleJoinWaitlist_DuplicateEmailDoesNotCreateSecondEntry(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	body := joinWaitlistRequest{Name: "Dave", Email: "dave@example.com"}
+	rec := doJSON(t, router, http.MethodPost, "/api/waitlist", body, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("primeiro cadastro deveria funcionar, obtido %d", rec.Code)
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/waitlist", body, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("segundo cadastro (mesmo e-mail) deveria devolver 200, obtido %d", rec.Code)
+	}
+
+	admin := createTestUser(t, app, "admin", "senha-admin-123")
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+	_ = admin
+	rec = doJSON(t, router, http.MethodGet, "/api/waitlist", nil, token)
+	var entries []waitlistResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &entries); err != nil {
+		t.Fatalf("erro decodificando lista: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("esperava 1 entrada (sem duplicata), obtido %d", len(entries))
+	}
+}
+
+func TestHandleJoinWaitlist_RequiresAuth(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	rec := doJSON(t, router, http.MethodGet, "/api/waitlist", nil, "")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("esperado 401 sem token, obtido %d", rec.Code)
+	}
+}
+
+func TestHandleJoinWaitlist_RateLimited(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	var lastCode int
+	for i := 0; i < 6; i++ {
+		rec := doJSON(t, router, http.MethodPost, "/api/waitlist", joinWaitlistRequest{
+			Name:  "Spammer",
+			Email: "spam" + strconv.Itoa(i) + "@example.com",
+		}, "")
+		lastCode = rec.Code
+	}
+	if lastCode != http.StatusTooManyRequests {
+		t.Fatalf("esperava a 6ª tentativa do mesmo IP em 429, obtido %d", lastCode)
+	}
+}
+
+func TestHandleApproveAndRejectWaitlist(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	createTestUser(t, app, "admin", "senha-admin-123")
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/waitlist", joinWaitlistRequest{
+		Name:  "Erin",
+		Email: "erin@example.com",
+	}, "")
+	var created waitlistResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &created)
+
+	id := strconv.FormatUint(uint64(created.ID), 10)
+	rec = doJSON(t, router, http.MethodPost, "/api/waitlist/"+id+"/approve", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200 ao aprovar, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var approved waitlistResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &approved); err != nil {
+		t.Fatalf("erro decodificando resposta: %v", err)
+	}
+	if approved.Status != waitlistStatusApproved {
+		t.Fatalf("esperava status approved, obtido %q", approved.Status)
+	}
+	if approved.ReviewedAt == nil {
+		t.Fatalf("esperava reviewed_at preenchido após aprovar")
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/waitlist/"+id+"/reject", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200 ao rejeitar, obtido %d", rec.Code)
+	}
+}
+
+func TestHandleReviewWaitlist_NotFound(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	createTestUser(t, app, "admin", "senha-admin-123")
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/waitlist/999/approve", nil, token)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("esperado 404, obtido %d", rec.Code)
+	}
+}

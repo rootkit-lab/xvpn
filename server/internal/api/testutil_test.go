@@ -88,7 +88,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err != nil {
 		t.Fatalf("erro abrindo sqlite em memória: %v", err)
 	}
-	if err := db.AutoMigrate(&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}); err != nil {
+	if err := db.AutoMigrate(&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{}); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}
 

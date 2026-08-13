@@ -2,49 +2,56 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Painel sempre escuro por design — mesma identidade visual "azul néon
+   sobre navy" do cliente desktop e da landing pública (ver
+   client/frontend/src/index.css e PLAN.md). Mantemos as variáveis .dark
+   como fonte única de verdade; o modo claro (:root) fica só como
+   fallback caso o JS não carregue antes do primeiro paint. */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --radius: 0.625rem;
+  --background: oklch(0.16 0.025 255);
+  --foreground: oklch(0.97 0.01 255);
+  --card: oklch(0.21 0.035 255);
+  --card-foreground: oklch(0.97 0.01 255);
+  --popover: oklch(0.21 0.035 255);
+  --popover-foreground: oklch(0.97 0.01 255);
+  --primary: oklch(0.62 0.19 255);
+  --primary-foreground: oklch(0.98 0.01 255);
+  --secondary: oklch(0.27 0.04 255);
+  --secondary-foreground: oklch(0.97 0.01 255);
+  --muted: oklch(0.24 0.035 255);
+  --muted-foreground: oklch(0.68 0.03 255);
+  --accent: oklch(0.75 0.14 200);
+  --accent-foreground: oklch(0.16 0.03 255);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 255);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.62 0.19 255);
+  --radius: 0.75rem;
+  --glow: oklch(0.68 0.19 255);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
+  --background: oklch(0.16 0.025 255);
+  --foreground: oklch(0.97 0.01 255);
+  --card: oklch(0.21 0.035 255);
+  --card-foreground: oklch(0.97 0.01 255);
+  --popover: oklch(0.21 0.035 255);
+  --popover-foreground: oklch(0.97 0.01 255);
+  --primary: oklch(0.62 0.19 255);
+  --primary-foreground: oklch(0.98 0.01 255);
+  --secondary: oklch(0.27 0.04 255);
+  --secondary-foreground: oklch(0.97 0.01 255);
+  --muted: oklch(0.24 0.035 255);
+  --muted-foreground: oklch(0.68 0.03 255);
+  --accent: oklch(0.75 0.14 200);
+  --accent-foreground: oklch(0.16 0.03 255);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 255);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.62 0.19 255);
+  --glow: oklch(0.68 0.19 255);
 }
 
 @theme inline {
@@ -67,6 +74,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-glow: var(--glow);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -80,4 +88,52 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+@layer utilities {
+  /* Halo radial usado atrás de heros/botões de destaque — a mesma
+     assinatura visual em todas as telas "de destaque" (landing, botão
+     de conectar do cliente). */
+  .glow-blob {
+    background: radial-gradient(closest-side, var(--glow) 0%, transparent 70%);
+    filter: blur(40px);
+    opacity: 0.35;
+  }
+  .glow-ring {
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--glow) 40%, transparent),
+      0 0 40px -8px var(--glow);
+  }
+  .text-glow {
+    text-shadow: 0 0 24px color-mix(in oklch, var(--glow) 60%, transparent);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--glow) 45%, transparent), 0 0 32px 4px color-mix(in oklch, var(--glow) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 14px color-mix(in oklch, var(--glow) 0%, transparent), 0 0 56px 12px color-mix(in oklch, var(--glow) 55%, transparent);
+  }
+}
+
+@keyframes drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(2%, -3%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.6s ease-in-out infinite;
+}
+
+.animate-drift {
+  animation: drift 14s ease-in-out infinite;
 }

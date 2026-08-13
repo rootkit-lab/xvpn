@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.png" alt="XVPN" width="140">
+</p>
+
 # xvpn-client
 
 Cliente desktop do XVPN (Windows/Linux): GUI Wails3 (Go + React/Tailwind/shadcn) desacoplada de um **helper privilegiado** que gerencia o túnel WireGuard. Arquitetura completa em [`../PLAN.md`](../PLAN.md) §3.2 e §7; progresso em [`../ROADMAP.md`](../ROADMAP.md) Fase 4.

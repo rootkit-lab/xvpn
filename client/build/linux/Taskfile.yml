@@ -59,9 +59,10 @@ tasks:
     cmds:
       - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o {{.OUTPUT}}'
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l" -ldflags="-X github.com/rootkit-lab/xvpn/client/internal/version.Version={{.VERSION}}"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -X github.com/rootkit-lab/xvpn/client/internal/version.Version={{.VERSION}}"{{end}}'
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
+      VERSION: '{{.VERSION | default "dev"}}'
     env:
       GOOS: linux
       CGO_ENABLED: 1
@@ -154,16 +155,40 @@ tasks:
     summary: Creates a deb package
     cmds:
       - wails3 tool package -name "{{.APP_NAME}}" -format deb -config ./build/linux/nfpm/nfpm.yaml -out {{.ROOT_DIR}}/bin
+    env:
+      XVPN_VERSION: '{{.VERSION}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+      GIT_COMMITTER_NAME: '{{.GIT_COMMITTER_NAME | default "rootkit-lab"}}'
+      GIT_COMMITTER_EMAIL: '{{.GIT_COMMITTER_EMAIL | default "noreply@officeempresa.com"}}'
+    vars:
+      VERSION:
+        sh: bash ./build/scripts/resolve-version.sh
 
   generate:rpm:
     summary: Creates a rpm package
     cmds:
       - wails3 tool package -name "{{.APP_NAME}}" -format rpm -config ./build/linux/nfpm/nfpm.yaml -out {{.ROOT_DIR}}/bin
+    env:
+      XVPN_VERSION: '{{.VERSION}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+      GIT_COMMITTER_NAME: '{{.GIT_COMMITTER_NAME | default "rootkit-lab"}}'
+      GIT_COMMITTER_EMAIL: '{{.GIT_COMMITTER_EMAIL | default "noreply@officeempresa.com"}}'
+    vars:
+      VERSION:
+        sh: bash ./build/scripts/resolve-version.sh
 
   generate:aur:
     summary: Creates a arch linux packager package
     cmds:
       - wails3 tool package -name "{{.APP_NAME}}" -format archlinux -config ./build/linux/nfpm/nfpm.yaml -out {{.ROOT_DIR}}/bin
+    env:
+      XVPN_VERSION: '{{.VERSION}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+      GIT_COMMITTER_NAME: '{{.GIT_COMMITTER_NAME | default "rootkit-lab"}}'
+      GIT_COMMITTER_EMAIL: '{{.GIT_COMMITTER_EMAIL | default "noreply@officeempresa.com"}}'
+    vars:
+      VERSION:
+        sh: bash ./build/scripts/resolve-version.sh
 
   generate:dotdesktop:
     summary: Generates a `.desktop` file

@@ -7,7 +7,13 @@ frontend/node_modules
 # PLAN.md §11.1.
 frontend/bindings
 build/linux/appimage/build
+# Cópias de trabalho geradas por `task linux:create:appimage` (não commitadas)
+build/linux/appimage/xvpn-client
+build/linux/appimage/xvpn-client.png
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+# Driver TUN da WireGuard LLC — baixado via build/windows/fetch-wintun.ps1
+# (ou curl+unzip no Linux) antes do build Windows; nunca commitado.
+internal/platform/windows/wintun/wintun.dll
 # Mobile generated (per-machine; overlays hold absolute paths)
 build/ios/xcode/overlay.json
 build/ios/xcode/gen/

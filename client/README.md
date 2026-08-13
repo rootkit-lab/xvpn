@@ -103,9 +103,37 @@ update-desktop-database ~/.local/share/applications 2>/dev/null || true
 
 Autostart aqui é só a **GUI** abrir sozinha no login — o helper privilegiado já sobe independentemente disso via `systemctl enable` (seção abaixo). Um autostart configurável de dentro da própria GUI (ligar/desligar numa tela de Configurações) é item da Fase 6 do `ROADMAP.md`; isso aqui é a integração manual/instalador.
 
-## Instalação do helper como serviço (Linux)
+## Empacotamento (Fase 7)
 
-O helper roda como serviço de sistema, com o mínimo de privilégio necessário (`CAP_NET_ADMIN`, não root) — ver [`deploy/systemd/xvpn-client-helper.service`](./deploy/systemd/xvpn-client-helper.service). O instalador definitivo (empacotamento `.deb`/AppImage, Fase 7) vai automatizar os passos abaixo; por enquanto, manualmente:
+Artefatos gerados em `bin/` (nunca commitados — ver `PLAN.md` §11.1):
+
+| Formato | Task | Observação |
+|---|---|---|
+| `.deb` (recomendado no Linux) | `task linux:create:deb` | Instala GUI + unit systemd do helper, cria grupo `xvpn` e usuário `xvpn-client-helper` no `postinstall` |
+| AppImage | `task linux:create:appimage` | Binário portátil da GUI; o helper privilegiado **não** sobe sozinho — use o `.deb` para instalação completa |
+| Instalador Windows (NSIS) | `task windows:create:nsis:installer` | Requer `wintun.dll` embutido (`build/windows/fetch-wintun.ps1` ou download manual) e `makensis` |
+
+A versão vem de `VERSION=…`, senão de `.release-please-manifest.json` (`client`), senão `git describe`, via [`build/scripts/resolve-version.sh`](./build/scripts/resolve-version.sh). Ela é injetada no binário (`-ldflags` → `internal/version`) e no metadado do `.deb` (`XVPN_VERSION`).
+
+```bash
+VERSION=0.1.0 task linux:create:deb
+VERSION=0.1.0 task linux:create:appimage
+VERSION=0.1.0 task windows:create:nsis:installer
+```
+
+Instalação típica no Linux (Debian/Ubuntu/Pop!_OS):
+
+```bash
+sudo apt install ./bin/xvpn-client.deb
+# logout/login (ou newgrp xvpn) para o grupo entrar em vigor
+xvpn-client
+```
+
+Downloads para usuários finais ficam no portal (`/download`, após login) apontando para [GitHub Releases](https://github.com/rootkit-lab/xvpn/releases).
+
+## Instalação manual do helper (Linux, desenvolvimento)
+
+O helper roda como serviço de sistema, com o mínimo de privilégio necessário (`CAP_NET_ADMIN`, não root) — ver [`deploy/systemd/xvpn-client-helper.service`](./deploy/systemd/xvpn-client-helper.service). Em produção prefira o `.deb` acima; para desenvolvimento sem pacote:
 
 ```bash
 sudo groupadd -f xvpn

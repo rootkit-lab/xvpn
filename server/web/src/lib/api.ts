@@ -101,6 +101,16 @@ export interface AuditLog {
   created_at: string
 }
 
+export interface WaitlistEntry {
+  id: number
+  name: string
+  email: string
+  message: string
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
+  reviewed_at?: string
+}
+
 export interface ConfigResponse {
   wireguard_interface: string
   wireguard_address: string
@@ -136,4 +146,16 @@ export const api = {
   listAudit: () => request<AuditLog[]>('/audit'),
 
   getConfig: () => request<ConfigResponse>('/config'),
+
+  // joinWaitlist é o único endpoint de escrita público (sem
+  // autenticação) de toda a API — chamado da landing page em "/". Ver
+  // PLAN.md pela decisão de design e o rate limit aplicado no backend.
+  joinWaitlist: (name: string, email: string, message: string) =>
+    request<WaitlistEntry>('/waitlist', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, message }),
+    }),
+  listWaitlist: () => request<WaitlistEntry[]>('/waitlist'),
+  approveWaitlist: (id: number) => request<WaitlistEntry>(`/waitlist/${id}/approve`, { method: 'POST' }),
+  rejectWaitlist: (id: number) => request<WaitlistEntry>(`/waitlist/${id}/reject`, { method: 'POST' }),
 }

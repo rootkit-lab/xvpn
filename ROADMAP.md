@@ -182,22 +182,49 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 6 — Recursos avançados do cliente
 
-- [ ] Kill switch (`nftables` no Linux / Windows Filtering Platform no Windows)
-- [ ] Reconexão automática com backoff exponencial
-- [ ] Ícone de bandeja completo (status visual, atalhos rápidos)
-- [ ] Auto-start no boot do sistema operacional (opcional, configurável)
-- [ ] Split-tunnel opcional (só `10.66.66.0/24` vs. full-tunnel `0.0.0.0/0`)
-- [ ] Página de diagnóstico no cliente (logs, teste de conectividade, exportar relatório)
+- [x] Kill switch (`nftables` no Linux / Windows Filtering Platform no Windows) — Windows **não testado em hardware real**, ver decisão de escopo abaixo (mesmo padrão da Fase 4)
+- [x] Reconexão automática com backoff exponencial
+- [x] Ícone de bandeja completo (status visual, atalhos rápidos)
+- [x] Auto-start no boot do sistema operacional (opcional, configurável)
+- [x] Split-tunnel opcional (só `10.66.66.0/24` vs. full-tunnel `0.0.0.0/0`)
+- [x] Página de diagnóstico no cliente (logs, teste de conectividade, exportar relatório)
+
+**Notas de implementação:**
+
+- **Preferências** (`kill_switch`, `split_tunnel`, `auto_reconnect`) persistidas em `config.DeviceState.Preferences` (mesmo arquivo de estado do enrollment, só o helper lê/escreve) e ajustáveis a qualquer momento pela GUI via `get_preferences`/`set_preferences` (IPC) — se o túnel já estiver conectado, `handleSetPreferences` reaplica a config imediatamente (reconecta com kill switch/split-tunnel novos sem exigir um disconnect manual). `auto_reconnect` vem `true` por padrão só para dispositivos enrollados a partir desta fase (dispositivos antigos mantêm o comportamento anterior até o usuário ligar manualmente).
+- **Kill switch fail-closed**: Linux via `nftables` (tabela dedicada `xvpn_killswitch`, chain `output` com `policy drop` e exceções para loopback, a própria interface do túnel e o IP público do servidor — essa última exceção é o que permite o próprio WireGuard reconectar depois de uma queda); Windows via Windows Filtering Platform (`github.com/tailscale/wf`, sessão WFP **dinâmica** — se o helper morrer, o kernel remove os filtros automaticamente, nunca trava a máquina sem internet). Ativação e desativação são sempre fail-closed: se `enableKillSwitch` falhar, `Connect()` inteiro é desfeito (rollback); numa reconexão automática (ou uma tentativa de reconexão que falha), o kill switch **nunca** é desligado no meio do caminho — só um `Disconnect()` explícito do usuário (ou desligar a preferência) o remove de fato.
+- **Reconexão automática** (`internal/helper/reconnect.go`): monitor com `time.Ticker` de 5s detecta queda comparando `engine.Status()`; ao detectar, tenta reconectar com backoff exponencial (1s, 2s, 4s, ... até um teto de 60s). Cancelado de forma limpa via `context.Context` em qualquer `Disconnect()` explícito (sem race: o `select` do backoff também escuta `ctx.Done()`).
+- **Split-tunnel**: quando ativo, as `AllowedIPs` configuradas no peer local passam a ser só `10.66.66.0/24` (em vez do que o servidor concedeu, tipicamente `0.0.0.0/0`) — o resto do tráfego do dispositivo continua saindo direto pela rede local, sem tocar o túnel.
+- **Ícone de bandeja dinâmico** (`internal/trayicons/`, ícones PNG gerados via Pillow e embutidos com `go:embed`): tooltip e ícone (verde/cinza/âmbar/vermelho) atualizados por um goroutine (`monitorTray` em `main.go`) que faz *polling* do `Status()` a cada poucos segundos, refletindo conectado/desconectado/reconectando/helper indisponível.
+- **Auto-start** (`internal/autostart/`): entrada `.desktop` em `~/.config/autostart/` no Linux (`X-GNOME-Autostart-enabled=true`, reconhecido por GNOME/KDE/XFCE/COSMIC), chave `HKCU\...\Run` no Windows — sempre no espaço do usuário sem privilégio (nunca toca o helper), consistente com a separação de privilégio do `.cursor/rules/go-client.mdc`.
+- **Página de diagnóstico**: `RunDiagnostics()` junta o status do helper com dois testes de conectividade ativos — painel web pela internet normal (`ServerBaseURL + /api/status`) e o próprio servidor dentro da VPN (`10.66.66.1:8081`, só com túnel ativo) — pensado para diferenciar "sem internet" de "internet ok, mas VPN não conecta". Nunca inclui a chave privada. Logs recentes do helper expostos via um ring buffer em memória (`internal/helper/logbuffer.go`, últimas ~200 linhas) — sem depender de `journalctl`/Visualizador de Eventos, que a GUI sem privilégio não acessaria de qualquer forma. Relatório exportável como JSON pela UI.
+- **Validação de ponta a ponta em Linux (Docker + VPS real de produção)**: criado um peer de teste temporário (`10.66.66.50/32`, chave gerada localmente via `wgtypes.GeneratePrivateKey` — nunca no servidor) registrado manualmente via `wg set` (mesmo fluxo da skill `wireguard-peer-ops`), removido ao final. Testado num container Docker `--privileged` (ver achado de capabilities abaixo) rodando `devtool-helper` (mesmo binário sem GUI usado na Fase 4) com um `device.json` fabricado apontando para esse peer:
+  - **Kill switch**: com o túnel conectado e kill switch ligado, tráfego que tenta contornar o túnel saindo explicitamente por `eth0` (`ping -I eth0`) é bloqueado (timeout); tráfego legítimo pelo túnel (inclusive para o próprio servidor, `10.66.66.1`, e para outro peer real da VPN) continua funcionando.
+  - **Queda inesperada + kill switch**: simulada removendo a interface do túnel por fora (`ip link delete xvpn0`) sem passar por `Disconnect()` — o kill switch permanece bloqueando tráfego durante toda a janela até a reconexão automática (~1s de backoff) restabelecer o túnel com handshake novo.
+  - **Reconexão automática**: detectada e executada dentro do intervalo esperado (monitor de 5s + backoff inicial de 1s), confirmada via `wg`/logs do helper (`"túnel caiu, tentando reconectar..."` → `"túnel reconectado automaticamente"`).
+  - **Split-tunnel**: validado em container limpo — só a rota `10.66.66.0/24` passa a apontar para a interface do túnel, a rota padrão original (via `eth0`) permanece intocada; tráfego para fora da sub-rede da VPN sai direto, tráfego para dentro dela passa pelo túnel. `Disconnect()` a partir desse modo restaura a tabela de rotas exatamente ao estado anterior.
+  - **Desconexão explícita**: kill switch desativado de fato (tabela `nftables` removida), interface do túnel removida, rota padrão original restaurada.
+- **Bug encontrado e corrigido durante a validação**: `Status()` (Linux e Windows) reportava `KillSwitchActive=false` sempre que o túnel era detectado como caído (`!e.connected`, ou a interface do WireGuard não existia mais no kernel) — mesmo quando a tabela `nftables`/sessão WFP continuava genuinamente ativa e bloqueando tráfego nesse meio-tempo (proteção real intacta; era só o *reporte* de status que mentia). Corrigido em `engine_linux.go`/`engine_windows.go` para sempre refletir `e.killSwitchActive`/`e.killSwitch != nil` mesmo no caminho "desconectado" — importante para a página de diagnóstico e o ícone de bandeja não mostrarem um estado inconsistente logo no momento em que o kill switch mais importa.
+- **Achado de capabilities do Docker**: as mesmas capabilities usadas na validação da Fase 4 (`--cap-add=NET_ADMIN --cap-add=NET_RAW`) foram suficientes para WireGuard/rotas, mas **não** para o kernel de fato aplicar os hooks do `nftables` (`policy drop` no `output` não bloqueava nada, apesar do `nft list ruleset` mostrar a tabela corretamente criada) — precisou `--privileged` para o teste do kill switch. Isso é uma particularidade do ambiente de teste em container (namespace de rede sem todas as capabilities do netfilter); não afeta o helper rodando direto no host (via `systemd`, com `CAP_NET_ADMIN` de verdade), só o arcabouço de teste em Docker.
+- **Decisão de escopo — kill switch Windows não testado em hardware real**: implementado usando a mesma biblioteca WFP (`github.com/tailscale/wf`) usada em produção pelo cliente Windows da Tailscale, seguindo de perto o desenho de referência do `wireguard-windows` oficial (sessão dinâmica — falha do processo nunca deixa a máquina bloqueada permanentemente). Validado só via cross-compilation (`GOOS=windows`, `go vet`/`gofmt` limpos) — mesma decisão de escopo combinada no início da Fase 4, o teste manual em Windows real fica para quando o usuário validar esta fase.
+- Utilitário `cmd/devtool-e2e` (criado na Fase 4) ganhou os comandos `get-prefs`/`set-prefs`/`logs` para exercitar os novos métodos IPC sem precisar de GUI.
 
 ## Fase 7 — Empacotamento e distribuição
 
-- [ ] Instalador Windows via NSIS (`.exe`)
-- [ ] Empacotamento `.deb` para Linux
-- [ ] Empacotamento AppImage para Linux
-- [ ] Versionamento semântico + changelog automatizado no build
-- [ ] Testar instalação limpa em VM nova (Windows)
-- [ ] Testar instalação limpa em VM nova (Linux)
+- [x] Instalador Windows via NSIS (`.exe`) — gerado via `task windows:create:nsis:installer`; registro do helper como Windows Service fica pendente de validação em hardware real (mesmo padrão das Fases 4/6)
+- [x] Empacotamento `.deb` para Linux — `nfpm` + `postinstall` cria grupo `xvpn`, usuário `xvpn-client-helper`, instala/enable a unit systemd
+- [x] Empacotamento AppImage para Linux — portátil (GUI); instalação completa do helper continua sendo via `.deb`
+- [x] Versionamento semântico no build (`build/scripts/resolve-version.sh` → ldflags + `XVPN_VERSION` no nfpm); changelog do componente segue o `release-please`
+- [x] Página `/download` no portal (após login) com links para GitHub Releases e instruções por plataforma
+- [ ] Testar instalação limpa em VM nova (Windows) — **pendente de validação manual pelo usuário**
+- [ ] Testar instalação limpa em VM nova (Linux) — pacotes gerados localmente; teste em VM limpa pendente
 - [ ] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen
+
+**Notas de implementação:**
+
+- Metadados de branding atualizados (`build/config.yml`, `build/windows/info.json`, `nfpm.yaml`): produto XVPN, homepage `https://vpn.officeempresa.com`.
+- `VPNService.Version()` e `DiagnosticsReport.ClientVersion` expõem a versão embutida no binário.
+- Artefatos (`*.deb`, `*.AppImage`, `*-installer.exe`, `wintun.dll`) permanecem fora do Git (`.gitignore` / `PLAN.md` §11.1); distribuição via GitHub Releases.
 
 ## Fase 8 — Observabilidade e documentação final
 

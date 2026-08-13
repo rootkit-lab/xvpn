@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.png" alt="XVPN" width="140">
+</p>
+
 # xvpn-client
 
 Cliente desktop do XVPN (Windows/Linux): GUI Wails3 (Go + React/Tailwind/shadcn) desacoplada de um **helper privilegiado** que gerencia o túnel WireGuard. Arquitetura completa em [`../PLAN.md`](../PLAN.md) §3.2 e §7; progresso em [`../ROADMAP.md`](../ROADMAP.md) Fase 4.
@@ -78,17 +82,16 @@ task build GOOS=windows     # cross-compile para Windows (ver build/windows/fetc
 
 Binário resultante em `bin/` — nunca commitado (ver `PLAN.md` §11.1 e `.gitignore`).
 
-## Integração com o desktop (ícone, menu, atalho, autostart) — Linux
+## Integração com o desktop (ícone, menu, atalho) — Linux
 
 `task build` já gera `build/linux/xvpn-client.desktop` (via `wails3 generate .desktop`, configurado em `build/linux/Taskfile.yml`). Depois de instalar o binário em `/usr/local/bin/xvpn-client` (seção abaixo), instale a integração gráfica em nível de usuário — não precisa de `sudo`:
 
 ```bash
-mkdir -p ~/.local/share/icons/hicolor/128x128/apps ~/.local/share/applications ~/.config/autostart
+mkdir -p ~/.local/share/icons/hicolor/128x128/apps ~/.local/share/applications
 
 cp build/appicon.png ~/.local/share/icons/hicolor/128x128/apps/xvpn-client.png
 cp build/linux/xvpn-client.desktop ~/.local/share/applications/xvpn-client.desktop   # menu de aplicativos
 cp build/linux/xvpn-client.desktop ~/Desktop/xvpn-client.desktop                     # atalho na área de trabalho
-cp build/linux/xvpn-client.desktop ~/.config/autostart/xvpn-client.desktop           # abre a GUI no login
 
 chmod +x ~/Desktop/xvpn-client.desktop ~/.local/share/applications/xvpn-client.desktop
 gio set ~/Desktop/xvpn-client.desktop metadata::trusted true 2>/dev/null || true   # GNOME/COSMIC: evita aviso de "não confiável"
@@ -97,11 +100,39 @@ gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
 update-desktop-database ~/.local/share/applications 2>/dev/null || true
 ```
 
-Autostart aqui é só a **GUI** abrir sozinha no login — o helper privilegiado já sobe independentemente disso via `systemctl enable` (seção abaixo). Um autostart configurável de dentro da própria GUI (ligar/desligar numa tela de Configurações) é item da Fase 6 do `ROADMAP.md`; isso aqui é a integração manual/instalador.
+**Não** copie o `.desktop` para `~/.config/autostart/` — isso colidia com o autostart gerenciado pela GUI (`Preferências` → iniciar com o sistema, arquivo `xvpn-client-autostart.desktop`) e abria o XVPN duas vezes no login. O cliente também usa *single instance* do Wails: uma segunda invocação só traz a janela já aberta para frente.
 
-## Instalação do helper como serviço (Linux)
+## Empacotamento (Fase 7)
 
-O helper roda como serviço de sistema, com o mínimo de privilégio necessário (`CAP_NET_ADMIN`, não root) — ver [`deploy/systemd/xvpn-client-helper.service`](./deploy/systemd/xvpn-client-helper.service). O instalador definitivo (empacotamento `.deb`/AppImage, Fase 7) vai automatizar os passos abaixo; por enquanto, manualmente:
+Artefatos gerados em `bin/` (nunca commitados — ver `PLAN.md` §11.1):
+
+| Formato | Task | Observação |
+|---|---|---|
+| `.deb` (recomendado no Linux) | `task linux:create:deb` | Instala GUI + unit systemd do helper, cria grupo `xvpn` e usuário `xvpn-client-helper` no `postinstall` |
+| AppImage | `task linux:create:appimage` | Binário portátil da GUI; o helper privilegiado **não** sobe sozinho — use o `.deb` para instalação completa |
+| Instalador Windows (NSIS) | `task windows:create:nsis:installer` | Requer `wintun.dll` embutido (`build/windows/fetch-wintun.ps1` ou download manual) e `makensis` |
+
+A versão vem de `VERSION=…`, senão de `.release-please-manifest.json` (`client`), senão `git describe`, via [`build/scripts/resolve-version.sh`](./build/scripts/resolve-version.sh). Ela é injetada no binário (`-ldflags` → `internal/version`) e no metadado do `.deb` (`XVPN_VERSION`).
+
+```bash
+VERSION=0.1.0 task linux:create:deb
+VERSION=0.1.0 task linux:create:appimage
+VERSION=0.1.0 task windows:create:nsis:installer
+```
+
+Instalação típica no Linux (Debian/Ubuntu/Pop!_OS):
+
+```bash
+sudo apt install ./bin/xvpn-client.deb
+# logout/login (ou newgrp xvpn) para o grupo entrar em vigor
+xvpn-client
+```
+
+Downloads para usuários finais ficam no portal (`/download`, após login) apontando para [GitHub Releases](https://github.com/rootkit-lab/xvpn/releases).
+
+## Instalação manual do helper (Linux, desenvolvimento)
+
+O helper roda como serviço de sistema, com o mínimo de privilégio necessário (`CAP_NET_ADMIN`, não root) — ver [`deploy/systemd/xvpn-client-helper.service`](./deploy/systemd/xvpn-client-helper.service). Em produção prefira o `.deb` acima; para desenvolvimento sem pacote:
 
 ```bash
 sudo groupadd -f xvpn

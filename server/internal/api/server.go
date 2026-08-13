@@ -42,6 +42,10 @@ type App struct {
 	// registro de peer), evitando duas requisições simultâneas alocarem o
 	// mesmo IP livre.
 	enrollMu sync.Mutex
+
+	// waitlistLimiter protege o único endpoint de escrita público (sem
+	// autenticação) da API, POST /api/waitlist — ver ratelimit.go.
+	waitlistLimiter *ipRateLimiter
 }
 
 // NewRouter monta todas as rotas da API sobre um App já inicializado.
@@ -50,11 +54,23 @@ func NewRouter(app *App) *gin.Engine {
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
 
+	if app.waitlistLimiter == nil {
+		// 5 tentativas por IP a cada 10 minutos — generoso pra um
+		// visitante legítimo (que só envia o formulário uma vez), curto
+		// o suficiente para tornar spam/scraping automatizado pouco
+		// atrativo nesse endpoint público.
+		app.waitlistLimiter = newIPRateLimiter(5, 10*time.Minute)
+	}
+
 	apiGroup := r.Group("/api")
 	{
 		apiGroup.POST("/auth/login", app.handleLogin)
 		apiGroup.POST("/devices/enroll", app.handleDeviceEnroll)
 		apiGroup.GET("/status", app.handleStatus)
+		// Único endpoint de escrita da API sem autenticação — ver
+		// waitlist_handler.go e AGENTS.md (qualquer superfície pública
+		// nova precisa de justificativa explícita).
+		apiGroup.POST("/waitlist", rateLimit(app.waitlistLimiter), app.handleJoinWaitlist)
 
 		authed := apiGroup.Group("")
 		authed.Use(auth.RequireAuth(app.Tokens))
@@ -66,6 +82,10 @@ func NewRouter(app *App) *gin.Engine {
 
 			authed.GET("/devices", app.handleListDevices)
 			authed.DELETE("/devices/:id", app.handleDeleteDevice)
+
+			authed.GET("/waitlist", app.handleListWaitlist)
+			authed.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
+			authed.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 
 			authed.GET("/audit", app.handleListAudit)
 			authed.GET("/config", app.handleGetConfig)

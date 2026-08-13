@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.png" alt="XVPN" width="140">
+</p>
+
 # xvpn-server
 
 Control-plane do XVPN: API HTTP + integração WireGuard (via `wgctrl`) + (a partir da Fase 3) o painel web embutido no mesmo binário. Arquitetura completa em [`../PLAN.md`](../PLAN.md) §6; progresso em [`../ROADMAP.md`](../ROADMAP.md).

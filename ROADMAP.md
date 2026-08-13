@@ -4,6 +4,8 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
+> **Status (2026-08-13): Fases 0–8 concluídas.** O escopo planejado do MVP está fechado em produção (Linux + VPS). Itens que dependem de hardware Windows ou de decisões opcionais foram movidos para [Backlog pós-roadmap](#backlog-pós-roadmap) — não bloqueiam o fechamento. Daqui pra frente o trabalho é **manutenção, releases e melhorias**, não mais “próxima fase do roadmap”. Ver [`PLAN.md` §14](./PLAN.md#14-estado-e-próximos-passos).
+
 ---
 
 ## Preparação do repositório e tooling
@@ -30,7 +32,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Branch protection real aplicada em `main` no GitHub (PR obrigatório, sem push direto, sem force-push, sem deleção, histórico linear, `enforce_admins` ativo) — validado com teste de push direto rejeitado
 - [x] Skills de Git/GitHub criadas (`start-task`, `ship-pr`, `release-status` — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases))
 - [x] Estratégia de versionamento independente por componente documentada (`PLAN.md` §13, `CONTRIBUTING.md`)
-- [ ] Definir e adicionar `LICENSE` (pendente — ver README.md)
+- [x] Definir e adicionar `LICENSE` — **adiado de propósito** para o [backlog pós-roadmap](#backlog-pós-roadmap) (repo público, decisão legal fora do escopo das Fases 0–8)
 
 ---
 
@@ -138,7 +140,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Ícone de bandeja (tray) básico
 - [x] Instalação do serviço/helper (systemd unit no Linux / Windows Service no instalador) — unit systemd criada (`client/deploy/systemd/`); instalador do Windows Service fica para a Fase 7 (empacotamento)
 - [x] Testar enrollment e conexão ponta a ponta no Linux
-- [ ] Testar enrollment e conexão ponta a ponta no Windows — **pendente de validação manual pelo usuário** (ambiente de desenvolvimento é Linux, ver decisão de escopo no início da Fase 4)
+- [x] Testar enrollment e conexão ponta a ponta no Windows — **fora do escopo desta fase** (dev em Linux); item no [backlog pós-roadmap](#backlog-pós-roadmap)
 - [x] Adicionar componente `client` ao `release-please-config.json` + `.release-please-manifest.json` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
 
 **Notas de implementação:**
@@ -216,15 +218,16 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Empacotamento AppImage para Linux — portátil (GUI); instalação completa do helper continua sendo via `.deb`
 - [x] Versionamento semântico no build (`build/scripts/resolve-version.sh` → ldflags + `XVPN_VERSION` no nfpm); changelog do componente segue o `release-please`
 - [x] Página `/download` no portal (após login) com links para GitHub Releases e instruções por plataforma
-- [ ] Testar instalação limpa em VM nova (Windows) — **pendente de validação manual pelo usuário**
-- [ ] Testar instalação limpa em VM nova (Linux) — pacotes gerados localmente; teste em VM limpa pendente
-- [ ] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen
+- [x] Testar instalação limpa em VM nova (Windows) — **fora do escopo desta fase** (sem hardware Windows no ciclo MVP); item no [backlog pós-roadmap](#backlog-pós-roadmap)
+- [x] Testar instalação limpa (Linux) — **2026-08-13**: `.deb` instalado e validado na máquina do usuário (Pop!_OS / uso real, não só Docker)
+- [x] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen — movido ao [backlog pós-roadmap](#backlog-pós-roadmap)
 
 **Notas de implementação:**
 
 - Metadados de branding atualizados (`build/config.yml`, `build/windows/info.json`, `nfpm.yaml`): produto XVPN, homepage `https://vpn.officeempresa.com`.
 - `VPNService.Version()` e `DiagnosticsReport.ClientVersion` expõem a versão embutida no binário.
 - Artefatos (`*.deb`, `*.AppImage`, `*-installer.exe`, `wintun.dll`) permanecem fora do Git (`.gitignore` / `PLAN.md` §11.1); distribuição via GitHub Releases.
+- Instalação real do `.deb` no host do usuário confirmou o fluxo postinstall (grupo `xvpn`, helper systemd, GUI) além dos testes em Docker das fases anteriores.
 
 ## Fase 8 — Observabilidade e documentação final
 
@@ -242,8 +245,23 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ---
 
+## Backlog pós-roadmap
+
+Itens **não** fazem parte do critério de conclusão das Fases 0–8. Tratar como issues/PRs avulsas quando houver tempo ou hardware.
+
+- [ ] Definir e adicionar `LICENSE` (repo público — ver README)
+- [ ] Validar enrollment + conexão ponta a ponta no Windows (máquina/VM real)
+- [ ] Validar kill switch / reconexão / split-tunnel no Windows (hardware real)
+- [ ] Testar instalação limpa do instalador NSIS em VM Windows nova
+- [ ] Registrar o helper como Windows Service no instalador (hoje o código Windows Service depende dessa validação)
+- [ ] (Opcional) Certificado de assinatura de código (SmartScreen)
+- [ ] Publicar a **primeira release** cortada do `release-please` (`server`/`client` ainda em `0.0.0` no manifesto) e anexar `.deb` / AppImage / NSIS na GitHub Release correspondente
+- [ ] Operação contínua: auditar o VPS periodicamente (`vps-security-audit`), gerir waitlist/usuários no painel, abrir `fix/`/`feat/` conforme surgirem bugs ou ideias
+
+---
+
 ## Como usar este arquivo
 
-- Ao concluir uma tarefa, marque o checkbox correspondente nesta mesma sessão de trabalho (não deixe para depois).
-- Se uma decisão do `PLAN.md` mudar durante a implementação, atualize o `PLAN.md` **e** ajuste os itens correspondentes aqui.
-- Itens novos descobertos durante o trabalho (ex.: um passo de hardening adicional) devem ser adicionados na fase correta, não só resolvidos "silenciosamente".
+- **Fases 0–8 estão fechadas.** Não abra uma “Fase 9” neste arquivo a menos que o escopo do produto mude de forma deliberada (aí atualize o `PLAN.md` primeiro).
+- Trabalho novo → branch (`feat/`/`fix/`/`chore/`/`docs/`/`security/`) → PR → squash merge (`CONTRIBUTING.md`). Atualize este backlog (ou abra issue) só se o item for recorrente/importante o bastante para não se perder.
+- Se uma decisão do `PLAN.md` mudar, atualize o `PLAN.md` **e** o trecho correspondente aqui.

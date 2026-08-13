@@ -6,6 +6,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ## [Unreleased]
 
+### Changed
+
+- **ROADMAP Fases 0–8 fechado**: checklist marcado concluído (incl. instalação real do `.deb` no Linux do usuário); itens Windows/`LICENSE`/assinatura movidos para “Backlog pós-roadmap”; `PLAN.md` §14 passa a descrever o fluxo de manutenção/releases em vez de “próxima fase”.
+
 ### Added
 
 - **Fase 8 — observabilidade**: logs estruturados (`slog` JSON) no `xvpn-server` e no cliente (`internal/applog` + ring); `GET /api/status` passa a expor `receive_bytes_total` / `transmit_bytes_total`; README e `PLAN.md` §14 alinhados ao estado real; auditoria VPS (skill `vps-security-audit`) sem regressões.

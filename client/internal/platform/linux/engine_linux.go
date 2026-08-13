@@ -56,7 +56,8 @@ type Engine struct {
 	// Docker na Fase 4 (ver ROADMAP.md).
 	originalDefaultRoute *netlink.Route
 
-	dnsApplied bool
+	dnsApplied       bool
+	killSwitchActive bool
 }
 
 // New abre o cliente wgctrl. Requer CAP_NET_ADMIN (ou root) — ver
@@ -76,7 +77,16 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 	defer e.mu.Unlock()
 
 	if e.connected {
-		if err := e.teardown(); err != nil {
+		// keepKillSwitch=true: isto é uma reconfiguração (reconectar com
+		// config nova, inclusive um reconnect automático depois de uma
+		// queda — ver internal/helper), não um Disconnect() pedido pelo
+		// usuário. Se o kill switch estava ativo, ele tem que continuar
+		// bloqueando tráfego durante a troca de interface — inclusive se
+		// esta tentativa de Connect falhar adiante — senão o intervalo
+		// entre desfazer o túnel antigo e o novo ficar de pé seria uma
+		// janela real de vazamento, exatamente o que o kill switch existe
+		// pra evitar.
+		if err := e.teardown(true); err != nil {
 			return fmt.Errorf("desfazendo túnel anterior antes de reconectar: %w", err)
 		}
 	}
@@ -112,6 +122,13 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 		if originalDefault != nil {
 			_ = netlink.RouteReplace(originalDefault)
 		}
+		// Kill switch propositalmente NÃO é desativado aqui: se esta
+		// tentativa de Connect falhou e o kill switch já estava ativo
+		// (de uma conexão anterior), o comportamento fail-closed correto
+		// é continuar bloqueando tráfego fora do túnel até uma
+		// reconexão bem-sucedida ou um Disconnect() explícito — nunca
+		// voltar a liberar a internet silenciosamente só porque uma
+		// tentativa de reconectar deu erro.
 	}()
 
 	link, err := ensureLink()
@@ -199,6 +216,28 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 		}
 	}
 
+	// Kill switch é o último passo: se falhar, o defer acima desfaz tudo
+	// e Connect retorna erro em vez de deixar o usuário "conectado, mas
+	// sem a proteção que pediu" — fail-closed também na ativação, não só
+	// depois (ver .cursor/rules/go-client.mdc). Só reaplica se ainda não
+	// estava ativo (ver keepKillSwitch acima) — evita uma janela sem
+	// bloqueio ao simplesmente recriar a mesma tabela nftables de novo.
+	switch {
+	case cfg.KillSwitch && !e.killSwitchActive:
+		if err := enableKillSwitch(serverAddr.IP); err != nil {
+			return fmt.Errorf("ativando kill switch: %w", err)
+		}
+		e.killSwitchActive = true
+	case !cfg.KillSwitch && e.killSwitchActive:
+		// Preferência foi desligada enquanto conectado (ver
+		// handleSetPreferences) — remove de fato, senão o usuário fica
+		// bloqueado sem saber por quê.
+		if err := disableKillSwitch(); err != nil {
+			return fmt.Errorf("desativando kill switch: %w", err)
+		}
+		e.killSwitchActive = false
+	}
+
 	e.hostRoute = hostRoute
 	e.originalDefaultRoute = originalDefault
 	e.connected = true
@@ -214,11 +253,22 @@ func (e *Engine) Disconnect() error {
 	if !e.connected {
 		return nil
 	}
-	return e.teardown()
+	// keepKillSwitch=false: Disconnect() é sempre uma ação explícita do
+	// usuário (ou do helper desistindo de reconectar) — aqui sim a
+	// internet normal deve voltar a funcionar.
+	return e.teardown(false)
 }
 
 // teardown desfaz tudo que Connect fez. Assume e.mu já travado.
-func (e *Engine) teardown() error {
+// keepKillSwitch preserva as regras de bloqueio ativas mesmo depois do
+// teardown — usado pelo caminho de reconexão em Connect (ver acima), nunca
+// por um Disconnect() de verdade.
+func (e *Engine) teardown(keepKillSwitch bool) error {
+	if e.killSwitchActive && !keepKillSwitch {
+		_ = disableKillSwitch()
+		e.killSwitchActive = false
+	}
+
 	if e.dnsApplied {
 		revertDNS()
 		e.dnsApplied = false
@@ -255,22 +305,27 @@ func (e *Engine) Status() (tunnel.Status, error) {
 	defer e.mu.Unlock()
 
 	if !e.connected {
-		return tunnel.Status{Connected: false}, nil
+		return tunnel.Status{Connected: false, KillSwitchActive: e.killSwitchActive}, nil
 	}
 
 	status := tunnel.Status{
-		Connected:      true,
-		AssignedIP:     e.cfg.Address,
-		ServerEndpoint: e.cfg.ServerEndpoint,
-		ConnectedSince: &e.connectedSince,
+		Connected:        true,
+		AssignedIP:       e.cfg.Address,
+		ServerEndpoint:   e.cfg.ServerEndpoint,
+		ConnectedSince:   &e.connectedSince,
+		KillSwitchActive: e.killSwitchActive,
 	}
 
 	device, err := e.client.Device(ifaceName)
 	if err != nil {
 		// A interface pode ter sido removida por fora (ex.: NetworkManager
 		// hostil) — reporta conectado=false em vez de erro, já que do
-		// ponto de vista do usuário o túnel simplesmente caiu.
-		return tunnel.Status{Connected: false}, nil
+		// ponto de vista do usuário o túnel simplesmente caiu. Mas o kill
+		// switch (tabela nftables separada, não depende da interface WG
+		// existir) continua bloqueando de fato nesse meio-tempo — reportar
+		// KillSwitchActive=false aqui seria uma mentira na UI/diagnóstico
+		// bem no momento em que ele mais importa (ver teste E2E da Fase 6).
+		return tunnel.Status{Connected: false, KillSwitchActive: e.killSwitchActive}, nil
 	}
 	for _, p := range device.Peers {
 		if p.PublicKey.String() == e.cfg.ServerPublicKey {

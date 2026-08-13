@@ -44,6 +44,13 @@ type Config struct {
 	// na Fase 1 (ver ROADMAP.md) quando o dispositivo já está atrás de
 	// outra VPN/rede restritiva. Zero usa o padrão da plataforma (1420).
 	MTU int
+
+	// KillSwitch, se true, o Engine aplica um bloqueio fail-closed de
+	// todo tráfego fora do túnel (nftables no Linux, WFP no Windows) como
+	// parte de Connect, e o remove em Disconnect — ver ROADMAP.md Fase 6
+	// e .cursor/rules/go-client.mdc (fallback sempre "bloquear", nunca
+	// "vazar tráfego").
+	KillSwitch bool
 }
 
 // Status reporta o estado ao vivo do túnel para a UI.
@@ -55,6 +62,11 @@ type Status struct {
 	LastHandshake  *time.Time
 	ReceiveBytes   int64
 	TransmitBytes  int64
+	// KillSwitchActive reflete se o bloqueio fail-closed está de fato
+	// aplicado agora (pode ser true mesmo com Connected=false, já que o
+	// kill switch só é desfeito num Disconnect() explícito — ver
+	// ROADMAP.md Fase 6).
+	KillSwitchActive bool
 }
 
 // Engine é implementado por internal/platform/{linux,windows} — cada

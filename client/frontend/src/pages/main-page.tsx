@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Power, ArrowDown, ArrowUp, Loader2, FolderOpen, Globe } from 'lucide-react'
+import { Power, ArrowDown, ArrowUp, Loader2, FolderOpen, Globe, Settings, Stethoscope, ShieldCheck } from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
@@ -11,9 +11,11 @@ interface MainPageProps {
   status: StatusView
   onChange: () => void
   error: string | null
+  onOpenSettings: () => void
+  onOpenDiagnostics: () => void
 }
 
-export function MainPage({ status, onChange, error }: MainPageProps) {
+export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagnostics }: MainPageProps) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -50,9 +52,29 @@ export function MainPage({ status, onChange, error }: MainPageProps) {
           <img src="/logo-192.png" alt="" className="h-6 w-6" />
           <h1 className="text-lg font-semibold">XVPN</h1>
         </div>
-        <Badge variant={status.connected ? 'default' : 'outline'}>
-          {status.connected ? 'Conectado' : 'Desconectado'}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={status.connected ? 'default' : 'outline'}>
+            {status.reconnecting
+              ? `Reconectando (${status.reconnectAttempt + 1})`
+              : status.connected
+                ? 'Conectado'
+                : 'Desconectado'}
+          </Badge>
+          <button
+            onClick={onOpenDiagnostics}
+            aria-label="Diagnóstico"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Stethoscope className="h-4 w-4" />
+          </button>
+          <button
+            onClick={onOpenSettings}
+            aria-label="Preferências"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4">
@@ -69,8 +91,20 @@ export function MainPage({ status, onChange, error }: MainPageProps) {
           {busy ? <Loader2 className="h-10 w-10 animate-spin" /> : <Power className="h-10 w-10" />}
         </button>
         <p className="text-sm text-muted-foreground">
-          {busy ? 'Aplicando…' : status.connected ? 'Toque para desconectar' : 'Toque para conectar'}
+          {busy
+            ? 'Aplicando…'
+            : status.reconnecting
+              ? 'Túnel caiu, tentando reconectar automaticamente…'
+              : status.connected
+                ? 'Toque para desconectar'
+                : 'Toque para conectar'}
         </p>
+        {status.killSwitchActive && (
+          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Kill switch ativo — tráfego fora da VPN bloqueado
+          </p>
+        )}
       </div>
 
       {(error || actionError) && (

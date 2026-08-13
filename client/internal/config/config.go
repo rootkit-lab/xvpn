@@ -31,6 +31,34 @@ type DeviceState struct {
 	// ROADMAP.md Fase 1 (achado de MTU) e Fase 4.
 	MTU        int       `json:"mtu,omitempty"`
 	EnrolledAt time.Time `json:"enrolled_at"`
+
+	// Preferences controla recursos opcionais da Fase 6 (ROADMAP.md) —
+	// zero value é o comportamento padrão de dispositivos já enrolled
+	// antes desta fase (sem kill switch, túnel completo, sem
+	// reconexão automática), exceto AutoReconnect que é ligado
+	// explicitamente no enrollment (ver handleEnroll) para não exigir
+	// opt-in de quem já tem o hábito de reconectar manualmente hoje.
+	Preferences Preferences `json:"preferences"`
+}
+
+// Preferences são ajustáveis pela GUI a qualquer momento (via
+// get_preferences/set_preferences), inclusive com túnel já conectado —
+// nesse caso o helper reconecta com a config nova (ver handleSetPreferences).
+type Preferences struct {
+	// KillSwitch, se true, bloqueia todo tráfego de saída fora do túnel
+	// (fail-closed) enquanto o dispositivo estiver enrolled e a conexão
+	// cair inesperadamente — nunca deixa vazar tráfego fora da VPN em
+	// silêncio (ver .cursor/rules/go-client.mdc).
+	KillSwitch bool `json:"kill_switch"`
+	// SplitTunnel, se true, envia pelo túnel só o tráfego destinado à
+	// sub-rede da VPN (ver splitTunnelCIDR em internal/helper) — todo o
+	// resto sai direto pela rede local. Se false (padrão), túnel
+	// completo: todo tráfego sai pelo VPS.
+	SplitTunnel bool `json:"split_tunnel"`
+	// AutoReconnect, se true, o helper tenta reconectar automaticamente
+	// (com backoff exponencial) quando o túnel cair sem o usuário ter
+	// pedido Disconnect.
+	AutoReconnect bool `json:"auto_reconnect"`
 }
 
 // Load lê o estado persistido. Devolve (nil, nil) — não um erro — se o

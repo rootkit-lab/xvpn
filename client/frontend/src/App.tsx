@@ -5,15 +5,23 @@ import { VPNService } from '../bindings/github.com/rootkit-lab/xvpn/client'
 import type { StatusView } from '../bindings/github.com/rootkit-lab/xvpn/client'
 import { EnrollmentPage } from './pages/enrollment-page'
 import { MainPage } from './pages/main-page'
+import { SettingsPage } from './pages/settings-page'
+import { DiagnosticsPage } from './pages/diagnostics-page'
 
 // Intervalo de polling do status — rápido o suficiente para a UI parecer
 // "ao vivo" (handshake, tráfego) sem sobrecarregar o helper com chamadas
 // IPC constantes.
 const POLL_INTERVAL_MS = 2000
 
+// Navegação simples por estado local, sem react-router: o app inteiro só
+// tem estas telas, e todas dependem do mesmo status polled aqui — não
+// compensa a dependência extra (ver ROADMAP.md Fase 6).
+type View = 'main' | 'settings' | 'diagnostics'
+
 function App() {
   const [status, setStatus] = useState<StatusView | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [view, setView] = useState<View>('main')
 
   const refresh = useCallback(async () => {
     try {
@@ -58,7 +66,23 @@ function App() {
     return <EnrollmentPage onEnrolled={refresh} />
   }
 
-  return <MainPage status={status} onChange={refresh} error={error} />
+  if (view === 'settings') {
+    return <SettingsPage onBack={() => setView('main')} />
+  }
+
+  if (view === 'diagnostics') {
+    return <DiagnosticsPage onBack={() => setView('main')} />
+  }
+
+  return (
+    <MainPage
+      status={status}
+      onChange={refresh}
+      error={error}
+      onOpenSettings={() => setView('settings')}
+      onOpenDiagnostics={() => setView('diagnostics')}
+    />
+  )
 }
 
 function CenteredMessage({ title, children }: { title?: string; children: ReactNode }) {

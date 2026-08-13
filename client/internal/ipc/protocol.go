@@ -31,4 +31,16 @@ const (
 	MethodConnect    = "connect"
 	MethodDisconnect = "disconnect"
 	MethodIsEnrolled = "is_enrolled"
+
+	// MethodGetPreferences/MethodSetPreferences — preferências de conexão
+	// (kill switch, split-tunnel, reconexão automática), ver
+	// ROADMAP.md Fase 6. Persistidas em config.DeviceState, por isso só o
+	// helper as lê/escreve.
+	MethodGetPreferences = "get_preferences"
+	MethodSetPreferences = "set_preferences"
+
+	// MethodGetLogs devolve as últimas linhas do log do helper (buffer em
+	// memória, ver internal/helper/logbuffer.go) — usado pela página de
+	// diagnóstico da GUI.
+	MethodGetLogs = "get_logs"
 )

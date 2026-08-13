@@ -164,6 +164,7 @@ graph TB
 | `landpages-ops-web` | Porta a definir por aquele projeto (ex. `127.0.0.1:3000`) → `https://ldpops.appapisip.com` (via Nginx) | **Não usar `8080`/`51820`/`8081` nem `10.66.66.0/24`** para evitar colisão |
 | Samba (SMB) | `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0`. NetBIOS/`139` (`nmbd`) desabilitado de propósito: clientes modernos resolvem por IP direto via SMB2/3, dispensando essa superfície extra (ver Fase 5 do `ROADMAP.md`) |
 | FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
+| Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via API em `127.0.0.1:8080` → `https://vpn.officeempresa.com` (JWT) | **Sem porta/domínio novo.** Não confundir com Samba/FileBrowser (só `wg0`). Download autenticado; nunca anônimo na internet pública. |
 | SSH | `22/tcp` | Mantém, mas hardening (§9) |
 | DNS interno (opcional, fase futura) | `10.66.66.1:53` | Evita vazamento de DNS quando full-tunnel ativo |
 
@@ -222,6 +223,41 @@ Adicionado depois da Fase 6, a pedido do usuário: `vpn.officeempresa.com/` deix
 **Superfície pública nova, mitigação**: como é o único endpoint de escrita sem login de toda a API, `POST /api/waitlist` tem rate limit por IP em memória (5 tentativas / 10 min, `server/internal/api/ratelimit.go`) e validação estrita (nome não vazio, e-mail via `net/mail.ParseAddress`, mensagem truncada em 2000 caracteres). Reenviar o mesmo e-mail não cria duplicata (idempotente) e não expõe erro diferenciado — evita enumeração de quem já está na lista sem, ao mesmo tempo, sujar o banco com repetições.
 
 Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server` e do mesmo server block Nginx já registrado em §5.
+
+### 6.7 Admin geral (RBAC)
+
+**Problema:** no MVP todo registro em `users` autentica no painel com os mesmos poderes (JWT sem `role`). Não dá para ter operador só-leitura, membro que só usa a VPN, ou um “admin geral” distinto.
+
+**Papéis (Fase 10 do `ROADMAP.md`):**
+
+| Role | Painel | VPN (enrollment/devices) | Marketplace |
+|---|---|---|---|
+| `super_admin` | Tudo, inclusive alterar roles e apagar outros admins | Sim | Admin + download |
+| `admin` | Users/devices/waitlist/audit/marketplace (sem promover a `super_admin`) | Sim | Admin + download |
+| `viewer` | Só leitura (dashboard, listas, audit) | Não cria convites | Download se ACL permitir |
+| `member` | Sem telas de admin (portal mínimo opcional) | Sim (próprios devices) | Download se ACL permitir |
+
+- Claim `role` no JWT; middleware por rota (403 se insuficiente).
+- Bootstrap do primeiro usuário continua sendo `super_admin`.
+- “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
+
+### 6.8 Marketplace de software
+
+**Objetivo:** catálogo interno para distribuir programas (`.deb` / AppImage / `.exe`·`.msi` / `.apk`) a usuários autorizados — Linux, Windows e Android como **plataformas de asset**, não como lojas oficiais.
+
+**Decisões:**
+
+| Tema | Escolha | Por quê |
+|---|---|---|
+| Superfície de rede | Mesmo `xvpn-server` + Nginx (`vpn.officeempresa.com`); blobs em `/opt/xvpn/data/marketplace/` | Sem porta/domínio novo (§5); não misturar com Samba/FileBrowser |
+| Autenticação do download | JWT (usuário do painel) obrigatório | Evita dump público de binários; rate limit + audit |
+| Modelo | `App` → `AppVersion` → `AppAsset` (platform, arch, sha256, size, path) | Versionamento claro; um app, N builds |
+| ACL | Global (todos `member`+) ou lista de user IDs | Suficiente para 1–15 usuários sem inventar IdP |
+| Cliente XVPN vs catálogo | `/download` = só o cliente XVPN (GitHub Releases); marketplace = **outros** programas | Não sobrecarregar a página de instalação do produto |
+| Android | Distribuição de APK via download autenticado / página `/apps` | Sem Play Store no escopo; VPN ou sessão web no telefone |
+| Antivírus / assinatura de código | Fora do MVP do marketplace; checksum SHA-256 obrigatório na UI | Transparência sem dependência de serviço externo |
+
+**Não fazer:** servir blobs em `0.0.0.0` sem auth; reutilizar share Samba como “loja” (ACL e UX ruins para versionamento); commitar binários no Git.
 
 ---
 
@@ -431,13 +467,17 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 ## 14. Estado e próximos passos
 
-**ROADMAP Fases 0–8 concluído (2026-08-13).** MVP em produção: VPS hardenizado, WireGuard + control-plane + painel (landing/waitlist/download), cliente desktop Linux com recursos avançados, empacotamento (`.deb` instalado em uso real; AppImage/NSIS geráveis), Samba/FileBrowser só em `wg0`, logs/métricas e auditoria OK.
+**MVP (Fases 0–8) concluído (2026-08-13).** Produção: VPS, WireGuard, control-plane + painel, cliente Linux, empacotamento, Samba/FileBrowser só em `wg0`, logs/métricas.
 
-**Não há “próxima fase” do roadmap.** O fluxo daqui pra frente é o de um produto em manutenção:
+**Parte II aberta (`ROADMAP.md` Fases 9–12):**
 
-1. **Bug / melhoria** → branch a partir de `main` (`fix/`/`feat/`/…) → PR Conventional Commits → squash merge (`CONTRIBUTING.md`; skills `start-task` / `ship-pr`).
-2. **Release** → o `release-please` abre PR `autorelease: pending` por componente; mergear corta tag + GitHub Release (`release-status`). Anexar artefatos de build (`.deb`/AppImage/NSIS) na release do `client` (não commitá-los no Git).
-3. **Operação do VPS** → skills `vps-security-audit`, `wireguard-peer-ops`, `samba-user-ops`, `port-domain-registry-check`; deploy do `xvpn-server` quando houver mudança de servidor.
-4. **Backlog explícito** (Windows real, `LICENSE`, assinatura de código, primeira tag `v0.1.0`) → ver [`ROADMAP.md` — Backlog pós-roadmap](./ROADMAP.md#backlog-pós-roadmap).
+| Fase | Foco |
+|---|---|
+| **9** | Bugs de enroll/revoke, rate limit login/enroll, CI/`go test`, cache de `/api/status`, mutex/polling |
+| **10** | Admin geral (RBAC: `super_admin` / `admin` / `viewer` / `member`) — §6.7 |
+| **11** | Marketplace multiplataforma (Linux/Android/Windows assets) — §6.8 |
+| **12** | Consumo no cliente desktop + página APK / quotas |
 
-Pendência operacional leve: confirmar `GIN_MODE=release` (+ opcional `XVPN_LOG_*`) em `/opt/xvpn/xvpn-server.env` se ainda não estiver.
+**Três melhorias sugeridas (entrar na Fase 9):** (1) segurança auth/enrollment + rollback; (2) CI com testes; (3) performance de status/polling/mutex.
+
+Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, `LICENSE`, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.

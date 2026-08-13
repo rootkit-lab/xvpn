@@ -105,7 +105,7 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       </header>
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3">
-        <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-1/2 h-56 w-full -translate-y-1/2 opacity-60" />
+        <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-56 w-full -translate-y-1/2 opacity-60" />
 
         {status.connected && (
           <motion.div
@@ -120,9 +120,15 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
           </motion.div>
         )}
 
-        <div className="relative z-10 flex size-36 items-center justify-center">
-          {/* Anel decorativo pontilhado — só estética, reforça a leitura de "dial" */}
-          <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full animate-spin-slow text-primary/40">
+        <div className="relative z-20 flex size-36 items-center justify-center">
+          {/* Anel decorativo: pointer-events-none obrigatório — com
+              animate-spin (transform) o SVG cria stacking context e, no
+              WebKitGTK do Wails, interceptava cliques no botão por baixo. */}
+          <svg
+            viewBox="0 0 100 100"
+            className="pointer-events-none absolute inset-0 h-full w-full animate-spin-slow text-primary/40"
+            aria-hidden="true"
+          >
             <circle
               cx="50"
               cy="50"
@@ -135,13 +141,14 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
             />
           </svg>
           <motion.button
+            type="button"
             onClick={toggle}
             disabled={busy}
             aria-label={status.connected ? 'Desconectar' : 'Conectar'}
             whileTap={{ scale: 0.94 }}
             animate={status.connected && !busy ? { scale: [1, 1.02, 1] } : { scale: 1 }}
             transition={status.connected ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' } : undefined}
-            className={`flex h-32 w-32 items-center justify-center rounded-full border-4 transition-colors disabled:opacity-60 ${
+            className={`relative z-10 flex h-32 w-32 cursor-pointer items-center justify-center rounded-full border-4 transition-colors disabled:cursor-wait disabled:opacity-60 ${
               status.connected
                 ? 'animate-pulse-glow border-primary bg-primary/10 text-primary'
                 : status.reconnecting

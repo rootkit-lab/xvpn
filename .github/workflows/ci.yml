@@ -52,13 +52,25 @@ jobs:
       - name: Dependências de build do Wails (GTK/WebKit — ver PLAN.md §11)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
+          # build-essential: gcc p/ cgo (wails3 exige CGO_ENABLED=1 nativo no Linux).
+          # libgtk-3-dev/libwebkit2gtk-4.1-dev: usadas pelo xvpn-client em si (produção).
+          # libgtk-4-dev/libwebkitgtk-6.0-dev: só para compilar o binário wails3 CLI
+          # via `go install` (internal/operatingsystem detecta a versão do webview
+          # via pkg-config em tempo de build do próprio CLI, mesmo sem usá-la em runtime).
+          sudo apt-get install -y --no-install-recommends build-essential libgtk-3-dev libwebkit2gtk-4.1-dev libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Cache go-task/wails3 CLI (recompilar do zero leva minutos)
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: client-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('client/go.mod') }}
       - name: Instala go-task e wails3 CLI (ver client/README.md)
+        if: steps.cache-tools.outputs.cache-hit != 'true'
         run: |
           go install github.com/go-task/task/v3/cmd/task@v3.52.0
           WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
           go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: task build (gera frontend/bindings + frontend/dist antes do go build — client/main.go embute frontend/dist)
         run: task build
       - run: go build ./...
@@ -88,12 +100,23 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: client/frontend/package-lock.json
+      - name: Dependências p/ compilar o wails3 CLI (não afeta o binário Windows em si — ver client-linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Cache go-task/wails3 CLI (recompilar do zero leva minutos)
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: client-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('client/go.mod') }}
       - name: Instala go-task e wails3 CLI (ver client/README.md)
+        if: steps.cache-tools.outputs.cache-hit != 'true'
         run: |
           go install github.com/go-task/task/v3/cmd/task@v3.52.0
           WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
           go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: task build GOOS=windows (só valida que compila — sem runner Windows real, ver PLAN.md)
         run: task build GOOS=windows
 

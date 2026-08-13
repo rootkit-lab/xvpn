@@ -1,0 +1,46 @@
+[Unit]
+Description=XVPN FileBrowser Quantum (acesso web a arquivos, restrito à VPN)
+Documentation=https://github.com/rootkit-lab/xvpn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xvpn-filebrowser
+Group=xvpn-samba
+WorkingDirectory=/srv/xvpn/shared
+
+# server.address no config.yaml é a defesa principal: o processo nem tenta
+# escutar no eth0. Nunca mude para 0.0.0.0 (ver PLAN.md §3.4 e AGENTS.md
+# invariante de segurança #2).
+ExecStart=/usr/local/bin/filebrowser -c /etc/xvpn-filebrowser/config.yaml
+
+# NÃO usar a variável FILEBROWSER_ADMIN_PASSWORD aqui: no FileBrowser Quantum
+# v1.5.1-stable ela reintroduz a senha em texto puro no banco a cada boot
+# (sem re-hash — bug confirmado lendo o código-fonte na Fase 5, ver
+# ROADMAP.md). Defina/redefina a senha do admin manualmente, com o serviço
+# parado, via `filebrowser set -u admin,<senha> -a -c
+# /etc/xvpn-filebrowser/config.yaml` (isso passa pelo caminho que faz hash
+# corretamente) — ver server/deploy/filebrowser/config.yaml para o
+# procedimento completo.
+
+Restart=on-failure
+RestartSec=5
+
+# Banco de dados próprio do FileBrowser (usuários/sessões dele, independente
+# do banco do painel XVPN) — systemd cria /var/lib/xvpn-filebrowser com
+# permissões corretas antes do serviço iniciar.
+StateDirectory=xvpn-filebrowser
+StateDirectoryMode=0700
+
+# Hardening (systemd sandboxing) — só precisa escrever no próprio estado e
+# no diretório compartilhado (mesmo grupo do Samba, ver smb.conf).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/srv/xvpn/shared
+ReadOnlyPaths=/etc/xvpn-filebrowser
+
+[Install]
+WantedBy=multi-user.target

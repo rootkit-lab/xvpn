@@ -31,8 +31,8 @@ Depois de rodar o script, verifique este checklist contra a saída (não assuma 
 - [ ] `passwordauthentication` = `no`
 - [ ] `permitrootlogin` = `prohibit-password` (ou `no`)
 - [ ] `ufw` ativo, com **apenas** as portas esperadas (`22/tcp`, `80/tcp`, `443/tcp`, `51820/udp`)
-- [ ] Nenhuma porta de Samba (`139`, `445`) ou FileBrowser (`8081`) aparecendo em `ss -tulnp` vinculada a `0.0.0.0` ou ao IP público `206.189.224.72` — só devem aparecer vinculadas a `10.66.66.1`/`wg0` ou não aparecer se ainda não instaladas
-- [ ] `smb.conf` (se já instalado) tem `interfaces = wg0 lo` e `bind interfaces only = yes`
+- [ ] Nenhuma porta de Samba (`139`, `445`) ou FileBrowser (`8081`) aparecendo em `ss -tulnp` vinculada a `0.0.0.0` ou ao IP público `206.189.224.72` — só devem aparecer vinculadas a `10.66.66.1`/`127.0.0.1` ou não aparecer se ainda não instaladas
+- [ ] `smb.conf` (se já instalado) tem `interfaces = 10.66.66.1/24 127.0.0.1/8` e `bind interfaces only = yes`. **Não** use `interfaces = wg0 lo` (nome de interface) — o Samba não detecta corretamente interfaces ponto-a-ponto/sem broadcast como o WireGuard por esse método, e o `smbd` silenciosamente cai só em `127.0.0.1` (achado na Fase 5, ver `ROADMAP.md`)
 - [ ] Nenhum serviço inesperado escutando em porta não documentada em `PLAN.md` §5
 
 Se algum item falhar, reporte ao usuário explicitamente qual invariante de `SECURITY.md` foi violada antes de corrigir, para que a correção seja intencional e não silenciosa.

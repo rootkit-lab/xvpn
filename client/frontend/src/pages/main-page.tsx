@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Power, ArrowDown, ArrowUp, Loader2 } from 'lucide-react'
+import { Power, ArrowDown, ArrowUp, Loader2, FolderOpen, Globe } from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
@@ -31,6 +31,15 @@ export function MainPage({ status, onChange, error }: MainPageProps) {
       setActionError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function openFiles(kind: 'smb' | 'filebrowser') {
+    setActionError(null)
+    try {
+      await VPNService.OpenServerFiles(kind)
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -90,6 +99,25 @@ export function MainPage({ status, onChange, error }: MainPageProps) {
             />
           </CardContent>
         </Card>
+      )}
+
+      {status.connected && (
+        <div className="flex gap-3">
+          <button
+            onClick={() => openFiles('smb')}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+          >
+            <FolderOpen className="h-4 w-4" />
+            Unidade de rede
+          </button>
+          <button
+            onClick={() => openFiles('filebrowser')}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+          >
+            <Globe className="h-4 w-4" />
+            Arquivos (navegador)
+          </button>
+        </div>
       )}
     </div>
   )

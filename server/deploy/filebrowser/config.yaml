@@ -1,0 +1,36 @@
+# Config do FileBrowser Quantum (fork ativo de filebrowser/filebrowser,
+# ver ROADMAP.md Fase 5 — o projeto original foi arquivado em 2026-09-01
+# sem mais correções de segurança, então usamos o fork mantido).
+#
+# Instalado em /etc/xvpn-filebrowser/config.yaml no VPS. Sem segredos aqui.
+#
+# bind exclusivo em wg0 é a defesa principal (nunca 0.0.0.0) — ver
+# PLAN.md §3.4 e AGENTS.md invariante de segurança #2.
+#
+# Definir/redefinir a senha do admin (NUNCA usar a env var
+# FILEBROWSER_ADMIN_PASSWORD — ver nota de bug em
+# server/deploy/systemd/xvpn-filebrowser.service):
+#
+#   systemctl stop xvpn-filebrowser
+#   sudo -u xvpn-filebrowser bash -c '
+#     cd /var/lib/xvpn-filebrowser &&
+#     /usr/local/bin/filebrowser set -u "admin,$(openssl rand -base64 24)" -a \
+#       -c /etc/xvpn-filebrowser/config.yaml'
+#   systemctl start xvpn-filebrowser
+#
+# (anote a senha impressa — não fica salva em nenhum lugar do repositório)
+server:
+  port: 8081
+  listen: "10.66.66.1"
+  database: "/var/lib/xvpn-filebrowser/database.db"
+  # Sem isso, o cache do FileBrowser (thumbnails etc.) fica em "./tmp",
+  # relativo ao WorkingDirectory — que é o próprio /srv/xvpn/shared,
+  # poluindo o compartilhamento visível também via Samba.
+  cacheDir: "/var/lib/xvpn-filebrowser/cache"
+  sources:
+    - path: "/srv/xvpn/shared"
+      config:
+        defaultEnabled: true
+
+auth:
+  adminUsername: admin

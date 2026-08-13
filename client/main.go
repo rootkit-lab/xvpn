@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/rootkit-lab/xvpn/client/internal/helper"
 	"github.com/rootkit-lab/xvpn/client/internal/trayicons"
@@ -61,6 +62,20 @@ func runGUI() {
 		Height:           620,
 		BackgroundColour: application.NewRGB(15, 17, 21),
 		URL:              "/",
+	})
+
+	// Sem isto, o botão "x" da janela dispara o handler padrão do Wails
+	// (WindowClosing → destrói a janela de fato, ver
+	// pkg/application/webview_window.go). Nesse ponto "Mostrar XVPN" na
+	// bandeja não tem mais nada pra mostrar — o app parece ter travado.
+	// RegisterHook roda ANTES desse handler padrão (que é um listener via
+	// OnWindowEvent, não um hook — hooks sempre são processados primeiro
+	// e um Cancel() aqui impede o listener padrão de rodar), então
+	// cancelamos o fechamento e só escondemos a janela: fica minimizada
+	// na bandeja, pronta para "Mostrar XVPN" trazer de volta.
+	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		e.Cancel()
+		window.Hide()
 	})
 
 	tray := setupTray(app, window)

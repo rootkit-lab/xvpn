@@ -15,6 +15,7 @@ const UsersPage = lazy(() => import('@/pages/users-page').then((m) => ({ default
 const DevicesPage = lazy(() => import('@/pages/devices-page').then((m) => ({ default: m.DevicesPage })))
 const SharesPage = lazy(() => import('@/pages/shares-page').then((m) => ({ default: m.SharesPage })))
 const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ default: m.WaitlistPage })))
+const DownloadPage = lazy(() => import('@/pages/download-page').then((m) => ({ default: m.DownloadPage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
 
@@ -45,6 +46,7 @@ export default function App() {
                 <Route path="devices" element={<DevicesPage />} />
                 <Route path="shares" element={<SharesPage />} />
                 <Route path="waitlist" element={<WaitlistPage />} />
+                <Route path="download" element={<DownloadPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="audit" element={<AuditPage />} />
               </Route>

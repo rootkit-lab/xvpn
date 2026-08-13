@@ -9,6 +9,7 @@ import {
   ScrollText,
   LogOut,
   ListChecks,
+  Download,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/devices', label: 'Dispositivos', icon: Laptop },
   { to: '/shares', label: 'Compartilhamentos', icon: HardDrive },
   { to: '/waitlist', label: 'Lista de espera', icon: ListChecks },
+  { to: '/download', label: 'Downloads', icon: Download },
   { to: '/settings', label: 'Configurações', icon: Settings },
   { to: '/audit', label: 'Auditoria', icon: ScrollText },
 ]

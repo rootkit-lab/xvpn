@@ -20,6 +20,14 @@ func autostartFilePath() string {
 	return filepath.Join(xdg.ConfigHome, "autostart", desktopFileName)
 }
 
+// removeLegacyAutostartCopy apaga ~/.config/autostart/xvpn-client.desktop,
+// cópia do atalho de menu que o README antigo pedia para autostart e que
+// competia com xvpn-client-autostart.desktop (duas GUIs no login).
+func removeLegacyAutostartCopy() {
+	legacy := filepath.Join(xdg.ConfigHome, "autostart", "xvpn-client.desktop")
+	_ = os.Remove(legacy)
+}
+
 func isEnabled() (bool, error) {
 	_, err := os.Stat(autostartFilePath())
 	if err != nil {

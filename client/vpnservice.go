@@ -11,6 +11,7 @@ import (
 	"github.com/rootkit-lab/xvpn/client/internal/helper"
 	"github.com/rootkit-lab/xvpn/client/internal/ipc"
 	"github.com/rootkit-lab/xvpn/client/internal/opener"
+	"github.com/rootkit-lab/xvpn/client/internal/version"
 )
 
 // serverVPNAddress é o IP fixo do servidor dentro do túnel WireGuard — não
@@ -74,6 +75,7 @@ type Preferences struct {
 // chave privada ou qualquer segredo, só metadados de conectividade.
 type DiagnosticsReport struct {
 	GeneratedAt             time.Time   `json:"generatedAt"`
+	ClientVersion           string      `json:"clientVersion"`
 	HelperReachable         bool        `json:"helperReachable"`
 	Enrolled                bool        `json:"enrolled"`
 	Connected               bool        `json:"connected"`
@@ -96,6 +98,11 @@ type DiagnosticsReport struct {
 	// respondendo dentro da VPN, ver server/deploy/filebrowser.
 	VPNGatewayReachable bool   `json:"vpnGatewayReachable"`
 	VPNGatewayLatencyMs *int64 `json:"vpnGatewayLatencyMs,omitempty"`
+}
+
+// Version devolve a versão semântica embutida no binário (ldflags) ou "dev".
+func (s *VPNService) Version() string {
+	return version.String()
 }
 
 // Status consulta o helper. Se o helper não estiver acessível (serviço não
@@ -251,7 +258,10 @@ func (s *VPNService) GetLogs() ([]string, error) {
 // diagnosticar "não conecta"/"conecta mas não navega" sem precisar abrir
 // um terminal. Nunca inclui a chave privada ou qualquer segredo.
 func (s *VPNService) RunDiagnostics() (DiagnosticsReport, error) {
-	report := DiagnosticsReport{GeneratedAt: time.Now()}
+	report := DiagnosticsReport{
+		GeneratedAt:   time.Now(),
+		ClientVersion: version.String(),
+	}
 
 	client, err := ipc.Dial()
 	if err != nil {

@@ -130,3 +130,51 @@ func TestHandleDeleteUser_RevokesDevicesToo(t *testing.T) {
 		t.Fatalf("esperava 0 devices após deletar o usuário, obtido %d", remaining)
 	}
 }
+
+// TestHandleDeleteUser_CompensatesWireGuardWhenDBFails cobre um bug em que
+// uma falha de banco *depois* dos peers do usuário já terem sido removidos
+// do WG deixava o kernel "à frente" do banco (que ainda tem usuário e
+// devices intactos, já que a transação é revertida) — ver ROADMAP.md
+// Fase 9.
+func TestHandleDeleteUser_CompensatesWireGuardWhenDBFails(t *testing.T) {
+	app, wg := newTestApp(t)
+	admin := createTestUser(t, app, "admin", "senha-admin-123")
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	pub := "liZAlmaFUyITHHF1GIqBv1yoSVbs5rF+l151paxtOFA="
+	device := store.Device{UserID: admin.ID, Name: "notebook", PublicKey: pub, AllowedIP: "10.66.66.5/32"}
+	if err := app.Store.DB.Create(&device).Error; err != nil {
+		t.Fatalf("erro criando device de teste: %v", err)
+	}
+	if err := wg.AddPeer(wireguard.PeerSpec{PublicKey: pub, AllowedIP: "10.66.66.5/32"}); err != nil {
+		t.Fatalf("erro preparando peer de teste: %v", err)
+	}
+
+	// Simula falha de banco no delete final do usuário, depois que os
+	// devices dele já foram apagados dentro da mesma transação — GORM
+	// reverte a transação inteira, mas o WG (fora da transação) já
+	// tinha sido mexido antes dela nem começar.
+	if err := app.Store.DB.Exec("CREATE TRIGGER block_user_delete BEFORE DELETE ON users BEGIN SELECT RAISE(ABORT, 'falha simulada de banco'); END;").Error; err != nil {
+		t.Fatalf("erro criando trigger de teste: %v", err)
+	}
+
+	rec := doJSON(t, router, http.MethodDelete, "/api/users/"+strconv.FormatUint(uint64(admin.ID), 10), nil, token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperado 500 (falha de banco), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	peers, err := wg.ListPeers()
+	if err != nil {
+		t.Fatalf("erro listando peers: %v", err)
+	}
+	if len(peers) != 1 {
+		t.Fatalf("esperava que o peer fosse re-adicionado (compensação) após falha do banco, obtido %d peers", len(peers))
+	}
+
+	var remaining int64
+	app.Store.DB.Model(&store.Device{}).Count(&remaining)
+	if remaining != 1 {
+		t.Fatalf("esperava que o device continuasse no banco (transação revertida), obtido %d", remaining)
+	}
+}

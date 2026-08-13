@@ -98,17 +98,28 @@ func (h *Helper) checkConnection(ctx context.Context) {
 	}
 
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.reconnecting = false
 	if !h.desiredConnected || h.state == nil {
+		h.mu.Unlock()
 		return
 	}
 	cfg, err := h.buildTunnelConfig()
+	h.mu.Unlock()
 	if err != nil {
 		log.Printf("xvpn-client-helper: reconexão automática abortada: %v", err)
 		return
 	}
-	if err := h.engine.Connect(cfg); err != nil {
+
+	// engineMu (não h.mu) serializa a chamada ao motor — mantém
+	// status/preferências/logs respondendo via IPC mesmo durante uma
+	// reconexão automática lenta (ver ROADMAP.md Fase 9).
+	h.engineMu.Lock()
+	err = h.engine.Connect(cfg)
+	h.engineMu.Unlock()
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if err != nil {
 		h.reconnectAttempt = attempt + 1
 		log.Printf("xvpn-client-helper: tentativa de reconexão automática falhou: %v", err)
 		return

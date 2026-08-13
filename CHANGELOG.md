@@ -10,10 +10,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 - **ROADMAP Fase 13 (planejamento):** contas Unix reais por usuário (SFTP via chave pública + Samba integrados no mesmo diretório), com provisionamento via binário privilegiado fixo (`xvpn-user-provision`, sudoers sem wildcard) em vez de elevar o `xvpn-server` genericamente. Decisões em `PLAN.md` §6.9.
 - **ROADMAP Parte II (Fases 9–12):** qualidade/TDD/bugs/perf, admin geral (RBAC), marketplace multiplataforma (Linux/Android/Windows), consumo no cliente; diagnóstico baseline e 3 melhorias sugeridas. `PLAN.md` §6.7–6.8 + §5 (storage marketplace) + §14.
+- **CI mínima** (`.github/workflows/ci.yml`, Fase 9): `go build`/`go vet`/`gofmt`/`go test` em PRs e push para `main`, para `server` e `client`; cross-compile Windows do `client` como build-check (sem runner Windows real); lint (`oxlint`) + `npm run build` do painel React.
+- Testes de regressão (Fase 9) para os bugs corrigidos abaixo, mais cache de `GET /api/status` e a separação `Helper.mu`/`engineMu` — `go test -race` limpo em `server` e `client`. Primeiros testes do pacote `client/internal/helper` (não tinha nenhum antes).
+
+### Fixed
+
+- **Rollback de enroll não restaurava o convite** (`server/internal/api/devices_handler.go`): se `AddPeer` falhasse depois do banco já ter marcado `invite.UsedAt`, o código de convite ficava "queimado" mesmo com o enrollment tendo falhado por completo — agora o convite e o device são revertidos juntos, numa transação.
+- **Revogação de device/user podia "ressuscitar" peer no próximo restart** (`devices_handler.go`, `users_handler.go`): se a exclusão no banco falhasse depois do peer já ter sido removido do WireGuard, o registro sobrevivente no banco fazia o `ReconcilePeers` do próximo boot recriar o peer sozinho. Agora uma falha de banco pós-remoção compensa re-adicionando o(s) peer(s) na hora, mantendo kernel e banco sempre consistentes entre si.
 
 ### Changed
 
 - **ROADMAP Fases 0–8 fechado**: checklist marcado concluído (incl. instalação real do `.deb` no Linux do usuário); itens Windows/`LICENSE`/assinatura movidos para backlog legado; escopo pós-MVP passa a ser as Fases 9+.
+- **ROADMAP Fase 9 fechada** (qualidade: bugs, TDD/CI, performance): rate limit em `POST /api/auth/login` (10/5min) e `POST /api/devices/enroll` (20/10min) por IP; cache de 2s em `GET /api/status`; polling do painel (`use-polling-data`) não sobrepõe mais requisições em atraso; `Helper.mu` do cliente não fica mais preso durante `engine.Connect`/`Disconnect` (mutex `engineMu` dedicado à chamada do motor); ring buffers do `applog` e do helper (`logbuffer.go`) trocaram o padrão de re-fatiar pela frente (capacidade encolhendo a cada linha) por deslocamento em memória fixa. Vitest do painel React fica adiado (sem infra de teste no frontend ainda) — ver nota no `ROADMAP.md`.
 
 ### Added (histórico recente)
 

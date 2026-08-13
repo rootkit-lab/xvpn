@@ -21,8 +21,15 @@ export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000
 
   useEffect(() => {
     let cancelled = false
+    // Evita sobrepor requisições se a anterior ainda não voltou (API
+    // lenta/rede ruim) — sem isso, um tick do interval podia disparar
+    // outra chamada antes da primeira responder, deixando respostas fora
+    // de ordem "pisarem" uma na outra (ver ROADMAP.md Fase 9).
+    let inFlight = false
 
     async function run() {
+      if (inFlight) return
+      inFlight = true
       try {
         const result = await fetcher()
         if (!cancelled) {
@@ -34,6 +41,7 @@ export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000
           setError(err instanceof ApiError ? err.message : 'Falha ao carregar dados')
         }
       } finally {
+        inFlight = false
         if (!cancelled) setLoading(false)
       }
     }

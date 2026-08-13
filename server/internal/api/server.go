@@ -23,6 +23,19 @@ import (
 // de forma incompatível com clientes existentes.
 const APIVersion = 1
 
+// Limites dos endpoints públicos sensíveis (sem essa proteção, alguém
+// podia tentar senhas/códigos de convite em loop apertado — ver
+// ROADMAP.md Fase 9). Generosos o bastante para um usuário legítimo que
+// erra a senha algumas vezes ou tem uma conexão instável durante o
+// enrollment, curtos o suficiente para tornar força bruta pouco atrativa.
+const (
+	loginRateLimitMax    = 10
+	loginRateLimitWindow = 5 * time.Minute
+
+	enrollRateLimitMax    = 20
+	enrollRateLimitWindow = 10 * time.Minute
+)
+
 // StartedAt é preenchido no boot do processo, usado por GET /api/status
 // para relatar uptime.
 var StartedAt = time.Now()
@@ -46,6 +59,20 @@ type App struct {
 	// waitlistLimiter protege o único endpoint de escrita público (sem
 	// autenticação) da API, POST /api/waitlist — ver ratelimit.go.
 	waitlistLimiter *ipRateLimiter
+
+	// loginLimiter/enrollLimiter protegem os outros dois endpoints sem
+	// JWT (login ainda não tem sessão; enroll usa só o código de
+	// convite) contra tentativas em loop — ver ratelimit.go.
+	loginLimiter  *ipRateLimiter
+	enrollLimiter *ipRateLimiter
+
+	// statusCache* memoizam a última resposta de GET /api/status por
+	// statusCacheTTL — endpoint público e chamado em polling pelo painel
+	// e pelo cliente desktop, sem isso cada requisição batia direto no
+	// wgctrl/kernel (ver status_handler.go e ROADMAP.md Fase 9).
+	statusCacheMu   sync.Mutex
+	statusCacheAt   time.Time
+	statusCacheResp statusResponse
 }
 
 // NewRouter monta todas as rotas da API sobre um App já inicializado.
@@ -61,11 +88,17 @@ func NewRouter(app *App) *gin.Engine {
 		// atrativo nesse endpoint público.
 		app.waitlistLimiter = newIPRateLimiter(5, 10*time.Minute)
 	}
+	if app.loginLimiter == nil {
+		app.loginLimiter = newIPRateLimiter(loginRateLimitMax, loginRateLimitWindow)
+	}
+	if app.enrollLimiter == nil {
+		app.enrollLimiter = newIPRateLimiter(enrollRateLimitMax, enrollRateLimitWindow)
+	}
 
 	apiGroup := r.Group("/api")
 	{
-		apiGroup.POST("/auth/login", app.handleLogin)
-		apiGroup.POST("/devices/enroll", app.handleDeviceEnroll)
+		apiGroup.POST("/auth/login", rateLimit(app.loginLimiter), app.handleLogin)
+		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
 		apiGroup.GET("/status", app.handleStatus)
 		// Único endpoint de escrita da API sem autenticação — ver
 		// waitlist_handler.go e AGENTS.md (qualquer superfície pública

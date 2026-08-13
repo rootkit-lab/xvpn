@@ -27,6 +27,10 @@ type fakePeerManager struct {
 	// num teste específico.
 	failNextAdd    bool
 	failNextRemove bool
+
+	// listPeersCalls conta chamadas reais a ListPeers — usado para
+	// verificar o cache de GET /api/status (ver status_handler_test.go).
+	listPeersCalls int
 }
 
 func newFakePeerManager() *fakePeerManager {
@@ -61,6 +65,7 @@ func (f *fakePeerManager) RemovePeer(publicKey string) error {
 func (f *fakePeerManager) ListPeers() ([]wireguard.PeerStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.listPeersCalls++
 	out := make([]wireguard.PeerStatus, 0, len(f.peers))
 	for _, p := range f.peers {
 		out = append(out, p)

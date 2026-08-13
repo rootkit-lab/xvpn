@@ -2,7 +2,7 @@ package main
 
 import (
 	"embed"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -10,6 +10,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"github.com/rootkit-lab/xvpn/client/internal/applog"
 	"github.com/rootkit-lab/xvpn/client/internal/helper"
 	"github.com/rootkit-lab/xvpn/client/internal/trayicons"
 )
@@ -35,16 +36,20 @@ func main() {
 }
 
 func runHelper() {
+	applog.Setup("xvpn-client-helper")
 	h, err := helper.New()
 	if err != nil {
-		log.Fatalf("xvpn-client-helper: falha ao inicializar: %v", err)
+		slog.Error("init failed", "err", err)
+		os.Exit(1)
 	}
 	if err := h.Run(); err != nil {
-		log.Fatalf("xvpn-client-helper: %v", err)
+		slog.Error("helper exited", "err", err)
+		os.Exit(1)
 	}
 }
 
 func runGUI() {
+	applog.Setup("xvpn-client-gui")
 	var mainWindow application.Window
 
 	app := application.New(application.Options{
@@ -100,7 +105,8 @@ func runGUI() {
 	go monitorTray(tray)
 
 	if err := app.Run(); err != nil {
-		log.Fatal(err)
+		slog.Error("gui exited", "err", err)
+		os.Exit(1)
 	}
 }
 
@@ -138,7 +144,7 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 		go func() {
 			svc := &VPNService{}
 			if err := svc.Connect(); err != nil {
-				log.Printf("tray: falha ao conectar: %v", err)
+				slog.Warn("tray connect failed", "err", err)
 			}
 		}()
 	})
@@ -146,7 +152,7 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 		go func() {
 			svc := &VPNService{}
 			if err := svc.Disconnect(); err != nil {
-				log.Printf("tray: falha ao desconectar: %v", err)
+				slog.Warn("tray disconnect failed", "err", err)
 			}
 		}()
 	})
@@ -155,7 +161,7 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 		go func() {
 			svc := &VPNService{}
 			if err := svc.OpenServerFiles("smb"); err != nil {
-				log.Printf("tray: falha ao abrir unidade de rede: %v", err)
+				slog.Warn("tray open smb failed", "err", err)
 			}
 		}()
 	})
@@ -163,7 +169,7 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 		go func() {
 			svc := &VPNService{}
 			if err := svc.OpenServerFiles("filebrowser"); err != nil {
-				log.Printf("tray: falha ao abrir FileBrowser: %v", err)
+				slog.Warn("tray open filebrowser failed", "err", err)
 			}
 		}()
 	})

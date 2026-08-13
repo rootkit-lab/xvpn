@@ -4,75 +4,83 @@
 
 # XVPN
 
-Rede privada própria com exit node via VPS, painel web de administração e cliente desktop multiplataforma — construído em **Go**, **Wails3** e **React + Tailwind + shadcn/ui**.
+Rede privada própria com exit node via VPS, painel web de administração e cliente desktop multiplataforma — **Go**, **Wails3**, **React + Tailwind + shadcn/ui**.
 
-> Status: **em desenvolvimento** — Fases 0–3 concluídas (hardening do VPS, túnel WireGuard validado, control-plane API em Go rodando em produção, painel web React+Tailwind+shadcn embutido no binário). Veja o [`ROADMAP.md`](./ROADMAP.md) para o checklist de execução e o [`PLAN.md`](./PLAN.md) para a arquitetura completa e as decisões técnicas (com justificativas).
+> Status: Fases **0–5** na `main` (produção). Fases **6–7** em PRs abertas; **Fase 8** (observabilidade/docs) nesta linha de trabalho. Checklist: [`ROADMAP.md`](./ROADMAP.md). Arquitetura: [`PLAN.md`](./PLAN.md).
 
 ---
 
 ## O que é
 
-O XVPN permite que dispositivos (Windows/Linux) entrem em uma rede privada cujo nó central é um VPS próprio, saindo para a internet com o IP público desse servidor (full-tunnel), com:
+Dispositivos Windows/Linux entram numa rede privada cujo nó central é um VPS próprio e saem para a internet com o IP desse servidor (full-tunnel), com:
 
-- **VPN rápida, estável e segura** baseada em WireGuard, com engine embarcada no cliente (sem depender de instalar o WireGuard oficial à parte).
-- **Painel web de administração** no VPS para criar/revogar usuários e dispositivos, ver status de conexão e gerenciar compartilhamentos.
-- **Cliente desktop** (Windows e Linux) com interface própria (Wails3 + React), que instala, conecta e desconecta com um clique — sem prompts de administrador repetidos.
-- **Compartilhamento de arquivos do VPS** de duas formas, ambas restritas à rede privada (nunca expostas na internet pública): unidade de rede via **Samba** e painel web via **FileBrowser**.
+- **VPN WireGuard** com engine embarcada no cliente (kernel no Linux, `wireguard-go`+`wintun` no Windows).
+- **Painel web** em `https://vpn.officeempresa.com` para usuários, dispositivos, convites e auditoria.
+- **Cliente desktop** (Wails3): enrollment por convite, conectar/desconectar, bandeja; helper privilegiado separado da GUI.
+- **Arquivos só na VPN**: Samba (`\\10.66.66.1\shared`) e FileBrowser Quantum (`http://10.66.66.1:8081`) — nunca na internet pública.
 
-## Por que este stack
-
-| Decisão | Por quê | Detalhes |
-|---|---|---|
-| WireGuard (não OpenVPN/IPSec) | Melhor desempenho, menor superfície de ataque, suporte nativo no kernel Linux e boas libs Go (`wgctrl-go`, `wireguard-go`) | [`PLAN.md` §3.1](./PLAN.md#31-protocolo-de-vpn-wireguard-vs-alternativas) |
-| Cliente com helper privilegiado + GUI sem privilégio | Padrão usado por produtos reais (Tailscale, Mullvad); evita prompts de admin repetidos | [`PLAN.md` §3.2](./PLAN.md#32-arquitetura-do-cliente-desktop-onde-fica-o-motor-wireguard) |
-| Nginx (não Caddy) como reverse proxy | O VPS também hospeda outra aplicação Go (`landpages-ops`); um único reverse proxy compartilhado evita conflito de porta 80/443 | [`PLAN.md` §3.3](./PLAN.md#33-reverse-proxy-e-tls-nginx-não-caddy) |
-| Samba + FileBrowser restritos à interface `wg0` | Compartilhamento de arquivos nunca deve ser alcançável pela internet pública, só pelo túnel | [`PLAN.md` §3.4](./PLAN.md#34-compartilhamento-de-arquivos-samba--filebrowser-ambos-restritos-à-vpn) |
-| Chave privada gerada só no cliente | Mesmo um servidor comprometido não permite personificar um dispositivo existente | [`PLAN.md` §3.5](./PLAN.md#35-geração-de-chaves-onde-nasce-a-chave-privada) |
-
-## Infraestrutura
+## Como operar (produção)
 
 | Item | Valor |
 |---|---|
-| VPS | Ubuntu 26.04 LTS, IP público `206.189.224.72` |
-| Domínio do painel/API | `vpn.officeempresa.com` |
-| Sub-rede WireGuard | `10.66.66.0/24` (servidor = `10.66.66.1`) |
-| Outra aplicação no mesmo servidor | `landpages-ops` (`ldpops.appapisip.com`) — ver registro de portas em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops) |
+| Painel / API | `https://vpn.officeempresa.com` |
+| VPS | `206.189.224.72` (Ubuntu 26.04) |
+| Sub-rede WireGuard | `10.66.66.0/24` (servidor `10.66.66.1`) |
+| Serviço | `systemctl status xvpn-server` |
+| Logs | `journalctl -u xvpn-server -f` (JSON estruturado a partir da Fase 8) |
+| Saúde | `curl -sS https://vpn.officeempresa.com/api/status` |
 
-## Estrutura do repositório
+Deploy do servidor: build embutindo o painel e substituir `/opt/xvpn/bin/xvpn-server` — ver [`server/README.md`](./server/README.md).
+
+Cliente (dev/instalação): ver [`client/README.md`](./client/README.md). Empacotamento `.deb`/AppImage/NSIS está na Fase 7 (PR).
+
+## Desenvolvimento local
+
+```bash
+# Servidor
+cd server/web && npm ci && npm run build && cd ..
+go test ./...
+go run ./cmd/xvpn-server   # precisa de WG + env; ver server/README.md
+
+# Cliente (Linux)
+cd client
+task build
+# helper: sudo ./bin/xvpn-client --helper   (ou unit systemd — client/README.md)
+./bin/xvpn-client
+```
+
+## Estrutura
 
 ```
 xvpn/
-├── PLAN.md              # Arquitetura completa e decisões técnicas justificadas
-├── ROADMAP.md            # Checklist de execução por fases
-├── README.md             # Este arquivo
-├── AGENTS.md              # Instruções para agentes de IA trabalhando neste repo
-├── CONTRIBUTING.md        # Convenções de commit, branch, workflow
-├── SECURITY.md            # Modelo de ameaças e política de segurança
-├── CHANGELOG.md           # Histórico de mudanças
-├── .cursor/               # Rules, hooks e skills do Cursor (ver AGENTS.md)
-├── server/                # xvpn-server: control-plane API (Go, Fase 2) + painel web React (Fase 3, embutido no binário)
-├── client/                # xvpn-client: app desktop Wails3 (Go + React, a criar — Fase 4)
-├── shared/                # Tipos/DTOs Go compartilhados (a criar)
-└── docs/                  # Documentação complementar (a criar)
+├── PLAN.md / ROADMAP.md / SECURITY.md / CONTRIBUTING.md / AGENTS.md
+├── server/          # API Gin + painel React embutido (embed.FS)
+├── client/          # Desktop Wails3 (GUI + --helper)
+├── .cursor/         # rules, hooks, skills (auditoria VPS, peers WG, PRs…)
+└── assets/          # logo
 ```
 
-`client/`, `shared/` e `docs/` ainda não existem — serão criados nas próximas fases do [`ROADMAP.md`](./ROADMAP.md).
+## Observabilidade (Fase 8)
 
-## Como começar (para quem for rodar/desenvolver)
+- **Servidor**: `log/slog` em JSON (`component=xvpn-server`); requests HTTP sem headers/corpo. Env: `XVPN_LOG_LEVEL`, `XVPN_LOG_FORMAT`, `GIN_MODE=release`.
+- **Cliente**: `internal/applog` (JSON + ring em memória das últimas linhas).
+- **Métricas básicas**: `GET /api/status` inclui `connected_peers`, `total_peers`, `uptime_seconds`, `receive_bytes_total`, `transmit_bytes_total` (agregado WireGuard).
 
-O control-plane (`server/`) já existe e está rodando em produção, agora com painel web embutido (Fases 2–3). Ver [`server/README.md`](./server/README.md) para instruções de build/execução/deploy. O cliente desktop (`client/`) ainda não existe.
+## Segurança (invariantes)
 
-1. Leia o [`PLAN.md`](./PLAN.md) para entender a arquitetura completa.
-2. Acompanhe o progresso em [`ROADMAP.md`](./ROADMAP.md).
-3. Se for contribuir, veja [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-4. Para entender o modelo de segurança e o que fazer em caso de incidente, veja [`SECURITY.md`](./SECURITY.md).
+1. Chave privada WireGuard **nunca** sai do dispositivo do cliente.
+2. Samba/FileBrowser só em `wg0` (`10.66.66.1`), nunca em `0.0.0.0`/`eth0`.
+3. Firewall padrão-nega; portas públicas só as de [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops).
+4. Sem segredos no Git.
 
-## Stack tecnológico
+Auditoria rápida do VPS: skill `vps-security-audit` (`.cursor/skills/vps-security-audit/`).
 
-- **Servidor**: Go, `wgctrl-go` + `vishvananda/netlink`, Gin, GORM + SQLite, React + Vite + Tailwind v4 + shadcn/ui (painel embutido via `embed.FS`), Nginx + Certbot, Samba, FileBrowser.
-- **Cliente**: Go, Wails v3 (beta), React + Tailwind + shadcn/ui, `wireguard-go` + `wgctrl-go`, `wintun` (Windows).
-- **Infra**: Ubuntu 26.04, `systemd`, `ufw`, `nftables`/`iptables`, `fail2ban`.
+## Stack
+
+- **Servidor**: Go, Gin, GORM/SQLite, `wgctrl`+netlink, React/Vite/Tailwind/shadcn, Nginx, Samba, FileBrowser Quantum.
+- **Cliente**: Go, Wails v3, React/Tailwind/shadcn, WireGuard kernel / `wireguard-go`+`wintun`.
+- **Infra**: Ubuntu 26.04, systemd, ufw, fail2ban.
 
 ## Licença / visibilidade
 
-Repositório **público** no GitHub (decisão tomada para viabilizar *branch protection* real na `main`, que no plano gratuito do GitHub só está disponível para repositórios públicos em conta pessoal). Segredos, chaves e dados sensíveis nunca são commitados (ver [`SECURITY.md`](./SECURITY.md) e `.gitignore`) — IP e domínios do servidor aparecem na documentação porque fazem parte da arquitetura, não são credenciais. Licença de código ainda não definida.
+Repositório **público** (branch protection na `main`). Segredos nunca commitados — ver [`SECURITY.md`](./SECURITY.md). Licença de código ainda não definida.

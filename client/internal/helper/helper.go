@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -121,7 +122,7 @@ func (h *Helper) Run() error {
 	server := ipc.NewServer()
 	h.registerHandlers(server)
 
-	log.Printf("xvpn-client-helper: pronto (enrolled=%v)", h.state != nil)
+	slog.Info("helper ready", "enrolled", h.state != nil)
 	return server.Serve(listener)
 }
 
@@ -189,6 +190,11 @@ func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {
 	h.state = state
 	h.mu.Unlock()
 
+	slog.Info("device enrolled",
+		"device_name", state.DeviceName,
+		"assigned_ip", state.AssignedIP,
+		"server", state.ServerBaseURL,
+	)
 	return EnrollResponse{AssignedIP: state.AssignedIP}, nil
 }
 
@@ -236,8 +242,10 @@ func (h *Helper) handleConnect(_ json.RawMessage) (any, error) {
 		return nil, err
 	}
 	if err := h.engine.Connect(cfg); err != nil {
+		slog.Error("connect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível conectar: %w", err)
 	}
+	slog.Info("connected", "assigned_ip", h.state.AssignedIP, "endpoint", h.state.ServerEndpoint)
 	h.desiredConnected = true
 	h.startMonitor()
 	return nil, nil
@@ -249,8 +257,10 @@ func (h *Helper) handleDisconnect(_ json.RawMessage) (any, error) {
 	h.desiredConnected = false
 	h.stopMonitorLocked()
 	if err := h.engine.Disconnect(); err != nil {
+		slog.Error("disconnect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível desconectar: %w", err)
 	}
+	slog.Info("disconnected")
 	return nil, nil
 }
 

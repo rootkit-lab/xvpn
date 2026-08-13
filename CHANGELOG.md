@@ -8,6 +8,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ### Added
 
+- **Fase 8 — observabilidade**: logs estruturados (`slog` JSON) no `xvpn-server` e no cliente (`internal/applog` + ring); `GET /api/status` passa a expor `receive_bytes_total` / `transmit_bytes_total`; README e `PLAN.md` §14 alinhados ao estado real; auditoria VPS (skill `vps-security-audit`) sem regressões.
 - **Fase 7 (empacotamento)**: versionamento no build (`client/build/scripts/resolve-version.sh` + ldflags), `.deb` com postinstall completo (grupo `xvpn`, helper systemd), AppImage e instalador Windows NSIS; docs em `client/README.md` e checklist no `ROADMAP.md`.
 - `PLAN.md` com arquitetura completa do projeto, diagnóstico real do VPS e decisões técnicas justificadas.
 - `ROADMAP.md` com checklist de execução por fases (0 a 8).

@@ -6,7 +6,7 @@
 package api
 
 import (
-	"strconv"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -97,12 +97,18 @@ func NewRouter(app *App) *gin.Engine {
 	return r
 }
 
-// requestLogger é um logger mínimo, propositalmente evitando logar
-// headers/corpo (poderiam conter tokens/senhas) — ver go-backend.mdc.
+// requestLogger emite uma linha slog por request HTTP, sem headers/corpo
+// (podem conter tokens/senhas) — ver go-backend.mdc.
 func requestLogger() gin.HandlerFunc {
-	return gin.LoggerWithFormatter(func(p gin.LogFormatterParams) string {
-		return p.TimeStamp.Format(time.RFC3339) + " " +
-			p.Method + " " + p.Path + " " +
-			strconv.Itoa(p.StatusCode) + " " + p.Latency.String() + "\n"
-	})
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		slog.Info("http",
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", c.Writer.Status(),
+			"latency_ms", time.Since(start).Milliseconds(),
+			"client_ip", c.ClientIP(),
+		)
+	}
 }

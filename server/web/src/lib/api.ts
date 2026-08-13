@@ -89,6 +89,8 @@ export interface StatusResponse {
   uptime_seconds: number
   connected_peers: number
   total_peers: number
+  receive_bytes_total: number
+  transmit_bytes_total: number
 }
 
 export interface AuditLog {

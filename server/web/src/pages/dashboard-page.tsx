@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function DashboardPage() {
   const fetchDashboard = useCallback(async () => {
     const [status, devices] = await Promise.all([api.status(), api.listDevices()])
-    const totalTraffic = devices.reduce((sum, d) => sum + d.receive_bytes + d.transmit_bytes, 0)
+    const totalTraffic = status.receive_bytes_total + status.transmit_bytes_total
     return { status, devices, totalTraffic }
   }, [])
 

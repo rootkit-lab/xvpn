@@ -379,7 +379,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **5. Compartilhamento de arquivos** | Samba scoped a `wg0` + FileBrowser | Unidade de rede monta no Windows/Linux; FileBrowser acessível só com túnel ativo |
 | **6. Recursos avançados do cliente** | Kill switch, auto-reconexão, tray, auto-start, split-tunnel opcional | Queda de conexão não vaza tráfego fora do túnel (com kill switch ativo) |
 | **7. Empacotamento e distribuição** | Instalador `.exe` (NSIS) e `.deb`/AppImage assinados/versionados | Instalação limpa numa VM nova funciona sem passos manuais |
-| **8. Observabilidade e documentação final** | Logs estruturados, página de diagnóstico no cliente, README de operação | Consegue diagnosticar uma falha de conexão só com o que o app mostra |
+| **8. Observabilidade e documentação final** | Logs estruturados (`slog` JSON), métricas em `/api/status`, README de operação | Consegue diagnosticar falha de conexão com logs do helper + status do painel/API; README reflete o estado real |
 
 Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas.
 
@@ -429,10 +429,12 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 ---
 
-## 14. Próximos passos imediatos
+## 14. Estado e próximos passos
 
-1. Aplicar a correção de SSH do §9 (2 minutos, baixo risco).
-2. Rodar a Fase 0 (hardening + pacotes base) e Fase 1 (validação manual do WireGuard) — posso executar isso diretamente no servidor via SSH assim que você confirmar.
-3. Iniciar o `server/` do monorepo com o control-plane em Go (Fase 2).
+**Concluído na `main` (Fases 0–5):** hardening do VPS, túnel WireGuard, control-plane + painel, cliente desktop MVP, Samba/FileBrowser só em `wg0`.
 
-Quando você der o sinal, posso começar a implementação a partir da Fase 0/1 diretamente no VPS, ou começar pelo scaffolding do código (`server/` e `client/`) localmente — o que preferir primeiro.
+**Em PRs (não na `main` ainda):** Fase 6 (recursos avançados do cliente), redesign UI, landing/waitlist, Fase 7 (empacotamento).
+
+**Fase 8 (esta linha):** logs estruturados server/client, métricas agregadas em `GET /api/status`, auditoria VPS via skill, README/PLAN alinhados ao estado real.
+
+Pendências manuais recorrentes: validação Windows real; instalação limpa `.deb`/NSIS em VM; opcional `GIN_MODE=release` + `XVPN_LOG_*` no `/opt/xvpn/xvpn-server.env` de produção.

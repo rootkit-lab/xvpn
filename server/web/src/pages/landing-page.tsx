@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { Laptop, Lock, Network, ShieldCheck, Wifi, Zap } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { api, ApiError } from '@/lib/api'
+import { NetworkGlobe } from '@/components/network-globe'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +44,11 @@ const FEATURES = [
   },
 ]
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0 },
+}
+
 export function LandingPage() {
   const { isAuthenticated } = useAuth()
   const [name, setName] = useState('')
@@ -70,45 +77,88 @@ export function LandingPage() {
   }
 
   return (
-    <div className="min-h-svh bg-background">
-      <header className="flex items-center justify-between px-6 py-5 sm:px-10">
+    <div className="relative min-h-svh overflow-hidden bg-background">
+      {/* Halo + globo decorativos fixos no topo — puramente visuais, atrás de todo o conteúdo real */}
+      <div className="glow-blob pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[560px] -translate-x-1/2" />
+      <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[520px] w-full max-w-3xl opacity-70" />
+
+      <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
         <div className="flex items-center gap-2">
           <img src="/logo-192.png" alt="XVPN" className="size-9" />
           <span className="text-lg font-semibold">XVPN</span>
         </div>
-        <Button variant="ghost" asChild>
+        <Button variant="ghost" className="rounded-full" asChild>
           <Link to="/login">Entrar</Link>
         </Button>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-col gap-16 px-6 pb-20 sm:px-10">
-        <section className="flex flex-col items-center gap-6 pt-10 text-center">
-          <img src="/logo-192.png" alt="" className="size-24" />
-          <h1 className="max-w-2xl text-4xl font-bold tracking-tight sm:text-5xl">
+      <main className="relative z-10 mx-auto flex max-w-5xl flex-col gap-16 px-6 pb-20 sm:px-10">
+        <motion.section
+          className="flex flex-col items-center gap-6 pt-10 text-center"
+          initial="hidden"
+          animate="show"
+          variants={fadeUp}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+        >
+          <motion.img
+            src="/logo-192.png"
+            alt=""
+            className="size-24 drop-shadow-[0_0_30px_var(--color-glow)]"
+            initial={{ scale: 0.85, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          />
+          <h1 className="max-w-2xl text-4xl font-bold tracking-tight text-glow sm:text-5xl">
             Sua própria VPN privada, do jeito que devia ser
           </h1>
           <p className="max-w-xl text-lg text-muted-foreground">
             Rede privada pessoal com saída própria, rápida e sob seu controle — sem depender de provedores
             terceiros. Acesso liberado por convite, através da lista de espera abaixo.
           </p>
-        </section>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button size="lg" className="glow-ring rounded-full px-8" asChild>
+              <a href="#waitlist">Entrar na lista de espera</a>
+            </Button>
+            <Button size="lg" variant="outline" className="rounded-full px-8" asChild>
+              <Link to="/login">Já tenho acesso</Link>
+            </Button>
+          </div>
+        </motion.section>
 
-        <section className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.section
+          className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-40px' }}
+          variants={{ show: { transition: { staggerChildren: 0.08 } } }}
+        >
           {FEATURES.map(({ icon: Icon, title, description }) => (
-            <Card key={title}>
-              <CardHeader>
-                <Icon className="mb-2 size-6 text-primary" />
-                <CardTitle className="text-base">{title}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CardDescription>{description}</CardDescription>
-              </CardContent>
-            </Card>
+            <motion.div key={title} variants={fadeUp} transition={{ duration: 0.45, ease: 'easeOut' }}>
+              <Card className="h-full border-white/5 bg-card/60 backdrop-blur transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_0_30px_-10px_var(--color-glow)]">
+                <CardHeader>
+                  <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <Icon className="size-5" />
+                  </div>
+                  <CardTitle className="text-base">{title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{description}</CardDescription>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
-        </section>
+        </motion.section>
 
-        <section id="waitlist" className="flex justify-center">
-          <Card className="w-full max-w-md">
+        <motion.section
+          id="waitlist"
+          className="flex justify-center"
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-40px' }}
+          variants={fadeUp}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="glow-ring w-full max-w-md border-white/5 bg-card/70 backdrop-blur">
             <CardHeader>
               <CardTitle>Entre na lista de espera</CardTitle>
               <CardDescription>
@@ -118,10 +168,14 @@ export function LandingPage() {
             </CardHeader>
             <CardContent>
               {submitted ? (
-                <p className="rounded-md border border-primary/30 bg-primary/10 p-4 text-sm">
+                <motion.p
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="rounded-md border border-primary/30 bg-primary/10 p-4 text-sm"
+                >
                   Cadastro recebido! Entraremos em contato pelo e-mail informado quando seu acesso for
                   aprovado.
-                </p>
+                </motion.p>
               ) : (
                 <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
                   <div className="flex flex-col gap-2">
@@ -148,17 +202,17 @@ export function LandingPage() {
                     />
                   </div>
                   {error && <p className="text-sm text-destructive">{error}</p>}
-                  <Button type="submit" disabled={submitting}>
+                  <Button type="submit" disabled={submitting} className="rounded-full">
                     {submitting ? 'Enviando…' : 'Entrar na lista de espera'}
                   </Button>
                 </form>
               )}
             </CardContent>
           </Card>
-        </section>
+        </motion.section>
       </main>
 
-      <footer className="border-t px-6 py-6 text-center text-sm text-muted-foreground">
+      <footer className="relative z-10 border-t border-white/5 px-6 py-6 text-center text-sm text-muted-foreground">
         XVPN — rede privada pessoal.{' '}
         <Link to="/login" className="underline">
           Já tem acesso? Entre aqui.

@@ -215,7 +215,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Empacotamento `.deb` para Linux — `nfpm` + `postinstall` cria grupo `xvpn`, usuário `xvpn-client-helper`, instala/enable a unit systemd
 - [x] Empacotamento AppImage para Linux — portátil (GUI); instalação completa do helper continua sendo via `.deb`
 - [x] Versionamento semântico no build (`build/scripts/resolve-version.sh` → ldflags + `XVPN_VERSION` no nfpm); changelog do componente segue o `release-please`
-- [ ] Página `/download` no portal (após login) com links/instruções — depende da landing/waitlist (`feat/landing-waitlist`)
+- [x] Página `/download` no portal (após login) com links/instruções — entregue em `feat/landing-waitlist` (PR #10)
 - [ ] Testar instalação limpa em VM nova (Windows) — **pendente de validação manual pelo usuário**
 - [ ] Testar instalação limpa em VM nova (Linux) — pacotes gerados localmente; teste em VM limpa pendente
 - [ ] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen

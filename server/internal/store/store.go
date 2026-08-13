@@ -25,7 +25,7 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("abrindo banco %q: %w", path, err)
 	}
 
-	if err := db.AutoMigrate(&User{}, &Device{}, &InviteToken{}, &AuditLog{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{}); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}
 

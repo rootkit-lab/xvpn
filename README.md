@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/logo.png" alt="XVPN" width="180">
+</p>
+
 # XVPN
 
 Rede privada própria com exit node via VPS, painel web de administração e cliente desktop multiplataforma — construído em **Go**, **Wails3** e **React + Tailwind + shadcn/ui**.

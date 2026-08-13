@@ -191,10 +191,11 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 7 — Empacotamento e distribuição
 
-- [ ] Instalador Windows via NSIS (`.exe`)
-- [ ] Empacotamento `.deb` para Linux
-- [ ] Empacotamento AppImage para Linux
-- [ ] Versionamento semântico + changelog automatizado no build
+- [ ] Instalador Windows via NSIS (`.exe`) — ver PR de empacotamento do cliente (`feat/client-packaging`)
+- [ ] Empacotamento `.deb` para Linux — idem
+- [ ] Empacotamento AppImage para Linux — idem
+- [ ] Versionamento semântico + changelog automatizado no build — idem
+- [x] Página `/download` no portal (após login) com links para GitHub Releases e instruções por plataforma
 - [ ] Testar instalação limpa em VM nova (Windows)
 - [ ] Testar instalação limpa em VM nova (Linux)
 - [ ] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen

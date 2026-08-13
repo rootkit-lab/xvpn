@@ -211,13 +211,20 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 7 — Empacotamento e distribuição
 
-- [ ] Instalador Windows via NSIS (`.exe`)
-- [ ] Empacotamento `.deb` para Linux
-- [ ] Empacotamento AppImage para Linux
-- [ ] Versionamento semântico + changelog automatizado no build
-- [ ] Testar instalação limpa em VM nova (Windows)
-- [ ] Testar instalação limpa em VM nova (Linux)
+- [x] Instalador Windows via NSIS (`.exe`) — gerado via `task windows:create:nsis:installer`; registro do helper como Windows Service fica pendente de validação em hardware real (mesmo padrão das Fases 4/6)
+- [x] Empacotamento `.deb` para Linux — `nfpm` + `postinstall` cria grupo `xvpn`, usuário `xvpn-client-helper`, instala/enable a unit systemd
+- [x] Empacotamento AppImage para Linux — portátil (GUI); instalação completa do helper continua sendo via `.deb`
+- [x] Versionamento semântico no build (`build/scripts/resolve-version.sh` → ldflags + `XVPN_VERSION` no nfpm); changelog do componente segue o `release-please`
+- [ ] Página `/download` no portal (após login) com links/instruções — depende da landing/waitlist (`feat/landing-waitlist`)
+- [ ] Testar instalação limpa em VM nova (Windows) — **pendente de validação manual pelo usuário**
+- [ ] Testar instalação limpa em VM nova (Linux) — pacotes gerados localmente; teste em VM limpa pendente
 - [ ] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen
+
+**Notas de implementação:**
+
+- Metadados de branding atualizados (`build/config.yml`, `build/windows/info.json`, `nfpm.yaml`): produto XVPN, homepage `https://vpn.officeempresa.com`.
+- `VPNService.Version()` e `DiagnosticsReport.ClientVersion` expõem a versão embutida no binário.
+- Artefatos (`*.deb`, `*.AppImage`, `*-installer.exe`, `wintun.dll`) permanecem fora do Git (`.gitignore` / `PLAN.md` §11.1); distribuição via GitHub Releases.
 
 ## Fase 8 — Observabilidade e documentação final
 

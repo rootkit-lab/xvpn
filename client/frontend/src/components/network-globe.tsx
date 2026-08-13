@@ -30,7 +30,7 @@ function arcPath(a: { x: number; y: number }, b: { x: number; y: number }) {
 export function NetworkGlobe({ className = '' }: { className?: string }) {
   return (
     <div className={`pointer-events-none select-none ${className}`} aria-hidden="true">
-      <svg viewBox="0 0 380 260" className="h-full w-full overflow-visible text-primary">
+      <svg viewBox="0 0 380 260" className="pointer-events-none h-full w-full overflow-visible text-primary" aria-hidden="true">
         <g className="animate-drift" style={{ transformOrigin: '190px 130px' }}>
           <circle cx="190" cy="130" r="95" fill="none" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1" />
           <ellipse cx="190" cy="130" rx="95" ry="32" fill="none" stroke="currentColor" strokeOpacity="0.14" strokeWidth="1" />

@@ -3,7 +3,7 @@ package ipc
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 )
 
@@ -69,7 +69,7 @@ func (s *Server) handleConn(conn net.Conn) {
 		}
 
 		if err := enc.Encode(resp); err != nil {
-			log.Printf("ipc: falha ao responder ao cliente: %v", err)
+			slog.Warn("ipc encode failed", "err", err)
 			return
 		}
 	}

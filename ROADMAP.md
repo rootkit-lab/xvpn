@@ -201,11 +201,17 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 ## Fase 8 — Observabilidade e documentação final
 
-- [ ] Logs estruturados no servidor e no cliente
-- [ ] Métricas básicas (nº de peers conectados, throughput agregado, uptime)
-- [ ] Rodar a skill `vps-security-audit` novamente e revisar todos os achados
-- [ ] Atualizar `README.md` com instruções finais de build/uso
-- [ ] Revisão final do `PLAN.md` (marcar decisões que mudaram durante a implementação)
+- [x] Logs estruturados no servidor (`server/internal/logging`, `log/slog` JSON; middleware HTTP sem headers/corpo)
+- [x] Logs estruturados no cliente (`client/internal/applog`, JSON + ring buffer em memória)
+- [x] Métricas básicas em `GET /api/status`: peers conectados/total, uptime, `receive_bytes_total` / `transmit_bytes_total` (dashboard usa o agregado)
+- [x] Rodar a skill `vps-security-audit` e revisar todos os achados — **2026-08-13**: SSH ok (`passwordauthentication no`, `permitrootlogin prohibit-password`); `ufw` ativo com portas públicas `22/80/443` + `51820/udp` e `445`/`8081` só em `wg0`; Samba `interfaces = 10.66.66.1/24 127.0.0.1/8` + `bind interfaces only = yes`; `smbd`/`filebrowser` escutando só em `10.66.66.1` (e smb também em `127.0.0.1`); `xvpn-server` só em `127.0.0.1:8080`; `ip_forward=1`; fail2ban ativo. Sem regressões vs. `PLAN.md` §5 / `SECURITY.md`.
+- [x] Atualizar `README.md` com instruções finais de build/uso/operação
+- [x] Revisão do `PLAN.md` (§12 critério da Fase 8, §14 estado atual)
+
+**Notas:**
+
+- Página de diagnóstico rica na GUI do cliente (logs + testes de conectividade) foi implementada na Fase 6 (PR `feat/client-advanced-features`); nesta fase o helper/GUI passam a emitir slog estruturado e o ring fica disponível via `applog.Recent()`.
+- Em produção, recomenda-se `GIN_MODE=release` e opcionalmente `XVPN_LOG_LEVEL`/`XVPN_LOG_FORMAT` em `/opt/xvpn/xvpn-server.env` (ver `server/deploy/xvpn-server.env.example`).
 
 ---
 

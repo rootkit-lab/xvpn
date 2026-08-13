@@ -1,5 +1,3 @@
-// Comando xvpn-server: control-plane do XVPN — API HTTP, integração
-// WireGuard via wgctrl e (a partir da Fase 3) o painel web embutido.
 package main
 
 import (
@@ -7,27 +5,39 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"github.com/rootkit-lab/xvpn/server/internal/api"
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
 	"github.com/rootkit-lab/xvpn/server/internal/config"
+	"github.com/rootkit-lab/xvpn/server/internal/logging"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 	"github.com/rootkit-lab/xvpn/server/internal/wireguard"
 )
 
 func main() {
+	logging.Setup()
 	if err := run(); err != nil {
-		log.Fatalf("xvpn-server: %v", err)
+		slog.Error("fatal", "err", err)
+		os.Exit(1)
 	}
 }
 
 func run() error {
+	// Produção: GIN_MODE=release no EnvironmentFile do systemd (ver
+	// deploy/xvpn-server.env.example). Sem isso o Gin fica em debug.
+	if os.Getenv("GIN_MODE") == "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -80,7 +90,10 @@ func run() error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Printf("xvpn-server: escutando em %s (interface WireGuard: %s)", cfg.HTTPAddr, cfg.WireGuardInterface)
+		slog.Info("listening",
+			"addr", cfg.HTTPAddr,
+			"wireguard_interface", cfg.WireGuardInterface,
+		)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -93,7 +106,7 @@ func run() error {
 	case err := <-errCh:
 		return err
 	case sig := <-sigCh:
-		log.Printf("xvpn-server: sinal %s recebido, desligando...", sig)
+		slog.Info("shutdown signal", "signal", sig.String())
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -101,9 +114,6 @@ func run() error {
 	return srv.Shutdown(ctx)
 }
 
-// reconcilePeersFromDB sincroniza o conjunto de peers da interface com o
-// que está persistido no banco, garantindo consistência mesmo após um
-// restart do serviço (ver internal/wireguard.ReconcilePeers).
 func reconcilePeersFromDB(db *store.Store, wg *wireguard.Manager) error {
 	var devices []store.Device
 	if err := db.DB.Find(&devices).Error; err != nil {
@@ -116,14 +126,10 @@ func reconcilePeersFromDB(db *store.Store, wg *wireguard.Manager) error {
 	if err := wg.ReconcilePeers(specs); err != nil {
 		return err
 	}
-	log.Printf("xvpn-server: %d peer(s) sincronizado(s) a partir do banco de dados", len(specs))
+	slog.Info("peers reconciled from database", "count", len(specs))
 	return nil
 }
 
-// bootstrapAdmin cria o primeiro usuário admin se a tabela de usuários
-// estiver vazia. Usa XVPN_ADMIN_USERNAME/XVPN_ADMIN_PASSWORD se definidos;
-// caso contrário, gera uma senha aleatória e a loga uma única vez (o
-// operador deve copiá-la e trocá-la depois via painel).
 func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 	count, err := db.CountUsers()
 	if err != nil {
@@ -157,12 +163,16 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 	}
 
 	if generated {
-		log.Printf("=== primeiro usuário admin criado ===")
-		log.Printf("usuário: %s", username)
-		log.Printf("senha (gerada, copie agora — não será exibida de novo): %s", password)
-		log.Printf("troque essa senha assim que possível pelo painel/API")
+		// Senha gerada: única exceção proposital a "não logar segredos" —
+		// é o bootstrap one-shot do primeiro admin (ver PLAN.md). slog
+		// estruturado ainda ajuda o journalctl -u a achar a linha.
+		slog.Warn("bootstrap admin created with generated password",
+			"username", username,
+			"password", password,
+			"hint", "copie agora — não será exibida de novo; troque pelo painel",
+		)
 	} else {
-		log.Printf("xvpn-server: usuário admin %q criado a partir de XVPN_ADMIN_USERNAME/PASSWORD", username)
+		slog.Info("bootstrap admin created from env", "username", username)
 	}
 
 	return nil
@@ -171,7 +181,7 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 func generateRandomPassword() (string, error) {
 	buf := make([]byte, 18)
 	if _, err := rand.Read(buf); err != nil {
-		return "", err
+		return "", fmt.Errorf("gerando senha: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(buf), nil
 }

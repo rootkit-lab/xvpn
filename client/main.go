@@ -45,6 +45,8 @@ func runHelper() {
 }
 
 func runGUI() {
+	var mainWindow application.Window
+
 	app := application.New(application.Options{
 		Name:        "XVPN",
 		Description: "Cliente desktop da VPN privada XVPN",
@@ -53,6 +55,21 @@ func runGUI() {
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
+		},
+		// Sem isto, cada clique no ícone do menu/.desktop ou o
+		// autostart duplicado abria outro processo (várias janelas/
+		// bandejas). Com UniqueID, a segunda invocação só sinaliza a
+		// primeira — ver https://v3.wails.io/guides/single-instance
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "com.officeempresa.xvpn",
+			OnSecondInstanceLaunch: func(_ application.SecondInstanceData) {
+				if mainWindow == nil {
+					return
+				}
+				mainWindow.Show()
+				mainWindow.Restore()
+				mainWindow.Focus()
+			},
 		},
 	})
 
@@ -63,6 +80,7 @@ func runGUI() {
 		BackgroundColour: application.NewRGB(15, 17, 21),
 		URL:              "/",
 	})
+	mainWindow = window
 
 	// Sem isto, o botão "x" da janela dispara o handler padrão do Wails
 	// (WindowClosing → destrói a janela de fato, ver

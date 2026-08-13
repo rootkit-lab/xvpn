@@ -8,10 +8,12 @@ package autostart
 // IsEnabled reporta se a inicialização automática está configurada para
 // o executável atual.
 func IsEnabled() (bool, error) {
+	removeLegacyAutostartCopy()
 	return isEnabled()
 }
 
 // SetEnabled liga ou desliga a inicialização automática.
 func SetEnabled(enabled bool) error {
+	removeLegacyAutostartCopy()
 	return setEnabled(enabled)
 }

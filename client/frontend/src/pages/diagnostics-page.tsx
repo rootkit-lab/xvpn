@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { ArrowLeft, Download, Loader2, RefreshCw } from 'lucide-react'
 
 import type { DiagnosticsReport } from '../../bindings/github.com/rootkit-lab/xvpn/client'
@@ -49,13 +50,18 @@ export function DiagnosticsPage({ onBack }: DiagnosticsPageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto p-6">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="flex h-full flex-col gap-4 overflow-y-auto p-6"
+    >
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
             aria-label="Voltar"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -66,7 +72,7 @@ export function DiagnosticsPage({ onBack }: DiagnosticsPageProps) {
             onClick={run}
             disabled={loading}
             aria-label="Atualizar"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </button>
@@ -74,7 +80,7 @@ export function DiagnosticsPage({ onBack }: DiagnosticsPageProps) {
             onClick={exportReport}
             disabled={!report}
             aria-label="Exportar relatório"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
           >
             <Download className="h-4 w-4" />
           </button>
@@ -85,7 +91,7 @@ export function DiagnosticsPage({ onBack }: DiagnosticsPageProps) {
 
       {report && (
         <>
-          <Card>
+          <Card className="border-white/5 bg-card/70">
             <CardContent className="grid grid-cols-2 gap-3 p-4 text-sm">
               <Check label="Serviço local (helper)" ok={report.helperReachable} />
               <Check label="Dispositivo registrado" ok={report.enrolled} />
@@ -105,7 +111,7 @@ export function DiagnosticsPage({ onBack }: DiagnosticsPageProps) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-white/5 bg-card/70">
             <CardContent className="grid grid-cols-2 gap-3 p-4 text-sm">
               <Info label="IP atribuído" value={report.assignedIP || '—'} />
               <Info label="Endpoint do servidor" value={report.serverEndpoint || '—'} />
@@ -129,7 +135,7 @@ export function DiagnosticsPage({ onBack }: DiagnosticsPageProps) {
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 

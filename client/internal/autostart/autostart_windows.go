@@ -61,3 +61,5 @@ func setEnabled(enabled bool) error {
 	}
 	return nil
 }
+
+func removeLegacyAutostartCopy() {}

@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"net/netip"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -47,6 +48,16 @@ type Engine struct {
 	connected      bool
 	cfg            tunnel.Config
 	connectedSince time.Time
+
+	// killSwitch é nil quando o bloqueio fail-closed não está ativo — ver
+	// killswitch_windows.go e ROADMAP.md Fase 6. Ao contrário do Linux
+	// (engine_linux.go), aqui o kill switch é sempre desfeito e refeito a
+	// cada teardown/Connect — limitação conhecida documentada no
+	// ROADMAP.md: numa reconexão automática existe uma janela breve sem
+	// bloqueio enquanto a sessão WFP antiga é fechada e a nova ainda não
+	// subiu, diferente do Linux onde as regras nftables persistem entre
+	// tentativas.
+	killSwitch *killSwitch
 }
 
 func New() (*Engine, error) {
@@ -101,11 +112,42 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 		return err
 	}
 
+	if cfg.KillSwitch {
+		ks, err := enableKillSwitchForConfig(tunDevice, cfg)
+		if err != nil {
+			dev.Close()
+			return fmt.Errorf("ativando kill switch: %w", err)
+		}
+		e.killSwitch = ks
+	}
+
 	e.dev = dev
 	e.connected = true
 	e.cfg = cfg
 	e.connectedSince = time.Now()
 	return nil
+}
+
+// enableKillSwitchForConfig resolve o LUID da interface recém-criada e o
+// IP do servidor a partir de cfg, e então instala as regras WFP — ver
+// killswitch_windows.go.
+func enableKillSwitchForConfig(tunDevice tun.Device, cfg tunnel.Config) (*killSwitch, error) {
+	nativeTun, ok := tunDevice.(*tun.NativeTun)
+	if !ok {
+		return nil, fmt.Errorf("adaptador TUN não é wintun nativo (tipo %T) — não é possível obter o LUID para o kill switch", tunDevice)
+	}
+	serverAddr, err := net.ResolveUDPAddr("udp", cfg.ServerEndpoint)
+	if err != nil {
+		return nil, fmt.Errorf("resolvendo %q: %w", cfg.ServerEndpoint, err)
+	}
+	serverIP, ok := netip.AddrFromSlice(serverAddr.IP.To4())
+	if !ok {
+		serverIP, ok = netip.AddrFromSlice(serverAddr.IP.To16())
+		if !ok {
+			return nil, fmt.Errorf("IP do servidor %q inválido", serverAddr.IP)
+		}
+	}
+	return enableKillSwitch(nativeTun.LUID(), serverIP)
 }
 
 func (e *Engine) Disconnect() error {
@@ -118,6 +160,10 @@ func (e *Engine) Disconnect() error {
 }
 
 func (e *Engine) teardown() error {
+	if e.killSwitch != nil {
+		_ = e.killSwitch.disable()
+		e.killSwitch = nil
+	}
 	if e.dev != nil {
 		// Close() do wireguard-go também fecha o tun.Device subjacente,
 		// removendo o adaptador wintun e, com ele, IP/rotas associados.
@@ -134,14 +180,19 @@ func (e *Engine) Status() (tunnel.Status, error) {
 	defer e.mu.Unlock()
 
 	if !e.connected {
-		return tunnel.Status{Connected: false}, nil
+		// Ver comentário equivalente em engine_linux.go: reporta o estado
+		// real do kill switch mesmo desconectado (ex.: uma tentativa de
+		// reconexão automática falhou e o kill switch permanece ativo de
+		// propósito — fail-closed, ver Connect/teardown).
+		return tunnel.Status{Connected: false, KillSwitchActive: e.killSwitch != nil}, nil
 	}
 
 	status := tunnel.Status{
-		Connected:      true,
-		AssignedIP:     e.cfg.Address,
-		ServerEndpoint: e.cfg.ServerEndpoint,
-		ConnectedSince: &e.connectedSince,
+		Connected:        true,
+		AssignedIP:       e.cfg.Address,
+		ServerEndpoint:   e.cfg.ServerEndpoint,
+		ConnectedSince:   &e.connectedSince,
+		KillSwitchActive: e.killSwitch != nil,
 	}
 
 	if e.dev != nil {

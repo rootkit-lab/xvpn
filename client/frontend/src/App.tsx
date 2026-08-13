@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 import { VPNService } from '../bindings/github.com/rootkit-lab/xvpn/client'
 import type { StatusView } from '../bindings/github.com/rootkit-lab/xvpn/client'
 import { EnrollmentPage } from './pages/enrollment-page'
 import { MainPage } from './pages/main-page'
-import { SettingsPage } from './pages/settings-page'
-import { DiagnosticsPage } from './pages/diagnostics-page'
+
+// Preferências e diagnóstico são visitados bem menos que a tela principal
+// — code-split via React.lazy pra não pesar o primeiro paint da janela
+// (que já é sensível: é a primeira coisa que aparece depois de clicar no
+// ícone da bandeja).
+const SettingsPage = lazy(() => import('./pages/settings-page').then((m) => ({ default: m.SettingsPage })))
+const DiagnosticsPage = lazy(() => import('./pages/diagnostics-page').then((m) => ({ default: m.DiagnosticsPage })))
 
 // Intervalo de polling do status — rápido o suficiente para a UI parecer
 // "ao vivo" (handshake, tráfego) sem sobrecarregar o helper com chamadas
@@ -39,49 +45,62 @@ function App() {
     return () => clearInterval(interval)
   }, [refresh])
 
+  let content: ReactNode
+  let key: string = view
+
   if (!status) {
-    return (
+    key = 'loading'
+    content = (
       <CenteredMessage>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </CenteredMessage>
     )
-  }
-
-  if (!status.helperReachable) {
-    return (
+  } else if (!status.helperReachable) {
+    key = 'unreachable'
+    content = (
       <CenteredMessage title="Serviço indisponível">
         <AlertTriangle className="mb-2 h-8 w-8 text-destructive" />
         <p>
           O serviço <code className="rounded bg-secondary px-1 py-0.5">xvpn-client-helper</code>{' '}
           não está acessível.
         </p>
-        <p className="mt-1">
-          Verifique se ele está instalado e rodando e tente novamente.
-        </p>
+        <p className="mt-1">Verifique se ele está instalado e rodando e tente novamente.</p>
       </CenteredMessage>
+    )
+  } else if (!status.enrolled) {
+    key = 'enrollment'
+    content = <EnrollmentPage onEnrolled={refresh} />
+  } else if (view === 'settings') {
+    content = <SettingsPage onBack={() => setView('main')} />
+  } else if (view === 'diagnostics') {
+    content = <DiagnosticsPage onBack={() => setView('main')} />
+  } else {
+    content = (
+      <MainPage
+        status={status}
+        onChange={refresh}
+        error={error}
+        onOpenSettings={() => setView('settings')}
+        onOpenDiagnostics={() => setView('diagnostics')}
+      />
     )
   }
 
-  if (!status.enrolled) {
-    return <EnrollmentPage onEnrolled={refresh} />
-  }
-
-  if (view === 'settings') {
-    return <SettingsPage onBack={() => setView('main')} />
-  }
-
-  if (view === 'diagnostics') {
-    return <DiagnosticsPage onBack={() => setView('main')} />
-  }
-
   return (
-    <MainPage
-      status={status}
-      onChange={refresh}
-      error={error}
-      onOpenSettings={() => setView('settings')}
-      onOpenDiagnostics={() => setView('diagnostics')}
-    />
+    <Suspense fallback={<CenteredMessage><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></CenteredMessage>}>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={key}
+          className="h-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          {content}
+        </motion.div>
+      </AnimatePresence>
+    </Suspense>
   )
 }
 

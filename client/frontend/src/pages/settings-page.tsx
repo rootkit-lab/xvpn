@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 
 import type { Preferences } from '../../bindings/github.com/rootkit-lab/xvpn/client'
@@ -66,12 +67,17 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.2 }}
+      className="flex h-full flex-col gap-4 p-6"
+    >
       <header className="flex items-center gap-3">
         <button
           onClick={onBack}
           aria-label="Voltar"
-          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -111,7 +117,7 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
           />
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -127,7 +133,7 @@ function PreferenceRow({
   onCheckedChange: (checked: boolean) => void
 }) {
   return (
-    <Card>
+    <Card className="border-white/5 bg-card/70 transition-shadow hover:shadow-[0_0_24px_-12px_var(--color-glow)]">
       <CardContent className="flex items-start justify-between gap-4 p-4">
         <div>
           <p className="text-sm font-medium">{title}</p>

@@ -1,10 +1,22 @@
-import { useState, type ReactNode } from 'react'
-import { Power, ArrowDown, ArrowUp, Loader2, FolderOpen, Globe, Settings, Stethoscope, ShieldCheck } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import {
+  Power,
+  ArrowDown,
+  ArrowUp,
+  Loader2,
+  FolderOpen,
+  Globe,
+  Settings,
+  Stethoscope,
+  ShieldCheck,
+} from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { NetworkGlobe } from '@/components/network-globe'
 import { formatBytes, formatElapsedSince, formatRelativeTime } from '@/lib/format'
 
 interface MainPageProps {
@@ -18,6 +30,17 @@ interface MainPageProps {
 export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagnostics }: MainPageProps) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  // Re-renderiza 1x/s só pra o timer "conectado há" contar em tempo real,
+  // sem depender do intervalo de polling do status (2s, ver App.tsx) —
+  // formatElapsedSince recalcula a partir de status.connectedSince a cada
+  // chamada, então um tick local aqui já é suficiente.
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    if (!status.connected) return
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [status.connected])
 
   async function toggle() {
     setBusy(true)
@@ -45,12 +68,19 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
     }
   }
 
+  const glowVar = status.reconnecting ? 'var(--glow-amber)' : status.connected ? 'var(--glow)' : undefined
+
   return (
-    <div className="flex h-full flex-col gap-6 p-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">XVPN</h1>
+    <div className="relative flex h-full flex-col gap-4 overflow-y-auto p-6">
+      <div className="glow-blob pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2" />
+
+      <header className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge variant={status.connected ? 'default' : 'outline'}>
+          <img src="/logo-192.png" alt="" className="size-6" />
+          <h1 className="text-lg font-semibold">XVPN</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={status.connected ? 'default' : 'outline'} className="rounded-full">
             {status.reconnecting
               ? `Reconectando (${status.reconnectAttempt + 1})`
               : status.connected
@@ -60,34 +90,81 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
           <button
             onClick={onOpenDiagnostics}
             aria-label="Diagnóstico"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <Stethoscope className="h-4 w-4" />
           </button>
           <button
             onClick={onOpenSettings}
             aria-label="Preferências"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <Settings className="h-4 w-4" />
           </button>
         </div>
       </header>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-4">
-        <button
-          onClick={toggle}
-          disabled={busy}
-          aria-label={status.connected ? 'Desconectar' : 'Conectar'}
-          className={`flex h-32 w-32 items-center justify-center rounded-full border-4 transition-colors disabled:opacity-60 ${
-            status.connected
-              ? 'border-primary bg-primary/10 text-primary'
-              : 'border-border bg-secondary text-muted-foreground hover:border-primary/50'
-          }`}
-        >
-          {busy ? <Loader2 className="h-10 w-10 animate-spin" /> : <Power className="h-10 w-10" />}
-        </button>
-        <p className="text-sm text-muted-foreground">
+      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3">
+        <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-1/2 h-56 w-full -translate-y-1/2 opacity-60" />
+
+        {status.connected && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative z-10 text-center"
+          >
+            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Conexão segura</p>
+            <p className="font-mono text-3xl font-semibold tabular-nums text-glow">
+              {status.connectedSince ? formatElapsedSince(status.connectedSince) : '--:--'}
+            </p>
+          </motion.div>
+        )}
+
+        <div className="relative z-10 flex size-36 items-center justify-center">
+          {/* Anel decorativo pontilhado — só estética, reforça a leitura de "dial" */}
+          <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full animate-spin-slow text-primary/40">
+            <circle
+              cx="50"
+              cy="50"
+              r="47"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeDasharray="2 8"
+              strokeLinecap="round"
+            />
+          </svg>
+          <motion.button
+            onClick={toggle}
+            disabled={busy}
+            aria-label={status.connected ? 'Desconectar' : 'Conectar'}
+            whileTap={{ scale: 0.94 }}
+            animate={status.connected && !busy ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+            transition={status.connected ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' } : undefined}
+            className={`flex h-32 w-32 items-center justify-center rounded-full border-4 transition-colors disabled:opacity-60 ${
+              status.connected
+                ? 'animate-pulse-glow border-primary bg-primary/10 text-primary'
+                : status.reconnecting
+                  ? 'border-amber-500/60 bg-amber-500/10 text-amber-400'
+                  : 'border-border bg-secondary text-muted-foreground hover:border-primary/50'
+            }`}
+            style={glowVar ? ({ '--glow': glowVar } as React.CSSProperties) : undefined}
+          >
+            <AnimatePresence mode="wait">
+              {busy ? (
+                <motion.div key="busy" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
+                  <Loader2 className="h-10 w-10 animate-spin" />
+                </motion.div>
+              ) : (
+                <motion.div key="power" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
+                  <Power className="h-10 w-10" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        </div>
+
+        <p className="relative z-10 text-sm text-muted-foreground">
           {busy
             ? 'Aplicando…'
             : status.reconnecting
@@ -97,7 +174,7 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
                 : 'Toque para conectar'}
         </p>
         {status.killSwitchActive && (
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="relative z-10 flex items-center gap-1 text-xs text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5" />
             Kill switch ativo — tráfego fora da VPN bloqueado
           </p>
@@ -105,18 +182,14 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       </div>
 
       {(error || actionError) && (
-        <p className="text-center text-sm text-destructive">{actionError ?? error}</p>
+        <p className="relative z-10 text-center text-sm text-destructive">{actionError ?? error}</p>
       )}
 
       {status.connected && (
-        <Card>
+        <Card className="relative z-10 border-white/5 bg-card/70">
           <CardContent className="grid grid-cols-2 gap-3 p-4 text-sm">
             <InfoItem label="IP atribuído" value={status.assignedIP} />
             <InfoItem label="Servidor" value={status.serverEndpoint} />
-            <InfoItem
-              label="Conectado há"
-              value={status.connectedSince ? formatElapsedSince(status.connectedSince) : '—'}
-            />
             <InfoItem
               label="Último handshake"
               value={status.lastHandshake ? formatRelativeTime(status.lastHandshake) : '—'}
@@ -124,29 +197,29 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
             <InfoItem
               label="Recebido"
               value={formatBytes(status.receiveBytes)}
-              icon={<ArrowDown className="h-3.5 w-3.5" />}
+              icon={<ArrowDown className="h-3.5 w-3.5 text-primary" />}
             />
             <InfoItem
               label="Enviado"
               value={formatBytes(status.transmitBytes)}
-              icon={<ArrowUp className="h-3.5 w-3.5" />}
+              icon={<ArrowUp className="h-3.5 w-3.5 text-primary" />}
             />
           </CardContent>
         </Card>
       )}
 
       {status.connected && (
-        <div className="flex gap-3">
+        <div className="relative z-10 flex gap-3">
           <button
             onClick={() => openFiles('smb')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-border bg-secondary px-3 py-2.5 text-sm font-medium text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
           >
             <FolderOpen className="h-4 w-4" />
             Unidade de rede
           </button>
           <button
             onClick={() => openFiles('filebrowser')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-border bg-secondary px-3 py-2.5 text-sm font-medium text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
           >
             <Globe className="h-4 w-4" />
             Arquivos (navegador)

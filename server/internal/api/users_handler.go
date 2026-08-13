@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
+	"github.com/rootkit-lab/xvpn/server/internal/wireguard"
 )
 
 type userResponse struct {
@@ -87,11 +89,18 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
+	removed := make([]store.Device, 0, len(devices))
 	for _, d := range devices {
 		if err := a.WG.RemovePeer(d.PublicKey); err != nil {
+			// Compensa as remoções já feitas antes de falhar no meio do
+			// loop — sem isso, um subconjunto dos devices do usuário
+			// ficaria removido do WG enquanto o registro dele continua
+			// inteiro no banco (ver ROADMAP.md Fase 9).
+			a.compensateRestorePeers(removed, "user.delete", id)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar dispositivo do usuário na interface WireGuard"})
 			return
 		}
+		removed = append(removed, d)
 	}
 
 	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
@@ -111,6 +120,13 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
+		// A transação de banco falhou (ou o usuário nem existia) depois
+		// de já termos removido os peers do kernel — compensa
+		// re-adicionando todos, para não deixar o WG "à frente" do
+		// banco até um eventual restart reconciliar (ver ROADMAP.md
+		// Fase 9). Sem devices removidos (ex.: usuário inexistente),
+		// isso é um no-op.
+		a.compensateRestorePeers(removed, "user.delete", id)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 			return
@@ -190,4 +206,17 @@ func actorString(actor any) string {
 		return s
 	}
 	return "desconhecido"
+}
+
+// compensateRestorePeers re-adiciona peers já removidos do WireGuard quando
+// uma operação subsequente (banco) falha no meio de uma revogação em lote —
+// mantém o kernel consistente com o banco (que ainda tem usuário/devices
+// intactos) em vez de deixar peers "a menos" até o próximo restart
+// reconciliar sozinho (ver ROADMAP.md Fase 9).
+func (a *App) compensateRestorePeers(removed []store.Device, action string, userID uint64) {
+	for _, d := range removed {
+		if err := a.WG.AddPeer(wireguard.PeerSpec{PublicKey: d.PublicKey, AllowedIP: d.AllowedIP}); err != nil {
+			slog.Error("falha ao compensar remoção de peers", "action", action, "user_id", userID, "device_id", d.ID, "err", err)
+		}
+	}
 }

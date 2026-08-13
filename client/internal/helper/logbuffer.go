@@ -27,12 +27,23 @@ func (b *ringBuffer) Write(p []byte) (int, error) {
 		if line == "" {
 			continue
 		}
-		b.lines = append(b.lines, line)
-	}
-	if overflow := len(b.lines) - b.maxLines; overflow > 0 {
-		b.lines = b.lines[overflow:]
+		b.append(line)
 	}
 	return len(p), nil
+}
+
+// append mantém b.lines com capacidade fixa em maxLines: uma vez cheio,
+// desloca em memória já alocada em vez de re-fatiar pela frente (o que
+// reduziria a capacidade a cada linha e forçaria realocação completa a
+// cada ~maxLines chamadas — ver ROADMAP.md Fase 9 e applog.appendRing,
+// mesmo padrão).
+func (b *ringBuffer) append(line string) {
+	if len(b.lines) < b.maxLines {
+		b.lines = append(b.lines, line)
+		return
+	}
+	copy(b.lines, b.lines[1:])
+	b.lines[len(b.lines)-1] = line
 }
 
 // Lines devolve uma cópia das linhas atuais (mais antiga primeiro) —

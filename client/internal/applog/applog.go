@@ -51,10 +51,18 @@ func (h *ringHandler) WithGroup(name string) slog.Handler {
 func appendRing(line string) {
 	mu.Lock()
 	defer mu.Unlock()
-	if len(ring) >= ringSize {
-		ring = ring[1:]
+	if len(ring) < ringSize {
+		ring = append(ring, line)
+		return
 	}
-	ring = append(ring, line)
+	// Desloca em memória já alocada e escreve por cima do slot mais
+	// antigo, em vez de re-fatiar pela frente (ring = ring[1:]): aquele
+	// padrão reduz a capacidade do slice a cada linha, forçando uma
+	// realocação completa (cópia de ringSize elementos) a cada ~ringSize
+	// chamadas em vez de nunca — capacidade fica fixa em ringSize para
+	// sempre (ver ROADMAP.md Fase 9).
+	copy(ring, ring[1:])
+	ring[len(ring)-1] = line
 }
 
 // Recent devolve uma cópia das últimas linhas do ring (mais antigas primeiro).

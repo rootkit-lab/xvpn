@@ -74,10 +74,27 @@ type StatusResponse struct {
 // Helper orquestra o motor de túnel, o cliente de API e o estado
 // persistido do dispositivo.
 type Helper struct {
+	// mu protege os campos abaixo (state/desiredConnected/monitor/
+	// reconnect*) — leitura/escrita rápida, nunca travado durante uma
+	// chamada ao motor de túnel (netlink/rotas/DNS, potencialmente
+	// lenta). Handlers de IPC que não tocam o motor (preferências, logs,
+	// is_enrolled) por isso nunca ficam bloqueados esperando um
+	// Connect/Disconnect em andamento (ver ROADMAP.md Fase 9).
 	mu     sync.Mutex
 	engine tunnel.Engine
 	state  *config.DeviceState
 	logs   *ringBuffer
+
+	// engineMu serializa só as chamadas que mutam o motor de túnel
+	// (Connect/Disconnect, inclusive as disparadas pela reconexão
+	// automática em reconnect.go) — evita duas tentativas de
+	// conectar/desconectar em paralelo sem prender mu o tempo todo.
+	// Observação: Status() ainda pode ficar brevemente bloqueado pelo
+	// mutex interno do próprio Engine (por plataforma) enquanto uma
+	// mutação está em andamento — isso é intencional (nunca expor
+	// estado parcialmente configurado), só não usa mais o Helper.mu
+	// geral para isso.
+	engineMu sync.Mutex
 
 	// desiredConnected é o que o usuário pediu por último (Connect ou
 	// Disconnect) — usado pelo monitor de reconexão pra saber se uma
@@ -231,32 +248,43 @@ func (h *Helper) buildTunnelConfig() (tunnel.Config, error) {
 
 func (h *Helper) handleConnect(_ json.RawMessage) (any, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	if h.state == nil {
+		h.mu.Unlock()
 		return nil, fmt.Errorf("este dispositivo ainda não fez enrollment — insira um código de convite primeiro")
 	}
-
 	cfg, err := h.buildTunnelConfig()
+	assignedIP, endpoint := h.state.AssignedIP, h.state.ServerEndpoint
+	h.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	if err := h.engine.Connect(cfg); err != nil {
+
+	h.engineMu.Lock()
+	err = h.engine.Connect(cfg)
+	h.engineMu.Unlock()
+	if err != nil {
 		slog.Error("connect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível conectar: %w", err)
 	}
-	slog.Info("connected", "assigned_ip", h.state.AssignedIP, "endpoint", h.state.ServerEndpoint)
+	slog.Info("connected", "assigned_ip", assignedIP, "endpoint", endpoint)
+
+	h.mu.Lock()
 	h.desiredConnected = true
 	h.startMonitor()
+	h.mu.Unlock()
 	return nil, nil
 }
 
 func (h *Helper) handleDisconnect(_ json.RawMessage) (any, error) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	h.desiredConnected = false
 	h.stopMonitorLocked()
-	if err := h.engine.Disconnect(); err != nil {
+	h.mu.Unlock()
+
+	h.engineMu.Lock()
+	err := h.engine.Disconnect()
+	h.engineMu.Unlock()
+	if err != nil {
 		slog.Error("disconnect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível desconectar: %w", err)
 	}
@@ -316,22 +344,29 @@ func (h *Helper) handleSetPreferences(raw json.RawMessage) (any, error) {
 	}
 
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.state == nil {
+		h.mu.Unlock()
 		return nil, fmt.Errorf("este dispositivo ainda não fez enrollment")
 	}
 	h.state.Preferences = prefs
-	if err := config.Save(h.state); err != nil {
-		return nil, fmt.Errorf("salvando preferências: %w", err)
+	saveErr := config.Save(h.state)
+	cfg, cfgErr := h.buildTunnelConfig()
+	h.mu.Unlock()
+	if saveErr != nil {
+		return nil, fmt.Errorf("salvando preferências: %w", saveErr)
 	}
 
 	// Split-tunnel e kill switch mudam o comportamento do túnel em si —
 	// se já estiver conectado, reaplica na hora em vez de só valer na
-	// próxima conexão.
-	if status, err := h.engine.Status(); err == nil && status.Connected {
-		cfg, err := h.buildTunnelConfig()
-		if err != nil {
-			return nil, err
+	// próxima conexão. engineMu (não h.mu) serializa essa chamada, para
+	// não bloquear status/get-logs/etc. durante a reconfiguração (ver
+	// ROADMAP.md Fase 9).
+	h.engineMu.Lock()
+	defer h.engineMu.Unlock()
+	status, err := h.engine.Status()
+	if err == nil && status.Connected {
+		if cfgErr != nil {
+			return nil, cfgErr
 		}
 		if err := h.engine.Connect(cfg); err != nil {
 			return nil, fmt.Errorf("preferências salvas, mas falha ao reaplicar com o túnel já conectado: %w", err)

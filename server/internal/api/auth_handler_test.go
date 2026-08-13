@@ -84,6 +84,21 @@ func TestHandleLogin_UnknownUser(t *testing.T) {
 	}
 }
 
+func TestHandleLogin_RateLimited(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUser(t, app, "alice", "senha-forte-123")
+	router := NewRouter(app)
+
+	var lastCode int
+	for i := 0; i < loginRateLimitMax+1; i++ {
+		rec := doJSON(t, router, http.MethodPost, "/api/auth/login", loginRequest{Username: "alice", Password: "senha-errada"}, "")
+		lastCode = rec.Code
+	}
+	if lastCode != http.StatusTooManyRequests {
+		t.Fatalf("esperava a última tentativa do mesmo IP em 429, obtido %d", lastCode)
+	}
+}
+
 func TestProtectedRoute_RequiresAuth(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

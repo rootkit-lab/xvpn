@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -112,9 +113,18 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 	}
 
 	if err := a.WG.AddPeer(wireguard.PeerSpec{PublicKey: device.PublicKey, AllowedIP: device.AllowedIP}); err != nil {
-		// Reverte o registro para não deixar o banco inconsistente com o
-		// estado real da interface.
-		a.Store.DB.Delete(&device)
+		// Reverte tanto o dispositivo quanto o consumo do convite — sem
+		// isso, o convite ficava "queimado" (used_at preenchido) mesmo
+		// com o enrollment tendo falhado, impedindo o cliente de tentar
+		// de novo com o mesmo código (ver ROADMAP.md Fase 9).
+		if rbErr := a.Store.DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Delete(&device).Error; err != nil {
+				return err
+			}
+			return tx.Model(&store.InviteToken{}).Where("id = ?", invite.ID).Update("used_at", nil).Error
+		}); rbErr != nil {
+			slog.Error("falha ao reverter enrollment após erro de WireGuard", "device_id", device.ID, "err", rbErr)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao registrar peer na interface WireGuard"})
 		return
 	}
@@ -209,6 +219,14 @@ func (a *App) handleDeleteDevice(c *gin.Context) {
 	}
 
 	if err := a.Store.DB.Delete(&device).Error; err != nil {
+		// Compensa: o peer já saiu do kernel, mas o registro continua no
+		// banco — sem re-adicionar, um restart do servidor chamaria
+		// ReconcilePeers só com o que sobrou no banco (que ainda inclui
+		// este device) e o peer "ressuscitaria" sozinho, sem que o
+		// admin tenha pedido isso (ver ROADMAP.md Fase 9).
+		if addErr := a.WG.AddPeer(wireguard.PeerSpec{PublicKey: device.PublicKey, AllowedIP: device.AllowedIP}); addErr != nil {
+			slog.Error("falha ao compensar remoção de peer após erro de banco", "device_id", device.ID, "err", addErr)
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}

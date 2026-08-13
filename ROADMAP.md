@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)** concluídas em produção. **Parte II (Fases 9+)** aberta — admin geral, marketplace multiplataforma, qualidade (TDD/bugs/perf). Decisões em [`PLAN.md` §6.7–6.8 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)** e **9 (qualidade: bugs/CI/perf)** concluídas em produção. **Fases 10–13** abertas — admin geral, marketplace multiplataforma, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -280,6 +280,8 @@ Escopo deliberado pós-fechamento do MVP: **admin geral (RBAC)**, **marketplace 
 
 **Performance (oportunidades):** cache curto em `GET /api/status` (chama `ListPeers`/netlink a cada hit público); enroll carrega todos os devices só para IPs usados; 3 loops de poll no cliente (UI 2s + tray 3s + reconnect 5s); ring do `applog` com slice O(n); embed grande do painel (`webui/dist`).
 
+> Itens 1–5 da tabela de bugs acima e as 3 melhorias sugeridas abaixo foram todos endereçados no fechamento da Fase 9 (ver checklist e critério de saída). Tabela mantida como registro histórico do diagnóstico original — não reflete mais o estado atual do código.
+
 ### Três melhorias sugeridas (priorizar na Fase 9)
 
 1. **Segurança de auth/enrollment** — rate limit em login + enroll; corrigir rollback do convite e ordenação DB↔WG na revogação (itens 1–3 da tabela).
@@ -288,20 +290,23 @@ Escopo deliberado pós-fechamento do MVP: **admin geral (RBAC)**, **marketplace 
 
 ---
 
-## Fase 9 — Qualidade: bugs, TDD/CI e performance
+## Fase 9 — Qualidade: bugs, TDD/CI e performance ✅
 
-- [ ] Corrigir rollback de enroll (restaurar `invite.UsedAt` / não marcar usado antes do peer OK)
-- [ ] Tornar revogação de device/user atômica ou ordenada fail-safe (DB primeiro com flag, ou compensar se delete falhar; nunca deixar reconcile “ressuscitar” peer revogado)
-- [ ] Rate limit em `POST /api/auth/login` e `POST /api/devices/enroll` (mesmo padrão da waitlist)
-- [ ] Serializar polling do painel (`use-polling-data`: não sobrepor `run()`)
-- [ ] Liberar / afinar `Helper.mu` durante `engine.Connect` (status/disconnect não bloqueiam)
-- [ ] Cache curto (1–2s) em `GET /api/status` + documentar que o endpoint continua público mas barato
-- [ ] Workflow CI: `go test` (+ `go vet`) no server e no client em PRs; falhar o PR se quebrarem
-- [ ] Testes de regressão cobrindo enroll-rollback, revoke+reconcile, rate limit de login
-- [ ] (Opcional nesta fase) Vitest no `use-polling-data`; alinhar ring do `applog` ao padrão capped do helper
-- [ ] Atualizar `CHANGELOG.md` / notas de segurança se aplicável
+- [x] Corrigir rollback de enroll (restaurar `invite.UsedAt` / não marcar usado antes do peer OK)
+- [x] Tornar revogação de device/user atômica ou ordenada fail-safe (DB primeiro com flag, ou compensar se delete falhar; nunca deixar reconcile “ressuscitar” peer revogado) — compensação: se o passo pós-WG falhar, o peer é re-adicionado/re-removido na hora, em vez de confiar num restart futuro para corrigir
+- [x] Rate limit em `POST /api/auth/login` e `POST /api/devices/enroll` (mesmo padrão da waitlist — 10/5min e 20/10min por IP respectivamente)
+- [x] Serializar polling do painel (`use-polling-data`: não sobrepor `run()`)
+- [x] Liberar / afinar `Helper.mu` durante `engine.Connect` (status/disconnect não bloqueiam) — `engineMu` dedicado serializa só a chamada ao motor; `Status()` ainda pode ser brevemente atrasado pelo mutex interno do próprio `Engine` por plataforma durante uma mutação (intencional, evita expor estado parcial — não é mais o `Helper.mu` geral que causa isso)
+- [x] Cache curto (1–2s) em `GET /api/status` + documentar que o endpoint continua público mas barato
+- [x] Workflow CI: `go test` (+ `go vet` + `gofmt`) no server e no client em PRs (`.github/workflows/ci.yml`); cross-compile Windows do client só como build-check; lint+build do painel React — falha o PR se quebrarem
+- [x] Testes de regressão cobrindo enroll-rollback, revoke+reconcile (device e user), rate limit de login/enroll, cache de status, mutex do helper (`go test -race` limpo em server e client)
+- [x] Alinhar ring do `applog` (e do `logbuffer` do helper) a capacidade fixa (desloca em memória já alocada em vez de re-fatiar, que encolhia a capacidade a cada linha)
+- [ ] (Adiado — sem infra de teste no frontend ainda) Vitest no painel React (`use-polling-data` e outros); ver nota abaixo
+- [x] Atualizar `CHANGELOG.md`
 
-**Critério de saída:** bugs 1–3 da tabela fechados com teste; CI verde obrigatório; status/polling sem carga óbvia no VPS/desktop em uso normal.
+**Nota (Vitest adiado):** o painel React (`server/web`) não tem nenhuma infra de teste hoje (sem Vitest/Testing Library configurados). Corrigir o bug de polling sobreposto não dependia disso (fix aplicado e validado manualmente + via `npm run build`), mas montar a infra do zero é um escopo maior que cabe melhor numa tarefa própria — continua pendente como o item "frontend: 0% de testes" do diagnóstico acima, agora sem bloquear o resto da Fase 9.
+
+**Critério de saída:** ✅ bugs 1–5 da tabela fechados com teste (`go test -race` limpo); CI verde obrigatório (`.github/workflows/ci.yml`); status/polling sem carga óbvia no VPS/desktop em uso normal.
 
 ---
 

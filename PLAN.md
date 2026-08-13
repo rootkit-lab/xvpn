@@ -511,15 +511,15 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **MVP (Fases 0–8) concluído (2026-08-13).** Produção: VPS, WireGuard, control-plane + painel, cliente Linux, empacotamento, Samba/FileBrowser só em `wg0`, logs/métricas.
 
-**Parte II aberta (`ROADMAP.md` Fases 9–12):**
+**Fase 9 (qualidade: bugs, CI, performance) concluída (2026-08-13).** Rollback de enroll e revogação de device/user agora fail-safe (compensação quando o passo pós-WG falha, em vez de depender de um restart para reconciliar); rate limit em login (10/5min) e enroll (20/10min) por IP; cache de 2s em `GET /api/status`; polling do painel sem sobreposição; `Helper.mu` do cliente separado de `engineMu` (IPC de preferências/logs não trava mais durante um `Connect` lento); ring buffers com capacidade fixa; CI mínima (`.github/workflows/ci.yml`: build/vet/gofmt/test server+client, cross-compile Windows como build-check, lint+build do painel). Vitest do painel React fica pendente (sem infra de teste no frontend ainda).
+
+**Aberto (`ROADMAP.md` Fases 10–13):**
 
 | Fase | Foco |
 |---|---|
-| **9** | Bugs de enroll/revoke, rate limit login/enroll, CI/`go test`, cache de `/api/status`, mutex/polling |
 | **10** | Admin geral (RBAC: `super_admin` / `admin` / `viewer` / `member`) — §6.7 |
 | **11** | Marketplace multiplataforma (Linux/Android/Windows assets) — §6.8 |
 | **12** | Consumo no cliente desktop + página APK / quotas |
-
-**Três melhorias sugeridas (entrar na Fase 9):** (1) segurança auth/enrollment + rollback; (2) CI com testes; (3) performance de status/polling/mutex.
+| **13** | Contas Unix reais por usuário (SFTP + Samba integrados) — §6.9 |
 
 Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, `LICENSE`, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.

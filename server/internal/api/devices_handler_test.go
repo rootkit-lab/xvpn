@@ -153,3 +153,103 @@ func TestHandleDeleteDevice_NotFound(t *testing.T) {
 		t.Fatalf("esperado 404, obtido %d", rec.Code)
 	}
 }
+
+// TestHandleDeviceEnroll_RestoresInviteOnWireGuardFailure cobre um bug em
+// que uma falha do wgctrl/kernel depois do banco já ter marcado o convite
+// como usado deixava o código "queimado" para sempre, mesmo o enrollment
+// tendo falhado por completo (ver ROADMAP.md Fase 9).
+func TestHandleDeviceEnroll_RestoresInviteOnWireGuardFailure(t *testing.T) {
+	app, wg := newTestApp(t)
+	admin := createTestUser(t, app, "admin", "senha-admin-123")
+	inviteToken := createTestInvite(t, app, admin.ID)
+	router := NewRouter(app)
+
+	wg.failNextAdd = true
+	req := enrollRequest{InviteToken: inviteToken, PublicKey: testPublicKey, DeviceName: "device-1"}
+	rec := doJSON(t, router, http.MethodPost, "/api/devices/enroll", req, "")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperado 500 (falha simulada no WireGuard), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var invite store.InviteToken
+	if err := app.Store.DB.Where("token = ?", inviteToken).First(&invite).Error; err != nil {
+		t.Fatalf("erro lendo invite: %v", err)
+	}
+	if invite.UsedAt != nil {
+		t.Fatalf("esperava convite restaurado (used_at nulo) após falha no WireGuard, mas continua marcado como usado")
+	}
+
+	var deviceCount int64
+	app.Store.DB.Model(&store.Device{}).Count(&deviceCount)
+	if deviceCount != 0 {
+		t.Fatalf("esperava 0 devices após rollback, obtido %d", deviceCount)
+	}
+
+	// O bug original "queimava" o convite mesmo com o enrollment tendo
+	// falhado — confirma que o mesmo código pode ser reusado agora.
+	req2 := enrollRequest{InviteToken: inviteToken, PublicKey: testPublicKey2, DeviceName: "device-2"}
+	rec2 := doJSON(t, router, http.MethodPost, "/api/devices/enroll", req2, "")
+	if rec2.Code != http.StatusCreated {
+		t.Fatalf("esperava que o convite pudesse ser reusado após o rollback, obtido %d: %s", rec2.Code, rec2.Body.String())
+	}
+}
+
+// TestHandleDeleteDevice_CompensatesWireGuardWhenDBDeleteFails cobre um bug
+// em que uma falha de banco *depois* do peer já ter sido removido do WG
+// deixava o kernel "à frente" do banco — um restart do servidor chamaria
+// ReconcilePeers com o device ainda listado e o peer "ressuscitaria"
+// sozinho (ver ROADMAP.md Fase 9).
+func TestHandleDeleteDevice_CompensatesWireGuardWhenDBDeleteFails(t *testing.T) {
+	app, wg := newTestApp(t)
+	admin := createTestUser(t, app, "admin", "senha-admin-123")
+	inviteToken := createTestInvite(t, app, admin.ID)
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	enrollReq := enrollRequest{InviteToken: inviteToken, PublicKey: testPublicKey, DeviceName: "notebook"}
+	rec := doJSON(t, router, http.MethodPost, "/api/devices/enroll", enrollReq, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("erro no enrollment de setup: %d %s", rec.Code, rec.Body.String())
+	}
+	var device store.Device
+	if err := app.Store.DB.First(&device).Error; err != nil {
+		t.Fatalf("erro lendo device de setup: %v", err)
+	}
+
+	// Simula falha de banco só no DELETE (o SELECT que o próprio handler
+	// usa para localizar o device continua funcionando normalmente).
+	if err := app.Store.DB.Exec("CREATE TRIGGER block_device_delete BEFORE DELETE ON devices BEGIN SELECT RAISE(ABORT, 'falha simulada de banco'); END;").Error; err != nil {
+		t.Fatalf("erro criando trigger de teste: %v", err)
+	}
+
+	rec = doJSON(t, router, http.MethodDelete, "/api/devices/"+strconv.FormatUint(uint64(device.ID), 10), nil, token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperado 500 (falha de banco), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	peers, err := wg.ListPeers()
+	if err != nil {
+		t.Fatalf("erro listando peers: %v", err)
+	}
+	if len(peers) != 1 {
+		t.Fatalf("esperava que o peer fosse re-adicionado (compensação) após falha do banco, obtido %d peers", len(peers))
+	}
+}
+
+func TestHandleDeviceEnroll_RateLimited(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+
+	var lastCode int
+	for i := 0; i < enrollRateLimitMax+1; i++ {
+		rec := doJSON(t, router, http.MethodPost, "/api/devices/enroll", enrollRequest{
+			InviteToken: "nao-existe",
+			PublicKey:   testPublicKey,
+			DeviceName:  "d",
+		}, "")
+		lastCode = rec.Code
+	}
+	if lastCode != http.StatusTooManyRequests {
+		t.Fatalf("esperava a última tentativa do mesmo IP em 429, obtido %d", lastCode)
+	}
+}

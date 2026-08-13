@@ -165,6 +165,7 @@ graph TB
 | Samba (SMB) | `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0`. NetBIOS/`139` (`nmbd`) desabilitado de propósito: clientes modernos resolvem por IP direto via SMB2/3, dispensando essa superfície extra (ver Fase 5 do `ROADMAP.md`) |
 | FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via API em `127.0.0.1:8080` → `https://vpn.officeempresa.com` (JWT) | **Sem porta/domínio novo.** Não confundir com Samba/FileBrowser (só `wg0`). Download autenticado; nunca anônimo na internet pública. |
+| SFTP por usuário (Fase 13) | `22/tcp` (reaproveitada, `Match User` no `sshd_config`) | **Sem porta nova.** Só `internal-sftp` + chroot em `/home/<username>`; sem shell. Ver §6.9. |
 | SSH | `22/tcp` | Mantém, mas hardening (§9) |
 | DNS interno (opcional, fase futura) | `10.66.66.1:53` | Evita vazamento de DNS quando full-tunnel ativo |
 
@@ -258,6 +259,47 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 | Antivírus / assinatura de código | Fora do MVP do marketplace; checksum SHA-256 obrigatório na UI | Transparência sem dependência de serviço externo |
 
 **Não fazer:** servir blobs em `0.0.0.0` sem auth; reutilizar share Samba como “loja” (ACL e UX ruins para versionamento); commitar binários no Git.
+
+### 6.9 Contas Unix reais por usuário (SFTP + Samba integrados)
+
+**Objetivo (Fase 13):** cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS (`/home/<username>`), com acesso a arquivos via **SFTP** e/ou **Samba** — os dois protocolos apontando para o **mesmo diretório físico**, evitando duplicar dados. Isso **reverte parcialmente** a decisão original da Fase 5/skill `samba-user-ops` de manter usuários Samba fora de sincronia com o painel — decisão consciente, com mitigação de privilégio abaixo.
+
+**Por que reabrir essa decisão:** o ganho de UX (o próprio admin provisiona tudo pela tela Usuários, sem depender de rodar uma skill manual por SSH) foi considerado maior que o custo, desde que a superfície de privilégio nova seja estritamente limitada — ver mitigação a seguir.
+
+**Escopo de acesso (decisão explícita, não é SSH de verdade):**
+
+| Opção considerada | Decisão |
+|---|---|
+| Shell completo (bash) via SSH | **Rejeitado** — acesso real de terminal à VPS de produção é risco demais para essa conveniência |
+| FTP tradicional (vsftpd) | **Rejeitado** — exigiria porta pública nova (`21/tcp` + faixa passiva) e é texto puro sem TLS extra |
+| **SFTP apenas** (`ForceCommand internal-sftp`, sem shell) reaproveitando a porta `22/tcp` já existente | **Escolhido** — sem porta nova, sem shell, só transferência de arquivo |
+
+Na UI, "SSH" e "FTP" viram um único toggle **"Acesso a arquivos (SFTP)"** — tecnicamente é o mesmo mecanismo, não faz sentido apresentar como duas features.
+
+**Estrutura em disco (restrição técnica do chroot SFTP):** o OpenSSH exige que todo o caminho do `ChrootDirectory` seja `root:root`, sem permissão de escrita por grupo/outro. Por isso o usuário nunca escreve direto em `/home/<username>/` — a estrutura é:
+
+```
+/home/<username>/          # root:root 0755 (raiz do chroot, o usuário NÃO escreve aqui)
+/home/<username>/files/    # <username>:<username> 0700 (o que o SFTP mostra como raiz visível; também vira o share Samba)
+```
+
+O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — um único dado, dois protocolos.
+
+**Autenticação do SFTP — chave pública, não senha:** consistente com o invariante de nunca transmitir chave privada pela rede (mesmo modelo do WireGuard), o usuário registra uma **chave pública SSH** no próprio painel; a privada nunca sai do dispositivo dele. Evita reabrir a exceção de `PasswordAuthentication no` (Fase 0/hardening global) — nenhum `Match User ... PasswordAuthentication yes` é necessário.
+
+**Provisionamento privilegiado — binário fixo, não sudoers genérico:** dar ao `xvpn-server` (hoje só `CAP_NET_ADMIN`) permissão irrestrita de `sudo useradd`/`passwd` seria uma porta de injeção de argumento (sudoers com wildcard casa string, não valida semântica). Em vez disso:
+
+- Binário Go dedicado e mínimo, `/opt/xvpn/bin/xvpn-user-provision`, com subcomandos fechados (`create <username>`, `enable-sftp <username>`, `enable-samba <username>`, `disable <username>`) — valida o username via regex (`^[a-z][a-z0-9_-]{2,31}$`, mesmo padrão de nome de usuário Unix) **antes** de qualquer chamada de sistema, nunca repassa string livre para `os/exec`/shell.
+- `/etc/sudoers.d/xvpn-user-provision`: `xvpn ALL=(root) NOPASSWD: /opt/xvpn/bin/xvpn-user-provision` — caminho exato, **sem wildcard de argumento**. O binário decide internamente o que é seguro fazer.
+- `xvpn-server` chama esse binário via `os/exec` (nunca via `sh -c` com concatenação de string) quando o admin liga um toggle.
+
+**Reconciliação no boot:** mesmo padrão do `ReconcilePeers` do WireGuard (`cmd/xvpn-server/main.go`) — a cada start do serviço, para cada `User` com `SFTPEnabled`/`SambaEnabled`, confirma que a conta Unix / `Match User` do sshd / share Samba existem, criando o que faltar. Idempotente; nenhuma mudança de estado depende de "lembrar de rodar algo manualmente".
+
+**Migração de usuários existentes:** todo `User` pré-existente ganha a conta Unix criada (estrutura de diretório) na migração, mas os toggles `SFTPEnabled`/`SambaEnabled` **começam desligados por padrão** — seguro por padrão, o admin liga explicitamente quem deve ter acesso a arquivos, em vez de conceder acesso a todo mundo silenciosamente numa migração.
+
+**Auditoria:** `enable-sftp`/`enable-samba`/`disable` por usuário sempre geram entrada em `AuditLog` (actor = admin que fez a ação, não o binário privilegiado).
+
+**Fora de escopo desta fase:** FTP tradicional; shell interativo; quotas de disco por usuário (backlog); rotação de chave SSH pelo próprio usuário sem passar pelo admin (também backlog).
 
 ---
 

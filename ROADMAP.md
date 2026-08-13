@@ -358,9 +358,31 @@ Catálogo interno para distribuir instaladores/APKs/binários aos usuários da V
 
 ---
 
+## Fase 13 — Contas Unix reais por usuário (SFTP + Samba integrados)
+
+Cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS, com acesso a arquivos via **SFTP** (chave pública, sem shell) e/ou **Samba**, os dois apontando pro mesmo diretório. Reabre — de forma limitada e mitigada — a decisão da Fase 5 de manter usuários Samba fora do painel. Decisões completas e justificativa: [`PLAN.md` §6.9](./PLAN.md#69-contas-unix-reais-por-usuário-sftp--samba-integrados).
+
+- [ ] Binário fixo `xvpn-user-provision` (`create` / `enable-sftp` / `enable-samba` / `disable`), validação estrita de username via regex antes de qualquer chamada de sistema
+- [ ] `sudoers.d` restrito ao caminho exato do binário (sem wildcard de argumento); documentar em `SECURITY.md`
+- [ ] Estrutura `/home/<username>/` (root:root, chroot) + `/home/<username>/files/` (dono do usuário — visível via SFTP e via share Samba)
+- [ ] Campos novos no model `User`: `SFTPEnabled`, `SambaEnabled`, `SSHPublicKey`
+- [ ] `sshd_config`: `Match User` por conta provisionada → `ForceCommand internal-sftp` + `ChrootDirectory`, sem `PasswordAuthentication` (só chave pública)
+- [ ] Reconciliação no boot do `xvpn-server` (mesmo padrão do `ReconcilePeers`): cria o que faltar para usuários com toggle ativo
+- [ ] Migração dos usuários existentes: conta Unix criada, toggles `SFTPEnabled`/`SambaEnabled` **desligados por padrão**
+- [ ] UI painel: toggle único "Acesso a arquivos (SFTP)" + toggle "Acesso Samba" + campo para colar chave pública SSH
+- [ ] Audit log: enable/disable de cada capability (actor = admin, não o binário)
+- [ ] Rodar `vps-security-audit` após implantar (binário privilegiado novo + `Match User` no sshd)
+- [ ] Testes: criação idempotente, rejeição de username inválido/injeção, reconcile não duplica, disable remove acesso de fato
+
+**Fora de escopo nesta fase:** FTP tradicional; shell interativo; quotas de disco por usuário; rotação de chave SSH self-service.
+
+**Critério de saída:** admin liga o toggle de um usuário → ele consegue conectar via SFTP (chave pública) e ver os mesmos arquivos via Samba; usuário sem toggle não tem acesso a nenhum dos dois; nenhuma porta nova aberta no `ufw`.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
-- **Parte II (9+):** ordem sugerida 9 → 10 → 11 → 12 (qualidade antes de superfície nova; RBAC antes do marketplace para não distribuir binários sem papéis).
+- **Parte II (9+):** ordem sugerida 9 → 10 → 11 → 12 → 13 (qualidade antes de superfície nova; RBAC antes do marketplace/contas Unix, já que ambos são ações administrativas que precisam de papel checado).
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.

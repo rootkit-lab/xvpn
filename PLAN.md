@@ -431,10 +431,13 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 ## 14. Estado e próximos passos
 
-**Concluído na `main` (Fases 0–5):** hardening do VPS, túnel WireGuard, control-plane + painel, cliente desktop MVP, Samba/FileBrowser só em `wg0`.
+**ROADMAP Fases 0–8 concluído (2026-08-13).** MVP em produção: VPS hardenizado, WireGuard + control-plane + painel (landing/waitlist/download), cliente desktop Linux com recursos avançados, empacotamento (`.deb` instalado em uso real; AppImage/NSIS geráveis), Samba/FileBrowser só em `wg0`, logs/métricas e auditoria OK.
 
-**Em PRs (não na `main` ainda):** Fase 6 (recursos avançados do cliente), redesign UI, landing/waitlist, Fase 7 (empacotamento).
+**Não há “próxima fase” do roadmap.** O fluxo daqui pra frente é o de um produto em manutenção:
 
-**Fase 8 (esta linha):** logs estruturados server/client, métricas agregadas em `GET /api/status`, auditoria VPS via skill, README/PLAN alinhados ao estado real.
+1. **Bug / melhoria** → branch a partir de `main` (`fix/`/`feat/`/…) → PR Conventional Commits → squash merge (`CONTRIBUTING.md`; skills `start-task` / `ship-pr`).
+2. **Release** → o `release-please` abre PR `autorelease: pending` por componente; mergear corta tag + GitHub Release (`release-status`). Anexar artefatos de build (`.deb`/AppImage/NSIS) na release do `client` (não commitá-los no Git).
+3. **Operação do VPS** → skills `vps-security-audit`, `wireguard-peer-ops`, `samba-user-ops`, `port-domain-registry-check`; deploy do `xvpn-server` quando houver mudança de servidor.
+4. **Backlog explícito** (Windows real, `LICENSE`, assinatura de código, primeira tag `v0.1.0`) → ver [`ROADMAP.md` — Backlog pós-roadmap](./ROADMAP.md#backlog-pós-roadmap).
 
-Pendências manuais recorrentes: validação Windows real; instalação limpa `.deb`/NSIS em VM; opcional `GIN_MODE=release` + `XVPN_LOG_*` no `/opt/xvpn/xvpn-server.env` de produção.
+Pendência operacional leve: confirmar `GIN_MODE=release` (+ opcional `XVPN_LOG_*`) em `/opt/xvpn/xvpn-server.env` se ainda não estiver.

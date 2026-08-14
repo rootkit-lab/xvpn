@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -55,8 +57,18 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	defer srv.Close()
 
 	c := New()
-	if _, err := c.Login(context.Background(), srv.URL, "alice", "errada"); err == nil {
+	_, err := c.Login(context.Background(), srv.URL, "alice", "errada")
+	if err == nil {
 		t.Fatal("esperava erro com credenciais inválidas")
+	}
+	// Um 401 no próprio login é "senha errada", não "sessão expirada":
+	// traduzir para ErrNotLoggedIn mandaria o usuário procurar um
+	// problema de sessão que não existe.
+	if errors.Is(err, ErrNotLoggedIn) {
+		t.Fatalf("401 no login não deve virar ErrNotLoggedIn, obtido: %v", err)
+	}
+	if !strings.Contains(err.Error(), "credenciais inválidas") {
+		t.Fatalf("esperava a mensagem do servidor no erro, obtido: %v", err)
 	}
 	if c.Session().LoggedIn {
 		t.Fatal("não deveria ter sessão ativa após login falho")

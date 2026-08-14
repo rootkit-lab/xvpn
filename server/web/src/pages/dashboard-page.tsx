@@ -1,7 +1,7 @@
 import { useCallback, type ComponentType } from 'react'
 import { motion } from 'framer-motion'
 import { Activity, ArrowDownUp, Laptop, ShieldCheck, Store, Wifi } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, type MarketplaceStats } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDuration } from '@/lib/format'
 import { RadialGauge } from '@/components/radial-gauge'
@@ -10,11 +10,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function DashboardPage() {
   const fetchDashboard = useCallback(async () => {
-    const [status, devices, marketplaceStats] = await Promise.all([
-      api.status(),
-      api.listDevices(),
-      api.marketplaceStats(),
-    ])
+    // marketplaceStats é acessório ao dashboard: se o catálogo estiver
+    // indisponível, o restante (peers, dispositivos, tráfego) continua
+    // valendo. Por isso ele vai num allSettled à parte, em vez de derrubar
+    // a tela inteira junto com um Promise.all.
+    const [status, devices] = await Promise.all([api.status(), api.listDevices()])
+    const [statsResult] = await Promise.allSettled([api.marketplaceStats()])
+    const marketplaceStats = statsResult.status === 'fulfilled' ? statsResult.value : null
     const totalTraffic = status.receive_bytes_total + status.transmit_bytes_total
     return { status, devices, marketplaceStats, totalTraffic }
   }, [])
@@ -127,40 +129,65 @@ export function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-            <StatItem label="Apps" loading={loading || !data} value={data?.marketplaceStats.total_apps} />
-            <StatItem label="Versões" loading={loading || !data} value={data?.marketplaceStats.total_versions} />
-            <StatItem label="Downloads" loading={loading || !data} value={data?.marketplaceStats.total_downloads} />
-            <StatItem
-              label="Armazenamento"
-              loading={loading || !data}
-              value={data ? formatBytes(data.marketplaceStats.total_storage_bytes) : undefined}
-            />
-          </div>
-          <div>
-            <p className="hud-label mb-2 text-muted-foreground/70">Mais baixados</p>
-            {loading || !data ? (
-              <Skeleton className="h-4 w-48" />
-            ) : data.marketplaceStats.top_assets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum download registrado ainda.</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5 text-sm">
-                {data.marketplaceStats.top_assets.map((asset) => (
-                  <li key={asset.asset_id} className="flex items-center justify-between gap-3">
-                    <span className="truncate font-mono text-muted-foreground">
-                      {asset.app_name} <span className="text-xs">v{asset.version}</span> · {asset.filename}
-                    </span>
-                    <span className="shrink-0 font-mono font-medium">
-                      {asset.download_count} download{asset.download_count === 1 ? '' : 's'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <MarketplaceStatsContent loading={loading || !data} stats={data?.marketplaceStats ?? null} />
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+// MarketplaceStatsContent recebe stats=null quando a chamada de
+// /api/marketplace/stats falhou (ver fetchDashboard) — nesse caso o card
+// degrada sozinho, sem levar o resto do dashboard junto.
+function MarketplaceStatsContent({
+  loading,
+  stats,
+}: {
+  loading: boolean
+  stats: MarketplaceStats | null
+}) {
+  if (!loading && !stats) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Não foi possível carregar as estatísticas do catálogo agora.
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
+        <StatItem label="Apps" loading={loading} value={stats?.total_apps} />
+        <StatItem label="Versões" loading={loading} value={stats?.total_versions} />
+        <StatItem label="Downloads" loading={loading} value={stats?.total_downloads} />
+        <StatItem
+          label="Armazenamento"
+          loading={loading}
+          value={stats ? formatBytes(stats.total_storage_bytes) : undefined}
+        />
+      </div>
+      <div>
+        <p className="hud-label mb-2 text-muted-foreground/70">Mais baixados</p>
+        {loading || !stats ? (
+          <Skeleton className="h-4 w-48" />
+        ) : stats.top_assets.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum download registrado ainda.</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5 text-sm">
+            {stats.top_assets.map((asset) => (
+              <li key={asset.asset_id} className="flex items-center justify-between gap-3">
+                <span className="truncate font-mono text-muted-foreground">
+                  {asset.app_name} <span className="text-xs">v{asset.version}</span> · {asset.filename}
+                </span>
+                <span className="shrink-0 font-mono font-medium">
+                  {asset.download_count} download{asset.download_count === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   )
 }
 

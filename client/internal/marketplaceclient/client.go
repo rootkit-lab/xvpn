@@ -330,7 +330,10 @@ type apiError struct {
 // doJSON é compartilhado por Login/ListApps — mesmo padrão de
 // internal/apiclient.doJSON, com a adição do header Authorization opcional
 // e da tradução de 401 para ErrNotLoggedIn (o chamador decide se isso
-// deve limpar a sessão local).
+// deve limpar a sessão local). Essa tradução só vale quando havia token na
+// requisição: no próprio POST /api/auth/login um 401 significa "usuário ou
+// senha inválidos", e traduzi-lo para "sessão expirada" mandaria o usuário
+// atrás de um problema que não existe.
 func doJSON(ctx context.Context, hc *http.Client, method, baseURL, path, token string, body, out any) error {
 	var reqBody io.Reader
 	if body != nil {
@@ -361,7 +364,7 @@ func doJSON(ctx context.Context, hc *http.Client, method, baseURL, path, token s
 		return fmt.Errorf("lendo resposta do servidor: %w", err)
 	}
 
-	if resp.StatusCode == http.StatusUnauthorized {
+	if resp.StatusCode == http.StatusUnauthorized && token != "" {
 		return ErrNotLoggedIn
 	}
 	if resp.StatusCode >= 400 {

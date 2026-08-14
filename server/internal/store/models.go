@@ -199,20 +199,40 @@ func ValidChannel(c string) bool {
 	return c == ChannelStable || c == ChannelBeta
 }
 
-// App é um programa distribuído pelo catálogo interno do marketplace (Fase
-// 11 — ver PLAN.md §6.8). Não confundir com o próprio cliente XVPN (esse
-// continua distribuído via GitHub Releases, ver /download): App é sempre
-// "outro" software (Linux/Windows/Android) que o admin decide disponibilizar
-// aos usuários da VPN.
+// Origem de um App no catálogo (Fase 16 — PLAN.md §6.10): "build" é
+// compilado neste monorepo; "external" é binário de terceiro referenciado
+// por URL+SHA-256 no manifesto.
+const (
+	AppSourceBuild    = "build"
+	AppSourceExternal = "external"
+)
+
+// App é um programa distribuído pelo catálogo interno do marketplace
+// (Fases 11/16 — ver PLAN.md §6.8 e §6.10). A partir da Fase 16 o catálogo
+// é um espelho de `apps/*/marketplace.yaml` publicado pelo CI: o próprio
+// cliente XVPN pode ter entrada aqui (canal de atualização). A página
+// `/download` continua sendo o caminho de primeira instalação — quem
+// chega ali ainda não tem VPN nem, possivelmente, login.
 type App struct {
-	ID          uint   `gorm:"primaryKey"`
+	ID uint `gorm:"primaryKey"`
+	// Slug é a chave estável de identidade (nome da pasta em apps/). Unique;
+	// renomear a pasta arquiva um app e cria outro no próximo sync.
+	Slug        string `gorm:"uniqueIndex;not null;default:''"`
 	Name        string `gorm:"not null"`
 	Description string
 	IconURL     string
+	// Source / SourcePath vêm do manifesto (build|external e
+	// apps/<slug>).
+	Source     string `gorm:"not null;default:''"`
+	SourcePath string `gorm:"not null;default:''"`
 	// Visibility nunca fica vazio: AutoMigrate cria a coluna com default
 	// "global" (mais permissivo dentro do que já é uma rede privada
-	// autenticada) — admin ajusta para "restricted" explicitamente.
+	// autenticada) — admin ajusta para "restricted" explicitamente via
+	// manifesto; a ACL nominal (AppAccess) continua no painel.
 	Visibility AppVisibility `gorm:"not null;default:global"`
+	// ArchivedAt marca apps cujo slug sumiu do diretório no último sync —
+	// nunca hard-delete pelo CI (PLAN.md §6.10.3). Nil = ativo.
+	ArchivedAt *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 

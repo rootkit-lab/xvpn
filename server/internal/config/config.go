@@ -84,6 +84,12 @@ type Config struct {
 	// PLAN.md §5), nunca fora dele.
 	MarketplaceDataDir string
 
+	// PublishToken autentica POST /api/marketplace/sync (Fase 16 —
+	// PLAN.md §6.10.3). Comparado em tempo constante. Vazio = a rota de
+	// sync nem é registrada (servidor que não publica não expõe a
+	// superfície). Em produção fica em /opt/xvpn/xvpn-server.env.
+	PublishToken string
+
 	// UserProvisionBinaryPath é o caminho absoluto do binário
 	// privilegiado xvpn-user-provision (Fase 13 — ver PLAN.md §6.9),
 	// invocado pelo xvpn-server via sudoers.d restrito (NOPASSWD, sem
@@ -132,6 +138,7 @@ func Load() (*Config, error) {
 		AdminBootstrapUsername:  os.Getenv("XVPN_ADMIN_USERNAME"),
 		AdminBootstrapPassword:  os.Getenv("XVPN_ADMIN_PASSWORD"),
 		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
+		PublishToken:            os.Getenv("XVPN_PUBLISH_TOKEN"),
 		UserProvisionBinaryPath: getEnv("XVPN_USER_PROVISION_BIN", "/opt/xvpn/bin/xvpn-user-provision"),
 	}
 

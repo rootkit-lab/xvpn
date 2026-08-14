@@ -61,7 +61,10 @@ func setupRBACFixtures(t *testing.T, role store.Role) rbacFixtures {
 	// "download-marketplace-asset" da matriz exercita o caminho completo
 	// (não só "não é 403"), já que Visibility global libera qualquer
 	// papel autenticado (ver PLAN.md §6.7).
-	marketApp := store.App{Name: "App de teste RBAC", Visibility: store.AppVisibilityGlobal}
+	marketApp := store.App{
+		Slug: "rbac-app", Name: "App de teste RBAC", Visibility: store.AppVisibilityGlobal,
+		Source: store.AppSourceBuild, SourcePath: "apps/rbac-app",
+	}
 	if err := app.Store.DB.Create(&marketApp).Error; err != nil {
 		t.Fatalf("erro criando app de marketplace de teste: %v", err)
 	}
@@ -140,13 +143,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-marketplace-apps", http.MethodGet, "/api/marketplace/apps", nil, "any"},
 	{"download-marketplace-asset", http.MethodGet, "/api/marketplace/assets/{marketAsset}/download", nil, "any"},
 
-	{"create-marketplace-app", http.MethodPost, "/api/marketplace/apps", createMarketplaceAppRequest{Name: "Gerado pelo teste"}, "adminOnly"},
-	{"update-marketplace-app", http.MethodPatch, "/api/marketplace/apps/{marketApp}", updateMarketplaceAppRequest{Description: strPtr("nova descrição")}, "adminOnly"},
 	{"set-marketplace-app-access", http.MethodPut, "/api/marketplace/apps/{marketApp}/access", setMarketplaceAppAccessRequest{}, "adminOnly"},
-	{"create-marketplace-version", http.MethodPost, "/api/marketplace/apps/{marketApp}/versions", createMarketplaceVersionRequest{Version: "9.9.9"}, "adminOnly"},
-	{"delete-marketplace-asset", http.MethodDelete, "/api/marketplace/assets/{marketAsset}", nil, "adminOnly"},
-	{"delete-marketplace-version", http.MethodDelete, "/api/marketplace/versions/{marketVersion}", nil, "adminOnly"},
-	{"delete-marketplace-app", http.MethodDelete, "/api/marketplace/apps/{marketApp}", nil, "adminOnly"},
 }
 
 func strPtr(s string) *string { return &s }

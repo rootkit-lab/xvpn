@@ -30,7 +30,9 @@ export class ApiError extends Error {
 // parseErrorMessage extrai `{"error": "..."}` do corpo de uma resposta não-OK
 // — compartilhado por request() e pelos dois helpers de marketplace abaixo
 // (upload/download), que não podem passar por request() porque não usam
-// JSON puro (ver comentário em uploadMarketplaceAsset).
+// downloadMarketplaceAsset baixa o blob autenticado (JWT) e dispara o
+// save-as do browser — não passa por request() porque a resposta é
+// binária, não JSON.
 async function parseErrorMessage(res: Response): Promise<string> {
   let message = `Erro ${res.status}`
   try {
@@ -75,38 +77,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     return undefined as T
   }
   return (await res.json()) as T
-}
-
-// uploadMarketplaceAsset não passa por request(): o endpoint espera
-// multipart/form-data (ver marketplace_handler.go), e request() sempre
-// força Content-Type: application/json. O boundary do multipart precisa
-// ser gerado pelo próprio browser — nunca setamos Content-Type manualmente
-// aqui, senão o FormData vai sem boundary e o Gin não consegue parsear.
-async function uploadMarketplaceAsset(
-  versionId: number,
-  file: File,
-  platform: MarketplacePlatform,
-  arch: string,
-): Promise<MarketplaceAsset> {
-  const form = new FormData()
-  form.append('platform', platform)
-  if (arch.trim()) form.append('arch', arch.trim())
-  form.append('file', file)
-
-  const headers = new Headers()
-  const token = getToken()
-  if (token) headers.set('Authorization', `Bearer ${token}`)
-
-  const path = `/marketplace/versions/${versionId}/assets`
-  const res = await fetch(`/api${path}`, { method: 'POST', headers, body: form })
-
-  if (res.status === 401) {
-    handleUnauthorized(path)
-  }
-  if (!res.ok) {
-    throw new ApiError(res.status, await parseErrorMessage(res))
-  }
-  return (await res.json()) as MarketplaceAsset
 }
 
 // downloadMarketplaceAsset também não passa por request(): a resposta é o
@@ -265,10 +235,13 @@ export interface MarketplaceVersion {
 
 export interface MarketplaceApp {
   id: number
+  slug: string
   name: string
   description: string
   icon_url?: string
   visibility: MarketplaceVisibility
+  source?: string
+  source_path?: string
   created_at: string
   versions: MarketplaceVersion[]
   // access_user_ids só vem preenchido quando quem pediu administra o
@@ -381,31 +354,14 @@ export const api = {
       body: JSON.stringify({ username, role }),
     }),
 
-  // Catálogo do marketplace (Fase 11, PLAN.md §6.8): listMarketplaceApps já
-  // vem filtrado por ACL pelo servidor — o front nunca decide sozinho o
-  // que esconder, só reflete o que a API devolveu.
+  // Catálogo do marketplace (Fases 11/16): listagem já filtrada por ACL;
+  // publicação só via POST /marketplace/sync (CI). No painel resta ACL + download.
   listMarketplaceApps: () => request<MarketplaceApp[]>('/marketplace/apps'),
-  createMarketplaceApp: (input: {
-    name: string
-    description?: string
-    icon_url?: string
-    visibility?: MarketplaceVisibility
-  }) => request<MarketplaceApp>('/marketplace/apps', { method: 'POST', body: JSON.stringify(input) }),
-  updateMarketplaceApp: (
-    id: number,
-    changes: { name?: string; description?: string; icon_url?: string; visibility?: MarketplaceVisibility },
-  ) => request<MarketplaceApp>(`/marketplace/apps/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
-  deleteMarketplaceApp: (id: number) => request<void>(`/marketplace/apps/${id}`, { method: 'DELETE' }),
   setMarketplaceAppAccess: (id: number, userIds: number[]) =>
     request<{ user_ids: number[] }>(`/marketplace/apps/${id}/access`, {
       method: 'PUT',
       body: JSON.stringify({ user_ids: userIds }),
     }),
-  createMarketplaceVersion: (appId: number, input: { version: string; channel?: MarketplaceChannel; changelog?: string }) =>
-    request<MarketplaceVersion>(`/marketplace/apps/${appId}/versions`, { method: 'POST', body: JSON.stringify(input) }),
-  deleteMarketplaceVersion: (id: number) => request<void>(`/marketplace/versions/${id}`, { method: 'DELETE' }),
-  deleteMarketplaceAsset: (id: number) => request<void>(`/marketplace/assets/${id}`, { method: 'DELETE' }),
-  uploadMarketplaceAsset,
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 }

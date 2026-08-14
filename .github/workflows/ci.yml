@@ -12,6 +12,15 @@ on:
       - main
 
 jobs:
+  marketplace-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instala PyYAML
+        run: pip install --user pyyaml
+      - name: Valida apps/*/marketplace.yaml
+        run: python3 .github/scripts/validate-marketplace-manifests.py
+
   server:
     runs-on: ubuntu-latest
     defaults:

@@ -6,6 +6,7 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -40,6 +41,12 @@ const (
 // StartedAt é preenchido no boot do processo, usado por GET /api/status
 // para relatar uptime.
 var StartedAt = time.Now()
+
+// trustedProxies lista as únicas origens em que o Gin pode confiar para
+// derivar c.ClientIP() a partir de X-Forwarded-For/X-Real-IP. Só o
+// loopback: o xvpn-server escuta em 127.0.0.1:8080 (config.HTTPAddr) e o
+// único proxy à frente dele é o Nginx local (deploy/nginx/xvpn.conf).
+var trustedProxies = []string{"127.0.0.1/32", "::1/128"}
 
 // App agrega as dependências compartilhadas pelos handlers.
 type App struct {
@@ -92,6 +99,37 @@ type App struct {
 // NewRouter monta todas as rotas da API sobre um App já inicializado.
 func NewRouter(app *App) *gin.Engine {
 	r := gin.New()
+
+	// Sem isto o Gin trata qualquer origem como proxy confiável
+	// (gin.New() nasce com trustedProxies = 0.0.0.0/0 + ::/0) e deriva
+	// c.ClientIP() do X-Forwarded-For — um header que o cliente escolhe.
+	// Como ClientIP() é a chave do rate limit dos três endpoints sem
+	// autenticação (login, enroll, waitlist), qualquer um zerava as três
+	// proteções trocando o header a cada requisição.
+	//
+	// Confiar só no loopback corrige nas duas pontas: o Nginx anexa o
+	// $remote_addr real no fim do X-Forwarded-For
+	// ($proxy_add_x_forwarded_for) e o Gin percorre a cadeia da direita
+	// para a esquerda, parando no primeiro IP não-confiável — o IP real,
+	// seja lá o que o cliente tenha forjado à esquerda dele. Requisições
+	// que não chegam pelo loopback nem consultam o header.
+	//
+	// A confiança é declarada explicitamente aqui, em vez de herdada do
+	// padrão, também por causa da Fase 14 (GET /api/me e POST
+	// /api/me/ssh-key autenticam o dispositivo pelo IP de origem dentro
+	// de 10.66.66.0/24, com listener próprio em 10.66.66.1:8080):
+	// acrescentar qualquer faixa não-loopback nesta lista — ou registrar
+	// essas rotas neste router público — volta a tornar o IP de origem
+	// forjável e derruba a autenticação delas junto.
+	if err := r.SetTrustedProxies(trustedProxies); err != nil {
+		// Lista constante e validada em teste: só falha se alguém editá-la
+		// com um CIDR inválido. Abortar o boot é melhor que subir com a
+		// lista vazia, porque aí o ClientIP de todo mundo vira 127.0.0.1 e
+		// o rate limit passa a derrubar usuários legítimos em vez de
+		// proteger.
+		panic(fmt.Sprintf("lista de proxies confiáveis inválida: %v", err))
+	}
+
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
 

@@ -161,6 +161,7 @@ graph TB
 | ~~`10.136.0.0/16`~~ | **Evitar** | Já usada pelo `eth1` (VPC DigitalOcean) |
 | Porta WireGuard | `51820/udp` | Público, é o único ponto de entrada da VPN |
 | Painel/API XVPN | `127.0.0.1:8080` (interno) → `https://vpn.officeempresa.com` (via Nginx) | Nunca exposto direto |
+| API XVPN — listener do túnel (Fase 14) | `10.66.66.1:8080` | **Mesma porta, outra interface.** Bind só em `wg0`, nunca em `0.0.0.0`/`eth0`; sem entrada no Nginx e sem domínio. Existe porque o HTTPS do painel **não** passa dentro do túnel (a rota `/32` de exceção do cliente o desvia — ver §6.9), então é o único caminho pelo qual um peer chega à API com um `10.66.66.x` como IP de origem. Só as rotas `GET /api/me` e `POST /api/me/ssh-key` respondem aqui, atrás de um middleware que exige `RemoteIP()` na sub-rede da VPN |
 | `landpages-ops-web` | Porta a definir por aquele projeto (ex. `127.0.0.1:3000`) → `https://ldpops.appapisip.com` (via Nginx) | **Não usar `8080`/`51820`/`8081` nem `10.66.66.0/24`** para evitar colisão |
 | Samba (SMB) | `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0`. NetBIOS/`139` (`nmbd`) desabilitado de propósito: clientes modernos resolvem por IP direto via SMB2/3, dispensando essa superfície extra (ver Fase 5 do `ROADMAP.md`) |
 | FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
@@ -322,6 +323,97 @@ O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — u
 - O cliente gera `~/.ssh/xvpn_ed25519` **no processo GUI sem privilégio**, não no helper: a chave precisa ser legível pelo cliente SFTP do próprio usuário, então não pode ficar junto da chave WireGuard (root-only, `0600`, ver §8). A privada continua nunca saindo da máquina — o invariante 1 do `AGENTS.md` vale igual aqui.
 - O registro é um `POST /api/me/ssh-key` restrito à origem `10.66.66.0/24`, idempotente. Não é uma superfície nova de confiança: o IP de origem já identifica o device de forma não falsificável (mesma premissa do Samba guest), um peer só registra chave para si mesmo, e a chave só concede SFTP ao diretório daquele mesmo usuário.
 - A chave é aceita e guardada mesmo com `SFTPEnabled=false`, para que ligar o toggle no painel passe a valer imediatamente, sem uma segunda rodada de conversa com o usuário.
+
+**Como o "restrito à origem `10.66.66.0/24`" é implementado — `RemoteIP()`, nunca `ClientIP()`.** O desenho original desta revisão dizia `c.ClientIP()`; está errado e foi corrigido após a revisão de segurança do PR #27. A distinção não é estilística:
+
+- `c.ClientIP()` consulta `X-Forwarded-For`/`X-Real-IP` sempre que o peer TCP for um proxy *confiável*. O `xvpn-server` monta o router com `gin.New()` e **nunca** chama `SetTrustedProxies` (`server/internal/api/server.go:94`); o default do Gin `v1.10.1` é `trustedProxies: ["0.0.0.0/0", "::/0"]` com `ForwardedByClientIP: true` — todo mundo é confiável. Além disso, o `validateHeader` do Gin varre o header da direita para a esquerda e só para num hop não confiável; como nenhum é, ele alcança o índice 0 e devolve a entrada **mais à esquerda** — a que o cliente escreveu. Somado ao `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` do Nginx (que *acrescenta* em vez de sobrescrever), uma requisição da internet pública com `X-Forwarded-For: 10.66.66.2` faria `ClientIP()` devolver `10.66.66.2`.
+- `c.RemoteIP()` lê apenas `Request.RemoteAddr` — o peer TCP real, que nenhum header altera.
+
+Duas consequências de desenho seguem daí:
+
+1. **Um único `gin.Engine` basta.** Um middleware que exige `RemoteIP()` dentro de `10.66.66.0/24` já rejeita, por construção, tudo que vem pelo Nginx (que conecta de `127.0.0.1`). Manter uma segunda árvore de rotas só para o listener do túnel adicionaria superfície de erro — uma rota registrada na árvore errada falha silenciosamente — sem adicionar garantia.
+2. **O listener em `10.66.66.1:8080` continua necessário, mas por roteamento, não por segurança.** O cliente instala uma rota `/32` para o IP público do VPS via o gateway original antes de trocar a rota padrão (`addHostRouteException`, `client/internal/platform/linux/engine_linux.go:391`), senão o próprio handshake WireGuard entraria em loop. Como `vpn.officeempresa.com` resolve para **esse mesmo IP**, o HTTPS do painel cai nessa exceção e nunca trafega dentro do túnel — o Nginx sempre veria o IP público doméstico do usuário, jamais um `10.66.66.x`. Nenhum header conserta isso; é topologia de rotas. Registrado aqui porque é contraintuitivo e convida a uma "simplificação" que tornaria a rota inalcançável.
+
+> A correção do `SetTrustedProxies` em si é tratada à parte: o mesmo default do Gin já fura hoje os rate limits de login/enroll/waitlist, que contam por `c.ClientIP()` (`server/internal/api/ratelimit.go:74`). É bug presente, não hipótese desta fase.
+
+### 6.10 Monorepo `apps/` e Marketplace alimentado pelo diretório
+
+**Objetivo (Fase 16):** inverter o modelo de publicação do Marketplace. Hoje o admin cria `App` → `AppVersion` → `AppAsset` à mão pelo painel (§6.8); a partir daqui o catálogo passa a ser um **espelho de um diretório versionado no Git**, publicado pelo CI. O painel deixa de ser o lugar onde se publica e vira o lugar onde se controla **quem vê** e **quem baixa**.
+
+**Por que inverter:** publicar hoje é uma sequência de três passos manuais numa UI, sem rastro no Git — não dá para revisar num PR, não dá para reproduzir, e o catálogo pode divergir do que o repositório efetivamente builda. Com o diretório como fonte da verdade, publicar um programa vira "abrir um PR", com o mesmo fluxo de revisão de qualquer outra mudança (`CONTRIBUTING.md`).
+
+#### 6.10.1 Estrutura do `apps/`
+
+```
+xvpn/
+├── server/                     # plataforma — NÃO é item de catálogo
+├── shared/                     # plataforma — NÃO é item de catálogo
+└── apps/
+    └── xvpn-client/            # era client/ (Fase 16.1)
+        ├── marketplace.yaml    # manifesto — sem ele, a pasta é ignorada
+        ├── go.mod              # module github.com/rootkit-lab/xvpn/client
+        └── ...
+```
+
+`server/` e `shared/` continuam na raiz de propósito: são a plataforma que *serve* o catálogo, não itens dele. Uma pasta em `apps/` **sem** `marketplace.yaml` é ignorada pelo sync — é o que permite ter um projeto no monorepo sem publicá-lo.
+
+**Decisão — o module path do cliente não acompanha o diretório.** `apps/xvpn-client/` continua declarando `module github.com/rootkit-lab/xvpn/client`. É uma divergência deliberada entre caminho em disco e module path, não um resíduo de migração incompleta:
+
+| Alternativa | Custo | Decisão |
+|---|---|---|
+| Renomear para `.../apps/xvpn-client` | Reescreve 11 imports em 6 arquivos `.tsx` (o Wails deriva o caminho dos bindings do **module path**, não do disco), num diretório que é artefato de build gerado e não commitado — churn com risco de quebrar build, sem nenhum consumidor se beneficiando | **Rejeitado** |
+| Manter `.../xvpn/client` | Um leitor pode estranhar a divergência ao abrir o `go.mod` | **Escolhido** — nada fora de `client/` importa o módulo (verificado: zero ocorrências), então o module path não é contrato com ninguém; o cliente é um binário, não uma biblioteca |
+
+Se um dia o cliente virar dependência importável de outro módulo do monorepo, a decisão se reabre — aí o module path passa a ser contrato e vale pagar o rename.
+
+**Consequência assumida:** com o cliente dentro de `apps/`, ele passa a ter entrada no catálogo — e o struct `App` deixa de ser documentável como "sempre outro software" (§6.8). A página `/download` continua sendo o caminho de **primeira** instalação (quem chega ali ainda não tem VPN nem, possivelmente, login); o marketplace vira o canal de **atualização**.
+
+#### 6.10.2 O manifesto é a fonte da verdade
+
+Cada app publicável declara `apps/<slug>/marketplace.yaml`. O `slug` é o nome da pasta e é a **chave de identidade** do app no catálogo (`App.Slug`, unique) — renomear a pasta é, para todos os efeitos, arquivar um app e criar outro.
+
+Dois modos de origem, porque as duas situações reais são diferentes:
+
+| `source` | O que o manifesto declara | Quem resolve versão/SHA-256 | Para quê |
+|---|---|---|---|
+| `build` | Metadados + qual versão publicar | **O CI**, depois do build, a partir do artefato da GitHub Release | Programas que este monorepo compila (hoje: o próprio `xvpn-client`) |
+| `external` | Metadados + `url` + `sha256` fixos no arquivo | Ninguém — já vêm escritos e são verificados no download | Binário de terceiro (ex.: um `.deb` que você quer distribuir aos usuários) |
+
+O modo `external` existe para resolver uma tensão concreta: distribuir binário de terceiro **sem commitá-lo** (invariante 6 do `AGENTS.md`). O manifesto guarda a URL e o hash esperado; o servidor busca e verifica na hora do sync. O hash no Git é o que torna isso auditável — se a URL de origem for adulterada, o sync falha em vez de distribuir o binário trocado.
+
+Se um manifesto `source: build` aponta para uma versão que ainda não tem release publicada, o app é **pulado com aviso** no log do CI, não tratado como erro — o manifesto pode legitimamente entrar na `main` antes da release existir.
+
+O schema é validado no `ci.yml`, de modo que manifesto quebrado **reprova o PR** em vez de quebrar o deploy. É a mesma lógica de mover a falha para o momento mais barato que já se usou no `nginx -t` antes do `reload` (Fase 11).
+
+#### 6.10.3 Publicação: `POST /api/marketplace/sync`
+
+Um endpoint idempotente substitui os três passos manuais de hoje.
+
+- **Corpo = a lista completa de manifestos**, não um delta. É o *full sync* que dá sentido à regra "só aparece no catálogo o que está no diretório" — com deltas, um app removido do repositório sobreviveria para sempre no catálogo por omissão.
+- **Autenticação por token de máquina** (`XVPN_PUBLISH_TOKEN`), comparado em **tempo constante** (`crypto/subtle`), ou JWT de `super_admin` para um re-sync manual. Se a variável não existir no ambiente, a rota **não é registrada** — um servidor que não publica não expõe a superfície, em vez de expor uma rota que sempre responde 401.
+- **Upsert por `slug`**: cria o que não existe, atualiza o que mudou, não toca no que está igual. Rodar o sync duas vezes seguidas deixa a segunda execução sem nenhuma mudança para aplicar.
+- **Assets buscados por URL com verificação de SHA-256 antes de gravar.** Como o storage é content-addressed desde a Fase 11 (§6.8), um re-sync sem mudança de bytes **não baixa nada** — o hash já está em disco.
+- **Slug que sumiu do diretório é arquivado (`ArchivedAt`), nunca apagado.** Um job de CI com poder de deletar linha de produção é armadilha: um manifesto renomeado por engano, ou um checkout parcial, viraria perda de dados irreversível. Arquivar é reversível; apagar não. Mesmo espírito da compensação de revogação da Fase 9 e do `removeOrphanBlobs` da Fase 11 — preferir o caminho que erra para o lado recuperável.
+- **Guarda anti-SSRF obrigatória** nas URLs de asset: só `https`, rejeitando loopback, faixas privadas e link-local. Sem isso, a URL do manifesto vira um proxy para `127.0.0.1:8080` (a própria API, atrás do Nginx) ou `10.66.66.1` (Samba/FileBrowser, que só existem dentro da VPN) — o servidor buscaria por conta própria um endereço que o atacante não alcança, que é exatamente a definição de SSRF. A validação tem que ser feita **no IP resolvido**, não só na string da URL, senão um DNS que resolve para `127.0.0.1` passa direto.
+
+`App` ganha `Slug` (unique), `Source`, `SourcePath` e `ArchivedAt`.
+
+#### 6.10.4 Painel somente-leitura
+
+- **Remover** as rotas de publicação manual (`POST`/`PATCH`/`DELETE` de apps, versões e assets). O invariante "só se publica pelo diretório" tem que valer **na API** — esconder o botão no frontend não fecha o caminho, já que qualquer admin autenticado continua alcançando a rota direto, sem passar pelo painel.
+- **Manter** `GET /marketplace/apps`, o download autenticado e `PUT /marketplace/apps/:id/access`. Quem enxerga um app restrito é decisão **operacional**, não do repositório: a ACL muda com a entrada e saída de pessoas, num ritmo que não faz sentido acoplar a um PR.
+- `marketplace-page.tsx` perde os diálogos de criação/upload e ganha um selo de origem (`apps/<slug>`), para ficar óbvio de onde cada item veio.
+
+#### 6.10.5 Workflows de CI
+
+| Workflow | Gatilho | O que faz |
+|---|---|---|
+| `release-client.yml` | tag `xvpn-client-v*` | Builda Linux + Windows, publica na GitHub Release e chama o sync. Hoje esse build é manual — é o motivo de a `v0.1.0` do cliente ter saído na mão |
+| `marketplace-sync.yml` | push na `main` + `workflow_dispatch` | Envia o full sync, com o diff (`created`/`updated`/`unchanged`/`archived`) visível no log |
+
+O `workflow_dispatch` no segundo é deliberado: quando o catálogo divergir do diretório por qualquer motivo (servidor fora do ar durante um merge, por exemplo), a correção é re-rodar o sync, não editar o banco à mão.
+
+**Pré-requisito já resolvido:** "Allow GitHub Actions to create and approve pull requests" está habilitado no repositório (`default_workflow_permissions: write`, `can_approve_pull_request_reviews: true`) — era o que travava o `release-please`.
 
 ---
 
@@ -545,10 +637,14 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **Ciclo v0.2 — aberto (`ROADMAP.md` Fases 14–16):**
 
+**Ordem de execução decidida:** correções urgentes → **16.1** (mover `client/` → `apps/xvpn-client/`) → **Fase 14** inteira → resto da **16** → **Fase 15**. As duas primeiras frentes editam praticamente os mesmos arquivos do cliente, então o rename entra antes de a Fase 14 escrever código novo; e a urgência da 14 é menor do que parecia (produção tem 1 usuário, 1 device, zero shares pessoais e os dois toggles desligados). Justificativa completa em `ROADMAP.md`, Parte III.
+
 | Fase | Foco |
 |---|---|
-| **14** | Acesso a arquivos sincronizado com o usuário da VPN — `GET /api/me` por IP do túnel, shares `home-<username>` no cliente, correção do drift do `smb.conf` |
-| **15** | Melhorias represadas: quotas de disco, rotação de chave SSH self-service, MTU em preferências, Vitest, Windows E2E, `LICENSE` |
-| **16** | Monorepo `apps/` + Marketplace alimentado pelo diretório via CI — desenho em `ROADMAP.md` Fase 16; §6.10 entra aqui quando a fase for executada |
+| **14** | Acesso a arquivos sincronizado com o usuário da VPN — `GET /api/me` por IP do túnel (via `RemoteIP()`, ver §6.9), shares `home-<username>` no cliente, correção do `include` do `smb.conf` nos dois lados (repo e produção) |
+| **15** | Melhorias represadas: quotas de disco, rotação de chave SSH no portal, MTU em preferências (pega carona no PR da 14), Vitest, Windows E2E, `LICENSE` |
+| **16** | Monorepo `apps/` + Marketplace alimentado pelo diretório via CI — decisões em [§6.10](#610-monorepo-apps-e-marketplace-alimentado-pelo-diretório), checklist em `ROADMAP.md` Fase 16 |
+
+**Correções urgentes que precedem o ciclo** (PRs próprias, em andamento): `SetTrustedProxies` no router do servidor (o default do Gin fura os rate limits hoje — ver §6.9) e o `include` do `smb.conf`, que hoje está na primeira linha do `[global]` em produção e faria o `[global]` inteiro colapsar assim que o primeiro share pessoal existisse.
 
 Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.

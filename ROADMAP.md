@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)** e **11 (marketplace de programas)** concluídas em produção. **Fase 12** (consumo do marketplace no cliente + estatísticas no dashboard) implementada — restando apenas itens opcionais (página móvel `/apps` para Android, quota por usuário) movidos ao [backlog pós-roadmap](#backlog-pós-roadmap). **Fase 13** (contas Unix por usuário — SFTP + Samba) implementada em código, testes **e deploy em produção** (binário privilegiado instalado, `sudoers.d` configurado, `Match User` no sshd, includes Samba, `vps-security-audit` sem regressões). Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)**, **11 (marketplace de programas)** e **13 (contas Unix por usuário — SFTP + Samba)** concluídas em produção. **Fase 12** (consumo do marketplace no cliente + estatísticas no dashboard) implementada — restando apenas itens opcionais (página móvel `/apps` para Android, quota por usuário) movidos ao [backlog pós-roadmap](#backlog-pós-roadmap). A Fase 13 passou por review automático (Bugbot + Security Agent) com 6 bugs corrigidos antes do merge e isolamento cross-user do Samba documentado como limitação aceita. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -400,13 +400,14 @@ Cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS, com 
 - [x] `sudoers.d` restrito ao caminho exato do binário (sem wildcard de argumento); documentar em `SECURITY.md`
 - [x] Estrutura `/home/<username>/` (root:root, chroot) + `/home/<username>/files/` (dono do usuário — visível via SFTP e via share Samba)
 - [x] Campos novos no model `User`: `SFTPEnabled`, `SambaEnabled`, `SSHPublicKey`
-- [x] `sshd_config`: `Match User` por conta provisionada → `ForceCommand internal-sftp` + `ChrootDirectory`, sem `PasswordAuthentication` (só chave pública)
+- [x] `sshd_config`: `Match User` por conta provisionada → `ForceCommand internal-sftp -d /files` + `ChrootDirectory`, sem `PasswordAuthentication` (só chave pública)
 - [x] Reconciliação no boot do `xvpn-server` (mesmo padrão do `ReconcilePeers`): cria o que faltar para usuários com toggle ativo
 - [x] Migração dos usuários existentes: conta Unix criada, toggles `SFTPEnabled`/`SambaEnabled` **desligados por padrão**
 - [x] UI painel: toggle único "Acesso a arquivos (SFTP)" + toggle "Acesso Samba" + campo para colar chave pública SSH
 - [x] Audit log: enable/disable de cada capability (actor = admin, não o binário)
 - [x] Rodar `vps-security-audit` após implantar (binário privilegiado novo + `Match User` no sshd)
 - [x] Testes: criação idempotente, rejeição de username inválido/injeção, reconcile não duplica, disable remove acesso de fato
+- [x] **Review pós-deploy (Bugbot/Security Agent, PR #23):** 6 bugs endereçados (2 HIGH de consistência DB↔sistema no delete/partial-fail, 1 HIGH de Samba guest bloqueado por `map to guest = never`, 1 MEDIUM de SFTP expunha `.ssh/` sem `-d /files`, 1 MEDIUM de rename órfão, 1 MEDIUM de colisão com conta de sistema) + compensação de acesso a arquivos quando delete falha depois do Disable. Limitação de isolamento cross-user do Samba documentada em `PLAN.md` §6.9 e `SECURITY.md` (decisão aceita em revisão).
 
 **Notas de implementação:**
 

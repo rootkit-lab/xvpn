@@ -165,10 +165,22 @@ func (a *App) handleListDevices(c *gin.Context) {
 		return
 	}
 
-	live, err := a.WG.ListPeers()
+	resp, err := a.mergeDevicesWithLiveState(devices)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro consultando estado da interface WireGuard"})
 		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// mergeDevicesWithLiveState combina os registros persistidos com o estado
+// ao vivo do kernel (handshake, tráfego, endpoint) — usado tanto por
+// handleListDevices (todos os devices) quanto handleListMyDevices (só os
+// do usuário autenticado), para não duplicar o merge entre os dois.
+func (a *App) mergeDevicesWithLiveState(devices []store.Device) ([]deviceResponse, error) {
+	live, err := a.WG.ListPeers()
+	if err != nil {
+		return nil, err
 	}
 	liveByKey := make(map[string]wireguard.PeerStatus, len(live))
 	for _, p := range live {
@@ -193,12 +205,12 @@ func (a *App) handleListDevices(c *gin.Context) {
 		}
 		resp = append(resp, dr)
 	}
-	c.JSON(http.StatusOK, resp)
+	return resp, nil
 }
 
-// handleDeleteDevice revoga um dispositivo imediatamente: remove o peer da
-// interface WireGuard (o handshake para de funcionar já na próxima
-// tentativa) e apaga o registro do banco.
+// handleDeleteDevice revoga um dispositivo imediatamente (qualquer usuário
+// dono, papel administrativo — ver handleDeleteMyDevice para o autosserviço
+// do próprio dono).
 // DELETE /api/devices/:id
 func (a *App) handleDeleteDevice(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -213,9 +225,64 @@ func (a *App) handleDeleteDevice(c *gin.Context) {
 		return
 	}
 
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	if !a.revokeDevice(c, device, actorString(actor)) {
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// handleListMyDevices lista só os dispositivos do próprio usuário
+// autenticado — o "portal do membro" mínimo da Fase 10 (PLAN.md §6.7):
+// qualquer papel pode ter dispositivos VPN pessoais, não só member.
+// GET /api/me/devices
+func (a *App) handleListMyDevices(c *gin.Context) {
+	var devices []store.Device
+	if err := a.Store.DB.Where("user_id = ?", callerUserID(c)).Order("id").Find(&devices).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+
+	resp, err := a.mergeDevicesWithLiveState(devices)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro consultando estado da interface WireGuard"})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// handleDeleteMyDevice revoga um dispositivo do próprio usuário autenticado
+// — 404 (não 403) se o device existe mas pertence a outro usuário, para não
+// confirmar a um usuário comum que aquele ID existe.
+// DELETE /api/me/devices/:id
+func (a *App) handleDeleteMyDevice(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+
+	var device store.Device
+	if err := a.Store.DB.First(&device, id).Error; err != nil || device.UserID != callerUserID(c) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dispositivo não encontrado"})
+		return
+	}
+
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	if !a.revokeDevice(c, device, actorString(actor)) {
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// revokeDevice remove o peer do WireGuard e o registro do banco,
+// compensando (re-adicionando o peer) se o passo do banco falhar depois do
+// peer já ter saído do kernel (ver ROADMAP.md Fase 9). Em caso de erro, já
+// escreve a resposta HTTP e retorna false — o chamador só precisa parar.
+func (a *App) revokeDevice(c *gin.Context, device store.Device, actor string) bool {
 	if err := a.WG.RemovePeer(device.PublicKey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar peer na interface WireGuard"})
-		return
+		return false
 	}
 
 	if err := a.Store.DB.Delete(&device).Error; err != nil {
@@ -228,11 +295,9 @@ func (a *App) handleDeleteDevice(c *gin.Context) {
 			slog.Error("falha ao compensar remoção de peer após erro de banco", "device_id", device.ID, "err", addErr)
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
+		return false
 	}
 
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "device.revoke", "device_id="+c.Param("id"))
-
-	c.Status(http.StatusNoContent)
+	_ = a.Store.LogAudit(actor, "device.revoke", "device_id="+strconv.FormatUint(uint64(device.ID), 10))
+	return true
 }

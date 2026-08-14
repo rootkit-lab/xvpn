@@ -5,12 +5,17 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
-// Claims são as informações carregadas no token de sessão do painel.
+// Claims são as informações carregadas no token de sessão do painel. Role
+// (Fase 10) é o que os middlewares de autorização checam — mudar o papel de
+// um usuário só tem efeito prático no próximo login (o token antigo carrega
+// o papel de quando foi emitido, até expirar).
 type Claims struct {
-	UserID   uint   `json:"uid"`
-	Username string `json:"username"`
+	UserID   uint       `json:"uid"`
+	Username string     `json:"username"`
+	Role     store.Role `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -27,11 +32,12 @@ func NewTokenManager(secret string, ttl time.Duration) *TokenManager {
 }
 
 // Issue gera um novo JWT válido por t.ttl para o usuário informado.
-func (t *TokenManager) Issue(userID uint, username string) (string, error) {
+func (t *TokenManager) Issue(userID uint, username string, role store.Role) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		UserID:   userID,
 		Username: username,
+		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(t.ttl)),

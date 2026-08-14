@@ -29,13 +29,24 @@ func doJSON(t *testing.T, router http.Handler, method, path string, body any, to
 	return rec
 }
 
+// createTestUser cria um usuário de teste com papel super_admin — a
+// grande maioria dos testes escritos antes da Fase 10 (RBAC) assume que
+// "admin" consegue fazer qualquer operação autenticada, o que só
+// super_admin garante sem exceção (ex.: gerenciar outro super_admin). Para
+// testar a matriz de papéis (viewer/admin/member com permissões restritas),
+// use createTestUserWithRole.
 func createTestUser(t *testing.T, app *App, username, password string) store.User {
+	t.Helper()
+	return createTestUserWithRole(t, app, username, password, store.RoleSuperAdmin)
+}
+
+func createTestUserWithRole(t *testing.T, app *App, username, password string, role store.Role) store.User {
 	t.Helper()
 	hash, err := auth.HashPassword(password)
 	if err != nil {
 		t.Fatalf("erro gerando hash: %v", err)
 	}
-	user := store.User{Username: username, PasswordHash: hash}
+	user := store.User{Username: username, PasswordHash: hash, Role: role}
 	if err := app.Store.DB.Create(&user).Error; err != nil {
 		t.Fatalf("erro criando usuário de teste: %v", err)
 	}

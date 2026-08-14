@@ -129,9 +129,9 @@ func (a *App) handleListWaitlist(c *gin.Context) {
 }
 
 // handleApproveWaitlist e handleRejectWaitlist só atualizam o status
-// exibido no painel — não criam usuário/convite automaticamente (ver
-// comentário em store.WaitlistEntry sobre a decisão de manter o
-// provisionamento real manual, via a tela Usuários já existente).
+// exibido no painel — não criam usuário/convite sozinhos. Quem quer
+// provisionar de fato usa handleProvisionWaitlist (ou a tela Usuários já
+// existente, manualmente).
 // POST /api/waitlist/:id/approve
 func (a *App) handleApproveWaitlist(c *gin.Context) {
 	a.reviewWaitlist(c, waitlistStatusApproved)
@@ -140,6 +140,110 @@ func (a *App) handleApproveWaitlist(c *gin.Context) {
 // POST /api/waitlist/:id/reject
 func (a *App) handleRejectWaitlist(c *gin.Context) {
 	a.reviewWaitlist(c, waitlistStatusRejected)
+}
+
+type provisionWaitlistRequest struct {
+	Username string     `json:"username" binding:"required"`
+	Role     store.Role `json:"role"`
+}
+
+type provisionWaitlistResponse struct {
+	User userResponse `json:"user"`
+	// Password é gerada pelo servidor e devolvida uma única vez nesta
+	// resposta — a tela de waitlist não coleta senha do admin (ver
+	// PLAN.md §6.7, "não inventa segundo caminho de credencial").
+	Password string         `json:"password"`
+	Invite   inviteResponse `json:"invite"`
+}
+
+// handleProvisionWaitlist orquestra "aprovar e provisionar" (Fase 10, ver
+// ROADMAP.md): cria um User de verdade + um InviteToken para o cadastro da
+// waitlist, na mesma transação, e marca o cadastro como aprovado. É
+// exatamente o mesmo par POST /users + POST /users/:id/invite que o admin
+// já faria manualmente pela tela Usuários — só que orquestrado num clique,
+// sem inventar um segundo caminho de credencial.
+// POST /api/waitlist/:id/provision
+func (a *App) handleProvisionWaitlist(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+
+	var req provisionWaitlistRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username é obrigatório"})
+		return
+	}
+
+	role := req.Role
+	if role == "" {
+		role = store.RoleMember
+	}
+	if !role.Valid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role inválido"})
+		return
+	}
+	if !callerRole(c).CanManage(role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode provisionar um usuário com esse papel"})
+		return
+	}
+
+	var entry store.WaitlistEntry
+	if err := a.Store.DB.First(&entry, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "cadastro não encontrado"})
+		return
+	}
+
+	password, err := auth.GenerateRandomPassword()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+
+	user := store.User{Username: req.Username, PasswordHash: hash, Role: role}
+	var invite store.InviteToken
+	now := time.Now()
+
+	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&user).Error; err != nil {
+			return err
+		}
+		token, err := generateInviteToken()
+		if err != nil {
+			return err
+		}
+		invite = store.InviteToken{
+			UserID:    user.ID,
+			Token:     token,
+			ExpiresAt: now.Add(time.Duration(a.Config.InviteTokenTTLMinutes) * time.Minute),
+		}
+		if err := tx.Create(&invite).Error; err != nil {
+			return err
+		}
+		entry.Status = waitlistStatusApproved
+		entry.ReviewedAt = &now
+		return tx.Save(&entry).Error
+	})
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "não foi possível provisionar (username já em uso?)"})
+		return
+	}
+
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	_ = a.Store.LogAudit(actorString(actor), "waitlist.provisioned",
+		"waitlist_id="+c.Param("id")+" user_id="+strconv.FormatUint(uint64(user.ID), 10)+" username="+user.Username+" role="+string(user.Role))
+
+	c.JSON(http.StatusCreated, provisionWaitlistResponse{
+		User:     toUserResponse(user),
+		Password: password,
+		Invite:   inviteResponse{Token: invite.Token, ExpiresAt: invite.ExpiresAt},
+	})
 }
 
 func (a *App) reviewWaitlist(c *gin.Context, status string) {

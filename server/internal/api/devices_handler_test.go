@@ -236,6 +236,108 @@ func TestHandleDeleteDevice_CompensatesWireGuardWhenDBDeleteFails(t *testing.T) 
 	}
 }
 
+// TestHandleListMyDevices_OnlyOwnDevices cobre o autosserviço da Fase 10
+// (PLAN.md §6.7): /api/me/devices nunca deve vazar dispositivos de outro
+// usuário, mesmo listando sem nenhum filtro explícito no request.
+func TestHandleListMyDevices_OnlyOwnDevices(t *testing.T) {
+	app, _ := newTestApp(t)
+	owner := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	other := createTestUserWithRole(t, app, "member2", "senha-membro-456", store.RoleMember)
+	router := NewRouter(app)
+
+	ownerInvite := createTestInvite(t, app, owner.ID)
+	otherInvite := &store.InviteToken{UserID: other.ID, Token: "XVPN-TEST-0002", ExpiresAt: time.Now().Add(15 * time.Minute)}
+	if err := app.Store.DB.Create(otherInvite).Error; err != nil {
+		t.Fatalf("erro criando segundo invite de teste: %v", err)
+	}
+
+	rec := doJSON(t, router, http.MethodPost, "/api/devices/enroll", enrollRequest{InviteToken: ownerInvite, PublicKey: testPublicKey, DeviceName: "meu-notebook"}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("erro no enrollment do owner: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/devices/enroll", enrollRequest{InviteToken: otherInvite.Token, PublicKey: testPublicKey2, DeviceName: "notebook-do-outro"}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("erro no enrollment do other: %d %s", rec.Code, rec.Body.String())
+	}
+
+	token := loginAndGetToken(t, app, router, "member1", "senha-membro-123")
+	rec = doJSON(t, router, http.MethodGet, "/api/me/devices", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var devices []deviceResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &devices); err != nil {
+		t.Fatalf("erro decodificando devices: %v", err)
+	}
+	if len(devices) != 1 || devices[0].PublicKey != testPublicKey {
+		t.Fatalf("esperava só o device do próprio usuário, obtido %+v", devices)
+	}
+}
+
+// TestHandleDeleteMyDevice_NotFoundForOthersDevice garante que tentar
+// revogar o device de outro usuário responde 404 (não 403) — não confirma a
+// um usuário comum que aquele ID existe, mesmo negando a operação.
+func TestHandleDeleteMyDevice_NotFoundForOthersDevice(t *testing.T) {
+	app, _ := newTestApp(t)
+	owner := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	createTestUserWithRole(t, app, "member2", "senha-membro-456", store.RoleMember)
+	router := NewRouter(app)
+
+	ownerInvite := createTestInvite(t, app, owner.ID)
+	rec := doJSON(t, router, http.MethodPost, "/api/devices/enroll", enrollRequest{InviteToken: ownerInvite, PublicKey: testPublicKey, DeviceName: "meu-notebook"}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("erro no enrollment do owner: %d %s", rec.Code, rec.Body.String())
+	}
+	var device store.Device
+	if err := app.Store.DB.First(&device).Error; err != nil {
+		t.Fatalf("erro lendo device de setup: %v", err)
+	}
+
+	token := loginAndGetToken(t, app, router, "member2", "senha-membro-456")
+	rec = doJSON(t, router, http.MethodDelete, "/api/me/devices/"+strconv.FormatUint(uint64(device.ID), 10), nil, token)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("esperado 404 ao tentar revogar device de outro usuário, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var remaining int64
+	app.Store.DB.Model(&store.Device{}).Count(&remaining)
+	if remaining != 1 {
+		t.Fatalf("device do owner não deveria ter sido afetado, restam %d", remaining)
+	}
+}
+
+// TestHandleDeleteMyDevice_Success confirma que o dono consegue revogar o
+// próprio device por /api/me/devices sem precisar de papel administrativo.
+func TestHandleDeleteMyDevice_Success(t *testing.T) {
+	app, wg := newTestApp(t)
+	owner := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	router := NewRouter(app)
+
+	ownerInvite := createTestInvite(t, app, owner.ID)
+	rec := doJSON(t, router, http.MethodPost, "/api/devices/enroll", enrollRequest{InviteToken: ownerInvite, PublicKey: testPublicKey, DeviceName: "meu-notebook"}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("erro no enrollment do owner: %d %s", rec.Code, rec.Body.String())
+	}
+	var device store.Device
+	if err := app.Store.DB.First(&device).Error; err != nil {
+		t.Fatalf("erro lendo device de setup: %v", err)
+	}
+
+	token := loginAndGetToken(t, app, router, "member1", "senha-membro-123")
+	rec = doJSON(t, router, http.MethodDelete, "/api/me/devices/"+strconv.FormatUint(uint64(device.ID), 10), nil, token)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("esperado 204, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	peers, err := wg.ListPeers()
+	if err != nil {
+		t.Fatalf("erro listando peers: %v", err)
+	}
+	if len(peers) != 0 {
+		t.Fatalf("esperava 0 peers após o dono revogar o próprio device, obtido %d", len(peers))
+	}
+}
+
 func TestHandleDeviceEnroll_RateLimited(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

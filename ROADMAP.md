@@ -491,7 +491,7 @@ Corrige os dois bugs reportados no botão "Unidade de rede" do cliente desktop. 
 - [x] `OpenServerFiles` aceita `"smb-home"` e `"smb-shared"`; revalida a conexão antes de abrir (hoje confia só no estado da UI)
 - [x] UI: botões "Meus arquivos" e "Compartilhado" na `main-page` e no tray, desabilitados com explicação quando `samba_enabled=false`
 - [x] **(pré-requisito, PR separada)** Corrigir o `smb.conf` nos **dois** lados — repositório e produção — e redeployar; ver análise abaixo
-- [ ] Limpar as contas Unix órfãs da produção (`smbtest1`, `xvpntest1`, `xvpntest2`) **antes** de validar a fase
+- [x] Limpar as contas Unix órfãs da produção (`smbtest1`, `xvpntest1`, `xvpntest2`) **antes** de validar a fase
 - [ ] Atualizar `shares-page`, a skill `samba-user-ops`, `PLAN.md`, `SECURITY.md` e o `CHANGELOG.md` raiz
 
 **O `smb.conf` é bloqueador desta subfase, não dívida cosmética.** O diagnóstico anterior ("o repositório está desatualizado") subestimava o problema: **os dois lados estão errados, de formas diferentes e ambas graves.**

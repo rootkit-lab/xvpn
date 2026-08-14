@@ -19,6 +19,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ### Fixed
 
+- **Achados do Cursor Bugbot na revisão do PR da Fase 11 (marketplace)**, todos com teste de regressão: upload que falhava no `Create` do banco deixava o blob órfão em disco (`handleUploadMarketplaceAsset` agora chama `removeOrphanBlobs` no caminho de erro); apagar um usuário não limpava seus `AppAccess`, deixando ID órfão numa ACL que travava o próximo "salvar acesso" daquele app (`handleDeleteUser` agora limpa `AppAccess` na mesma transação); e o server block de referência do Nginx não definia `client_max_body_size`, rejeitando com 413 qualquer upload real acima de 1 MB antes mesmo de chegar no limite de 2 GiB do Go (`server/deploy/nginx/xvpn.conf` ganhou `client_max_body_size 2200m`).
 - **Rollback de enroll não restaurava o convite** (`server/internal/api/devices_handler.go`): se `AddPeer` falhasse depois do banco já ter marcado `invite.UsedAt`, o código de convite ficava "queimado" mesmo com o enrollment tendo falhado por completo — agora o convite e o device são revertidos juntos, numa transação.
 - **Revogação de device/user podia "ressuscitar" peer no próximo restart** (`devices_handler.go`, `users_handler.go`): se a exclusão no banco falhasse depois do peer já ter sido removido do WireGuard, o registro sobrevivente no banco fazia o `ReconcilePeers` do próximo boot recriar o peer sozinho. Agora uma falha de banco pós-remoção compensa re-adicionando o(s) peer(s) na hora, mantendo kernel e banco sempre consistentes entre si.
 

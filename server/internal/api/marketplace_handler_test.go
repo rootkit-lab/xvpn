@@ -648,3 +648,69 @@ func TestMarketplaceHandlers_AuditLogsKeyActions(t *testing.T) {
 		}
 	}
 }
+
+// TestHandleUploadMarketplaceAsset_RollsBackBlobWhenDBCreateFails cobre um
+// achado do Bugbot na revisão da Fase 11: handleUploadMarketplaceAsset
+// gravava o blob em disco (Marketplace.Put) antes de inserir o AppAsset —
+// se o Create falhasse depois, o blob ficava órfão pra sempre, sem
+// nenhuma AppAsset referenciando-o. Mesma técnica de trigger SQLite já
+// usada em users_handler_test.go/devices_handler_test.go para simular
+// falha de banco de forma determinística.
+func TestHandleUploadMarketplaceAsset_RollsBackBlobWhenDBCreateFails(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	createTestUserWithRole(t, app, "admin", "senha-admin-123", store.RoleAdmin)
+	adminToken := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	_, versionID := createMarketplaceAppAndVersion(t, router, adminToken, store.AppVisibilityGlobal)
+	content := []byte("conteudo que nunca deveria sobreviver no disco")
+
+	if err := app.Store.DB.Exec("CREATE TRIGGER block_asset_insert BEFORE INSERT ON app_assets BEGIN SELECT RAISE(ABORT, 'falha simulada de banco'); END;").Error; err != nil {
+		t.Fatalf("erro criando trigger de teste: %v", err)
+	}
+
+	rec := doMultipartUpload(t, router, "/api/marketplace/versions/"+strconv.FormatUint(uint64(versionID), 10)+"/assets",
+		adminToken, "linux", "", "pacote.deb", content)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperado 500 (falha simulada de banco), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	blobPath := marketplaceBlobAbsPath(t, app, content)
+	if _, err := os.Stat(blobPath); !os.IsNotExist(err) {
+		t.Fatalf("blob deveria ter sido removido após o Create falhar (rollback), err=%v", err)
+	}
+}
+
+// TestHandleDeleteUser_RemovesMarketplaceAppAccess cobre outro achado do
+// Bugbot: remover um usuário não limpava os AppAccess que apontavam pra
+// ele. O ID órfão sobrevivia na ACL, e handleSetMarketplaceAppAccess
+// rejeita qualquer user_id que não exista mais — travando o admin no
+// primeiro "salvar" seguinte na tela (o painel pré-carrega a lista salva,
+// que incluiria o ID morto sem nenhum checkbox pra desmarcá-lo).
+func TestHandleDeleteUser_RemovesMarketplaceAppAccess(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	createTestUserWithRole(t, app, "admin", "senha-admin-123", store.RoleAdmin)
+	adminToken := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+	member := createTestUserWithRole(t, app, "membro", "senha-membro-123", store.RoleMember)
+
+	appID, _ := createMarketplaceAppAndVersion(t, router, adminToken, store.AppVisibilityRestricted)
+	rec := doJSON(t, router, http.MethodPut, "/api/marketplace/apps/"+strconv.FormatUint(uint64(appID), 10)+"/access",
+		setMarketplaceAppAccessRequest{UserIDs: []uint{member.ID}}, adminToken)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("erro concedendo acesso: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodDelete, "/api/users/"+strconv.FormatUint(uint64(member.ID), 10), nil, adminToken)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("erro removendo usuário: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var count int64
+	if err := app.Store.DB.Model(&store.AppAccess{}).Where("user_id = ?", member.ID).Count(&count).Error; err != nil {
+		t.Fatalf("erro checando app_access remanescente: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("esperava 0 AppAccess remanescentes para o usuário removido, obtido %d", count)
+	}
+}

@@ -583,6 +583,13 @@ func (a *App) handleUploadMarketplaceAsset(c *gin.Context) {
 		StoragePath:  result.RelPath,
 	}
 	if err := a.Store.DB.Create(&asset).Error; err != nil {
+		// O blob já foi gravado em disco (Put acima) antes de sabermos se o
+		// Create ia funcionar — sem este rollback, uma falha aqui (ex.: DB
+		// travado/cheio) deixaria um blob órfão pra sempre, já que nenhum
+		// AppAsset chegou a referenciá-lo. removeOrphanBlobs confere de novo
+		// se algum outro asset já referencia o mesmo hash (dedup) antes de
+		// apagar — nunca remove um blob ainda em uso.
+		a.removeOrphanBlobs([]store.AppAsset{{StoragePath: result.RelPath}})
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}

@@ -71,6 +71,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		return provision.EnableSFTP(r, username, string(key))
 	case "enable-samba":
 		return provision.EnableSamba(r, username)
+	case "disable-sftp":
+		return provision.DisableSFTP(r, username)
+	case "disable-samba":
+		return provision.DisableSamba(r, username)
 	case "disable":
 		return provision.Disable(r, username)
 	default:

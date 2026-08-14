@@ -23,10 +23,23 @@ type userResponse struct {
 	Username  string     `json:"username"`
 	Role      store.Role `json:"role"`
 	CreatedAt time.Time  `json:"created_at"`
+	// Acesso a arquivos (Fase 13, PLAN.md §6.9): sempre presentes na
+	// resposta (default false/"" quando o usuário nunca teve acesso).
+	SFTPEnabled  bool   `json:"sftp_enabled"`
+	SambaEnabled bool   `json:"samba_enabled"`
+	SSHPublicKey string `json:"ssh_public_key"`
 }
 
 func toUserResponse(u store.User) userResponse {
-	return userResponse{ID: u.ID, Username: u.Username, Role: u.Role, CreatedAt: u.CreatedAt}
+	return userResponse{
+		ID:           u.ID,
+		Username:     u.Username,
+		Role:         u.Role,
+		CreatedAt:    u.CreatedAt,
+		SFTPEnabled:  u.SFTPEnabled,
+		SambaEnabled: u.SambaEnabled,
+		SSHPublicKey: u.SSHPublicKey,
+	}
 }
 
 // callerRole/callerUserID leem a identidade definida por auth.RequireAuth no

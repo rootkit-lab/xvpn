@@ -386,6 +386,64 @@ func TestDisable_InvalidUsername(t *testing.T) {
 	}
 }
 
+func TestDisableSFTP_RemovesOnlySSHDDropIn(t *testing.T) {
+	r := newFakeRunner()
+	r.files["/etc/ssh/sshd_config.d/xvpn-sftp-alice.conf"] = SSHDMatchConfig("alice")
+	r.files["/etc/samba/smb.conf.d/xvpn-home-alice.conf"] = SambaShareConfig("alice")
+	if err := DisableSFTP(r, "alice"); err != nil {
+		t.Fatalf("DisableSFTP falhou: %v", err)
+	}
+	if _, ok := r.files["/etc/ssh/sshd_config.d/xvpn-sftp-alice.conf"]; ok {
+		t.Error("drop-in sshd deveria ter sido removido")
+	}
+	if _, ok := r.files["/etc/samba/smb.conf.d/xvpn-home-alice.conf"]; !ok {
+		t.Error("include samba NÃO deveria ter sido removido por DisableSFTP")
+	}
+	if !contains(r.calls, "ReloadSSH()") {
+		t.Error("ReloadSSH deveria ter sido chamado")
+	}
+	if contains(r.calls, "ReloadSamba()") {
+		t.Error("ReloadSamba NÃO deveria ter sido chamado por DisableSFTP")
+	}
+}
+
+func TestDisableSFTP_NoopWhenAlreadyOff(t *testing.T) {
+	r := newFakeRunner()
+	// Samba habilitado, SFTP não — DisableSFTP não deve tocar Samba nem
+	// recarregar nada (já estava sem drop-in sshd).
+	r.files["/etc/samba/smb.conf.d/xvpn-home-alice.conf"] = SambaShareConfig("alice")
+	if err := DisableSFTP(r, "alice"); err != nil {
+		t.Fatalf("DisableSFTP falhou: %v", err)
+	}
+	if _, ok := r.files["/etc/samba/smb.conf.d/xvpn-home-alice.conf"]; !ok {
+		t.Error("include samba não deveria ter sido tocado")
+	}
+	if contains(r.calls, "ReloadSSH()") {
+		t.Error("ReloadSSH não deveria ter sido chamado (nada pra remover)")
+	}
+}
+
+func TestDisableSamba_RemovesOnlyShareInclude(t *testing.T) {
+	r := newFakeRunner()
+	r.files["/etc/ssh/sshd_config.d/xvpn-sftp-alice.conf"] = SSHDMatchConfig("alice")
+	r.files["/etc/samba/smb.conf.d/xvpn-home-alice.conf"] = SambaShareConfig("alice")
+	if err := DisableSamba(r, "alice"); err != nil {
+		t.Fatalf("DisableSamba falhou: %v", err)
+	}
+	if _, ok := r.files["/etc/samba/smb.conf.d/xvpn-home-alice.conf"]; ok {
+		t.Error("include samba deveria ter sido removido")
+	}
+	if _, ok := r.files["/etc/ssh/sshd_config.d/xvpn-sftp-alice.conf"]; !ok {
+		t.Error("drop-in sshd NÃO deveria ter sido removido por DisableSamba")
+	}
+	if !contains(r.calls, "ReloadSamba()") {
+		t.Error("ReloadSamba deveria ter sido chamado")
+	}
+	if contains(r.calls, "ReloadSSH()") {
+		t.Error("ReloadSSH não deveria ter sido chamado por DisableSamba")
+	}
+}
+
 // --- EnsureUnused ---
 
 func TestEnsureUnused_RejectsExistingSystemUser(t *testing.T) {

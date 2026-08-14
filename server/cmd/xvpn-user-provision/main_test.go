@@ -146,3 +146,18 @@ func TestRun_DisableDispatches(t *testing.T) {
 		t.Error("disable não removeu o include samba")
 	}
 }
+
+func TestRun_DisableSFTPAndDisableSambaDispatch(t *testing.T) {
+	for _, cmd := range []string{"disable-sftp", "disable-samba"} {
+		r := newNoopRunner()
+		r.writes["/etc/ssh/sshd_config.d/xvpn-sftp-alice.conf"] = "..."
+		r.writes["/etc/samba/smb.conf.d/xvpn-home-alice.conf"] = "..."
+		runnerFn = func() provision.Runner { return r }
+		defer func() { runnerFn = provision.NewRunner }()
+		if err := run([]string{cmd, "alice"}, strings.NewReader(""), nil, nil); err != nil {
+			t.Fatalf("%s falhou: %v", cmd, err)
+		}
+		// Ambos os subcomandos são dispatchados sem erro; a granularidade
+		// (qual arquivo cada um remove) já é coberta no pacote provision.
+	}
+}

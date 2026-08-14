@@ -205,6 +205,55 @@ func Disable(r Runner, username string) error {
 	return nil
 }
 
+// DisableSFTP remove só o acesso SFTP (fragmento sshd), mantendo o
+// Samba intacto. Necessário porque os toggles SFTP/Samba são
+// independentes no painel (ver ROADMAP.md Fase 13): o admin pode
+// desligar SFTP e manter Samba, ou vice-versa. O Disable "ambos"
+// acima é um atalho pra quando os dois voltam a false ao mesmo tempo.
+func DisableSFTP(r Runner, username string) error {
+	if !ValidUsername(username) {
+		return ErrInvalidUsername
+	}
+	dropIn := sshdDropInPath(username)
+	exists, err := r.FileExists(dropIn)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil // já estava desligado — idempotente
+	}
+	if err := r.RemoveFile(dropIn); err != nil {
+		return fmt.Errorf("removendo %s: %w", dropIn, err)
+	}
+	if err := r.ReloadSSH(); err != nil {
+		return fmt.Errorf("recarregando sshd após disable-sftp de %q: %w", username, err)
+	}
+	return nil
+}
+
+// DisableSamba remove só o share Samba, mantendo o SFTP intacto. Mesma
+// motivação de DisableSFTP — toggles independentes no painel.
+func DisableSamba(r Runner, username string) error {
+	if !ValidUsername(username) {
+		return ErrInvalidUsername
+	}
+	share := sambaShareIncludePath(username)
+	exists, err := r.FileExists(share)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil // já estava desligado — idempotente
+	}
+	if err := r.RemoveFile(share); err != nil {
+		return fmt.Errorf("removendo %s: %w", share, err)
+	}
+	if err := r.ReloadSamba(); err != nil {
+		return fmt.Errorf("recarregando smbd após disable-samba de %q: %w", username, err)
+	}
+	return nil
+}
+
 // EnsureUnused é uma checagem defensiva que o handler pode chamar antes
 // de provisionar: garante que o username não colide com uma conta de
 // sistema pré-existente que o provisionador não deveria tocar. Como o

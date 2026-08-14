@@ -45,6 +45,35 @@ Ver checklist completo em [`ROADMAP.md` — Fase 0](./ROADMAP.md#fase-0--hardeni
 - `unattended-upgrades` para patches de segurança automáticos do SO.
 - Backups regulares do banco de dados (`xvpn.db`) com rotação.
 
+### Binário privilegiado `xvpn-user-provision` (Fase 13)
+
+O painel (`xvpn-server`, processo não-root) precisa criar contas Unix e
+editar `sshd_config.d`/`smb.conf.d` para provisionar SFTP/Samba por
+usuário (ver [`PLAN.md` §6.9](./PLAN.md#69-contas-unix-reais-por-usuário-sftp--samba-integrados)).
+Em vez de rodar o servidor inteiro como root, há um binário mínimo e
+auditável (`server/cmd/xvpn-user-provision`) que faz só essas
+operações, invocado via `sudo -n` com escopo restrito:
+
+- **`/etc/sudoers.d/xvpn-user-provision`** (permissão `0440`):
+  ```
+  xvpn ALL=(root) NOPASSWD: /opt/xvpn/bin/xvpn-user-provision
+  ```
+  Sem wildcard de argumento — o `sudo` só aceita o caminho exato do
+  binário, sem argumentos. Os subcomandos (`create`, `enable-sftp`,
+  `enable-samba`, `disable`, `disable-sftp`, `disable-samba`) são
+  parseados pelo próprio binário, que valida o username com regex
+  `^[a-z][a-z0-9_-]{2,31}$` antes de qualquer syscall e lê a chave
+  pública SSH do stdin (não de argumento — evita vazar no `ps`/`/proc`).
+- **Validação de config antes de reload**: o binário roda `sshd -t` e
+  `testparm -s` antes de recarregar os serviços; se a config gerada for
+  inválida, o reload não acontece e o binário devolve erro.
+- **Defesa em profundidade**: SFTP e Samba escutam só em `wg0`
+  (`10.66.66.1`) — nunca em `0.0.0.0`/`etho`. Mesmo que o `sudoers.d`
+  fosse comprometido, o atacante não expõe os serviços na internet.
+- **Auditoria**: cada enable/disable é logado no audit log do painel
+  (`user.file_access`, actor = admin que clicou o toggle), não pelo
+  binário. O binário só loga erros no stderr.
+
 Use a skill `vps-security-audit` (`.cursor/skills/vps-security-audit/`) para revalidar esses pontos periodicamente — ela roda os mesmos checks read-only usados no diagnóstico inicial do projeto.
 
 ## Rotação e revogação de chaves

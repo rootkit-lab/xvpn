@@ -124,3 +124,14 @@ func (c *Client) EnableSamba(ctx context.Context, username string) error {
 func (c *Client) Disable(ctx context.Context, username string) error {
 	return c.run(ctx, "disable", username, "")
 }
+
+// DisableSFTP remove só o acesso SFTP, mantendo o Samba. Idempotente.
+// Necessário porque os toggles SFTP/Samba são independentes no painel.
+func (c *Client) DisableSFTP(ctx context.Context, username string) error {
+	return c.run(ctx, "disable-sftp", username, "")
+}
+
+// DisableSamba remove só o share Samba, mantendo o SFTP. Idempotente.
+func (c *Client) DisableSamba(ctx context.Context, username string) error {
+	return c.run(ctx, "disable-samba", username, "")
+}

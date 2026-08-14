@@ -116,6 +116,132 @@ type AuditLog struct {
 	CreatedAt time.Time
 }
 
+// Platform identifica o sistema operacional de destino de um AppAsset do
+// marketplace (Fase 11 — ver PLAN.md §6.8). Linux/Windows/Android como
+// plataformas de asset, não como lojas oficiais integradas.
+type Platform string
+
+const (
+	PlatformLinux   Platform = "linux"
+	PlatformWindows Platform = "windows"
+	PlatformAndroid Platform = "android"
+)
+
+// Valid reporta se p é uma das três plataformas suportadas pelo
+// marketplace.
+func (p Platform) Valid() bool {
+	switch p {
+	case PlatformLinux, PlatformWindows, PlatformAndroid:
+		return true
+	default:
+		return false
+	}
+}
+
+// AppVisibility controla quem enxerga um App no catálogo do marketplace —
+// ver PLAN.md §6.8 ("ACL: app global vs. lista de user IDs").
+type AppVisibility string
+
+const (
+	// AppVisibilityGlobal libera o app para qualquer usuário autenticado
+	// com papel member ou acima (ou seja, todos — member é o piso).
+	AppVisibilityGlobal AppVisibility = "global"
+	// AppVisibilityRestricted só libera o app para usuários com uma
+	// linha correspondente em AppAccess. admin/super_admin sempre
+	// enxergam e baixam mesmo sem AppAccess (ver PLAN.md §6.7, coluna
+	// Marketplace: "Admin + download").
+	AppVisibilityRestricted AppVisibility = "restricted"
+)
+
+// Valid reporta se v é um dos dois modos de visibilidade reconhecidos.
+func (v AppVisibility) Valid() bool {
+	return v == AppVisibilityGlobal || v == AppVisibilityRestricted
+}
+
+const (
+	ChannelStable = "stable"
+	ChannelBeta   = "beta"
+)
+
+// ValidChannel reporta se c é um canal de distribuição reconhecido — ver
+// PLAN.md §6.8.
+func ValidChannel(c string) bool {
+	return c == ChannelStable || c == ChannelBeta
+}
+
+// App é um programa distribuído pelo catálogo interno do marketplace (Fase
+// 11 — ver PLAN.md §6.8). Não confundir com o próprio cliente XVPN (esse
+// continua distribuído via GitHub Releases, ver /download): App é sempre
+// "outro" software (Linux/Windows/Android) que o admin decide disponibilizar
+// aos usuários da VPN.
+type App struct {
+	ID          uint   `gorm:"primaryKey"`
+	Name        string `gorm:"not null"`
+	Description string
+	IconURL     string
+	// Visibility nunca fica vazio: AutoMigrate cria a coluna com default
+	// "global" (mais permissivo dentro do que já é uma rede privada
+	// autenticada) — admin ajusta para "restricted" explicitamente.
+	Visibility AppVisibility `gorm:"not null;default:global"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+
+	Versions []AppVersion `gorm:"foreignKey:AppID"`
+	Access   []AppAccess  `gorm:"foreignKey:AppID"`
+}
+
+// AppVersion é uma versão publicada de um App — pode ter múltiplos
+// AppAsset (um por plataforma/arquitetura). Ver PLAN.md §6.8.
+type AppVersion struct {
+	ID        uint   `gorm:"primaryKey"`
+	AppID     uint   `gorm:"not null;index"`
+	Version   string `gorm:"not null"`
+	Channel   string `gorm:"not null;default:stable"`
+	Changelog string
+	CreatedAt time.Time
+
+	App    App        `gorm:"foreignKey:AppID"`
+	Assets []AppAsset `gorm:"foreignKey:AppVersionID"`
+}
+
+// AppAsset é um arquivo binário concreto (um .deb, um .exe, um .apk...)
+// associado a uma AppVersion. O conteúdo real fica em disco, endereçado por
+// conteúdo (ver internal/marketplace/storage.go) — StoragePath é sempre
+// derivado pelo próprio servidor a partir do SHA-256 calculado no upload,
+// nunca um caminho vindo do cliente (evita path traversal).
+type AppAsset struct {
+	ID           uint     `gorm:"primaryKey"`
+	AppVersionID uint     `gorm:"not null;index"`
+	Platform     Platform `gorm:"not null"`
+	// Arch (ex.: "amd64", "arm64") é texto livre — o conjunto de
+	// arquiteturas relevantes varia bastante entre Linux/Windows/Android
+	// e não vale a pena travar num enum agora.
+	Arch string `gorm:"not null;default:amd64"`
+	// Filename é o nome original do arquivo enviado, devolvido no
+	// download via Content-Disposition — nunca usado para montar o
+	// caminho físico em disco.
+	Filename      string `gorm:"not null"`
+	SHA256        string `gorm:"not null;index"`
+	SizeBytes     int64  `gorm:"not null"`
+	StoragePath   string `gorm:"not null"`
+	DownloadCount int64  `gorm:"not null;default:0"`
+	CreatedAt     time.Time
+
+	AppVersion AppVersion `gorm:"foreignKey:AppVersionID"`
+}
+
+// AppAccess concede acesso explícito a um App com Visibility ==
+// "restricted" para um User específico — lista de IDs simples, suficiente
+// para 1-15 usuários sem inventar um sistema de grupos (ver PLAN.md §6.8).
+type AppAccess struct {
+	ID     uint `gorm:"primaryKey"`
+	AppID  uint `gorm:"not null;uniqueIndex:idx_app_access_app_user"`
+	UserID uint `gorm:"not null;uniqueIndex:idx_app_access_app_user"`
+
+	App  App  `gorm:"foreignKey:AppID"`
+	User User `gorm:"foreignKey:UserID"`
+}
+
 // WaitlistEntry é um cadastro de interesse feito na landing pública ("/",
 // sem autenticação) — ver PLAN.md pela decisão de design. O status
 // ("approved"/"rejected") só sinaliza triagem; o provisionamento de acesso

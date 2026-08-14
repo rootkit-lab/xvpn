@@ -372,6 +372,15 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		if err := tx.Where("user_id = ?", id).Delete(&store.InviteToken{}).Error; err != nil {
 			return err
 		}
+		// Sem isso, um AppAccess apontando pro usuário apagado sobrevive
+		// (Fase 11, PLAN.md §6.8): handleSetMarketplaceAppAccess valida que
+		// todo user_id enviado existe, então esse ID órfão nunca mais
+		// conseguiria ser removido de volta via PUT .../access (a lista
+		// pré-carregada no painel inclui o ID morto, mas nenhum checkbox
+		// existe pra desmarcá-lo, travando o admin no primeiro "salvar").
+		if err := tx.Where("user_id = ?", id).Delete(&store.AppAccess{}).Error; err != nil {
+			return err
+		}
 		res := tx.Delete(&store.User{}, id)
 		if res.Error != nil {
 			return res.Error

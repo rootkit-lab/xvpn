@@ -14,6 +14,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
 	"github.com/rootkit-lab/xvpn/server/internal/config"
+	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 	"github.com/rootkit-lab/xvpn/server/internal/wireguard"
 )
@@ -46,6 +47,11 @@ type App struct {
 	WG     wireguard.PeerManager
 	Tokens *auth.TokenManager
 	Config *config.Config
+
+	// Marketplace grava/lê os blobs de asset do catálogo de software
+	// (Fase 11 — ver PLAN.md §6.8). Nunca nil em produção (inicializado
+	// em cmd/xvpn-server/main.go junto com o restante do App).
+	Marketplace *marketplace.Store
 
 	// ServerPublicKey é derivada da chave privada lida na inicialização
 	// (nunca a chave privada em si) e devolvida aos clientes no enrollment.
@@ -116,6 +122,15 @@ func NewRouter(app *App) *gin.Engine {
 
 			authed.GET("/me/devices", app.handleListMyDevices)
 			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
+
+			// Marketplace (Fase 11, PLAN.md §6.8): catálogo e download são
+			// liberados a qualquer papel autenticado (inclusive member) —
+			// a ACL de fato (global vs. restrito) é aplicada dentro do
+			// handler, não no roteamento, porque depende do app/asset e
+			// não só do papel do chamador (ver PLAN.md §6.7, coluna
+			// Marketplace: viewer/member "download se ACL permitir").
+			authed.GET("/marketplace/apps", app.handleListMarketplaceApps)
+			authed.GET("/marketplace/assets/:id/download", app.handleDownloadMarketplaceAsset)
 		}
 
 		// viewerUp: leitura das telas de admin (dashboard, listas,
@@ -150,6 +165,18 @@ func NewRouter(app *App) *gin.Engine {
 			adminOnly.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
 			adminOnly.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 			adminOnly.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
+
+			// Marketplace: gestão do catálogo (criar/editar/remover
+			// apps/versões, subir asset, ajustar ACL) — ver PLAN.md §6.7,
+			// "admin: Admin + download" no marketplace.
+			adminOnly.POST("/marketplace/apps", app.handleCreateMarketplaceApp)
+			adminOnly.PATCH("/marketplace/apps/:id", app.handleUpdateMarketplaceApp)
+			adminOnly.DELETE("/marketplace/apps/:id", app.handleDeleteMarketplaceApp)
+			adminOnly.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
+			adminOnly.POST("/marketplace/apps/:id/versions", app.handleCreateMarketplaceVersion)
+			adminOnly.DELETE("/marketplace/versions/:id", app.handleDeleteMarketplaceVersion)
+			adminOnly.POST("/marketplace/versions/:id/assets", app.handleUploadMarketplaceAsset)
+			adminOnly.DELETE("/marketplace/assets/:id", app.handleDeleteMarketplaceAsset)
 		}
 	}
 

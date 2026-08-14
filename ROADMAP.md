@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)** e **10 (admin geral/RBAC)** concluídas em produção. **Fases 11–13** abertas — marketplace multiplataforma, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)** e **11 (marketplace de programas)** concluídas em produção. **Fases 12–13** abertas — consumo do marketplace no cliente, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -338,25 +338,42 @@ Hoje todo `User` autentica e tem poder total no painel (JWT sem role). Objetivo:
 
 ---
 
-## Fase 11 — Marketplace de programas (Linux / Android / Windows)
+## Fase 11 — Marketplace de programas (Linux / Android / Windows) ✅
 
 Catálogo interno para distribuir instaladores/APKs/binários aos usuários da VPN — **não** é loja pública na internet aberta. Decisões: [`PLAN.md` §6.8](./PLAN.md#68-marketplace-de-software).
 
-- [ ] Models: `App`, `AppVersion`, `AppAsset` (plataforma `linux` \| `windows` \| `android`, arch, channel `stable`/`beta`, SHA-256, tamanho)
-- [ ] Storage em disco (`/opt/xvpn/data/marketplace/…`), **fora do Git**; path + quota no `PLAN.md` §5 / unit systemd (`ReadWritePaths` / `StateDirectory`)
-- [ ] API admin: CRUD de apps/versões; upload de asset (multipart) com verificação de hash
-- [ ] API usuário autenticado: listar catálogo liberado para o seu papel/ACL; download autenticado (JWT) via mesmo `https://vpn.officeempresa.com` — **sem porta/domínio novo**
-- [ ] ACL: app global (todos os `member`+) vs app restrito a usuários/grupos
-- [ ] UI painel: tela **Marketplace** (admin sobe pacotes; todos autenticados navegam/baixam o que tiverem direito)
-- [ ] Página `/download` do cliente XVPN continua apontando releases do próprio produto; marketplace é catálogo **separado** (outros programas)
-- [ ] Metadados mínimos: nome, descrição curta, ícone, changelog da versão, plataformas suportadas
-- [ ] Audit log: upload, publish, delete, download (actor + app + versão)
-- [ ] Testes: upload+hash, download 401/403, ACL, listagem por plataforma
-- [ ] Documentar limites (tamanho máx. por arquivo, disco do VPS) e backup dos blobs (cron ou inclusão no backup existente)
+- [x] Models: `App`, `AppVersion`, `AppAsset` (plataforma `linux` \| `windows` \| `android`, arch, channel `stable`/`beta`, SHA-256, tamanho)
+- [x] Storage em disco (`/opt/xvpn/data/marketplace/…`), **fora do Git**; path + quota no `PLAN.md` §5 / unit systemd (`ReadWritePaths` / `StateDirectory`)
+- [x] API admin: CRUD de apps/versões; upload de asset (multipart) com verificação de hash
+- [x] API usuário autenticado: listar catálogo liberado para o seu papel/ACL; download autenticado (JWT) via mesmo `https://vpn.officeempresa.com` — **sem porta/domínio novo**
+- [x] ACL: app global (todos os `member`+) vs app restrito a usuários/grupos
+- [x] UI painel: tela **Marketplace** (admin sobe pacotes; todos autenticados navegam/baixam o que tiverem direito)
+- [x] Página `/download` do cliente XVPN continua apontando releases do próprio produto; marketplace é catálogo **separado** (outros programas)
+- [x] Metadados mínimos: nome, descrição curta, ícone, changelog da versão, plataformas suportadas
+- [x] Audit log: upload, publish, delete, download (actor + app + versão)
+- [x] Testes: upload+hash, download 401/403, ACL, listagem por plataforma
+- [x] Documentar limites (tamanho máx. por arquivo, disco do VPS) e backup dos blobs (cron ou inclusão no backup existente)
 
 **Fora de escopo nesta fase (backlog explícito):** cliente nativo Android do XVPN; publicação em Play Store / Microsoft Store; CDN externo; antivírus automático (pode ser melhoria futura).
 
-**Critério de saída:** admin sobe um `.deb`, um `.exe`/`.msi` e um `.apk`; um `member` autentica e baixa só o que a ACL permite; download anônimo pela internet **não** funciona.
+**Notas de implementação:**
+
+- **Storage content-addressed** (`server/internal/marketplace/storage.go`): nome do arquivo em disco = SHA-256 do conteúdo (`blobs/<2 chars>/<hash completo>`, sharding simples para não estourar entradas por diretório), calculado no servidor via `io.TeeReader` durante o próprio upload — o cliente nunca informa o hash. Dois assets com conteúdo idêntico (rebuild sem mudança de bytes, ou o mesmo instalador anexado a duas versões) compartilham o mesmo blob; apagar uma versão/app só remove o arquivo físico se nenhuma outra `AppAsset` ainda apontar pro mesmo hash (`removeOrphanBlobs`, coberto por teste dedicado).
+- **Limite de tamanho**: `MaxAssetSize` = 2 GiB, aplicado em duas camadas (`http.MaxBytesReader` na request + `io.LimitReader` no `Put`, defesa em profundidade). VPS de produção tinha ~150 GB livres no momento do deploy — sem quota por usuário/app nesta fase (candidato à Fase 12).
+- **Config**: nova variável `XVPN_MARKETPLACE_DIR` (`internal/config/config.go`), obrigatória em produção com caminho absoluto (`/opt/xvpn/data/marketplace`) pelo mesmo motivo do `XVPN_DB_PATH` (Fase 2) — cai fora de `ReadWritePaths` se ficar com o valor padrão relativo. Não precisou de mudança na unit systemd: `ReadWritePaths=/opt/xvpn/data` já cobre o subdiretório novo.
+- **Backup dos blobs**: `server/deploy/backup.sh` passou a espelhar `XVPN_MARKETPLACE_DIR` via `rsync -a --delete` (incremental, sem gzip) na mesma rotina diária que já fazia `.backup` do `xvpn.db` — plano seguro porque blobs content-addressed nunca mudam depois de escritos, só são criados/apagados. Mesma limitação de sempre (cópia no mesmo disco, não protege contra falha física); backup off-site fica fora do escopo.
+- **ACL**: `AppAccess` (tabela `app_id`↔`user_id`) só é consultada para apps `visibility=restricted`; apps `global` pulam a checagem inteira (liberado pra qualquer papel autenticado, inclusive `member`). Endpoint `PUT /marketplace/apps/:id/access` sempre **substitui** a lista inteira (não faz merge incremental) e valida que todo `user_id` enviado existe antes de gravar.
+- **UI**: tela `/marketplace` visível a todo papel autenticado na navegação (mesmo padrão de `/download`); controles de admin (criar/editar/apagar app, publicar versão, enviar/apagar asset, gerenciar ACL) ficam embutidos na própria tela via `isAdminRole`, sem rota/página separada. Upload usa `multipart/form-data` de propósito (`uploadMarketplaceAsset` em `lib/api.ts` monta `FormData` e **não** define `Content-Type: application/json`); download usa `fetch` manual com header `Authorization` + blob temporário (`downloadMarketplaceAsset`) porque um `<a href>` comum não anexa o JWT e cairia em 401 — validado manualmente com um asset real (upload → listagem com hash/tamanho corretos → download incrementando `download_count`).
+- Testes: `internal/marketplace/storage_test.go` (hash, dedup, path traversal, oversized) + `internal/api/marketplace_handler_test.go` (upload, download 401/403/404, ACL global vs. restrita, admin sempre com acesso, ordenação de assets, validação de app/versão, cascade delete preservando blob compartilhado, audit log) + `rbac_routes_test.go` (matriz de rotas do marketplace por papel).
+
+**Achados da revisão automática (Cursor Bugbot) antes do merge do PR**, todos corrigidos com teste de regressão:
+
+1. **Blob órfão em upload que falha no banco**: `handleUploadMarketplaceAsset` gravava o blob em disco (`Marketplace.Put`) antes de inserir o `AppAsset` — se o `Create` falhasse depois (ex.: banco cheio/travado), o blob ficava órfão pra sempre, sem nenhum registro referenciando-o. Corrigido chamando `removeOrphanBlobs` (mesma função já usada em delete) no caminho de erro do `Create` — só remove o arquivo se nenhum outro `AppAsset` já apontar pro mesmo hash. Teste: `TestHandleUploadMarketplaceAsset_RollsBackBlobWhenDBCreateFails`.
+2. **`AppAccess` órfão ao apagar usuário**: `handleDeleteUser` limpava `Device`/`InviteToken` do usuário removido, mas não `AppAccess` — o ID morto sobrevivia na ACL, e como `handleSetMarketplaceAppAccess` valida que todo `user_id` enviado existe, o admin ficaria travado no próximo "salvar acesso" daquele app (a lista pré-carregada no painel incluiria o ID morto, sem checkbox nenhum pra desmarcá-lo). Corrigido adicionando a limpeza de `AppAccess` na mesma transação de `handleDeleteUser`. Teste: `TestHandleDeleteUser_RemovesMarketplaceAppAccess`.
+3. **Nginx rejeitava upload grande antes de chegar no Go** (severidade alta): a API aceita até 2 GiB, mas o server block de referência (`server/deploy/nginx/xvpn.conf`) não definia `client_max_body_size` — o padrão do Nginx (1 MB) devolvia 413 pra qualquer instalador de verdade bem antes do `http.MaxBytesReader` do handler entrar em ação.
+4. **Correção do item 3, na primeira tentativa, abriu um segundo problema** (severidade média, pego numa segunda rodada do Bugbot sobre o próprio fix): colocar `client_max_body_size 2200m` na `location /` catch-all valia pra **toda** a API, inclusive `POST /api/auth/login` e `POST /api/waitlist` — endpoints **públicos**, sem JWT. Um anônimo podia forçar o Nginx a bufferizar corpos multi-gigabyte pra essas rotas antes de qualquer rejeição do Go (vetor de DoS de disco/memória). Corrigido isolando o limite grande numa `location` própria só para o path exato de upload (`location ~ ^/api/marketplace/versions/[0-9]+/assets$`), mantendo `client_max_body_size 1m` (padrão do Nginx, agora explícito) em todo o resto — aplicado no Nginx real do VPS no deploy desta fase.
+
+**Critério de saída:** ✅ admin sobe um `.deb` (testado manualmente; `.exe`/`.msi`/`.apk` seguem o mesmo caminho de upload, sem validação de conteúdo por plataforma); um `member`/`viewer` autentica e baixa só o que a ACL permite (`admin`/`super_admin` sempre têm acesso); download anônimo pela internet **não** funciona (401 sem JWT, coberto por teste).
 
 ---
 

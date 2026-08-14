@@ -1,5 +1,7 @@
 # Instalar com: crontab -u xvpn -e  (cole a linha abaixo)
 # ou: cp este arquivo em /etc/cron.d/xvpn-backup (ajustando o usuário na coluna extra)
 #
-# Roda todo dia às 03:15 (horário do servidor).
+# Roda todo dia às 03:15 (horário do servidor). Faz snapshot do xvpn.db
+# (SQLite) e, a partir da Fase 11, também espelha os blobs do marketplace
+# (XVPN_MARKETPLACE_DIR) — ver server/deploy/backup.sh.
 15 3 * * * /opt/xvpn/bin/backup.sh >> /opt/xvpn/data/backup.log 2>&1

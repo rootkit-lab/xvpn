@@ -13,6 +13,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
 	"github.com/rootkit-lab/xvpn/server/internal/config"
+	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 	"github.com/rootkit-lab/xvpn/server/internal/wireguard"
 )
@@ -93,7 +94,10 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err != nil {
 		t.Fatalf("erro abrindo sqlite em memória: %v", err)
 	}
-	if err := db.AutoMigrate(&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{}); err != nil {
+	if err := db.AutoMigrate(
+		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
+		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
+	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}
 
@@ -104,11 +108,17 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		InviteTokenTTLMinutes:  15,
 	}
 
+	marketplaceStore, err := marketplace.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("erro criando marketplace store de teste: %v", err)
+	}
+
 	app := &App{
 		Store:           &store.Store{DB: db},
 		WG:              fakeWG,
 		Tokens:          auth.NewTokenManager("segredo-de-teste-com-pelo-menos-32-bytes", time.Hour),
 		Config:          cfg,
+		Marketplace:     marketplaceStore,
 		ServerPublicKey: "test-server-public-key=",
 	}
 	return app, fakeWG

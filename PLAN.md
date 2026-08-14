@@ -260,6 +260,15 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 
 **Não fazer:** servir blobs em `0.0.0.0` sem auth; reutilizar share Samba como “loja” (ACL e UX ruins para versionamento); commitar binários no Git.
 
+**Implementado na Fase 11** (ver `ROADMAP.md` para o checklist e achados completos):
+
+- **Storage content-addressed** (`server/internal/marketplace/storage.go`): cada asset é salvo em `<XVPN_MARKETPLACE_DIR>/blobs/<2 primeiros chars do sha256>/<sha256 completo>` — o hash é calculado no servidor a partir do próprio upload (`io.TeeReader` + `sha256`), nunca informado pelo cliente. Dois assets idênticos (mesmo conteúdo, nomes/versões diferentes) apontam pro mesmo arquivo em disco (deduplicação automática); remover uma versão/app só apaga o blob físico se nenhuma outra `AppAsset` ainda referenciar aquele hash (`removeOrphanBlobs`).
+- **Limite de tamanho por arquivo**: `MaxAssetSize` = 2 GiB (`server/internal/marketplace/storage.go`), aplicado em duas camadas — `http.MaxBytesReader` na request inteira (rejeita cedo, antes de gravar em disco) e `io.LimitReader`+contagem no `Put` (defesa em profundidade caso o `Content-Length` minta). VPS de produção tem ~150 GB livres (ago/2026) — folga confortável para o catálogo atual, mas sem quota por usuário/app nesta fase (ver Fase 12).
+- **Configuração**: `XVPN_MARKETPLACE_DIR` (`internal/config/config.go`), obrigatória em produção com caminho absoluto dentro de `ReadWritePaths` do systemd (mesmo motivo do `XVPN_DB_PATH`, ver achado da Fase 2) — produção usa `/opt/xvpn/data/marketplace` (`server/deploy/xvpn-server.env.example`).
+- **Backup dos blobs**: como o conteúdo nunca muda depois de escrito (só é criado ou apagado), `server/deploy/backup.sh` passou a espelhar `XVPN_MARKETPLACE_DIR` para `$XVPN_BACKUP_DIR/marketplace/` via `rsync -a --delete` (incremental, sem gzip — os assets já costumam ser binários compactados) na mesma rotina diária que já fazia o `.backup` do `xvpn.db`. Mesma limitação de sempre: é uma cópia no mesmo disco da VPS, protege contra bug/exclusão acidental na aplicação, não contra falha física do disco (backup off-site fica fora do escopo desta fase).
+- **API**: CRUD de app/versão/asset e ACL só em `adminOnly`; `GET /marketplace/apps` (catálogo filtrado por ACL) e `GET /marketplace/assets/:id/download` (autenticado, incrementa `download_count`) em `authed` — qualquer papel, inclusive `member`. Modelo real: `App` (nome, descrição, ícone, `visibility` `global`/`restricted`) → `AppVersion` (semver livre, `channel` `stable`/`beta`, changelog) → `AppAsset` (`platform` `linux`/`windows`/`android`, `arch` opcional, sha256, tamanho, `download_count`); `AppAccess` só existe pra apps `restricted` (lista de `user_id`) — apps `global` ignoram a tabela.
+- **UI**: tela `/marketplace` no painel (visível a todo papel autenticado na navegação); admin/super_admin ganham os controles de criar/editar/apagar app, publicar versão, enviar/apagar asset e gerenciar ACL dentro da própria tela (sem rota separada). Upload via `multipart/form-data` (`uploadMarketplaceAsset` em `lib/api.ts`, sem `Content-Type: application/json`); download via `fetch` com header `Authorization` manual + blob temporário (`downloadMarketplaceAsset`) — um `<a href>` comum não incluiria o JWT e cairia em 401.
+
 ### 6.9 Contas Unix reais por usuário (SFTP + Samba integrados)
 
 **Objetivo (Fase 13):** cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS (`/home/<username>`), com acesso a arquivos via **SFTP** e/ou **Samba** — os dois protocolos apontando para o **mesmo diretório físico**, evitando duplicar dados. Isso **reverte parcialmente** a decisão original da Fase 5/skill `samba-user-ops` de manter usuários Samba fora de sincronia com o painel — decisão consciente, com mitigação de privilégio abaixo.
@@ -515,11 +524,12 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **Fase 10 (admin geral / RBAC) concluída (2026-08-13).** Papéis `super_admin`/`admin`/`viewer`/`member` com hierarquia por rank (`CanManage`); claim `role` no JWT + middleware `RequireRole` cobrindo todas as rotas authed (`viewerUp` leitura, `adminOnly` escrita); migração com backfill idempotente para bancos pré-RBAC; edição de usuário (username/role) e reset de senha com regras anti-escalação; ação "aprovar e provisionar" na waitlist (cria `User`+convite numa transação); autosserviço `/api/me/devices` + tela `/portal` para `member`; navegação e ações do painel filtradas por papel; matriz de testes role×endpoint. Ver §6.7 e `ROADMAP.md` Fase 10 para o detalhamento completo.
 
-**Aberto (`ROADMAP.md` Fases 11–13):**
+**Fase 11 (marketplace de programas) concluída (2026-08-13).** Catálogo `App`→`AppVersion`→`AppAsset` com storage content-addressed (sha256, dedup automático) em `XVPN_MARKETPLACE_DIR`; upload multipart com hash calculado no servidor (nunca confiado do cliente) e limite de 2 GiB/arquivo; ACL global vs. restrita a lista de usuários (`AppAccess`); download autenticado via JWT (mesmo domínio/porta, sem superfície nova) incrementando `download_count`; audit log de upload/publish/delete/download; tela `/marketplace` no painel visível a todo papel autenticado, com controles de admin embutidos na própria tela; backup diário passou a espelhar os blobs via `rsync` incremental. Ver §6.8 e `ROADMAP.md` Fase 11 para o detalhamento completo.
+
+**Aberto (`ROADMAP.md` Fases 12–13):**
 
 | Fase | Foco |
 |---|---|
-| **11** | Marketplace multiplataforma (Linux/Android/Windows assets) — §6.8 |
 | **12** | Consumo no cliente desktop + página APK / quotas |
 | **13** | Contas Unix reais por usuário (SFTP + Samba integrados) — §6.9 |
 

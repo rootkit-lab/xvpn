@@ -32,7 +32,10 @@ func Open(path string) (*Store, error) {
 	// coluna já existe e o backfill vira no-op (sem usuários para migrar).
 	needsRoleBackfill := !db.Migrator().HasColumn(&User{}, "role")
 
-	if err := db.AutoMigrate(&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{}); err != nil {
+	if err := db.AutoMigrate(
+		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
+		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
+	); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}
 

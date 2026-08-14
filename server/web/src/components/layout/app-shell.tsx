@@ -10,6 +10,7 @@ import {
   LogOut,
   ListChecks,
   Download,
+  Store,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -18,9 +19,12 @@ import { useAuth } from '@/lib/auth-context'
 import { ROLE_BADGE_VARIANT, ROLE_LABELS, VIEWER_UP_ROLES, type Role } from '@/lib/roles'
 
 // roles: quem vê o item na navegação — ver PLAN.md §6.7. member só enxerga
-// "Meus dispositivos" e "Downloads"; viewer/admin/super_admin veem as telas
-// administrativas completas (a diferença entre eles é dentro de cada
-// página, não na navegação — ver users-page.tsx/waitlist-page.tsx).
+// "Meus dispositivos", "Downloads" e "Marketplace"; viewer/admin/super_admin
+// veem as telas administrativas completas (a diferença entre eles é dentro
+// de cada página, não na navegação — ver users-page.tsx/waitlist-page.tsx).
+// Marketplace (Fase 11) é catálogo de terceiros para todo mundo navegar —
+// admin/super_admin ganham os controles de publicar dentro da própria
+// página (ver marketplace-page.tsx), não uma rota separada.
 const NAV_ITEMS: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES },
   { to: '/users', label: 'Usuários', icon: Users, roles: VIEWER_UP_ROLES },
@@ -29,6 +33,7 @@ const NAV_ITEMS: { to: string; label: string; icon: typeof LayoutDashboard; role
   { to: '/shares', label: 'Compartilhamentos', icon: HardDrive, roles: VIEWER_UP_ROLES },
   { to: '/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES },
   { to: '/download', label: 'Downloads', icon: Download, roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { to: '/marketplace', label: 'Marketplace', icon: Store, roles: ['super_admin', 'admin', 'viewer', 'member'] },
   { to: '/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES },
   { to: '/audit', label: 'Auditoria', icon: ScrollText, roles: VIEWER_UP_ROLES },
 ]

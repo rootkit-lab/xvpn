@@ -16,6 +16,7 @@ import (
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
 	"github.com/rootkit-lab/xvpn/server/internal/config"
 	"github.com/rootkit-lab/xvpn/server/internal/logging"
+	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 	"github.com/rootkit-lab/xvpn/server/internal/wireguard"
 )
@@ -68,6 +69,11 @@ func run() error {
 		return err
 	}
 
+	marketplaceStore, err := marketplace.NewStore(cfg.MarketplaceDataDir)
+	if err != nil {
+		return err
+	}
+
 	tokens := auth.NewTokenManager(cfg.JWTSecret, time.Duration(cfg.JWTTokenTTLMinutes)*time.Minute)
 
 	app := &api.App{
@@ -75,6 +81,7 @@ func run() error {
 		WG:              wgManager,
 		Tokens:          tokens,
 		Config:          cfg,
+		Marketplace:     marketplaceStore,
 		ServerPublicKey: privateKey.PublicKey().String(),
 	}
 	router := api.NewRouter(app)

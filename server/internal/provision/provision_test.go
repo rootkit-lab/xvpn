@@ -428,12 +428,22 @@ func TestCheckSambaTestparmOutput_RejectsBindRegressions(t *testing.T) {
 		{
 			name:        "interfaces sem o IP da wg0",
 			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 127.0.0.1/8\n",
-			wantInErr:   `esperado conter "10.66.66.1"`,
+			wantInErr:   "falta endereço em 10.66.66.0/24",
 		},
 		{
 			name:        "interfaces com bind coringa",
 			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 10.66.66.1/24 0.0.0.0/0\n",
-			wantInErr:   "bind coringa",
+			wantInErr:   "fora de wg0/loopback",
+		},
+		{
+			name:        "interfaces com IP público do VPS além da wg0",
+			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 10.66.66.1/24 206.189.224.72/32\n",
+			wantInErr:   "fora de wg0/loopback",
+		},
+		{
+			name:        "interfaces com nome de interface (eth0)",
+			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 10.66.66.1/24 eth0\n",
+			wantInErr:   "token \"eth0\" inválido",
 		},
 	}
 	for _, c := range cases {

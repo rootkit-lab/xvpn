@@ -69,6 +69,9 @@ func (l *ipRateLimiter) recent(times []time.Time, now time.Time) []time.Time {
 }
 
 // rateLimit devolve um middleware Gin que aplica limiter.allow(ClientIP()).
+// Depende da lista de proxies confiáveis configurada em NewRouter: sem
+// ela o Gin aceita o X-Forwarded-For de qualquer origem e o próprio
+// cliente escolhe a chave do limitador.
 func rateLimit(limiter *ipRateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !limiter.allow(c.ClientIP()) {

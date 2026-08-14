@@ -6,7 +6,7 @@
    navy, inspirada no mockup cyber:vpn (com azul em vez de verde).
    Mantém a paleta navy/azul/ciano pré-existente; adiciona a camada
    cyber (corner brackets, dot-grid, HUD markers, arestas vivas).
-   Espelhado em client/frontend/src/index.css — manter os dois em
+   Espelhado em apps/xvpn-client/frontend/src/index.css — manter os dois em
    sincronia ao mudar tokens aqui. */
 :root {
   --background: oklch(0.15 0.022 255);

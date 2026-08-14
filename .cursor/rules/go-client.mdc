@@ -1,6 +1,6 @@
 ---
-description: Convenções para o código Go do cliente desktop (client/) do XVPN — Wails3, engine WireGuard embarcada e separação de privilégio entre GUI e helper.
-globs: client/**/*.go
+description: Convenções para o código Go do cliente desktop (apps/xvpn-client/) do XVPN — Wails3, engine WireGuard embarcada e separação de privilégio entre GUI e helper.
+globs: apps/xvpn-client/**/*.go
 alwaysApply: false
 ---
 

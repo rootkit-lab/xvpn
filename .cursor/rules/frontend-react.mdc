@@ -1,6 +1,6 @@
 ---
-description: Convenções de frontend para o painel web (server/web) e para a UI do cliente desktop (client/frontend) — React, TailwindCSS e shadcn/ui.
-globs: server/web/**/*.tsx,server/web/**/*.ts,client/frontend/**/*.tsx,client/frontend/**/*.ts
+description: Convenções de frontend para o painel web (server/web) e para a UI do cliente desktop (apps/xvpn-client/frontend) — React, TailwindCSS e shadcn/ui.
+globs: server/web/**/*.tsx,server/web/**/*.ts,apps/xvpn-client/frontend/**/*.tsx,apps/xvpn-client/frontend/**/*.ts
 alwaysApply: false
 ---
 
@@ -11,4 +11,4 @@ alwaysApply: false
 - Nunca exiba tokens de convite, chaves ou segredos completos na UI além do necessário para o admin copiar uma única vez (ex.: mostrar uma vez após gerar, não deixar recuperável depois).
 - Formulários que envolvem ações destrutivas (revogar dispositivo, remover usuário) devem ter confirmação explícita antes de disparar a chamada à API.
 - No painel web (`server/web`), toda tela deve assumir que pode haver múltiplos usuários administradores no futuro — não hardcode lógica de "usuário único".
-- Na UI do cliente desktop (`client/frontend`), priorize feedback de estado claro (conectando/conectado/erro) — o usuário deve sempre saber se está protegido pela VPN ou não, sem ambiguidade visual.
+- Na UI do cliente desktop (`apps/xvpn-client/frontend`), priorize feedback de estado claro (conectando/conectado/erro) — o usuário deve sempre saber se está protegido pela VPN ou não, sem ambiguidade visual.

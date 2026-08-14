@@ -1,0 +1,47 @@
+[Unit]
+Description=XVPN client helper (gerencia o túnel WireGuard com privilégio)
+Documentation=https://github.com/rootkit-lab/xvpn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Usuário/grupo dedicados, sem shell/home — criados pelo instalador (Fase 7)
+# junto com o grupo "xvpn" (ver internal/ipc/transport_linux.go): quem
+# estiver nesse grupo pode falar com o helper via socket sem sudo, mesmo
+# modelo do grupo "docker". Em desenvolvimento manual, ver apps/xvpn-client/README.md.
+User=xvpn-client-helper
+Group=xvpn
+ExecStart=/usr/local/bin/xvpn-client --helper
+
+# CAP_NET_ADMIN é suficiente para criar/configurar a interface WireGuard
+# (netlink) e ajustar rotas — não precisa rodar como root, mesmo padrão do
+# server/deploy/systemd/xvpn-server.service (ver .cursor/rules/infra-deploy.mdc).
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=true
+
+Restart=on-failure
+RestartSec=3
+
+# RuntimeDirectory e StateDirectory são criados/removidos automaticamente
+# pelo systemd a cada start/stop, já com o dono e a permissão corretos —
+# dispensa qualquer `mkdir`/`chown` manual na instalação, e ficam liberados
+# para escrita mesmo com ProtectSystem=strict abaixo (ao contrário de um
+# ReadWritePaths apontando pra um diretório que pode nem existir ainda —
+# isso causava falha "226/NAMESPACE" no start, achado ao instalar de
+# verdade fora do Docker na Fase 4).
+RuntimeDirectory=xvpn-client
+RuntimeDirectoryMode=0750
+# StateDirectory=xvpn-client -> /var/lib/xvpn-client (estado do dispositivo,
+# incluindo a chave privada WireGuard — nunca a chave do servidor; ver
+# internal/config/path_linux.go).
+StateDirectory=xvpn-client
+StateDirectoryMode=0700
+
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

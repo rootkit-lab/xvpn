@@ -27,7 +27,7 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 ## Convenções do repositório
 
 - Documentação e comunicação com o usuário: **português (pt-BR)**. Identificadores de código (variáveis, funções, nomes de pacotes): **inglês**, seguindo convenção idiomática de Go/TypeScript.
-- Estrutura planejada do monorepo: `server/` (control-plane Go + painel React), `client/` (app desktop Wails3), `shared/` (tipos/DTOs Go compartilhados), `docs/`. Consulte [`PLAN.md` §11](./PLAN.md#11-estrutura-de-diretórios-monorepo) antes de criar uma estrutura diferente.
+- Estrutura planejada do monorepo: `apps/` (produtos distribuíveis — hoje só `apps/xvpn-client/`, o app desktop Wails3), `server/` (control-plane Go + painel React), `shared/` (tipos/DTOs Go compartilhados), `docs/`. Consulte [`PLAN.md` §11](./PLAN.md#11-estrutura-de-diretórios-monorepo) antes de criar uma estrutura diferente.
 - Commits e branches: ver [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 - Antes de rodar comandos destrutivos ou que alterem firewall/rede/serviços no VPS, prefira passos read-only primeiro (ex.: `ufw status`, `wg show`, `ss -tulnp`) para confirmar o estado atual antes de alterar algo. Há um hook (`.cursor/hooks.json`) que bloqueia automaticamente padrões claramente destrutivos — não tente contorná-lo sem confirmar explicitamente com o usuário.
 - Há dois níveis de hook distintos e complementares: `.cursor/hooks.json` só protege ações do agente de IA dentro do Cursor; `.githooks/pre-commit` protege qualquer `git commit`, de qualquer origem. Um clone novo do repositório precisa rodar `git config core.hooksPath .githooks` uma vez para ativar o segundo (ver `CONTRIBUTING.md`).

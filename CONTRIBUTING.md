@@ -96,7 +96,7 @@ Este projeto tem [Agent Skills](https://docs.cursor.com/) (`.cursor/skills/`) qu
 
 ## Testando localmente
 
-Instruções detalhadas de build/execução serão adicionadas aqui assim que `server/` e `client/` existirem (a partir da Fase 2 do roadmap). Por enquanto, qualquer mudança de infraestrutura deve ser validada diretamente no VPS de staging/produção com os comandos read-only primeiro (`ufw status`, `wg show`, `ss -tulnp`) antes de aplicar mudanças.
+Instruções detalhadas de build/execução serão adicionadas aqui assim que `server/` e `apps/xvpn-client/` existirem (a partir da Fase 2 do roadmap). Por enquanto, qualquer mudança de infraestrutura deve ser validada diretamente no VPS de staging/produção com os comandos read-only primeiro (`ufw status`, `wg show`, `ss -tulnp`) antes de aplicar mudanças.
 
 ## Convenção de código
 

@@ -4,7 +4,11 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)**, **11 (marketplace de programas)** e **13 (contas Unix por usuário — SFTP + Samba)** concluídas em produção. **Fase 12** (consumo do marketplace no cliente + estatísticas no dashboard) implementada — restando apenas itens opcionais (página móvel `/apps` para Android, quota por usuário) movidos ao [backlog pós-roadmap](#backlog-pós-roadmap). A Fase 13 passou por review automático (Bugbot + Security Agent) com 6 bugs corrigidos antes do merge e isolamento cross-user do Samba documentado como limitação aceita. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)**, **11 (marketplace de programas)**, **12 (consumo do marketplace no cliente)** e **13 (contas Unix por usuário — SFTP + Samba)** concluídas em produção. Itens opcionais das Fases 11–13 (página móvel `/apps` para Android, quota por usuário, rotação de chave SSH self-service) foram movidos ao [backlog legado](#backlog-legado-mvp--fora-das-fases-9) ou puxados para a Fase 15.
+>
+> **Ciclo atual — v0.2:** Fase **14** (acesso a arquivos sincronizado com o usuário da VPN — corrige os dois bugs de "unidade de rede" reportados), Fase **15** (melhorias represadas no backlog) e Fase **16** (monorepo `apps/` + Marketplace alimentado pelo diretório via CI). Decisões em [`PLAN.md` §6.7–6.10 e §14](./PLAN.md#67-admin-geral-rbac).
+>
+> **Ordem de execução do ciclo:** correções urgentes → **16.1** (mover `client/` → `apps/xvpn-client/`) → **Fase 14** inteira → resto da **16** → **Fase 15**. Ver [justificativa da ordem](#ordem-de-execução-do-ciclo-v02-decidida) — não é a ordem sugerida quando o ciclo abriu.
 
 ---
 
@@ -32,7 +36,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Branch protection real aplicada em `main` no GitHub (PR obrigatório, sem push direto, sem force-push, sem deleção, histórico linear, `enforce_admins` ativo) — validado com teste de push direto rejeitado
 - [x] Skills de Git/GitHub criadas (`start-task`, `ship-pr`, `release-status` — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases))
 - [x] Estratégia de versionamento independente por componente documentada (`PLAN.md` §13, `CONTRIBUTING.md`)
-- [x] Definir e adicionar `LICENSE` — **adiado de propósito** para o [backlog pós-roadmap](#backlog-pós-roadmap) (repo público, decisão legal fora do escopo das Fases 0–8)
+- [x] Definir e adicionar `LICENSE` — **adiado de propósito** para o [backlog legado](#backlog-legado-mvp--fora-das-fases-9) (repo público, decisão legal fora do escopo das Fases 0–8)
 
 ---
 
@@ -93,7 +97,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] `systemd` unit `xvpn-server.service` com `AmbientCapabilities=CAP_NET_ADMIN` (rodando como usuário `xvpn`, não root) — inclui hardening adicional (`ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `NoNewPrivileges`)
 - [x] Apontar o server block Nginx de `vpn.officeempresa.com` para `127.0.0.1:8080` (backend real) — o server block já apontava para lá desde a Fase 0 (retornava 502); nenhuma mudança de config necessária, só o backend passou a existir
 - [x] Configurar backup automático do `xvpn.db` (cron + `sqlite3 .backup`, rotação de 7 dias) — `sqlite3` (CLI) precisou ser instalado à parte no VPS (não vem por padrão); testado manualmente com sucesso (`sudo -u xvpn /opt/xvpn/bin/backup.sh`)
-- [x] Adicionar componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + criar workflow `.github/workflows/release-please.yml` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda)) — `shared/` ainda não existe, só `server` foi adicionado por enquanto
+- [x] Adicionar componente `server` (e `shared`, se já criado) ao `release-please-config.json` + `.release-please-manifest.json` + criar workflow `.github/workflows/release-please.yml` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada)) — `shared/` ainda não existe, só `server` foi adicionado por enquanto
 
 **Achados durante o deploy em produção:**
 
@@ -140,8 +144,8 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Ícone de bandeja (tray) básico
 - [x] Instalação do serviço/helper (systemd unit no Linux / Windows Service no instalador) — unit systemd criada (`client/deploy/systemd/`); instalador do Windows Service fica para a Fase 7 (empacotamento)
 - [x] Testar enrollment e conexão ponta a ponta no Linux
-- [x] Testar enrollment e conexão ponta a ponta no Windows — **fora do escopo desta fase** (dev em Linux); item no [backlog pós-roadmap](#backlog-pós-roadmap)
-- [x] Adicionar componente `client` ao `release-please-config.json` + `.release-please-manifest.json` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada-não-criar-workflow-ainda))
+- [x] Testar enrollment e conexão ponta a ponta no Windows — **fora do escopo desta fase** (dev em Linux); item no [backlog legado](#backlog-legado-mvp--fora-das-fases-9)
+- [x] Adicionar componente `client` ao `release-please-config.json` + `.release-please-manifest.json` (ver [`PLAN.md` §13.4](./PLAN.md#134-implantação-faseada))
 
 **Notas de implementação:**
 
@@ -218,9 +222,9 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Empacotamento AppImage para Linux — portátil (GUI); instalação completa do helper continua sendo via `.deb`
 - [x] Versionamento semântico no build (`build/scripts/resolve-version.sh` → ldflags + `XVPN_VERSION` no nfpm); changelog do componente segue o `release-please`
 - [x] Página `/download` no portal (após login) com links para GitHub Releases e instruções por plataforma
-- [x] Testar instalação limpa em VM nova (Windows) — **fora do escopo desta fase** (sem hardware Windows no ciclo MVP); item no [backlog pós-roadmap](#backlog-pós-roadmap)
+- [x] Testar instalação limpa em VM nova (Windows) — **fora do escopo desta fase** (sem hardware Windows no ciclo MVP); item no [backlog legado](#backlog-legado-mvp--fora-das-fases-9)
 - [x] Testar instalação limpa (Linux) — **2026-08-13**: `.deb` instalado e validado na máquina do usuário (Pop!_OS / uso real, não só Docker)
-- [x] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen — movido ao [backlog pós-roadmap](#backlog-pós-roadmap)
+- [x] (Futuro/opcional) Avaliar certificado de assinatura de código para reduzir alertas do SmartScreen — movido ao [backlog legado](#backlog-legado-mvp--fora-das-fases-9)
 
 **Notas de implementação:**
 
@@ -381,12 +385,12 @@ Catálogo interno para distribuir instaladores/APKs/binários aos usuários da V
 
 ---
 
-## Fase 12 — Consumo do marketplace (cliente + endurecimento)
+## Fase 12 — Consumo do marketplace (cliente + endurecimento) ✅
 
 - [x] Seção “Apps” no cliente desktop (Wails): lista por plataforma do SO atual + botão baixar/abrir pasta
 - [x] Deep link ou “abrir após baixar” no Linux/Windows
-- [ ] (Opcional) Página web móvel `/apps` otimizada para baixar APK no Android **com VPN ou JWT** (mesmo backend da Fase 11) — movido ao [backlog pós-roadmap](#backlog-pós-roadmap) (sem dispositivo Android no ciclo atual)
-- [~] Quota por usuário / estatísticas de download no dashboard admin — **parcial**: estatísticas agregadas implementadas (ver notas); quota por usuário movida ao [backlog pós-roadmap](#backlog-pós-roadmap)
+- [ ] (Opcional) Página web móvel `/apps` otimizada para baixar APK no Android **com VPN ou JWT** (mesmo backend da Fase 11) — movido ao [backlog legado](#backlog-legado-mvp--fora-das-fases-9) (sem dispositivo Android no ciclo atual)
+- [~] Quota por usuário / estatísticas de download no dashboard admin — **parcial**: estatísticas agregadas implementadas (ver notas); quota por usuário movida ao [backlog legado](#backlog-legado-mvp--fora-das-fases-9)
 - [x] Assinatura/checksum exibido na UI antes do download
 - [x] Revisar `vps-security-audit` após expor download autenticado (path traversal, content-type, tamanho)
 
@@ -402,13 +406,13 @@ Catálogo interno para distribuir instaladores/APKs/binários aos usuários da V
 - **Testes**: `client/internal/marketplaceclient/client_test.go` cobre login (sucesso, credenciais inválidas), `ListApps` (exige sessão, envia header `Authorization`, traduz 401 → `ErrNotLoggedIn` limpando sessão), `DownloadAsset` (verifica checksum e grava arquivo, apaga arquivo com checksum incompatível, exige sessão) e `uniqueDestPath` (evita colisão). Server: `TestHandleMarketplaceStats_AggregatesCountsDownloadsAndStorage` (contagens, soma de downloads, dedupe de storage, ranking) + `TestHandleMarketplaceStats_EmptyCatalogReturnsZeroes` (catálogo vazio devolve zeros e lista vazia) + entrada `marketplace-stats` na matriz RBAC (`rbac_routes_test.go`).
 - **Auditoria pós-deploy** (`vps-security-audit`): SSH ok (`passwordauthentication no`, `permitrootlogin prohibit-password`); `ufw` ativo com portas públicas `22/80/443/51820` + `445/8081` só em `wg0`; `smbd` em `10.66.66.1:445`+`127.0.0.1:445`, `filebrowser` em `10.66.66.1:8081`, `xvpn-server` em `127.0.0.1:8080`; `smb.conf` com `interfaces = 10.66.66.1/24 127.0.0.1/8` + `bind interfaces only = yes`; `ip_forward=1`; fail2ban ativo. O download autenticado do marketplace entra pelo Nginx em `443` e chega ao backend em `127.0.0.1:8080` — **nenhuma porta nova exposta**, nenhuma regressão vs. `PLAN.md` §5 / `SECURITY.md`. Path traversal já coberto pelos testes da Fase 11; tamanho limitado por `http.MaxBytesReader` + `io.LimitReader` (2 GiB) e pelo `client_max_body_size` isolado do Nginx (Fase 11).
 
-**Fora de escopo nesta fase (movidos ao [backlog pós-roadmap](#backlog-pós-roadmap)):** página web móvel `/apps` para baixar APK no Android (sem dispositivo Android no ciclo atual); quota de download por usuário (estatísticas agregadas já atendem a visão gerencial do dashboard).
+**Fora de escopo nesta fase (movidos ao [backlog legado](#backlog-legado-mvp--fora-das-fases-9)):** página web móvel `/apps` para baixar APK no Android (sem dispositivo Android no ciclo atual); quota de download por usuário (estatísticas agregadas já atendem a visão gerencial do dashboard).
 
 **Critério de saída:** ✅ fluxo completo admin sobe → usuário no Linux baixa pelo app desktop (login de painel → lista filtrada por plataforma → download com verificação de SHA-256 → abrir arquivo/pasta). APK via navegador autenticado no telefone fica como backlog (item opcional explícito no checklist).
 
 ---
 
-## Fase 13 — Contas Unix reais por usuário (SFTP + Samba integrados)
+## Fase 13 — Contas Unix reais por usuário (SFTP + Samba integrados) ✅
 
 Cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS, com acesso a arquivos via **SFTP** (chave pública, sem shell) e/ou **Samba**, os dois apontando pro mesmo diretório. Reabre — de forma limitada e mitigada — a decisão da Fase 5 de manter usuários Samba fora do painel. Decisões completas e justificativa: [`PLAN.md` §6.9](./PLAN.md#69-contas-unix-reais-por-usuário-sftp--samba-integrados).
 
@@ -441,9 +445,195 @@ Cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS, com 
 
 ---
 
+# Parte III — Ciclo v0.2
+
+### Ordem de execução do ciclo v0.2 (decidida)
+
+A ordem sugerida quando o ciclo abriu era `14 → 16.1 → resto da 16 → 15`. **Foi trocada** para:
+
+> correções urgentes → **16.1** → **Fase 14** inteira → resto da **16** → **Fase 15**
+
+Dois motivos, ambos levantados ao auditar o código antes de começar:
+
+1. **A 14 e a 16.1 editam praticamente os mesmos ~13 arquivos do cliente.** Fazer a 14 primeiro significa escrever o código, movê-lo de diretório e depois revisar um rename passando por cima de código recém-escrito — o pior momento possível para um commit de rename, que precisa ser lido como "só mudou de lugar". Com a 16.1 primeiro, o rename atravessa código estável e a 14 nasce já no caminho definitivo.
+2. **A urgência da 14 é menor do que o roadmap assumia.** O estado real da produção: **1 usuário** (`rootkit`), **1 device**, os dois toggles (`sftp_enabled`/`samba_enabled`) **desligados**, e **zero shares pessoais** — `/etc/samba/smb.conf.d/xvpn-shares.conf` tem só o cabeçalho de comentário. Ou seja, o segundo bug reportado ("o usuário do compartilhamento não é o mesmo da VPN") não é um cliente que aponta para o share errado: **não existe share pessoal nenhum para apontar**. Ninguém está bloqueado hoje esperando a 14.
+
+**Correções urgentes** (antes de tudo, em PRs próprias, já em andamento): `SetTrustedProxies` no router do servidor (fura os rate limits hoje — ver 14.1) e o `include` do `smb.conf` (ver 14.1).
+
+## Fase 14 — Acesso a arquivos sincronizado com o usuário da VPN
+
+Corrige os dois bugs reportados no botão "Unidade de rede" do cliente desktop. Ambos têm a **mesma causa raiz**: o cliente nunca soube quem ele é. O `enrollResponse` não devolve `username` e o `DeviceState` não guarda esse campo, então `OpenServerFiles` só sabia abrir um destino fixo (`smb://10.66.66.1/shared`).
+
+| Sintoma reportado | Causa | Correção |
+|---|---|---|
+| Cliquei em "Unidade de rede" e não abriu o diretório compartilhado (janela de rede vazia) | `[shared]` tem `guest ok = no` + `valid users = @xvpn-samba`; a URI vai sem credencial, o mount GVFS falha e o gerenciador cai na vista de rede — vazia porque `nmbd` está desligado de propósito (`smb ports = 445`) | `[shared]` passa a `guest ok = yes` + `force user`, mesma decisão já tomada na Fase 13 |
+| O usuário do diretório compartilhado não é o mesmo usuário logado na VPN | Credencial manual antiga no keyring (`xvpntest`), sem relação com o usuário do painel. E não há para onde apontar: **nenhum share pessoal `home-<username>` existe** — `/etc/samba/smb.conf.d/xvpn-shares.conf` na produção tem só o cabeçalho de comentário, porque o único usuário (`rootkit`) está com os dois toggles desligados | Cliente descobre o próprio `username` via `GET /api/me` e abre `home-<username>`; o share nasce quando o toggle Samba for ligado |
+
+**Identidade pelo IP do túnel.** O IP `10.66.66.x` é ligado ao peer pelo `allowed-ips` do próprio WireGuard, então não é falsificável de dentro da VPN — mesma premissa já aceita e documentada em [`SECURITY.md`](./SECURITY.md) para o Samba guest. Resolve também os dispositivos **já enrolled**, sem exigir re-enrollment.
+
+**O primitivo é `c.RemoteIP()`, nunca `c.ClientIP()`** (achado da revisão de segurança do PR #27 — o desenho original desta fase estava errado neste ponto). `ClientIP()` obedece a `X-Forwarded-For`/`X-Real-IP` sempre que o peer TCP for um proxy confiável, e o `xvpn-server` monta o router com `gin.New()` sem nunca chamar `SetTrustedProxies` (`server/internal/api/server.go:94`). O default do Gin `v1.10.1` é `trustedProxies: ["0.0.0.0/0", "::/0"]` com `ForwardedByClientIP: true` — ou seja, **todo mundo é proxy confiável**. Pior: o `validateHeader` do Gin varre o `X-Forwarded-For` da direita para a esquerda e só para quando encontra um hop *não* confiável; como nenhum é, ele chega ao índice 0 e devolve a entrada **mais à esquerda**, que é justamente a que o cliente escreveu. Como o Nginx usa `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` (que *acrescenta* ao header do cliente em vez de sobrescrevê-lo), um `curl` da internet pública com `X-Forwarded-For: 10.66.66.2` faria `ClientIP()` devolver `10.66.66.2`. `RemoteIP()` não tem esse caminho: lê só `Request.RemoteAddr`, o peer TCP real, que não é falsificável por header nenhum.
+
+**Consequência de desenho: um único `gin.Engine`, não dois.** Um middleware que exige `RemoteIP()` dentro de `10.66.66.0/24` já rejeita, por construção, tudo que chega pelo Nginx — o Nginx conecta de `127.0.0.1`, que não está na sub-rede. Não é preciso manter uma segunda árvore de rotas só para o listener do túnel: duas árvores são mais superfície para errar (uma rota registrada na árvore errada é uma falha silenciosa) do que um router só com o middleware certo nas duas rotas novas. O desenho anterior desta fase sugeria o contrário; está revisto.
+
+**Por que o listener em `10.66.66.1:8080` continua necessário — é roteamento, não segurança.** O cliente instala uma rota `/32` para o IP público do VPS via o gateway original antes de trocar a rota padrão (`addHostRouteException`, `client/internal/platform/linux/engine_linux.go:391-431`), senão os próprios pacotes UDP do handshake WireGuard entrariam em loop. Como `vpn.officeempresa.com` resolve para **esse mesmo IP** (`206.189.224.72`, confirmado via `dig`), o HTTPS do painel cai nessa exceção e **nunca** trafega dentro do túnel: o Nginx sempre veria o IP público doméstico do usuário, jamais um `10.66.66.x`. Nenhum header, nenhuma config de proxy conserta isso — é consequência da topologia de rotas. O peer só alcança um `10.66.66.x` como origem se falar com `10.66.66.1` diretamente, e hoje o servidor sobe um `http.Server` só, em `cfg.HTTPAddr` (`XVPN_HTTP_ADDR`, default `127.0.0.1:8080` — `server/cmd/xvpn-server/main.go:110`). Registrar isso aqui porque é contraintuitivo: alguém vai propor "simplificar" removendo o listener, e o resultado seria uma rota inalcançável, não uma rota mais simples.
+
+> **Dependência:** a correção do `SetTrustedProxies` está sendo tratada numa **PR separada** — o mesmo default do Gin já fura hoje os rate limits de login/enroll/waitlist, que contam por `c.ClientIP()` (`server/internal/api/ratelimit.go:74`), então é bug de segurança presente, não hipotético desta fase. A Fase 14 depende dessa PR estar mergeada, mas **não** deve duplicar o trabalho: com `RemoteIP()` as rotas novas ficam corretas independentemente, e o `SetTrustedProxies` conserta o resto da API.
+
+### 14.1 Identidade do cliente e shares pessoais
+
+- [ ] `GET /api/me` resolvendo `c.RemoteIP()` (**nunca** `c.ClientIP()`) contra `Device.AllowedIP` → `{username, samba_enabled, sftp_enabled}`; sem JWT, mas só aceitando origem em `10.66.66.0/24`
+- [ ] Middleware único `RequireTunnelOrigin` aplicado às duas rotas novas, no mesmo `gin.Engine` já existente — sem segunda árvore de rotas (ver justificativa acima)
+- [ ] Listener adicional em `10.66.66.1:8080` (`cfg.HTTPAddr` hoje sobe um `http.Server` só); registrar em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops)
+- [ ] Teste de regressão: requisição com `X-Forwarded-For: 10.66.66.2` forjado chegando pelo caminho do Nginx (`RemoteAddr = 127.0.0.1`) tem que receber 403, não 200
+- [ ] `username` no `enrollResponse` + bump de `APIVersion` (caminho rápido para novos enrollments)
+- [ ] Cliente: `DeviceState.Username`, preenchido no enrollment e atualizado pelo helper via `/api/me` a cada conexão
+- [ ] `StatusResponse.Username` + `SambaEnabled` no helper, propagados até a GUI
+- [ ] `OpenServerFiles` aceita `"smb-home"` e `"smb-shared"`; revalida a conexão antes de abrir (hoje confia só no estado da UI)
+- [ ] UI: botões "Meus arquivos" e "Compartilhado" na `main-page` e no tray, desabilitados com explicação quando `samba_enabled=false`
+- [ ] **(pré-requisito, PR separada)** Corrigir o `smb.conf` nos **dois** lados — repositório e produção — e redeployar; ver análise abaixo
+- [ ] Limpar as contas Unix órfãs da produção (`smbtest1`, `xvpntest1`, `xvpntest2`) **antes** de validar a fase
+- [ ] Atualizar `shares-page`, a skill `samba-user-ops`, `PLAN.md`, `SECURITY.md` e o `CHANGELOG.md` raiz
+
+**O `smb.conf` é bloqueador desta subfase, não dívida cosmética.** O diagnóstico anterior ("o repositório está desatualizado") subestimava o problema: **os dois lados estão errados, de formas diferentes e ambas graves.**
+
+*No repositório* (`server/deploy/samba/smb.conf`): tem `map to guest = never` e não tem o `include` nenhum. Um redeploy hoje apagaria o include e derrubaria o `guest ok` de que os shares `home-<username>` dependem.
+
+*Na produção*: o include existe, mas está na **primeira linha do `[global]`**. O `include` do Samba insere o arquivo literalmente, com a seção corrente atravessando a fronteira — então, no instante em que o primeiro share pessoal existir, tudo que vem depois do include deixa de ser global e passa a ser parâmetro **daquele share**. Verificado empiricamente na VPS com uma cópia descartável em `/tmp` (o `/etc/samba/` real nunca foi tocado): bastou acrescentar um `[home-alice]` ao arquivo incluído para o `[global]` efetivo, resolvido pelo próprio `testparm`, colapsar para **duas linhas** (`idmap config` e o próprio `include`). O que se perde:
+
+| Parâmetro perdido | Consequência |
+|---|---|
+| `bind interfaces only` + `interfaces` | `smbd` volta a escutar em **todas** as interfaces — viola o invariante 2 do [`AGENTS.md`](./AGENTS.md), que vale *mesmo com* o firewall bloqueando (é defesa em profundidade, não substituível) |
+| `map to guest = Bad User` | volta ao default `Never`, quebrando o `guest ok` + `force user` de que os shares `home-<username>` dependem — a fase falha silenciosamente |
+| `hosts allow` / `hosts deny` | migram para **dentro** do share pessoal; `[shared]` fica sem restrição de origem nenhuma |
+| `server min protocol` / `client min protocol` | proteção contra SMB1 (EternalBlue) cai |
+| `server smb transports = 445` | NetBIOS/`139` volta a ser exposto pelo `smbd` |
+| `security = USER` | modo de autenticação volta ao default |
+
+E o pior para a operação: **`testparm` sai com código 0**. Ele só emite avisos `Global parameter <x> found in service section!` no stderr — nada que um deploy automatizado que checa `$?` fosse capturar. A correção (mover o `include` para o **fim** do arquivo, depois de todo o `[global]` e dos shares estáticos) já está em PR própria; esta subfase depende dela.
+
+### 14.2 Chave SSH registrada automaticamente pelo cliente
+
+Hoje habilitar SFTP para alguém exige que o **admin cole a chave pública** do usuário no painel, e o formulário bloqueia o toggle sem ela ("chave pública SSH é obrigatória para habilitar SFTP", em [`file_access_handler_apply.go`](./server/internal/api/file_access_handler_apply.go)). Isso quebra em dois pontos práticos: o usuário comum não sabe gerar nem onde achar a própria chave, e o admin vira intermediário de um dado que a máquina do usuário já poderia informar sozinha.
+
+O cliente XVPN passa a cuidar disso ao iniciar, reaproveitando exatamente o mesmo mecanismo de identidade da 14.1 (IP do túnel → device → usuário).
+
+```mermaid
+sequenceDiagram
+    participant GUI as XVPN (processo do usuário)
+    participant SSH as ~/.ssh/xvpn_ed25519
+    participant API as xvpn-server (10.66.66.1:8080)
+    participant Prov as xvpn-user-provision
+    GUI->>SSH: garante o par (cria só na 1a vez, 0600)
+    GUI->>API: "POST /api/me/ssh-key" com a chave pública
+    API->>API: resolve device pelo IP de origem
+    API->>Prov: reescreve authorized_keys do usuário
+```
+
+- [ ] `Device.SSHPublicKey` + `SSHKeyUpdatedAt` no model — a chave passa a ser **por dispositivo**, não por usuário: cada máquina tem a sua e revogar um device revoga só a dele
+- [ ] `POST /api/me/ssh-key`, restrito à origem `10.66.66.0/24` pelo mesmo middleware do `GET /api/me`, idempotente (mesma chave = no-op, sem chamar o provisionador nem poluir o audit log)
+- [ ] `authorized_keys` do usuário passa a ser a **união** das chaves dos dispositivos dele com `User.SSHPublicKey` (a colada à mão, que continua existindo como escape hatch para celular/máquina sem XVPN)
+- [ ] Chave registrada mesmo com SFTP desligado — fica guardada e o acesso passa a valer no instante em que o admin liga o toggle, sem uma segunda rodada de conversa com o usuário
+- [ ] Revogar um dispositivo remove a chave dele do `authorized_keys` (re-render), fechando o ciclo
+- [ ] Cliente: gerar `~/.ssh/xvpn_ed25519` (0600) no primeiro start, **no processo GUI sem privilégio** — a chave precisa ser legível pelo cliente SFTP do próprio usuário, então não pode viver junto com a chave WireGuard (que é root-only). A privada nunca sai da máquina, igual ao WireGuard
+- [ ] Cliente: entrada `Host xvpn-files` no `~/.ssh/config` apontando para a chave e o endpoint, para `sftp xvpn-files` funcionar sem argumento nenhum
+- [ ] Painel: parar de exigir a chave para ligar SFTP; listar as chaves auto-registradas em modo leitura (dispositivo + fingerprint + data) e manter o textarea só para chaves extras
+- [ ] Audit log `sshkey.autoregister` com `device_id` e fingerprint — **nunca a chave inteira**
+- [ ] Acrescentar teto de **quantidade de linhas** ao `validSSHPublicKey` — hoje ele já limita o tamanho de cada chave (10..8192 chars) e aceita várias linhas, mas não limita quantas (`server/internal/api/file_access_handler.go:43-67`)
+
+**Por que isso não afrouxa a segurança:** o endpoint só responde dentro do túnel (`RemoteIP()` em `10.66.66.0/24` — ver 14.1), e o IP de origem já identifica o device de forma não falsificável. Um peer só consegue registrar chave para si mesmo, e a chave só dá SFTP ao diretório daquele mesmo usuário — não há caminho de escalação.
+
+**O que já está pronto (a estimativa desta subfase era alta demais).** Levantado no código antes de planejar:
+
+- `provision.EnableSFTP` já trata o parâmetro como o **conteúdo inteiro** do `authorized_keys` ("uma ou mais chaves, uma por linha" — `server/internal/provision/ops.go:133-154`), e o repasse ao binário privilegiado já é via stdin (`server/internal/userprovision/client.go:52-55`, para a chave não vazar em `ps`/`/proc`). `validSSHPublicKey` já aceita múltiplas chaves. Conclusão: a "união de chaves" **não exige tocar** no binário privilegiado, no `internal/provision` nem no `sudoers.d` — é composição de string no handler.
+- `opener.OpenSMBShare(host, share)` já é genérico no nome do share nas duas plataformas; aceitar `"smb-home"` é um `case` a mais no switch de `OpenServerFiles` (`client/vpnservice.go:195-202`).
+- `store.Open` roda `AutoMigrate` (`server/internal/store/store.go:35`), então os campos novos do `Device` não exigem migração escrita; e como `User.SSHPublicKey` permanece como escape hatch, não há migração de dados.
+- O caminho Helper → GUI para um campo novo já existe e é mecânico: `ServerBaseURL` faz exatamente esse trajeto (`internal/config` → `internal/helper` → `vpnservice.go` → bindings).
+- Detalhe de implementação: o nome `handleMe` **já está tomado** por `GET /api/auth/me` (`server/internal/api/server.go:129`) — o handler novo precisa de outro nome.
+
+**Riscos de retrabalho — cada um vira item de checklist, não nota de rodapé:**
+
+- [ ] **Função única de re-render do `authorized_keys`.** `revokeDevice` (`server/internal/api/devices_handler.go:282-303`) não fala com o provisionador hoje: só remove o peer do WireGuard e a linha do banco. São **três** caminhos que removem device — `DELETE /api/devices/:id`, `DELETE /api/me/devices/:id` (ambos via `revokeDevice`) e `handleDeleteUser`. Se a re-renderização entrar só em um deles, sobra chave viva de device revogado.
+- [ ] **`reconcileUser` precisa recomputar a união.** Hoje ele chama `EnableSFTP(u.Username, u.SSHPublicKey)` (`server/internal/api/reconcile.go:62`) — ou seja, um restart do serviço reescreveria o `authorized_keys` só com a chave manual, derrubando o SFTP de todos os dispositivos auto-registrados. É um bug que só aparece no próximo boot, então não sai em teste manual.
+- [ ] **Registrar chave com SFTP desligado não pode reusar `EnableSFTP`.** Ele escreve o drop-in do sshd e recarrega o serviço junto (`server/internal/provision/ops.go:139-165`), o que concederia acesso a quem o admin não liberou. Nesse caminho, gravação **só no banco**.
+- [ ] **Decidir e testar o que o disable faz com a união.** O caminho de disable zera `User.SSHPublicKey` hoje (`file_access_handler_apply.go`, linhas 90 e 110). No modelo de união isso passa a significar "apaga a manual, mantém as dos devices" — é razoável, mas precisa ser deliberado e coberto por teste, não herdado por acidente.
+
+**Critério de saída:** com o túnel ativo, "Meus arquivos" abre `home-<usuário-do-painel>` sem pedir credencial e "Compartilhado" abre `[shared]`; um usuário sem Samba habilitado vê o botão desabilitado com a razão, não um erro de mount; e o admin liga SFTP de alguém **sem pedir nada ao usuário** — a chave já chegou sozinha quando aquela pessoa abriu o XVPN.
+
+---
+
+## Fase 15 — Melhorias represadas
+
+Itens que já estavam sinalizados como backlog explícito nas fases anteriores — nada inventado aqui.
+
+- [ ] Quotas de disco por usuário, expostas no painel — backlog explícito da Fase 13
+- [ ] Rotação de chave SSH **no `/portal`, para o próprio usuário** — reescopado: pelo caminho do admin isso **já funciona** hoje (o painel tem o textarea, e `file_access_handler_apply.go:152-162` reaplica o `authorized_keys` quando a chave muda), e a rotação dos dispositivos com XVPN deixa de existir como trabalho com a Fase 14.2. O que sobra é só expor no portal o autosserviço da chave manual — se não valer o esforço para 1 usuário, fechar o item em vez de arrastá-lo
+- [ ] MTU editável em Preferências/Diagnóstico do cliente (hoje só no enrollment) — [`PLAN.md` §7.2](./PLAN.md#72-funcionalidades-do-cliente) e achado da Fase 1. **Deve pegar carona no PR da Fase 14**: toca os mesmos arquivos (`internal/helper/helper.go`, `settings-page.tsx`), então virar PR próprio só cria conflito com a 14 sem entregar nada antes
+- [ ] Edição de Configurações no painel (hoje somente leitura)
+- [ ] Vitest no painel web — dívida assumida na Fase 9
+- [ ] Validação E2E em Windows real + helper como Windows Service — [backlog legado](#backlog-legado-mvp--fora-das-fases-9). **Investigar antes de reservar máquina** (ver abaixo)
+- [ ] `LICENSE` no repositório público — adiado desde a Fase 0
+
+**Suspeita a investigar antes do E2E em Windows — rota de exceção ausente.** No Linux, `Connect` instala uma rota `/32` para o IP do servidor via o gateway original antes de trocar a rota padrão (`addHostRouteException`), sem a qual os próprios pacotes do handshake WireGuard entrariam em loop. O engine do Windows **não tem equivalente**: `configureInterface` só adiciona rotas para os `AllowedIPs` (`client/internal/platform/windows/engine_windows.go:249-258`). Com `AllowedIPs = 0.0.0.0/0` isso tende a dar loop de roteamento. **Não foi confirmado em Windows real** — o `wireguard-go` em userspace pode se comportar diferente do kernel do Linux aqui, e o próprio arquivo carrega um aviso de plataforma não testada no topo. Registrado como suspeita a checar em VM antes de reservar hardware, **não** como fato: se procede, é bug de código a corrigir antes do teste; se não, o item segue como estava.
+
+---
+
+## Fase 16 — Monorepo `apps/` e Marketplace alimentado pelo diretório
+
+Reorganiza o monorepo em torno de um diretório `apps/` de produtos distribuíveis e inverte o modelo de publicação do Marketplace: em vez de o admin criar app/versão/asset à mão pelo painel, o catálogo passa a ser um **espelho do diretório**, publicado pelo CI. Decisões completas e justificativas em [`PLAN.md` §6.10](./PLAN.md#610-monorepo-apps-e-marketplace-alimentado-pelo-diretório); o checklist abaixo é o recorte executável delas.
+
+### 16.1 Estrutura
+
+- [ ] `client/` → `apps/xvpn-client/`, **mantendo o module path `github.com/rootkit-lab/xvpn/client`** — ver decisão abaixo
+- [ ] Ajustar o que assume que o cliente é filho direto da raiz: `build/scripts/resolve-version.sh`, `.github/workflows/ci.yml`, `release-please-config.json` + manifest, `.gitignore`, rules do Cursor, links relativos dos READMEs e `download-page.tsx`
+
+`server/` e `shared/` continuam na raiz: são a plataforma, não itens do catálogo.
+
+**Decisão — o module path NÃO acompanha o diretório (divergência deliberada).** O desenho inicial desta subfase dizia o contrário ("com o module path acompanhando, para import e disco não divergirem"); foi revisto. Renomear o módulo para `.../apps/xvpn-client` custaria caro e não compraria nada:
+
+- **Nada fora de `client/` importa o módulo** (verificado: zero ocorrências de `rootkit-lab/xvpn/client` fora da própria pasta). O module path não é contrato com ninguém — o cliente é um binário, não uma biblioteca consumida.
+- **O Wails deriva o caminho dos bindings do module path**, não do caminho em disco. Renomear arrastaria **11 linhas de import** em 6 arquivos `.tsx` (`../../bindings/github.com/rootkit-lab/xvpn/client`), num diretório que é artefato de build gerado (`client/frontend/bindings/`, não commitado) — churn puro, com risco de quebrar o build por um import esquecido.
+
+O custo real da divergência é um leitor estranhar que a pasta `apps/xvpn-client/` declara `module .../xvpn/client`. É o que este parágrafo resolve. Se um dia o cliente virar dependência importável de outro módulo do monorepo, a decisão se reabre.
+
+### 16.2 Manifesto como fonte da verdade
+
+- [ ] `apps/<slug>/marketplace.yaml` (pasta sem manifesto é ignorada — dá para ter projeto no monorepo sem publicá-lo)
+- [ ] `source: build` — versão e SHA-256 resolvidos pelo CI depois do build; sem release para a versão do manifesto, o app é pulado com aviso
+- [ ] `source: external` — `url` + `sha256` fixos no arquivo, que é como publicar binário de terceiro sem commitar binário (invariante 6 do `AGENTS.md`)
+- [ ] Validação de schema no `ci.yml`, para manifesto quebrado reprovar o PR em vez do deploy
+
+### 16.3 Publicação
+
+- [ ] `POST /api/marketplace/sync` idempotente, substituindo os três passos manuais de hoje
+- [ ] Autenticação por `XVPN_PUBLISH_TOKEN` (comparação em tempo constante; rota não registrada se a variável não existir) ou JWT de `super_admin` para re-sync manual
+- [ ] Corpo = lista **completa** de manifestos: é o full sync que dá sentido a "só aparece o que está no diretório"
+- [ ] Assets buscados por URL com verificação de SHA-256 antes de gravar; o storage content-addressed já deduplica, então re-sync sem mudança não baixa nada
+- [ ] **Guarda anti-SSRF** obrigatória: só `https`, rejeitando loopback/privado/link-local — sem isso a URL do manifesto vira proxy para `127.0.0.1:8080` ou `10.66.66.1`
+- [ ] Slug que sumiu do diretório é **arquivado**, não apagado — um job de CI com poder de deletar linha de produção é armadilha
+- [ ] `App` ganha `Slug` (unique), `Source`, `SourcePath` e `ArchivedAt`
+
+### 16.4 Painel somente-leitura
+
+- [ ] Remover as rotas de publicação manual (`POST`/`PATCH`/`DELETE` de apps, versões e assets) — o invariante vale na API, não escondendo botão
+- [ ] Manter `GET /apps`, download e `PUT /apps/:id/access`: quem enxerga um app restrito é decisão operacional, não do repositório
+- [ ] `marketplace-page.tsx` perde os diálogos de criação/upload e ganha selo de origem `apps/<slug>`
+
+### 16.5 CI
+
+- [ ] `release-client.yml`: dispara na tag `xvpn-client-v*`, builda Linux + Windows, publica na GitHub Release e chama o sync (hoje esse build é manual)
+- [ ] `marketplace-sync.yml`: push na `main` + `workflow_dispatch`, com o diff (`created`/`updated`/`unchanged`/`archived`) visível no log
+- [x] Habilitar "Allow GitHub Actions to create and approve pull requests" no repositório — era o que travava o `release-please` e o motivo de a v0.1.0 do cliente ter saído na mão. **Feito** (confirmado via API: `default_workflow_permissions: write`, `can_approve_pull_request_reviews: true`)
+
+**Consequência assumida:** com o cliente dentro de `apps/`, ele passa a ter entrada no catálogo — hoje o struct `App` é documentado como "sempre outro software" e o cliente sai só por `/download`. A página `/download` continua sendo o caminho de primeira instalação (quem chega ali ainda não tem VPN nem, possivelmente, login); o marketplace vira o canal de atualização.
+
+**Critério de saída:** criar uma pasta em `apps/` com manifesto e mergear na `main` faz o programa aparecer no catálogo sem nenhum passo manual no painel; remover a pasta o tira da listagem; não existe mais caminho de API para publicar algo que não veio do diretório.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
-- **Parte II (9+):** ordem sugerida 9 → 10 → 11 → 12 → 13 (qualidade antes de superfície nova; RBAC antes do marketplace/contas Unix, já que ambos são ações administrativas que precisam de papel checado).
+- **Parte II (9–13):** ordem executada 9 → 10 → 11 → 12 → 13 (qualidade antes de superfície nova; RBAC antes do marketplace/contas Unix, já que ambos são ações administrativas que precisam de papel checado).
+- **Parte III (14–16):** ordem decidida — correções urgentes → 16.1 → Fase 14 → resto da 16 → Fase 15 (ver [justificativa](#ordem-de-execução-do-ciclo-v02-decidida)). A 16.1 é um commit de rename que conflita com qualquer PR em voo tocando o cliente, então entra sozinha e **antes** da 14, que edita os mesmos arquivos.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.

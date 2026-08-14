@@ -66,6 +66,17 @@ type Config struct {
 	// /opt/xvpn/data (único caminho com ReadWritePaths no systemd, ver
 	// PLAN.md §5), nunca fora dele.
 	MarketplaceDataDir string
+
+	// UserProvisionBinaryPath é o caminho absoluto do binário
+	// privilegiado xvpn-user-provision (Fase 13 — ver PLAN.md §6.9),
+	// invocado pelo xvpn-server via sudoers.d restrito (NOPASSWD, sem
+	// wildcard de argumento) para criar contas Unix e habilitar
+	// SFTP/Samba por usuário. Em produção fica em /opt/xvpn/bin (ver
+	// deploy da Fase 13); o default aponta pra lá. Em testes/dev o
+	// caminho não precisa existir — o cliente injetável (ver
+	// internal/userprovision) nunca chama o binário de verdade nos
+	// testes.
+	UserProvisionBinaryPath string
 }
 
 func getEnv(key, fallback string) string {
@@ -103,6 +114,7 @@ func Load() (*Config, error) {
 		AdminBootstrapUsername:  os.Getenv("XVPN_ADMIN_USERNAME"),
 		AdminBootstrapPassword:  os.Getenv("XVPN_ADMIN_PASSWORD"),
 		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
+		UserProvisionBinaryPath: getEnv("XVPN_USER_PROVISION_BIN", "/opt/xvpn/bin/xvpn-user-provision"),
 	}
 
 	var err error

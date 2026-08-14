@@ -151,38 +151,43 @@ export function AppsPage({ status, onBack }: AppsPageProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
-      className="flex h-full flex-col gap-4 p-6"
+      className="dot-grid flex h-full flex-col gap-4 p-6"
     >
-      <header className="flex items-center gap-3">
+      <header className="relative z-10 flex items-center gap-3">
         <button
           onClick={onBack}
           aria-label="Voltar"
-          className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <h1 className="flex-1 text-lg font-semibold">Apps</h1>
+        <h1 className="flex-1 text-lg font-semibold tracking-tight">Apps</h1>
         {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
         {session?.loggedIn && (
           <button
             onClick={handleLogout}
             aria-label="Sair do marketplace"
             title={`Sair (${session.username})`}
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <LogOut className="h-4 w-4" />
           </button>
         )}
       </header>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <p className="hud-label relative z-10 flex items-center gap-2 text-destructive">
+          <span className="size-1.5 rounded-full bg-destructive" />
+          {error}
+        </p>
+      )}
 
       {!loading && session && !session.loggedIn && (
         <LoginForm serverBaseURL={status.serverBaseURL} onSubmit={handleLogin} />
       )}
 
       {session?.loggedIn && (
-        <div className="flex flex-1 flex-col gap-3 overflow-y-auto">
+        <div className="relative z-10 flex flex-1 flex-col gap-3 overflow-y-auto">
           {catalog.length === 0 ? (
             <p className="mt-6 text-center text-sm text-muted-foreground">
               Nenhum programa disponível para {platform === 'windows' ? 'Windows' : 'Linux'} ainda.
@@ -220,7 +225,7 @@ function LoginForm({
   }
 
   return (
-    <Card className="border-white/5 bg-card/70">
+    <Card className="relative z-10 border-white/5 bg-card/70">
       <CardContent className="flex flex-col gap-3 pt-6">
         <p className="text-xs text-muted-foreground">
           Entre com sua conta do painel ({serverBaseURL || 'servidor não configurado'}) para ver os programas
@@ -228,28 +233,34 @@ function LoginForm({
         </p>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="marketplace-username">Usuário</Label>
+            <Label htmlFor="marketplace-username" className="hud-label text-muted-foreground/80">
+              Usuário
+            </Label>
             <Input
               id="marketplace-username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              className="font-mono"
               required
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="marketplace-password">Senha</Label>
+            <Label htmlFor="marketplace-password" className="hud-label text-muted-foreground/80">
+              Senha
+            </Label>
             <Input
               id="marketplace-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
+              className="font-mono"
               required
             />
           </div>
-          <Button type="submit" className="mt-1 rounded-full">
-            Entrar
+          <Button type="submit" className="mt-1 rounded-md font-mono tracking-wide">
+            Entrar →
           </Button>
         </form>
       </CardContent>
@@ -273,9 +284,9 @@ function AppEntryCard({
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-start gap-3">
           {entry.app.iconURL ? (
-            <img src={entry.app.iconURL} alt="" className="h-9 w-9 rounded-lg object-cover" />
+            <img src={entry.app.iconURL} alt="" className="h-9 w-9 rounded-md object-cover" />
           ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-secondary">
               <Package className="h-4.5 w-4.5 text-muted-foreground" />
             </div>
           )}
@@ -284,7 +295,7 @@ function AppEntryCard({
             {entry.app.description && (
               <p className="line-clamp-2 text-xs text-muted-foreground">{entry.app.description}</p>
             )}
-            <p className="mt-0.5 text-[11px] text-muted-foreground">v{entry.versionLabel}</p>
+            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">v{entry.versionLabel}</p>
           </div>
         </div>
 
@@ -316,17 +327,17 @@ function AssetRow({
   onDownload: () => void
 }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-secondary/40 p-2.5">
+    <div className="flex flex-col gap-1.5 rounded-md border border-border/60 bg-secondary/40 p-2.5">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{asset.filename}</p>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="truncate font-mono text-xs font-medium">{asset.filename}</p>
+          <p className="font-mono text-[10px] text-muted-foreground">
             {asset.arch} · {formatBytes(asset.sizeBytes)} ·{' '}
             <span title={`SHA-256: ${asset.sha256}`}>sha256 {asset.sha256.slice(0, 10)}…</span>
           </p>
         </div>
         {status === 'done' ? (
-          <span className="flex items-center gap-1 text-[11px] text-primary">
+          <span className="hud-label flex items-center gap-1 text-primary">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Baixado
           </span>
@@ -336,7 +347,7 @@ function AssetRow({
             variant="secondary"
             disabled={status === 'downloading'}
             onClick={onDownload}
-            className="rounded-full"
+            className="rounded-md font-mono"
           >
             {status === 'downloading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
             {status === 'downloading' ? 'Baixando…' : status === 'error' ? 'Tentar de novo' : 'Baixar'}
@@ -345,13 +356,18 @@ function AssetRow({
       </div>
       {status === 'done' && path && (
         <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="flex-1 rounded-full text-xs" onClick={() => VPNService.OpenLocalPath(path)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 rounded-md font-mono text-xs"
+            onClick={() => VPNService.OpenLocalPath(path)}
+          >
             Abrir arquivo
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 rounded-full text-xs"
+            className="flex-1 rounded-md font-mono text-xs"
             onClick={() => VPNService.OpenDownloadsFolder()}
           >
             <FolderOpen className="h-3.5 w-3.5" />

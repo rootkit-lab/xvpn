@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
 import { defaultRouteForRole } from '@/lib/roles'
@@ -45,7 +46,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh items-center justify-center overflow-hidden bg-background p-4">
+    <div className="dot-grid relative flex min-h-svh items-center justify-center overflow-hidden bg-background p-4">
       <div className="glow-blob pointer-events-none absolute top-1/2 left-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2" />
       <motion.div
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -53,30 +54,39 @@ export function LoginPage() {
         transition={{ duration: 0.4, ease: 'easeOut' }}
         className="relative z-10 w-full max-w-sm"
       >
-        <Card className="border-white/5 bg-card/80 backdrop-blur">
+        <Card className="cyber-frame border-white/5 bg-card/80 backdrop-blur">
           <CardHeader className="items-center text-center">
-            <img
-              src="/logo-192.png"
-              alt="XVPN"
-              className="mb-2 size-16 drop-shadow-[0_0_20px_var(--color-glow)]"
-            />
-            <CardTitle className="text-xl">XVPN — Painel</CardTitle>
-            <CardDescription>Entre com sua conta de administrador</CardDescription>
+            {/* Losango "Secured" — assinatura cyber: quadrado girado 45°
+                com glow, ícone de escudo no centro. Substitui o logo
+                flat pré-redesign. */}
+            <div className="relative mb-2 flex size-16 items-center justify-center">
+              <div className="cyber-diamond absolute inset-0 m-auto size-12 bg-primary/10" />
+              <ShieldCheck className="relative size-7 text-primary drop-shadow-[0_0_10px_var(--color-glow)]" />
+            </div>
+            <CardTitle className="text-xl tracking-tight">XVPN — Painel</CardTitle>
+            <CardDescription className="hud-label text-muted-foreground/80">
+              acesso seguro · controle administrativo
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="username">Usuário</Label>
+                <Label htmlFor="username" className="hud-label text-muted-foreground/80">
+                  Usuário
+                </Label>
                 <Input
                   id="username"
                   autoComplete="username"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  className="font-mono"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="password">Senha</Label>
+                <Label htmlFor="password" className="hud-label text-muted-foreground/80">
+                  Senha
+                </Label>
                 <Input
                   id="password"
                   type="password"
@@ -84,17 +94,23 @@ export function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="font-mono"
                 />
               </div>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={submitting} className="rounded-full">
-                {submitting ? 'Entrando…' : 'Entrar'}
+              {error && (
+                <p className="hud-label flex items-center gap-2 text-destructive">
+                  <span className="size-1.5 rounded-full bg-destructive" />
+                  {error}
+                </p>
+              )}
+              <Button type="submit" disabled={submitting} className="mt-2 rounded-md font-mono tracking-wide">
+                {submitting ? 'Autenticando…' : 'Entrar →'}
               </Button>
             </form>
           </CardContent>
         </Card>
         <p className="mt-4 text-center text-sm text-muted-foreground">
-          <Link to="/" className="underline">
+          <Link to="/" className="underline underline-offset-4 hover:text-foreground">
             ← Voltar para a página inicial
           </Link>
         </p>

@@ -60,7 +60,9 @@ var ViewerUpRoles = []Role{RoleSuperAdmin, RoleAdmin, RoleViewer}
 // User é uma conta do painel web. Não confundir com "peer"/"device": um
 // usuário pode ter múltiplos dispositivos, mas na Fase 2 o fluxo de convite
 // já suporta N dispositivos por usuário. Role (Fase 10) define o que essa
-// conta pode fazer no painel — ver PLAN.md §6.7.
+// conta pode fazer no painel — ver PLAN.md §6.7. SFTPEnabled/SambaEnabled
+// (Fase 13) controlam acesso a arquivos na VPS via SFTP/Samba — ver
+// PLAN.md §6.9.
 type User struct {
 	ID           uint   `gorm:"primaryKey"`
 	Username     string `gorm:"uniqueIndex;not null"`
@@ -71,6 +73,20 @@ type User struct {
 	Role      Role `gorm:"not null;default:member"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	// SFTPEnabled/SambaEnabled (Fase 13 — PLAN.md §6.9): toggles de acesso
+	// a arquivos na VPS. Default false (AutoMigrate preenche linhas
+	// existentes com false) — seguro por padrão, o admin liga explícito
+	// quem deve ter acesso. A conta Unix subjacente é criada on-demand
+	// quando o primeiro toggle é ligado (ver internal/userprovision), e
+	// removida quando ambos voltam a false (ver handler de disable).
+	SFTPEnabled  bool `gorm:"not null;default:false"`
+	SambaEnabled bool `gorm:"not null;default:false"`
+	// SSHPublicKey é a chave pública SSH autorizada a entrar via SFTP
+	// (chave pública, nunca privada — mesmo modelo do WireGuard). Vazia
+	// desabilita o login SFTP mesmo com SFTPEnabled=true: o sshd Match
+	// User só libera acesso se houver uma chave registrada.
+	SSHPublicKey string `gorm:"type:text;default:''"`
 
 	Devices      []Device      `gorm:"foreignKey:UserID"`
 	InviteTokens []InviteToken `gorm:"foreignKey:UserID"`

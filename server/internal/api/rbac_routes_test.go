@@ -131,6 +131,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"delete-user", http.MethodDelete, "/api/users/{user}", nil, "adminOnly"},
 	{"create-invite", http.MethodPost, "/api/users/{user}/invite", nil, "adminOnly"},
 	{"reset-password", http.MethodPost, "/api/users/{user}/reset-password", nil, "adminOnly"},
+	{"set-file-access", http.MethodPut, "/api/users/{user}/file-access", fileAccessRequest{}, "adminOnly"},
 	{"delete-device", http.MethodDelete, "/api/devices/{device}", nil, "adminOnly"},
 	{"approve-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/approve", nil, "adminOnly"},
 	{"reject-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/reject", nil, "adminOnly"},

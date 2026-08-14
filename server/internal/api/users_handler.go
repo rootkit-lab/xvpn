@@ -23,10 +23,23 @@ type userResponse struct {
 	Username  string     `json:"username"`
 	Role      store.Role `json:"role"`
 	CreatedAt time.Time  `json:"created_at"`
+	// Acesso a arquivos (Fase 13, PLAN.md §6.9): sempre presentes na
+	// resposta (default false/"" quando o usuário nunca teve acesso).
+	SFTPEnabled  bool   `json:"sftp_enabled"`
+	SambaEnabled bool   `json:"samba_enabled"`
+	SSHPublicKey string `json:"ssh_public_key"`
 }
 
 func toUserResponse(u store.User) userResponse {
-	return userResponse{ID: u.ID, Username: u.Username, Role: u.Role, CreatedAt: u.CreatedAt}
+	return userResponse{
+		ID:           u.ID,
+		Username:     u.Username,
+		Role:         u.Role,
+		CreatedAt:    u.CreatedAt,
+		SFTPEnabled:  u.SFTPEnabled,
+		SambaEnabled: u.SambaEnabled,
+		SSHPublicKey: u.SSHPublicKey,
+	}
 }
 
 // callerRole/callerUserID leem a identidade definida por auth.RequireAuth no
@@ -167,6 +180,20 @@ func (a *App) handleUpdateUser(c *gin.Context) {
 		username := strings.TrimSpace(*req.Username)
 		if username == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "username não pode ficar vazio"})
+			return
+		}
+		// Rename de username é proibido enquanto o usuário tem SFTP ou
+		// Samba habilitado: o provisionamento Unix usa o username como
+		// chave (drop-in sshd `Match User <name>`, share Samba
+		// `[home-<name>]`, /home/<name>/). Renomear no DB sem
+		// reprovisionar deixaria configs órfãos no VPS sob o nome antigo
+		// e o reconcile não os limparia (só conhece o nome novo). Em
+		// vez de tentar reprovisionar atomicamente (complexo e propenso a
+		// deixar metade pronta), exigimos que o admin desligue o acesso
+		// a arquivos antes de renomear — fluxo explícito e seguro
+		// (Bugbot: "Rename orphans Unix account configs").
+		if username != target.Username && (target.SFTPEnabled || target.SambaEnabled) {
+			c.JSON(http.StatusConflict, gin.H{"error": "desative o acesso a arquivos (SFTP/Samba) antes de renomear o usuário"})
 			return
 		}
 		updates["username"] = username
@@ -346,8 +373,48 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		}
 	}
 
+	// Revoga o acesso a arquivos Unix (SFTP/Samba) ANTES de apagar a
+	// linha do DB — depois do delete não teríamos mais o username pra
+	// chamar o provisionador, e os drop-ins/shares/home ficariam órfãos
+	// no VPS (Bugbot: "Delete leaves file access active"). Se o
+	// provisionador falhar, NÃO apagamos o usuário (return error) — o
+	// admin resolve e tenta de novo; prefiro deixar o usuário intacto
+	// no DB do que deixar configs órfãos no sistema. Se a Fase 13 não
+	// está configurada (provisioner nil) ou o usuário nunca teve
+	// acesso, nada a fazer aqui.
+	//
+	// fileAccessDisabled rastreia se o Disable efetivamente removeu o
+	// acesso — se um passo POSTERIOR (WireGuard ou DB) falhar, os
+	// caminhos de compensação precisam restaurar o acesso a arquivos
+	// também (Bugbot: "Delete skips file-access compensate"), senão o
+	// OS fica off enquanto o DB ainda marca on, e só o reconcile no
+	// próximo boot reconvergiria.
+	fileAccessDisabled := false
+	if a.UserProvisioner != nil && (target.SFTPEnabled || target.SambaEnabled) {
+		if err := a.UserProvisioner.Disable(c.Request.Context(), target.Username); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar acesso a arquivos do usuário: " + provisionerErrMsg(err)})
+			return
+		}
+		fileAccessDisabled = true
+	}
+	// compensateFileAccess restaura o acesso a arquivos que o Disable
+	// removeu, se um passo posterior falhar. Best-effort: se falhar,
+	// o reconcile no boot converge (DB ainda marca enabled).
+	compensateFileAccess := func() {
+		if !fileAccessDisabled || a.UserProvisioner == nil {
+			return
+		}
+		if target.SFTPEnabled && target.SSHPublicKey != "" {
+			_ = a.UserProvisioner.EnableSFTP(c.Request.Context(), target.Username, target.SSHPublicKey)
+		}
+		if target.SambaEnabled {
+			_ = a.UserProvisioner.EnableSamba(c.Request.Context(), target.Username)
+		}
+	}
+
 	var devices []store.Device
 	if err := a.Store.DB.Where("user_id = ?", id).Find(&devices).Error; err != nil {
+		compensateFileAccess()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -357,8 +424,10 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 			// Compensa as remoções já feitas antes de falhar no meio do
 			// loop — sem isso, um subconjunto dos devices do usuário
 			// ficaria removido do WG enquanto o registro dele continua
-			// inteiro no banco (ver ROADMAP.md Fase 9).
+			// inteiro no banco (ver ROADMAP.md Fase 9). Também restaura
+			// o acesso a arquivos (Disable já tinha removido).
 			a.compensateRestorePeers(removed, "user.delete", id)
+			compensateFileAccess()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar dispositivo do usuário na interface WireGuard"})
 			return
 		}
@@ -396,8 +465,9 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		// re-adicionando todos, para não deixar o WG "à frente" do
 		// banco até um eventual restart reconciliar (ver ROADMAP.md
 		// Fase 9). Sem devices removidos (ex.: usuário inexistente),
-		// isso é um no-op.
+		// isso é um no-op. Também restaura o acesso a arquivos.
 		a.compensateRestorePeers(removed, "user.delete", id)
+		compensateFileAccess()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 			return

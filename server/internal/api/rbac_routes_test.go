@@ -124,6 +124,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-waitlist", http.MethodGet, "/api/waitlist", nil, "viewerUp"},
 	{"list-audit", http.MethodGet, "/api/audit", nil, "viewerUp"},
 	{"get-config", http.MethodGet, "/api/config", nil, "viewerUp"},
+	{"marketplace-stats", http.MethodGet, "/api/marketplace/stats", nil, "viewerUp"},
 
 	{"create-user", http.MethodPost, "/api/users", createUserRequest{Username: "gerado-pelo-teste", Password: "senha-valida-123", Role: store.RoleMember}, "adminOnly"},
 	{"update-user", http.MethodPatch, "/api/users/{user}", updateUserRequest{Username: strPtr("renomeado-pelo-teste")}, "adminOnly"},

@@ -13,6 +13,7 @@ import { MainPage } from './pages/main-page'
 // ícone da bandeja).
 const SettingsPage = lazy(() => import('./pages/settings-page').then((m) => ({ default: m.SettingsPage })))
 const DiagnosticsPage = lazy(() => import('./pages/diagnostics-page').then((m) => ({ default: m.DiagnosticsPage })))
+const AppsPage = lazy(() => import('./pages/apps-page').then((m) => ({ default: m.AppsPage })))
 
 // Intervalo de polling do status — rápido o suficiente para a UI parecer
 // "ao vivo" (handshake, tráfego) sem sobrecarregar o helper com chamadas
@@ -22,7 +23,7 @@ const POLL_INTERVAL_MS = 2000
 // Navegação simples por estado local, sem react-router: o app inteiro só
 // tem estas telas, e todas dependem do mesmo status polled aqui — não
 // compensa a dependência extra (ver ROADMAP.md Fase 6).
-type View = 'main' | 'settings' | 'diagnostics'
+type View = 'main' | 'settings' | 'diagnostics' | 'apps'
 
 function App() {
   const [status, setStatus] = useState<StatusView | null>(null)
@@ -74,6 +75,8 @@ function App() {
     content = <SettingsPage onBack={() => setView('main')} />
   } else if (view === 'diagnostics') {
     content = <DiagnosticsPage onBack={() => setView('main')} />
+  } else if (view === 'apps') {
+    content = <AppsPage status={status} onBack={() => setView('main')} />
   } else {
     content = (
       <MainPage
@@ -82,6 +85,7 @@ function App() {
         error={error}
         onOpenSettings={() => setView('settings')}
         onOpenDiagnostics={() => setView('diagnostics')}
+        onOpenApps={() => setView('apps')}
       />
     )
   }

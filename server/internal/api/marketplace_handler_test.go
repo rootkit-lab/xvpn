@@ -681,6 +681,118 @@ func TestHandleUploadMarketplaceAsset_RollsBackBlobWhenDBCreateFails(t *testing.
 	}
 }
 
+// TestHandleMarketplaceStats_AggregatesCountsDownloadsAndStorage cobre o
+// endpoint de estatísticas do dashboard admin (Fase 12 — ROADMAP.md):
+// contagens do catálogo inteiro, soma de downloads e o ranking dos mais
+// baixados. Também confere que TotalStorageBytes deduplica por
+// storage_path — dois assets com o mesmo conteúdo (ver dedupe em
+// internal/marketplace) compartilham um único blob em disco e não podem
+// contar em dobro.
+func TestHandleMarketplaceStats_AggregatesCountsDownloadsAndStorage(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	createTestUserWithRole(t, app, "admin", "senha-admin-123", store.RoleAdmin)
+	adminToken := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+	createTestUserWithRole(t, app, "viewer1", "senha-viewer-123", store.RoleViewer)
+	viewerToken := loginAndGetToken(t, app, router, "viewer1", "senha-viewer-123")
+
+	_, versionAID := createMarketplaceAppAndVersion(t, router, adminToken, store.AppVisibilityGlobal)
+	contentA1 := []byte("conteudo A1 - vai ser o mais baixado")
+	contentA2 := []byte("conteudo A2, bem menor")
+	rec := doMultipartUpload(t, router, "/api/marketplace/versions/"+strconv.FormatUint(uint64(versionAID), 10)+"/assets",
+		adminToken, "linux", "", "a1.deb", contentA1)
+	var assetA1 marketplaceAssetResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &assetA1)
+	rec = doMultipartUpload(t, router, "/api/marketplace/versions/"+strconv.FormatUint(uint64(versionAID), 10)+"/assets",
+		adminToken, "windows", "", "a2.exe", contentA2)
+	var assetA2 marketplaceAssetResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &assetA2)
+
+	// App B com um asset de conteúdo idêntico ao de assetA1 — mesmo blob
+	// em disco (dedupe), não deveria somar TotalStorageBytes de novo.
+	_, versionBID := createMarketplaceAppAndVersion(t, router, adminToken, store.AppVisibilityGlobal)
+	rec = doMultipartUpload(t, router, "/api/marketplace/versions/"+strconv.FormatUint(uint64(versionBID), 10)+"/assets",
+		adminToken, "linux", "", "b1.deb", contentA1)
+	var assetB1 marketplaceAssetResponse
+	_ = json.Unmarshal(rec.Body.Bytes(), &assetB1)
+
+	downloadPath := func(id uint) string {
+		return "/api/marketplace/assets/" + strconv.FormatUint(uint64(id), 10) + "/download"
+	}
+	for i := 0; i < 3; i++ {
+		rec = doJSON(t, router, http.MethodGet, downloadPath(assetA1.ID), nil, adminToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("erro baixando assetA1 (tentativa %d): %d", i, rec.Code)
+		}
+	}
+	rec = doJSON(t, router, http.MethodGet, downloadPath(assetA2.ID), nil, adminToken)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("erro baixando assetA2: %d", rec.Code)
+	}
+	// assetB1 nunca é baixado — não deve aparecer no ranking.
+
+	rec = doJSON(t, router, http.MethodGet, "/api/marketplace/stats", nil, viewerToken)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200 (viewer também lê stats), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var stats marketplaceStatsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("erro decodificando stats: %v", err)
+	}
+
+	if stats.TotalApps != 2 {
+		t.Fatalf("esperava 2 apps, obtido %d", stats.TotalApps)
+	}
+	if stats.TotalVersions != 2 {
+		t.Fatalf("esperava 2 versões, obtido %d", stats.TotalVersions)
+	}
+	if stats.TotalAssets != 3 {
+		t.Fatalf("esperava 3 assets, obtido %d", stats.TotalAssets)
+	}
+	if stats.TotalDownloads != 4 {
+		t.Fatalf("esperava 4 downloads no total (3+1+0), obtido %d", stats.TotalDownloads)
+	}
+	wantStorage := int64(len(contentA1) + len(contentA2))
+	if stats.TotalStorageBytes != wantStorage {
+		t.Fatalf("esperava %d bytes deduplicados (assetA1/assetB1 compartilham blob), obtido %d", wantStorage, stats.TotalStorageBytes)
+	}
+	if len(stats.TopAssets) != 2 {
+		t.Fatalf("esperava 2 assets no ranking (só quem tem download_count > 0), obtido %d: %+v", len(stats.TopAssets), stats.TopAssets)
+	}
+	if stats.TopAssets[0].AssetID != assetA1.ID || stats.TopAssets[0].DownloadCount != 3 {
+		t.Fatalf("esperava assetA1 em 1º lugar com 3 downloads, obtido %+v", stats.TopAssets[0])
+	}
+	if stats.TopAssets[1].AssetID != assetA2.ID || stats.TopAssets[1].DownloadCount != 1 {
+		t.Fatalf("esperava assetA2 em 2º lugar com 1 download, obtido %+v", stats.TopAssets[1])
+	}
+}
+
+// TestHandleMarketplaceStats_EmptyCatalogReturnsZeroes confirma que um
+// catálogo vazio devolve zeros (não erro) e top_assets como lista vazia,
+// nunca null — mais simples pro frontend (ROADMAP.md Fase 12) não
+// precisar checar null antes de `.map`/`.length`.
+func TestHandleMarketplaceStats_EmptyCatalogReturnsZeroes(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	createTestUserWithRole(t, app, "admin", "senha-admin-123", store.RoleAdmin)
+	adminToken := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	rec := doJSON(t, router, http.MethodGet, "/api/marketplace/stats", nil, adminToken)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var stats marketplaceStatsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("erro decodificando stats: %v", err)
+	}
+	if stats.TotalApps != 0 || stats.TotalVersions != 0 || stats.TotalAssets != 0 || stats.TotalDownloads != 0 || stats.TotalStorageBytes != 0 {
+		t.Fatalf("esperava tudo zerado num catálogo vazio, obtido %+v", stats)
+	}
+	if stats.TopAssets == nil || len(stats.TopAssets) != 0 {
+		t.Fatalf("esperava top_assets como lista vazia (não null), obtido %+v", stats.TopAssets)
+	}
+}
+
 // TestHandleDeleteUser_RemovesMarketplaceAppAccess cobre outro achado do
 // Bugbot: remover um usuário não limpava os AppAccess que apontavam pra
 // ele. O ID órfão sobrevivia na ACL, e handleSetMarketplaceAppAccess

@@ -1,18 +1,30 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"runtime"
 	"time"
 
 	"github.com/rootkit-lab/xvpn/client/internal/autostart"
 	"github.com/rootkit-lab/xvpn/client/internal/helper"
 	"github.com/rootkit-lab/xvpn/client/internal/ipc"
+	"github.com/rootkit-lab/xvpn/client/internal/marketplaceclient"
 	"github.com/rootkit-lab/xvpn/client/internal/opener"
 	"github.com/rootkit-lab/xvpn/client/internal/version"
 )
+
+// marketplace é o cliente do catálogo (Fase 12 — ROADMAP.md), com sessão
+// de usuário mantida só em memória pelo processo GUI. Vive num var de
+// pacote, não num campo de VPNService: várias partes do código (tray no
+// main.go, cada chamada do frontend) instanciam `&VPNService{}` à vontade
+// já que o struct historicamente não guarda estado — um campo aqui não
+// sobreviveria a essas instâncias descartáveis, mas este var sim, porque
+// é compartilhado por todas elas (mesmo processo, mesmo pacote).
+var marketplace = marketplaceclient.New()
 
 // serverVPNAddress é o IP fixo do servidor dentro do túnel WireGuard — não
 // muda entre deployments (invariante do projeto, ver PLAN.md §5 e
@@ -189,6 +201,184 @@ func (s *VPNService) OpenServerFiles(kind string) error {
 	default:
 		return fmt.Errorf("tipo de acesso a arquivos desconhecido: %q", kind)
 	}
+}
+
+// Platform devolve o SO deste processo ("linux" ou "windows") — usado
+// pelo frontend para filtrar o catálogo do marketplace (Fase 12,
+// ROADMAP.md) pela plataforma do asset (store.Platform no servidor),
+// mostrando só o que este dispositivo consegue de fato instalar.
+func (s *VPNService) Platform() string {
+	return runtime.GOOS
+}
+
+// MarketplaceLoginArgs são os dados inseridos na tela de login do
+// marketplace (Fase 12) — separado do enrollment de dispositivo
+// (EnrollArgs): aquele registra o dispositivo na VPN via código de
+// convite, sem JWT; este autentica um USUÁRIO do painel para poder
+// listar/baixar do catálogo (que exige JWT, ver PLAN.md §6.8).
+type MarketplaceLoginArgs struct {
+	ServerBaseURL string `json:"serverBaseURL"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+}
+
+// MarketplaceSession é o estado de autenticação do marketplace exibido
+// pelo frontend — nunca inclui o token em si (fica só em memória dentro
+// de internal/marketplaceclient, nunca serializado pra fora do processo
+// Go, nem para o próprio frontend).
+type MarketplaceSession struct {
+	LoggedIn bool   `json:"loggedIn"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+}
+
+// MarketplaceAsset espelha marketplaceclient.Asset em camelCase (padrão
+// JSON deste arquivo, ver StatusView/EnrollArgs) — o pacote interno usa
+// snake_case por espelhar o servidor diretamente.
+type MarketplaceAsset struct {
+	ID            uint   `json:"id"`
+	Platform      string `json:"platform"`
+	Arch          string `json:"arch"`
+	Filename      string `json:"filename"`
+	SHA256        string `json:"sha256"`
+	SizeBytes     int64  `json:"sizeBytes"`
+	DownloadCount int64  `json:"downloadCount"`
+}
+
+type MarketplaceVersion struct {
+	ID        uint               `json:"id"`
+	Version   string             `json:"version"`
+	Channel   string             `json:"channel"`
+	Changelog string             `json:"changelog"`
+	Assets    []MarketplaceAsset `json:"assets"`
+}
+
+type MarketplaceApp struct {
+	ID          uint                 `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description"`
+	IconURL     string               `json:"iconURL"`
+	Versions    []MarketplaceVersion `json:"versions"`
+}
+
+// MarketplaceLogin autentica no painel (POST /api/auth/login) e guarda o
+// JWT em memória (nunca em disco, ver comentário em
+// internal/marketplaceclient) para as chamadas seguintes de
+// ListMarketplaceApps/DownloadMarketplaceAsset.
+func (s *VPNService) MarketplaceLogin(args MarketplaceLoginArgs) (MarketplaceSession, error) {
+	session, err := marketplace.Login(context.Background(), args.ServerBaseURL, args.Username, args.Password)
+	if err != nil {
+		return MarketplaceSession{}, err
+	}
+	return MarketplaceSession{LoggedIn: session.LoggedIn, Username: session.Username, Role: session.Role}, nil
+}
+
+// MarketplaceLogout descarta a sessão em memória — a próxima
+// ListMarketplaceApps volta a pedir login.
+func (s *VPNService) MarketplaceLogout() {
+	marketplace.Logout()
+}
+
+// MarketplaceSessionStatus consulta o estado de login atual sem chamar o
+// servidor — usado pelo frontend ao abrir a aba "Apps" para decidir entre
+// mostrar a tela de login ou já carregar o catálogo.
+func (s *VPNService) MarketplaceSessionStatus() MarketplaceSession {
+	session := marketplace.Session()
+	return MarketplaceSession{LoggedIn: session.LoggedIn, Username: session.Username, Role: session.Role}
+}
+
+// ListMarketplaceApps busca o catálogo (já filtrado por ACL pelo
+// servidor, ver handleListMarketplaceApps). Qualquer erro aqui — sessão
+// expirada ou falha de rede — o frontend trata voltando pra tela de
+// login com a mensagem de erro visível, em vez de tentar distinguir os
+// dois casos por conteúdo da mensagem (ver ROADMAP.md Fase 12).
+func (s *VPNService) ListMarketplaceApps() ([]MarketplaceApp, error) {
+	apps, err := marketplace.ListApps(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]MarketplaceApp, 0, len(apps))
+	for _, app := range apps {
+		versions := make([]MarketplaceVersion, 0, len(app.Versions))
+		for _, v := range app.Versions {
+			assets := make([]MarketplaceAsset, 0, len(v.Assets))
+			for _, a := range v.Assets {
+				assets = append(assets, MarketplaceAsset{
+					ID:            a.ID,
+					Platform:      a.Platform,
+					Arch:          a.Arch,
+					Filename:      a.Filename,
+					SHA256:        a.SHA256,
+					SizeBytes:     a.SizeBytes,
+					DownloadCount: a.DownloadCount,
+				})
+			}
+			versions = append(versions, MarketplaceVersion{
+				ID:        v.ID,
+				Version:   v.Version,
+				Channel:   v.Channel,
+				Changelog: v.Changelog,
+				Assets:    assets,
+			})
+		}
+		result = append(result, MarketplaceApp{
+			ID:          app.ID,
+			Name:        app.Name,
+			Description: app.Description,
+			IconURL:     app.IconURL,
+			Versions:    versions,
+		})
+	}
+	return result, nil
+}
+
+// MarketplaceDownloadArgs identifica o asset e traz os metadados já
+// conhecidos pelo frontend (vindos de ListMarketplaceApps) necessários
+// pra conferir a integridade do download — ver
+// marketplaceclient.DownloadAsset.
+type MarketplaceDownloadArgs struct {
+	AssetID  uint   `json:"assetId"`
+	Filename string `json:"filename"`
+	SHA256   string `json:"sha256"`
+}
+
+// MarketplaceDownloadResult é o resultado de um download concluído com
+// sucesso — Path é absoluto, pronto para OpenLocalPath.
+type MarketplaceDownloadResult struct {
+	Path      string `json:"path"`
+	SizeBytes int64  `json:"sizeBytes"`
+}
+
+// DownloadMarketplaceAsset baixa o asset para a pasta de Downloads do
+// usuário, verificando o SHA-256 antes de devolver sucesso (ver
+// marketplaceclient.DownloadAsset — nunca deixa um arquivo com hash
+// incompatível na pasta do usuário). Chamada síncrona (sem progresso
+// incremental): assets grandes (até 2 GiB, ver PLAN.md §6.8) podem levar
+// algum tempo — o frontend mostra um spinner enquanto aguarda, mesmo
+// padrão usado para Enroll/Connect.
+func (s *VPNService) DownloadMarketplaceAsset(args MarketplaceDownloadArgs) (MarketplaceDownloadResult, error) {
+	result, err := marketplace.DownloadAsset(context.Background(), args.AssetID, args.Filename, args.SHA256)
+	if err != nil {
+		return MarketplaceDownloadResult{}, err
+	}
+	return MarketplaceDownloadResult{Path: result.Path, SizeBytes: result.SizeBytes}, nil
+}
+
+// OpenLocalPath abre um arquivo ou pasta local (ex.: um instalador do
+// marketplace já baixado) no aplicativo/gerenciador de arquivos padrão do
+// SO. Diferente de OpenServerFiles (recursos do servidor, só acessíveis
+// com o túnel ativo), aqui o caminho é sempre local — nunca depende da
+// VPN.
+func (s *VPNService) OpenLocalPath(path string) error {
+	return opener.OpenPath(path)
+}
+
+// OpenDownloadsFolder abre a pasta de Downloads do usuário (mesmo destino
+// usado por DownloadMarketplaceAsset) — o botão "abrir pasta" do
+// ROADMAP.md Fase 12, para quando o usuário quer ver o arquivo baixado no
+// gerenciador de arquivos em vez de abri-lo diretamente.
+func (s *VPNService) OpenDownloadsFolder() error {
+	return opener.OpenPath(marketplaceclient.DownloadsDir())
 }
 
 // GetPreferences consulta as preferências atuais (kill switch,

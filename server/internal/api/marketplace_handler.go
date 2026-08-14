@@ -157,6 +157,96 @@ func (a *App) handleListMarketplaceApps(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// marketplaceStatsTopAssetsLimit é quantos assets aparecem no ranking do
+// dashboard (Fase 12 — ROADMAP.md, "estatísticas de download no dashboard
+// admin") — suficiente pra dar uma visão geral do que mais baixa sem virar
+// uma segunda listagem completa (essa já existe em GET /marketplace/apps).
+const marketplaceStatsTopAssetsLimit = 10
+
+type marketplaceAssetStat struct {
+	AssetID       uint   `json:"asset_id"`
+	AppID         uint   `json:"app_id"`
+	AppName       string `json:"app_name"`
+	Version       string `json:"version"`
+	Platform      string `json:"platform"`
+	Arch          string `json:"arch"`
+	Filename      string `json:"filename"`
+	DownloadCount int64  `json:"download_count"`
+}
+
+type marketplaceStatsResponse struct {
+	TotalApps      int64 `json:"total_apps"`
+	TotalVersions  int64 `json:"total_versions"`
+	TotalAssets    int64 `json:"total_assets"`
+	TotalDownloads int64 `json:"total_downloads"`
+	// TotalStorageBytes soma só blobs distintos (por storage_path) — dois
+	// AppAsset com o mesmo conteúdo (dedupe do internal/marketplace)
+	// contam uma vez só, senão o número não bateria com o espaço
+	// realmente ocupado em disco.
+	TotalStorageBytes int64                  `json:"total_storage_bytes"`
+	TopAssets         []marketplaceAssetStat `json:"top_assets"`
+}
+
+// handleMarketplaceStats agrega métricas do catálogo inteiro pro dashboard
+// admin (Fase 12 — ROADMAP.md). Fica no grupo viewerUp (mesmo nível de
+// leitura do resto do dashboard/audit, ver server.go e PLAN.md §6.7), não
+// authed nem adminOnly: é uma visão gerencial, não algo que member precise
+// pra navegar o catálogo, nem uma ação de escrita.
+// GET /api/marketplace/stats
+func (a *App) handleMarketplaceStats(c *gin.Context) {
+	var resp marketplaceStatsResponse
+
+	if err := a.Store.DB.Model(&store.App{}).Count(&resp.TotalApps).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if err := a.Store.DB.Model(&store.AppVersion{}).Count(&resp.TotalVersions).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if err := a.Store.DB.Model(&store.AppAsset{}).Count(&resp.TotalAssets).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if err := a.Store.DB.Model(&store.AppAsset{}).
+		Select("COALESCE(SUM(download_count), 0)").
+		Scan(&resp.TotalDownloads).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if err := a.Store.DB.Raw(`
+		SELECT COALESCE(SUM(size_bytes), 0) FROM (
+			SELECT size_bytes FROM app_assets GROUP BY storage_path
+		)
+	`).Scan(&resp.TotalStorageBytes).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+
+	var topAssets []marketplaceAssetStat
+	err := a.Store.DB.Table("app_assets").
+		Select(`app_assets.id AS asset_id, apps.id AS app_id, apps.name AS app_name,
+			app_versions.version AS version, app_assets.platform AS platform,
+			app_assets.arch AS arch, app_assets.filename AS filename,
+			app_assets.download_count AS download_count`).
+		Joins("JOIN app_versions ON app_versions.id = app_assets.app_version_id").
+		Joins("JOIN apps ON apps.id = app_versions.app_id").
+		Where("app_assets.download_count > 0").
+		Order("app_assets.download_count DESC").
+		Limit(marketplaceStatsTopAssetsLimit).
+		Find(&topAssets).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	resp.TopAssets = topAssets
+	if resp.TopAssets == nil {
+		resp.TopAssets = []marketplaceAssetStat{}
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 type createMarketplaceAppRequest struct {
 	Name        string              `json:"name" binding:"required"`
 	Description string              `json:"description"`

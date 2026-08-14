@@ -271,6 +271,29 @@ export interface MarketplaceApp {
   access_user_ids?: number[]
 }
 
+// Espelha marketplaceAssetStat/marketplaceStatsResponse
+// (server/internal/api/marketplace_handler.go) — Fase 12, estatísticas
+// agregadas do catálogo pro dashboard admin (ver ROADMAP.md).
+export interface MarketplaceAssetStat {
+  asset_id: number
+  app_id: number
+  app_name: string
+  version: string
+  platform: MarketplacePlatform
+  arch: string
+  filename: string
+  download_count: number
+}
+
+export interface MarketplaceStats {
+  total_apps: number
+  total_versions: number
+  total_assets: number
+  total_downloads: number
+  total_storage_bytes: number
+  top_assets: MarketplaceAssetStat[]
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', {
@@ -373,4 +396,5 @@ export const api = {
   deleteMarketplaceAsset: (id: number) => request<void>(`/marketplace/assets/${id}`, { method: 'DELETE' }),
   uploadMarketplaceAsset,
   downloadMarketplaceAsset,
+  marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 }

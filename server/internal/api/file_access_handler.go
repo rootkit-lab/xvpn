@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -36,34 +38,87 @@ type fileAccessResponse struct {
 	SSHPublicKey string `json:"ssh_public_key"`
 }
 
-// validSSHPublicKey faz checagem superficial de formato — não é
-// validação criptográfica (isso o sshd faz no login), só rejeita lixo
-// óbvio. Aceita múltiplas chaves (uma por linha), comentários (#) e
-// linhas em branco. Vazio é válido (SFTP fica bloqueado até colar uma).
+// acceptedSSHKeyTypes são os tipos de chave que o painel aceita colar e
+// que o cliente pode auto-registrar. Lista fechada de propósito: um tipo
+// desconhecido aqui é mais provavelmente lixo colado por engano do que uma
+// chave legítima que o sshd aceitaria.
+var acceptedSSHKeyTypes = map[string]bool{
+	"ssh-rsa": true, "ssh-ed25519": true,
+	"ecdsa-sha2-nistp256": true, "ecdsa-sha2-nistp384": true, "ecdsa-sha2-nistp521": true,
+	"sk-ssh-ed25519@openssh.com": true, "sk-ecdsa-sha2-nistp256@openssh.com": true,
+}
+
+// validSSHKeyLine faz a checagem superficial de uma única linha de
+// authorized_keys — não é validação criptográfica (isso o sshd faz no
+// login), só rejeita lixo óbvio.
+func validSSHKeyLine(line string) bool {
+	fields := strings.Fields(strings.TrimSpace(line))
+	if len(fields) < 2 || !acceptedSSHKeyTypes[fields[0]] {
+		return false
+	}
+	return len(fields[1]) >= 10 && len(fields[1]) <= 8192
+}
+
+// validSSHPublicKey valida o conteúdo do textarea do painel, que pode
+// trazer várias chaves (uma por linha), comentários (#) e linhas em
+// branco. Vazio é válido: desde a Fase 14 o SFTP não depende mais dessa
+// chave (as dos dispositivos entram na união), então "nenhuma chave
+// manual" é o estado normal, não um estado incompleto.
+//
+// Além do tamanho de cada chave, limita a QUANTIDADE de linhas: sem esse
+// teto, o campo aceitaria um arquivo arbitrariamente grande, que depois
+// ainda seria unido às chaves dos dispositivos.
 func validSSHPublicKey(key string) bool {
 	key = strings.TrimSpace(key)
 	if key == "" {
 		return true
 	}
-	accepted := map[string]bool{
-		"ssh-rsa": true, "ssh-ed25519": true,
-		"ecdsa-sha2-nistp256": true, "ecdsa-sha2-nistp384": true, "ecdsa-sha2-nistp521": true,
-		"sk-ssh-ed25519@openssh.com": true, "sk-ecdsa-sha2-nistp256@openssh.com": true,
-	}
+	count := 0
 	for _, line := range strings.Split(key, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) < 2 || !accepted[fields[0]] {
+		if !validSSHKeyLine(line) {
 			return false
 		}
-		if len(fields[1]) < 10 || len(fields[1]) > 8192 {
+		count++
+		if count > maxAuthorizedKeyLines {
 			return false
 		}
 	}
 	return true
+}
+
+// errNotSingleSSHKey é devolvido quando POST /api/me/ssh-key recebe algo
+// que não é exatamente uma chave.
+var errNotSingleSSHKey = errors.New("envie exatamente uma chave pública SSH")
+
+// normalizeSingleSSHPublicKey valida e normaliza a chave de um
+// dispositivo: exatamente uma linha, sem comentários de arquivo, sem
+// múltiplas chaves. Diferente do textarea do painel — ali o admin cola um
+// pedaço de authorized_keys; aqui é uma máquina reportando a própria
+// chave, e mais de uma linha significa que algo está errado no cliente,
+// não que o usuário quis autorizar várias.
+func normalizeSingleSSHPublicKey(raw string) (string, error) {
+	var found string
+	for _, line := range strings.Split(strings.TrimSpace(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if found != "" {
+			return "", errNotSingleSSHKey
+		}
+		found = line
+	}
+	if found == "" {
+		return "", errNotSingleSSHKey
+	}
+	if !validSSHKeyLine(found) {
+		return "", fmt.Errorf("chave pública SSH malformada")
+	}
+	return found, nil
 }
 
 // provisionerErrMsg extrai uma mensagem curta do erro do provisionador

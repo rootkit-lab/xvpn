@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -119,7 +120,8 @@ type trayHandles struct {
 	menu            *application.Menu
 	connectItem     *application.MenuItem
 	disconnectItem  *application.MenuItem
-	networkItem     *application.MenuItem
+	homeFilesItem   *application.MenuItem
+	sharedFilesItem *application.MenuItem
 	filebrowserItem *application.MenuItem
 }
 
@@ -157,11 +159,19 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 		}()
 	})
 	menu.AddSeparator()
-	networkItem := menu.Add("Unidade de rede").OnClick(func(_ *application.Context) {
+	homeFilesItem := menu.Add("Meus arquivos").OnClick(func(_ *application.Context) {
 		go func() {
 			svc := &VPNService{}
-			if err := svc.OpenServerFiles("smb"); err != nil {
-				slog.Warn("tray open smb failed", "err", err)
+			if err := svc.OpenServerFiles("smb-home"); err != nil {
+				slog.Warn("tray open smb home failed", "err", err)
+			}
+		}()
+	})
+	sharedFilesItem := menu.Add("Compartilhado").OnClick(func(_ *application.Context) {
+		go func() {
+			svc := &VPNService{}
+			if err := svc.OpenServerFiles("smb-shared"); err != nil {
+				slog.Warn("tray open smb shared failed", "err", err)
 			}
 		}()
 	})
@@ -183,7 +193,8 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 	// desconectado/desabilitado até a primeira rodada de monitorTray.
 	connectItem.SetEnabled(true)
 	disconnectItem.SetEnabled(false)
-	networkItem.SetEnabled(false)
+	homeFilesItem.SetEnabled(false)
+	sharedFilesItem.SetEnabled(false)
 	filebrowserItem.SetEnabled(false)
 	menu.Update()
 
@@ -192,7 +203,8 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 		menu:            menu,
 		connectItem:     connectItem,
 		disconnectItem:  disconnectItem,
-		networkItem:     networkItem,
+		homeFilesItem:   homeFilesItem,
+		sharedFilesItem: sharedFilesItem,
 		filebrowserItem: filebrowserItem,
 	}
 }
@@ -212,15 +224,49 @@ func monitorTray(h *trayHandles) {
 	svc := &VPNService{}
 	ticker := time.NewTicker(trayMonitorInterval)
 	defer ticker.Stop()
+	wasConnected := false
 	for {
 		status, err := svc.Status()
 		if err != nil {
-			applyTrayStatus(h, StatusView{})
-		} else {
-			applyTrayStatus(h, status)
+			status = StatusView{}
 		}
+		applyTrayStatus(h, status)
+		if status.Connected && !wasConnected {
+			go registerSSHKeyInBackground()
+		}
+		wasConnected = status.Connected
 		<-ticker.C
 	}
+}
+
+// sshKeyRegistered marca que a chave deste dispositivo já chegou ao
+// servidor nesta sessão — só em caso de sucesso, para uma falha
+// passageira (servidor reiniciando, túnel recém-subido) ser retentada na
+// próxima vez que o túnel subir, em vez de a cada poll.
+var sshKeyRegistered atomic.Bool
+
+// registerSSHKeyInBackground é o que faz o critério de saída da Fase 14.2
+// valer: quando o admin liga o SFTP de alguém, a chave daquela pessoa já
+// está no servidor desde a primeira vez que ela abriu o XVPN, sem ninguém
+// ter pedido nada a ela. Por isso é silencioso — é conveniência de fundo,
+// não uma ação que o usuário disparou, e um popup aqui seria ruído sobre
+// algo que ele não sabe o que é.
+func registerSSHKeyInBackground() {
+	if sshKeyRegistered.Load() {
+		return
+	}
+	svc := &VPNService{}
+	result, err := svc.RegisterSSHKey()
+	if err != nil {
+		slog.Warn("ssh key auto-register failed", "err", err)
+		return
+	}
+	sshKeyRegistered.Store(true)
+	slog.Info("ssh key registered",
+		"fingerprint", result.Fingerprint,
+		"changed", result.Changed,
+		"sftp_enabled", result.SFTPEnabled,
+	)
 }
 
 func applyTrayStatus(h *trayHandles, status StatusView) {
@@ -252,7 +298,11 @@ func applyTrayStatus(h *trayHandles, status StatusView) {
 	h.tray.SetTooltip(tooltip)
 	h.connectItem.SetEnabled(!status.Connected)
 	h.disconnectItem.SetEnabled(status.Connected)
-	h.networkItem.SetEnabled(status.Connected)
+	// Os dois itens de Samba dependem também do toggle do painel: sem ele
+	// o compartilhamento nem existe do outro lado (ver ROADMAP.md Fase
+	// 14). O FileBrowser não depende disso — é acesso web pelo túnel.
+	h.homeFilesItem.SetEnabled(status.Connected && status.SambaEnabled)
+	h.sharedFilesItem.SetEnabled(status.Connected && status.SambaEnabled)
 	h.filebrowserItem.SetEnabled(status.Connected)
 	h.menu.Update()
 }

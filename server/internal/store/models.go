@@ -82,10 +82,13 @@ type User struct {
 	// removida quando ambos voltam a false (ver handler de disable).
 	SFTPEnabled  bool `gorm:"not null;default:false"`
 	SambaEnabled bool `gorm:"not null;default:false"`
-	// SSHPublicKey é a chave pública SSH autorizada a entrar via SFTP
-	// (chave pública, nunca privada — mesmo modelo do WireGuard). Vazia
-	// desabilita o login SFTP mesmo com SFTPEnabled=true: o sshd Match
-	// User só libera acesso se houver uma chave registrada.
+	// SSHPublicKey é a chave pública SSH que o admin cola à mão no painel
+	// (chave pública, nunca privada — mesmo modelo do WireGuard). A partir
+	// da Fase 14 ela deixou de ser a única fonte do authorized_keys e
+	// passou a ser o *escape hatch*: o arquivo efetivo é a união dela com
+	// as chaves auto-registradas pelos dispositivos (Device.SSHPublicKey),
+	// para cobrir celular ou máquina sem o cliente XVPN instalado. Ver
+	// renderAuthorizedKeys em internal/api e PLAN.md §6.9.
 	SSHPublicKey string `gorm:"type:text;default:''"`
 
 	Devices      []Device      `gorm:"foreignKey:UserID"`
@@ -115,9 +118,20 @@ type Device struct {
 	Name      string `gorm:"not null"`
 	PublicKey string `gorm:"uniqueIndex;not null"`
 	// AllowedIP é o /32 alocado a este peer dentro da sub-rede WireGuard,
-	// ex.: "10.66.66.5/32". Único por design (uma IP, um device).
+	// ex.: "10.66.66.5/32". Único por design (uma IP, um device) — é o que
+	// permite resolver a identidade do dispositivo pelo IP de origem dentro
+	// do túnel, sem JWT (Fase 14, ver internal/api/tunnel_identity.go).
 	AllowedIP string `gorm:"uniqueIndex;not null"`
 	CreatedAt time.Time
+
+	// SSHPublicKey é a chave pública SSH que este dispositivo registrou
+	// sozinho ao conectar (Fase 14 — PLAN.md §6.9). Por dispositivo, e não
+	// por usuário, para que revogar um dispositivo revogue exatamente a
+	// chave dele e mais nada. A privada correspondente nunca sai da
+	// máquina do usuário (invariante 1 do AGENTS.md), igual à do
+	// WireGuard. Vazia = este dispositivo nunca registrou chave.
+	SSHPublicKey    string `gorm:"type:text;default:''"`
+	SSHKeyUpdatedAt *time.Time
 
 	User User `gorm:"foreignKey:UserID"`
 }

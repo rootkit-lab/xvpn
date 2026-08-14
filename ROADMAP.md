@@ -481,16 +481,16 @@ Corrige os dois bugs reportados no botão "Unidade de rede" do cliente desktop. 
 
 ### 14.1 Identidade do cliente e shares pessoais
 
-- [ ] `GET /api/me` resolvendo `c.RemoteIP()` (**nunca** `c.ClientIP()`) contra `Device.AllowedIP` → `{username, samba_enabled, sftp_enabled}`; sem JWT, mas só aceitando origem em `10.66.66.0/24`
-- [ ] Middleware único `RequireTunnelOrigin` aplicado às duas rotas novas, no mesmo `gin.Engine` já existente — sem segunda árvore de rotas (ver justificativa acima)
-- [ ] Listener adicional em `10.66.66.1:8080` (`cfg.HTTPAddr` hoje sobe um `http.Server` só); registrar em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops)
-- [ ] Teste de regressão: requisição com `X-Forwarded-For: 10.66.66.2` forjado chegando pelo caminho do Nginx (`RemoteAddr = 127.0.0.1`) tem que receber 403, não 200
-- [ ] `username` no `enrollResponse` + bump de `APIVersion` (caminho rápido para novos enrollments)
-- [ ] Cliente: `DeviceState.Username`, preenchido no enrollment e atualizado pelo helper via `/api/me` a cada conexão
-- [ ] `StatusResponse.Username` + `SambaEnabled` no helper, propagados até a GUI
-- [ ] `OpenServerFiles` aceita `"smb-home"` e `"smb-shared"`; revalida a conexão antes de abrir (hoje confia só no estado da UI)
-- [ ] UI: botões "Meus arquivos" e "Compartilhado" na `main-page` e no tray, desabilitados com explicação quando `samba_enabled=false`
-- [ ] **(pré-requisito, PR separada)** Corrigir o `smb.conf` nos **dois** lados — repositório e produção — e redeployar; ver análise abaixo
+- [x] `GET /api/me` resolvendo `c.RemoteIP()` (**nunca** `c.ClientIP()`) contra `Device.AllowedIP` → `{username, samba_enabled, sftp_enabled}`; sem JWT, mas só aceitando origem em `10.66.66.0/24`
+- [x] Middleware único `RequireTunnelOrigin` aplicado às duas rotas novas, no mesmo `gin.Engine` já existente — sem segunda árvore de rotas (ver justificativa acima)
+- [x] Listener adicional em `10.66.66.1:8080` (`cfg.HTTPAddr` hoje sobe um `http.Server` só); registrar em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops)
+- [x] Teste de regressão: requisição com `X-Forwarded-For: 10.66.66.2` forjado chegando pelo caminho do Nginx (`RemoteAddr = 127.0.0.1`) tem que receber 403, não 200
+- [x] `username` no `enrollResponse` + bump de `APIVersion` (caminho rápido para novos enrollments)
+- [x] Cliente: `DeviceState.Username`, preenchido no enrollment e atualizado pelo helper via `/api/me` a cada conexão
+- [x] `StatusResponse.Username` + `SambaEnabled` no helper, propagados até a GUI
+- [x] `OpenServerFiles` aceita `"smb-home"` e `"smb-shared"`; revalida a conexão antes de abrir (hoje confia só no estado da UI)
+- [x] UI: botões "Meus arquivos" e "Compartilhado" na `main-page` e no tray, desabilitados com explicação quando `samba_enabled=false`
+- [x] **(pré-requisito, PR separada)** Corrigir o `smb.conf` nos **dois** lados — repositório e produção — e redeployar; ver análise abaixo
 - [ ] Limpar as contas Unix órfãs da produção (`smbtest1`, `xvpntest1`, `xvpntest2`) **antes** de validar a fase
 - [ ] Atualizar `shares-page`, a skill `samba-user-ops`, `PLAN.md`, `SECURITY.md` e o `CHANGELOG.md` raiz
 
@@ -529,16 +529,16 @@ sequenceDiagram
     API->>Prov: reescreve authorized_keys do usuário
 ```
 
-- [ ] `Device.SSHPublicKey` + `SSHKeyUpdatedAt` no model — a chave passa a ser **por dispositivo**, não por usuário: cada máquina tem a sua e revogar um device revoga só a dele
-- [ ] `POST /api/me/ssh-key`, restrito à origem `10.66.66.0/24` pelo mesmo middleware do `GET /api/me`, idempotente (mesma chave = no-op, sem chamar o provisionador nem poluir o audit log)
-- [ ] `authorized_keys` do usuário passa a ser a **união** das chaves dos dispositivos dele com `User.SSHPublicKey` (a colada à mão, que continua existindo como escape hatch para celular/máquina sem XVPN)
-- [ ] Chave registrada mesmo com SFTP desligado — fica guardada e o acesso passa a valer no instante em que o admin liga o toggle, sem uma segunda rodada de conversa com o usuário
-- [ ] Revogar um dispositivo remove a chave dele do `authorized_keys` (re-render), fechando o ciclo
-- [ ] Cliente: gerar `~/.ssh/xvpn_ed25519` (0600) no primeiro start, **no processo GUI sem privilégio** — a chave precisa ser legível pelo cliente SFTP do próprio usuário, então não pode viver junto com a chave WireGuard (que é root-only). A privada nunca sai da máquina, igual ao WireGuard
-- [ ] Cliente: entrada `Host xvpn-files` no `~/.ssh/config` apontando para a chave e o endpoint, para `sftp xvpn-files` funcionar sem argumento nenhum
-- [ ] Painel: parar de exigir a chave para ligar SFTP; listar as chaves auto-registradas em modo leitura (dispositivo + fingerprint + data) e manter o textarea só para chaves extras
-- [ ] Audit log `sshkey.autoregister` com `device_id` e fingerprint — **nunca a chave inteira**
-- [ ] Acrescentar teto de **quantidade de linhas** ao `validSSHPublicKey` — hoje ele já limita o tamanho de cada chave (10..8192 chars) e aceita várias linhas, mas não limita quantas (`server/internal/api/file_access_handler.go:43-67`)
+- [x] `Device.SSHPublicKey` + `SSHKeyUpdatedAt` no model — a chave passa a ser **por dispositivo**, não por usuário: cada máquina tem a sua e revogar um device revoga só a dele
+- [x] `POST /api/me/ssh-key`, restrito à origem `10.66.66.0/24` pelo mesmo middleware do `GET /api/me`, idempotente (mesma chave = no-op, sem chamar o provisionador nem poluir o audit log)
+- [x] `authorized_keys` do usuário passa a ser a **união** das chaves dos dispositivos dele com `User.SSHPublicKey` (a colada à mão, que continua existindo como escape hatch para celular/máquina sem XVPN)
+- [x] Chave registrada mesmo com SFTP desligado — fica guardada e o acesso passa a valer no instante em que o admin liga o toggle, sem uma segunda rodada de conversa com o usuário
+- [x] Revogar um dispositivo remove a chave dele do `authorized_keys` (re-render), fechando o ciclo
+- [x] Cliente: gerar `~/.ssh/xvpn_ed25519` (0600) no primeiro start, **no processo GUI sem privilégio** — a chave precisa ser legível pelo cliente SFTP do próprio usuário, então não pode viver junto com a chave WireGuard (que é root-only). A privada nunca sai da máquina, igual ao WireGuard
+- [x] Cliente: entrada `Host xvpn-files` no `~/.ssh/config` apontando para a chave e o endpoint, para `sftp xvpn-files` funcionar sem argumento nenhum
+- [x] Painel: parar de exigir a chave para ligar SFTP; listar as chaves auto-registradas em modo leitura (dispositivo + fingerprint + data) e manter o textarea só para chaves extras
+- [x] Audit log `sshkey.autoregister` com `device_id` e fingerprint — **nunca a chave inteira**
+- [x] Acrescentar teto de **quantidade de linhas** ao `validSSHPublicKey` — hoje ele já limita o tamanho de cada chave (10..8192 chars) e aceita várias linhas, mas não limita quantas (`server/internal/api/file_access_handler.go:43-67`)
 
 **Por que isso não afrouxa a segurança:** o endpoint só responde dentro do túnel (`RemoteIP()` em `10.66.66.0/24` — ver 14.1), e o IP de origem já identifica o device de forma não falsificável. Um peer só consegue registrar chave para si mesmo, e a chave só dá SFTP ao diretório daquele mesmo usuário — não há caminho de escalação.
 
@@ -552,10 +552,10 @@ sequenceDiagram
 
 **Riscos de retrabalho — cada um vira item de checklist, não nota de rodapé:**
 
-- [ ] **Função única de re-render do `authorized_keys`.** `revokeDevice` (`server/internal/api/devices_handler.go:282-303`) não fala com o provisionador hoje: só remove o peer do WireGuard e a linha do banco. São **três** caminhos que removem device — `DELETE /api/devices/:id`, `DELETE /api/me/devices/:id` (ambos via `revokeDevice`) e `handleDeleteUser`. Se a re-renderização entrar só em um deles, sobra chave viva de device revogado.
-- [ ] **`reconcileUser` precisa recomputar a união.** Hoje ele chama `EnableSFTP(u.Username, u.SSHPublicKey)` (`server/internal/api/reconcile.go:62`) — ou seja, um restart do serviço reescreveria o `authorized_keys` só com a chave manual, derrubando o SFTP de todos os dispositivos auto-registrados. É um bug que só aparece no próximo boot, então não sai em teste manual.
-- [ ] **Registrar chave com SFTP desligado não pode reusar `EnableSFTP`.** Ele escreve o drop-in do sshd e recarrega o serviço junto (`server/internal/provision/ops.go:139-165`), o que concederia acesso a quem o admin não liberou. Nesse caminho, gravação **só no banco**.
-- [ ] **Decidir e testar o que o disable faz com a união.** O caminho de disable zera `User.SSHPublicKey` hoje (`file_access_handler_apply.go`, linhas 90 e 110). No modelo de união isso passa a significar "apaga a manual, mantém as dos devices" — é razoável, mas precisa ser deliberado e coberto por teste, não herdado por acidente.
+- [x] **Função única de re-render do `authorized_keys`.** `revokeDevice` (`server/internal/api/devices_handler.go:282-303`) não fala com o provisionador hoje: só remove o peer do WireGuard e a linha do banco. São **três** caminhos que removem device — `DELETE /api/devices/:id`, `DELETE /api/me/devices/:id` (ambos via `revokeDevice`) e `handleDeleteUser`. Se a re-renderização entrar só em um deles, sobra chave viva de device revogado.
+- [x] **`reconcileUser` precisa recomputar a união.** Hoje ele chama `EnableSFTP(u.Username, u.SSHPublicKey)` (`server/internal/api/reconcile.go:62`) — ou seja, um restart do serviço reescreveria o `authorized_keys` só com a chave manual, derrubando o SFTP de todos os dispositivos auto-registrados. É um bug que só aparece no próximo boot, então não sai em teste manual.
+- [x] **Registrar chave com SFTP desligado não pode reusar `EnableSFTP`.** Ele escreve o drop-in do sshd e recarrega o serviço junto (`server/internal/provision/ops.go:139-165`), o que concederia acesso a quem o admin não liberou. Nesse caminho, gravação **só no banco**.
+- [x] **Decidir e testar o que o disable faz com a união.** O caminho de disable zera `User.SSHPublicKey` hoje (`file_access_handler_apply.go`, linhas 90 e 110). No modelo de união isso passa a significar "apaga a manual, mantém as dos devices" — é razoável, mas precisa ser deliberado e coberto por teste, não herdado por acidente.
 
 **Critério de saída:** com o túnel ativo, "Meus arquivos" abre `home-<usuário-do-painel>` sem pedir credencial e "Compartilhado" abre `[shared]`; um usuário sem Samba habilitado vê o botão desabilitado com a razão, não um erro de mount; e o admin liga SFTP de alguém **sem pedir nada ao usuário** — a chave já chegou sozinha quando aquela pessoa abriu o XVPN.
 
@@ -567,7 +567,7 @@ Itens que já estavam sinalizados como backlog explícito nas fases anteriores �
 
 - [ ] Quotas de disco por usuário, expostas no painel — backlog explícito da Fase 13
 - [ ] Rotação de chave SSH **no `/portal`, para o próprio usuário** — reescopado: pelo caminho do admin isso **já funciona** hoje (o painel tem o textarea, e `file_access_handler_apply.go:152-162` reaplica o `authorized_keys` quando a chave muda), e a rotação dos dispositivos com XVPN deixa de existir como trabalho com a Fase 14.2. O que sobra é só expor no portal o autosserviço da chave manual — se não valer o esforço para 1 usuário, fechar o item em vez de arrastá-lo
-- [ ] MTU editável em Preferências/Diagnóstico do cliente (hoje só no enrollment) — [`PLAN.md` §7.2](./PLAN.md#72-funcionalidades-do-cliente) e achado da Fase 1. **Deve pegar carona no PR da Fase 14**: toca os mesmos arquivos (`internal/helper/helper.go`, `settings-page.tsx`), então virar PR próprio só cria conflito com a 14 sem entregar nada antes
+- [x] MTU editável em Preferências/Diagnóstico do cliente (hoje só no enrollment) — [`PLAN.md` §7.2](./PLAN.md#72-funcionalidades-do-cliente) e achado da Fase 1. **Pegou carona no PR da Fase 14**: toca os mesmos arquivos (`internal/helper/helper.go`, `settings-page.tsx`)
 - [ ] Edição de Configurações no painel (hoje somente leitura)
 - [ ] Vitest no painel web — dívida assumida na Fase 9
 - [ ] Validação E2E em Windows real + helper como Windows Service — [backlog legado](#backlog-legado-mvp--fora-das-fases-9). **Investigar antes de reservar máquina** (ver abaixo)
@@ -583,8 +583,8 @@ Reorganiza o monorepo em torno de um diretório `apps/` de produtos distribuíve
 
 ### 16.1 Estrutura
 
-- [ ] `client/` → `apps/xvpn-client/`, **mantendo o module path `github.com/rootkit-lab/xvpn/client`** — ver decisão abaixo
-- [ ] Ajustar o que assume que o cliente é filho direto da raiz: `build/scripts/resolve-version.sh`, `.github/workflows/ci.yml`, `release-please-config.json` + manifest, `.gitignore`, rules do Cursor, links relativos dos READMEs e `download-page.tsx`
+- [x] `client/` → `apps/xvpn-client/`, **mantendo o module path `github.com/rootkit-lab/xvpn/client`** — ver decisão abaixo
+- [x] Ajustar o que assume que o cliente é filho direto da raiz: `build/scripts/resolve-version.sh`, `.github/workflows/ci.yml`, `release-please-config.json` + manifest, `.gitignore`, rules do Cursor, links relativos dos READMEs e `download-page.tsx`
 
 `server/` e `shared/` continuam na raiz: são a plataforma, não itens do catálogo.
 

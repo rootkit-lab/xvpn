@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 )
@@ -13,6 +14,22 @@ type Config struct {
 	// HTTPAddr é o endereço/porta em que a API escuta. Fica atrás do Nginx
 	// (ver PLAN.md §5) e nunca deve ser exposto diretamente na internet.
 	HTTPAddr string
+
+	// TunnelHTTPAddr é um listener ADICIONAL, servindo o mesmo router, na
+	// interface wg0 (produção: "10.66.66.1:8080" — mesma porta, outra
+	// interface; ver PLAN.md §5). Existe por roteamento, não por segurança:
+	// o cliente instala uma rota /32 para o IP público do VPS antes de
+	// trocar a rota padrão (senão o próprio handshake WireGuard entraria em
+	// loop), e como vpn.officeempresa.com resolve para esse mesmo IP, o
+	// HTTPS do painel nunca trafega dentro do túnel. Sem este listener, um
+	// peer não teria como falar com a API tendo um 10.66.66.x como IP de
+	// origem, e as rotas de identidade por túnel (GET /api/me,
+	// POST /api/me/ssh-key) seriam inalcançáveis.
+	//
+	// Nunca faça bind em 0.0.0.0 aqui — seria expor a API na interface
+	// pública por fora do Nginx. Vazio desabilita o listener (é o default
+	// em dev/teste, onde não existe wg0).
+	TunnelHTTPAddr string
 
 	// DBPath é o caminho do arquivo SQLite.
 	DBPath string
@@ -104,6 +121,7 @@ func getEnvInt(key string, fallback int) (int, error) {
 func Load() (*Config, error) {
 	cfg := &Config{
 		HTTPAddr:                getEnv("XVPN_HTTP_ADDR", "127.0.0.1:8080"),
+		TunnelHTTPAddr:          os.Getenv("XVPN_TUNNEL_HTTP_ADDR"),
 		DBPath:                  getEnv("XVPN_DB_PATH", "xvpn.db"),
 		JWTSecret:               os.Getenv("XVPN_JWT_SECRET"),
 		WireGuardInterface:      getEnv("XVPN_WG_INTERFACE", "wg0"),
@@ -137,6 +155,39 @@ func Load() (*Config, error) {
 	if cfg.WireGuardEndpoint == "" {
 		return nil, fmt.Errorf("XVPN_WG_ENDPOINT é obrigatório (ex.: 206.189.224.72:51820)")
 	}
+	// A sub-rede é a base da autenticação por IP de origem das rotas de
+	// identidade por túnel (Fase 14): se ela não parseia, aquelas rotas
+	// falham fechadas e o motivo fica escondido num log. Melhor recusar o
+	// boot aqui, junto do resto da validação de configuração.
+	if _, _, err := net.ParseCIDR(cfg.WireGuardAllowedSubnet); err != nil {
+		return nil, fmt.Errorf("XVPN_WG_SUBNET inválido (%q): %w", cfg.WireGuardAllowedSubnet, err)
+	}
+	if err := validateTunnelHTTPAddr(cfg.TunnelHTTPAddr); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
+}
+
+// validateTunnelHTTPAddr recusa um bind que exponha o listener do túnel
+// fora da wg0. É o invariante 2 do AGENTS.md aplicado no código, não só na
+// documentação: o listener existe para atender peers em 10.66.66.x, e
+// "0.0.0.0"/"" como host o colocaria também na interface pública, por fora
+// do Nginx e do TLS.
+func validateTunnelHTTPAddr(addr string) error {
+	if addr == "" {
+		return nil // listener desabilitado (default em dev/teste)
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("XVPN_TUNNEL_HTTP_ADDR inválido (%q, esperado host:porta): %w", addr, err)
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return fmt.Errorf("XVPN_TUNNEL_HTTP_ADDR deve ter um IP explícito, não um nome (%q)", addr)
+	}
+	if ip.IsUnspecified() {
+		return fmt.Errorf("XVPN_TUNNEL_HTTP_ADDR não pode ser um endereço curinga (%q) — o listener do túnel só deve escutar na wg0", addr)
+	}
+	return nil
 }

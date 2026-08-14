@@ -32,6 +32,18 @@ type DeviceState struct {
 	MTU        int       `json:"mtu,omitempty"`
 	EnrolledAt time.Time `json:"enrolled_at"`
 
+	// Username, SambaEnabled e SFTPEnabled são cache do estado do
+	// servidor, nunca fonte da verdade: o painel pode ligar/desligar os
+	// acessos a qualquer momento. Username é preenchido no enrollment e
+	// os três são atualizados via GET /api/me a cada conexão (o que
+	// resolve também dispositivos enrolled antes da Fase 14, que não têm
+	// o campo). Servem para a UI abrir o share pessoal certo e desabilitar
+	// um botão com a razão visível em vez de deixar o usuário cair num
+	// erro de mount — ver ROADMAP.md Fase 14.
+	Username     string `json:"username,omitempty"`
+	SambaEnabled bool   `json:"samba_enabled,omitempty"`
+	SFTPEnabled  bool   `json:"sftp_enabled,omitempty"`
+
 	// Preferences controla recursos opcionais da Fase 6 (ROADMAP.md) —
 	// zero value é o comportamento padrão de dispositivos já enrolled
 	// antes desta fase (sem kill switch, túnel completo, sem

@@ -32,6 +32,15 @@ const splitTunnelCIDR = "10.66.66.0/24"
 // memória para a página de diagnóstico (ver logbuffer.go).
 const logBufferLines = 500
 
+// mtuMin/mtuMax delimitam o override manual do MTU: abaixo de 1280 o IPv6
+// deixa de funcionar (é o mínimo exigido pela RFC 8200) e acima de 1500 o
+// pacote não passa numa Ethernet comum. Zero significa "automático" (o
+// padrão da plataforma, 1420).
+const (
+	mtuMin = 1280
+	mtuMax = 1500
+)
+
 // EnrollRequest são os parâmetros do método RPC "enroll" — mesmo tipo é
 // usado pelo cliente IPC do lado da GUI (ver apps/xvpn-client/vpnservice.go), já que
 // ambos vivem no mesmo módulo Go.
@@ -69,6 +78,19 @@ type StatusResponse struct {
 	// reconectar..." em vez de simplesmente "desconectado".
 	Reconnecting     bool `json:"reconnecting"`
 	ReconnectAttempt int  `json:"reconnect_attempt,omitempty"`
+	// Username/SambaEnabled/SFTPEnabled vêm do cache de identidade em
+	// config.DeviceState (atualizado a cada conexão via GET /api/me) —
+	// a GUI precisa deles para abrir o share pessoal certo e explicar um
+	// botão desabilitado, ver ROADMAP.md Fase 14.
+	Username     string `json:"username,omitempty"`
+	SambaEnabled bool   `json:"samba_enabled"`
+	SFTPEnabled  bool   `json:"sftp_enabled"`
+}
+
+// MTUSetting atravessa os métodos RPC "get_mtu"/"set_mtu" nas duas
+// direções (parâmetro e resultado têm a mesma forma). 0 = automático.
+type MTUSetting struct {
+	MTU int `json:"mtu"`
 }
 
 // Helper orquestra o motor de túnel, o cliente de API e o estado
@@ -104,6 +126,30 @@ type Helper struct {
 	monitorCancel    context.CancelFunc
 	reconnecting     bool
 	reconnectAttempt int
+
+	// fetchIdentity e saveState existem para os testes conseguirem
+	// exercitar os handlers sem depender de um túnel de verdade nem
+	// escrever no arquivo de estado real (root-only, em /var/lib). Nulos
+	// — como sempre são em produção — caem no comportamento real, ver
+	// identity() e persistState().
+	fetchIdentity func(context.Context) (*apiclient.MeResult, error)
+	saveState     func(*config.DeviceState) error
+}
+
+// identity consulta o servidor por dentro do túnel (só ali a rota
+// responde, ver apiclient.TunnelBaseURL).
+func (h *Helper) identity(ctx context.Context) (*apiclient.MeResult, error) {
+	if h.fetchIdentity != nil {
+		return h.fetchIdentity(ctx)
+	}
+	return apiclient.New(apiclient.TunnelBaseURL).Me(ctx)
+}
+
+func (h *Helper) persistState(state *config.DeviceState) error {
+	if h.saveState != nil {
+		return h.saveState(state)
+	}
+	return config.Save(state)
 }
 
 // New cria o helper para a plataforma atual (motor selecionado via build
@@ -151,6 +197,8 @@ func (h *Helper) registerHandlers(server *ipc.Server) {
 	server.Handle(ipc.MethodDisconnect, h.handleDisconnect)
 	server.Handle(ipc.MethodGetPreferences, h.handleGetPreferences)
 	server.Handle(ipc.MethodSetPreferences, h.handleSetPreferences)
+	server.Handle(ipc.MethodGetMTU, h.handleGetMTU)
+	server.Handle(ipc.MethodSetMTU, h.handleSetMTU)
 	server.Handle(ipc.MethodGetLogs, h.handleGetLogs)
 }
 
@@ -192,6 +240,10 @@ func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {
 		PersistentKeepalive: int(result.PersistentKeepalive.Seconds()),
 		MTU:                 req.MTU,
 		EnrolledAt:          time.Now(),
+		// Username chega já aqui (caminho rápido); os toggles de acesso a
+		// arquivos só na primeira conexão, via GET /api/me — o enrollment
+		// acontece fora do túnel, onde essa rota não responde.
+		Username: result.Username,
 		// AutoReconnect começa ligado por padrão (ver ROADMAP.md Fase 6)
 		// — é o comportamento que a maioria das VPNs pessoais espera.
 		// KillSwitch e SplitTunnel começam desligados: são recursos
@@ -199,7 +251,7 @@ func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {
 		// escolher explicitamente na página de preferências.
 		Preferences: config.Preferences{AutoReconnect: true},
 	}
-	if err := config.Save(state); err != nil {
+	if err := h.persistState(state); err != nil {
 		return nil, fmt.Errorf("salvando estado do dispositivo: %w", err)
 	}
 
@@ -272,7 +324,54 @@ func (h *Helper) handleConnect(_ json.RawMessage) (any, error) {
 	h.desiredConnected = true
 	h.startMonitor()
 	h.mu.Unlock()
+
+	h.refreshIdentity()
 	return nil, nil
+}
+
+// refreshIdentity pergunta ao servidor, por dentro do túnel, quem é o dono
+// deste dispositivo e se os acessos a arquivos estão liberados, guardando
+// o resultado no estado persistido. Roda depois de um Connect
+// bem-sucedido, quando a rota já existe — e é best-effort de propósito: o
+// túnel está de pé, então uma falha aqui não pode virar um erro de conexão
+// na cara do usuário. Também é o que resolve dispositivos enrolled antes
+// da Fase 14, que nunca receberam o username.
+func (h *Helper) refreshIdentity() {
+	// A chamada HTTP fica fora de h.mu: o mutex nunca é segurado durante
+	// I/O de rede, mesmo padrão do motor de túnel (ver engineMu).
+	me, err := h.identity(context.Background())
+	if err != nil {
+		slog.Warn("identity refresh failed", "err", err)
+		return
+	}
+
+	h.mu.Lock()
+	if h.state == nil {
+		h.mu.Unlock()
+		return
+	}
+	unchanged := h.state.Username == me.Username &&
+		h.state.SambaEnabled == me.SambaEnabled &&
+		h.state.SFTPEnabled == me.SFTPEnabled
+	if unchanged {
+		h.mu.Unlock()
+		return
+	}
+	h.state.Username = me.Username
+	h.state.SambaEnabled = me.SambaEnabled
+	h.state.SFTPEnabled = me.SFTPEnabled
+	saveErr := h.persistState(h.state)
+	h.mu.Unlock()
+
+	if saveErr != nil {
+		slog.Warn("persisting identity failed", "err", saveErr)
+		return
+	}
+	slog.Info("identity refreshed",
+		"username", me.Username,
+		"samba_enabled", me.SambaEnabled,
+		"sftp_enabled", me.SFTPEnabled,
+	)
 }
 
 func (h *Helper) handleDisconnect(_ json.RawMessage) (any, error) {
@@ -318,6 +417,9 @@ func (h *Helper) handleStatus(_ json.RawMessage) (any, error) {
 	}
 	if h.state != nil {
 		resp.ServerBaseURL = h.state.ServerBaseURL
+		resp.Username = h.state.Username
+		resp.SambaEnabled = h.state.SambaEnabled
+		resp.SFTPEnabled = h.state.SFTPEnabled
 	}
 	return resp, nil
 }
@@ -349,7 +451,7 @@ func (h *Helper) handleSetPreferences(raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("este dispositivo ainda não fez enrollment")
 	}
 	h.state.Preferences = prefs
-	saveErr := config.Save(h.state)
+	saveErr := h.persistState(h.state)
 	cfg, cfgErr := h.buildTunnelConfig()
 	h.mu.Unlock()
 	if saveErr != nil {
@@ -373,6 +475,56 @@ func (h *Helper) handleSetPreferences(raw json.RawMessage) (any, error) {
 		}
 	}
 	return prefs, nil
+}
+
+func (h *Helper) handleGetMTU(_ json.RawMessage) (any, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.state == nil {
+		return MTUSetting{}, nil
+	}
+	return MTUSetting{MTU: h.state.MTU}, nil
+}
+
+// handleSetMTU segue o mesmo desenho de handleSetPreferences: persiste e,
+// se o túnel já estiver conectado, reaplica na hora — quem mexe no MTU
+// normalmente está justamente tentando destravar uma conexão em curso
+// ("black hole" de PMTU: handshake e ping passam, HTTP/TLS trava), então
+// exigir reconectar à mão derrotaria o propósito.
+func (h *Helper) handleSetMTU(raw json.RawMessage) (any, error) {
+	var req MTUSetting
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return nil, fmt.Errorf("MTU inválido: %w", err)
+	}
+	if req.MTU != 0 && (req.MTU < mtuMin || req.MTU > mtuMax) {
+		return nil, fmt.Errorf("MTU deve ser 0 (automático) ou um valor entre %d e %d — abaixo de %d o IPv6 para de funcionar, acima de %d o pacote não passa numa rede Ethernet comum", mtuMin, mtuMax, mtuMin, mtuMax)
+	}
+
+	h.mu.Lock()
+	if h.state == nil {
+		h.mu.Unlock()
+		return nil, fmt.Errorf("este dispositivo ainda não fez enrollment")
+	}
+	h.state.MTU = req.MTU
+	saveErr := h.persistState(h.state)
+	cfg, cfgErr := h.buildTunnelConfig()
+	h.mu.Unlock()
+	if saveErr != nil {
+		return nil, fmt.Errorf("salvando MTU: %w", saveErr)
+	}
+
+	h.engineMu.Lock()
+	defer h.engineMu.Unlock()
+	status, err := h.engine.Status()
+	if err == nil && status.Connected {
+		if cfgErr != nil {
+			return nil, cfgErr
+		}
+		if err := h.engine.Connect(cfg); err != nil {
+			return nil, fmt.Errorf("MTU salvo, mas falha ao reaplicar com o túnel já conectado: %w", err)
+		}
+	}
+	return MTUSetting{MTU: req.MTU}, nil
 }
 
 func (h *Helper) handleGetLogs(_ json.RawMessage) (any, error) {

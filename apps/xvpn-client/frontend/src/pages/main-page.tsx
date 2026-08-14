@@ -61,7 +61,7 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
     }
   }
 
-  async function openFiles(kind: 'smb' | 'filebrowser') {
+  async function openFiles(kind: 'smb-home' | 'smb-shared' | 'filebrowser') {
     setActionError(null)
     try {
       await VPNService.OpenServerFiles(kind)
@@ -69,6 +69,13 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       setActionError(err instanceof Error ? err.message : String(err))
     }
   }
+
+  const sambaReady = status.connected && status.sambaEnabled
+  const sambaHint = !status.connected
+    ? 'Conecte-se à VPN para abrir os arquivos do servidor'
+    : !status.sambaEnabled
+      ? 'Seu usuário ainda não tem Samba habilitado no painel'
+      : undefined
 
   const glowVar = status.reconnecting ? 'var(--glow-amber)' : status.connected ? 'var(--glow)' : undefined
 
@@ -232,21 +239,39 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       )}
 
       {status.connected && (
-        <div className="relative z-10 flex gap-3">
-          <button
-            onClick={() => openFiles('smb')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
-          >
-            <FolderOpen className="h-4 w-4" />
-            Unidade de rede
-          </button>
-          <button
-            onClick={() => openFiles('filebrowser')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
-          >
-            <Globe className="h-4 w-4" />
-            Arquivos (navegador)
-          </button>
+        <div className="relative z-10 flex flex-col gap-2">
+          <div className="flex gap-3">
+            <button
+              onClick={() => openFiles('smb-home')}
+              disabled={!sambaReady}
+              title={sambaHint}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:shadow-none"
+            >
+              <FolderOpen className="h-4 w-4" />
+              Meus arquivos
+            </button>
+            <button
+              onClick={() => openFiles('smb-shared')}
+              disabled={!sambaReady}
+              title={sambaHint}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:shadow-none"
+            >
+              <FolderOpen className="h-4 w-4" />
+              Compartilhado
+            </button>
+            <button
+              onClick={() => openFiles('filebrowser')}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
+            >
+              <Globe className="h-4 w-4" />
+              Navegador
+            </button>
+          </div>
+          {status.connected && !status.sambaEnabled && (
+            <p className="text-center text-xs text-muted-foreground">
+              Samba desabilitado para {status.username || 'seu usuário'} — peça ao admin no painel.
+            </p>
+          )}
         </div>
       )}
     </div>

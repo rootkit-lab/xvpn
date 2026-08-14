@@ -404,8 +404,14 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		if !fileAccessDisabled || a.UserProvisioner == nil {
 			return
 		}
-		if target.SFTPEnabled && target.SSHPublicKey != "" {
-			_ = a.UserProvisioner.EnableSFTP(c.Request.Context(), target.Username, target.SSHPublicKey)
+		// applyAuthorizedKeys (não EnableSFTP com a chave manual) para
+		// restaurar também as chaves auto-registradas dos dispositivos, que
+		// nesse ponto ainda estão no banco — o delete falhou. A condição
+		// também deixou de exigir chave manual não vazia: desde a Fase 14
+		// um usuário pode ter SFTP válido só com as chaves dos
+		// dispositivos.
+		if target.SFTPEnabled {
+			_ = a.applyAuthorizedKeys(c.Request.Context(), target)
 		}
 		if target.SambaEnabled {
 			_ = a.UserProvisioner.EnableSamba(c.Request.Context(), target.Username)

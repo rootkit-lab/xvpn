@@ -39,6 +39,13 @@ const (
 	MethodGetPreferences = "get_preferences"
 	MethodSetPreferences = "set_preferences"
 
+	// MethodGetMTU/MethodSetMTU — override manual do MTU do túnel, que
+	// até a Fase 14 só podia ser escolhido no enrollment (ver PLAN.md
+	// §7.2). Como as preferências, mora em config.DeviceState e é
+	// reaplicado na hora se o túnel já estiver conectado.
+	MethodGetMTU = "get_mtu"
+	MethodSetMTU = "set_mtu"
+
 	// MethodGetLogs devolve as últimas linhas do log do helper (buffer em
 	// memória, ver internal/helper/logbuffer.go) — usado pela página de
 	// diagnóstico da GUI.

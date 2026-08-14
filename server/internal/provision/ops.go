@@ -156,6 +156,12 @@ func EnableSamba(r Runner, username string) error {
 	if err := r.WriteFile(share, SambaShareConfig(username), 0o644); err != nil {
 		return fmt.Errorf("escrevendo %s: %w", share, err)
 	}
+	// Reescreve o agregado xvpn-shares.conf (o `include` do Samba
+	// não suporta glob — ver samba.go). Tem que ser antes do reload
+	// pra o testparm validar a config final.
+	if err := regenerateSambaAggregate(r); err != nil {
+		return fmt.Errorf("regenerando agregado Samba: %w", err)
+	}
 	if err := r.ReloadSamba(); err != nil {
 		return fmt.Errorf("recarregando smbd após habilitar Samba de %q: %w", username, err)
 	}
@@ -173,6 +179,7 @@ func Disable(r Runner, username string) error {
 		return ErrInvalidUsername
 	}
 	removed := false
+	removedSamba := false
 	dropIn := sshdDropInPath(username)
 	if exists, err := r.FileExists(dropIn); err != nil {
 		return err
@@ -190,9 +197,16 @@ func Disable(r Runner, username string) error {
 			return fmt.Errorf("removendo %s: %w", share, err)
 		}
 		removed = true
+		removedSamba = true
 	}
 	if !removed {
 		return nil
+	}
+	// Se removeu o share Samba, regenera o agregado antes do reload.
+	if removedSamba {
+		if err := regenerateSambaAggregate(r); err != nil {
+			return fmt.Errorf("regenerando agregado Samba: %w", err)
+		}
 	}
 	// Recarrega ambos — não vale a pena distinguir qual foi removido
 	// (um reload de serviço que não mudou config é barato e inofensivo).
@@ -247,6 +261,9 @@ func DisableSamba(r Runner, username string) error {
 	}
 	if err := r.RemoveFile(share); err != nil {
 		return fmt.Errorf("removendo %s: %w", share, err)
+	}
+	if err := regenerateSambaAggregate(r); err != nil {
+		return fmt.Errorf("regenerando agregado Samba: %w", err)
 	}
 	if err := r.ReloadSamba(); err != nil {
 		return fmt.Errorf("recarregando smbd após disable-samba de %q: %w", username, err)

@@ -20,6 +20,7 @@ type Runner interface {
 	Chown(path string, uid, gid int) error
 	Chmod(path string, perm os.FileMode) error
 	WriteFile(path, content string, perm os.FileMode) error
+	ReadDir(path string) ([]string, error)
 	FileExists(path string) (bool, error)
 	RemoveFile(path string) error
 	ReloadSSH() error
@@ -125,6 +126,20 @@ func (osRunner) Chmod(path string, perm os.FileMode) error {
 
 func (osRunner) WriteFile(path, content string, perm os.FileMode) error {
 	return os.WriteFile(path, []byte(content), perm)
+}
+
+func (osRunner) ReadDir(path string) ([]string, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	return names, nil
 }
 
 func (osRunner) FileExists(path string) (bool, error) {

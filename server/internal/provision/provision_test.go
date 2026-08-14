@@ -82,6 +82,29 @@ func (f *fakeRunner) FileExists(path string) (bool, error) {
 	return ok, f.record("FileExists(" + path + ")")
 }
 
+// ReadDir devolve os nomes dos arquivos "presentes" no diretório
+// (baseado no map f.files — extrai o basename das chaves cujo dir
+// casa). Suficiente pra regenerateSambaAggregate nos testes.
+func (f *fakeRunner) ReadDir(dir string) ([]string, error) {
+	if err := f.record("ReadDir(" + dir + ")"); err != nil {
+		return nil, err
+	}
+	prefix := dir
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	var names []string
+	for path := range f.files {
+		if strings.HasPrefix(path, prefix) {
+			name := strings.TrimPrefix(path, prefix)
+			if !strings.Contains(name, "/") {
+				names = append(names, name)
+			}
+		}
+	}
+	return names, nil
+}
+
 func (f *fakeRunner) RemoveFile(path string) error {
 	if err := f.record("RemoveFile(" + path + ")"); err != nil {
 		return err
@@ -317,6 +340,15 @@ func TestEnableSamba_WritesShareIncludeAndReloads(t *testing.T) {
 	} else if !strings.Contains(content, "[home-alice]") {
 		t.Errorf("include samba sem [home-alice]:\n%s", content)
 	}
+	// O agregado xvpn-shares.conf precisa ser regenerado (o `include`
+	// do Samba não suporta glob — ver samba.go).
+	agg, ok := r.files["/etc/samba/smb.conf.d/xvpn-shares.conf"]
+	if !ok {
+		t.Fatalf("agregado xvpn-shares.conf não foi gerado: %v", r.files)
+	}
+	if !strings.Contains(agg, "include = /etc/samba/smb.conf.d/xvpn-home-alice.conf") {
+		t.Errorf("agregado não lista o share da alice:\n%s", agg)
+	}
 	found := false
 	for _, c := range r.calls {
 		if c == "ReloadSamba()" {
@@ -325,6 +357,53 @@ func TestEnableSamba_WritesShareIncludeAndReloads(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("ReloadSamba não foi chamado: %v", r.calls)
+	}
+}
+
+func TestRegenerateSambaAggregate_ListsAllPerUserShares(t *testing.T) {
+	r := newFakeRunner()
+	// Habilita dois usuários — o agregado final precisa listar ambos,
+	// em ordem alfabética, e excluir a si mesmo.
+	if err := EnableSamba(r, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnableSamba(r, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	agg := r.files["/etc/samba/smb.conf.d/xvpn-shares.conf"]
+	// Ordem alfabética: alice antes de bob.
+	aIdx := strings.Index(agg, "xvpn-home-alice.conf")
+	bIdx := strings.Index(agg, "xvpn-home-bob.conf")
+	if aIdx < 0 || bIdx < 0 {
+		t.Fatalf("agregado não lista ambos os shares:\n%s", agg)
+	}
+	if aIdx > bIdx {
+		t.Errorf("agregado não está em ordem alfabética:\n%s", agg)
+	}
+	// Não deve listar a si mesmo (xvpn-shares.conf).
+	if strings.Contains(agg, "xvpn-shares.conf") {
+		t.Errorf("agregado se auto-referencia:\n%s", agg)
+	}
+}
+
+func TestDisableSamba_RegeneratesAggregateWithoutRemovedUser(t *testing.T) {
+	r := newFakeRunner()
+	if err := EnableSamba(r, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	if err := EnableSamba(r, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	// Desliga alice — agregado deve listar só bob.
+	if err := DisableSamba(r, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	agg := r.files["/etc/samba/smb.conf.d/xvpn-shares.conf"]
+	if strings.Contains(agg, "xvpn-home-alice") {
+		t.Errorf("agregado ainda lista alice após disable:\n%s", agg)
+	}
+	if !strings.Contains(agg, "xvpn-home-bob.conf") {
+		t.Errorf("agregado não lista bob após disable da alice:\n%s", agg)
 	}
 }
 

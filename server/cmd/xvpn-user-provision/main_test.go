@@ -50,6 +50,22 @@ func (n *noopRunner) FileExists(path string) (bool, error) {
 	_, ok := n.writes[path]
 	return ok, nil
 }
+func (n *noopRunner) ReadDir(dir string) ([]string, error) {
+	prefix := dir
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
+	}
+	var names []string
+	for path := range n.writes {
+		if strings.HasPrefix(path, prefix) {
+			name := strings.TrimPrefix(path, prefix)
+			if !strings.Contains(name, "/") {
+				names = append(names, name)
+			}
+		}
+	}
+	return names, nil
+}
 func (n *noopRunner) RemoveFile(path string) error { delete(n.writes, path); return nil }
 func (n *noopRunner) ReloadSSH() error             { return nil }
 func (n *noopRunner) ReloadSamba() error           { return nil }

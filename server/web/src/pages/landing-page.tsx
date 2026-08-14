@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Laptop, Lock, Network, ShieldCheck, Wifi, Zap } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { api, ApiError } from '@/lib/api'
+import { defaultRouteForRole } from '@/lib/roles'
 import { NetworkGlobe } from '@/components/network-globe'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +51,7 @@ const fadeUp = {
 }
 
 export function LandingPage() {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, isLoadingUser, user } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
@@ -58,8 +59,8 @@ export function LandingPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
+  if (isAuthenticated && !isLoadingUser) {
+    return <Navigate to={defaultRouteForRole(user?.role ?? 'member')} replace />
   }
 
   async function handleSubmit(event: FormEvent) {

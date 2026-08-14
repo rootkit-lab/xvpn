@@ -145,6 +145,18 @@ export interface User {
   username: string
   role: Role
   created_at: string
+  // Acesso a arquivos (Fase 13, PLAN.md §6.9): toggles de SFTP/Samba
+  // + chave pública SSH do usuário. Omitidos em respostas antigas
+  // (back-end pré-Fase 13) — trate como false/"" se ausente.
+  sftp_enabled?: boolean
+  samba_enabled?: boolean
+  ssh_public_key?: string
+}
+
+export interface FileAccessResponse {
+  sftp_enabled: boolean
+  samba_enabled: boolean
+  ssh_public_key: string
 }
 
 export interface Device {
@@ -289,6 +301,18 @@ export const api = {
     }),
   deleteUser: (id: number) => request<void>(`/users/${id}`, { method: 'DELETE' }),
   createInvite: (userId: number) => request<InviteResponse>(`/users/${userId}/invite`, { method: 'POST' }),
+  // Acesso a arquivos (Fase 13, PLAN.md §6.9): aplica o estado desejado
+  // de SFTP/Samba + chave pública SSH. O back-end calcula o diff e só
+  // chama o provisionador pro que mudou (idempotente).
+  setFileAccess: (id: number, body: {
+    sftp_enabled: boolean
+    samba_enabled: boolean
+    ssh_public_key: string
+  }) =>
+    request<FileAccessResponse>(`/users/${id}/file-access`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
 
   listDevices: () => request<Device[]>('/devices'),
   deleteDevice: (id: number) => request<void>(`/devices/${id}`, { method: 'DELETE' }),

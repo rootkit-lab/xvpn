@@ -53,6 +53,14 @@ type App struct {
 	// em cmd/xvpn-server/main.go junto com o restante do App).
 	Marketplace *marketplace.Store
 
+	// UserProvisioner chama o binário privilegiado xvpn-user-provision
+	// (Fase 13 — ver PLAN.md §6.9) para criar contas Unix e habilitar/
+	// desabilitar SFTP/Samba por usuário. Nil quando a Fase 13 não
+	// está configurada neste servidor (ex.: binário não instalado) —
+	// o handler devolve 503 nesse caso. Em produção é inicializado em
+	// cmd/xvpn-server/main.go junto com o restante do App.
+	UserProvisioner UserProvisioner
+
 	// ServerPublicKey é derivada da chave privada lida na inicialização
 	// (nunca a chave privada em si) e devolvida aos clientes no enrollment.
 	ServerPublicKey string
@@ -159,6 +167,10 @@ func NewRouter(app *App) *gin.Engine {
 			adminOnly.DELETE("/users/:id", app.handleDeleteUser)
 			adminOnly.POST("/users/:id/invite", app.handleCreateInvite)
 			adminOnly.POST("/users/:id/reset-password", app.handleResetPassword)
+			// Acesso a arquivos (Fase 13, PLAN.md §6.9): toggle SFTP/Samba
+			// + chave pública SSH por usuário. adminOnly — ação de escrita
+			// que provisiona conta Unix na VPS.
+			adminOnly.PUT("/users/:id/file-access", app.handleSetFileAccess)
 
 			adminOnly.DELETE("/devices/:id", app.handleDeleteDevice)
 

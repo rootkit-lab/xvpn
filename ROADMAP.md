@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)** e **11 (marketplace de programas)** concluídas em produção. **Fases 12–13** abertas — consumo do marketplace no cliente, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)** e **11 (marketplace de programas)** concluídas em produção. **Fase 12** (consumo do marketplace no cliente + estatísticas no dashboard) implementada — restando apenas itens opcionais (página móvel `/apps` para Android, quota por usuário) movidos ao [backlog pós-roadmap](#backlog-pós-roadmap). **Fase 13** (contas Unix por usuário — SFTP + Samba) implementada em código, testes **e deploy em produção** (binário privilegiado instalado, `sudoers.d` configurado, `Match User` no sshd, includes Samba, `vps-security-audit` sem regressões). Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -396,17 +396,27 @@ Catálogo interno para distribuir instaladores/APKs/binários aos usuários da V
 
 Cada `User` do painel pode opcionalmente ganhar uma conta Unix real na VPS, com acesso a arquivos via **SFTP** (chave pública, sem shell) e/ou **Samba**, os dois apontando pro mesmo diretório. Reabre — de forma limitada e mitigada — a decisão da Fase 5 de manter usuários Samba fora do painel. Decisões completas e justificativa: [`PLAN.md` §6.9](./PLAN.md#69-contas-unix-reais-por-usuário-sftp--samba-integrados).
 
-- [ ] Binário fixo `xvpn-user-provision` (`create` / `enable-sftp` / `enable-samba` / `disable`), validação estrita de username via regex antes de qualquer chamada de sistema
-- [ ] `sudoers.d` restrito ao caminho exato do binário (sem wildcard de argumento); documentar em `SECURITY.md`
-- [ ] Estrutura `/home/<username>/` (root:root, chroot) + `/home/<username>/files/` (dono do usuário — visível via SFTP e via share Samba)
-- [ ] Campos novos no model `User`: `SFTPEnabled`, `SambaEnabled`, `SSHPublicKey`
-- [ ] `sshd_config`: `Match User` por conta provisionada → `ForceCommand internal-sftp` + `ChrootDirectory`, sem `PasswordAuthentication` (só chave pública)
-- [ ] Reconciliação no boot do `xvpn-server` (mesmo padrão do `ReconcilePeers`): cria o que faltar para usuários com toggle ativo
-- [ ] Migração dos usuários existentes: conta Unix criada, toggles `SFTPEnabled`/`SambaEnabled` **desligados por padrão**
-- [ ] UI painel: toggle único "Acesso a arquivos (SFTP)" + toggle "Acesso Samba" + campo para colar chave pública SSH
-- [ ] Audit log: enable/disable de cada capability (actor = admin, não o binário)
-- [ ] Rodar `vps-security-audit` após implantar (binário privilegiado novo + `Match User` no sshd)
-- [ ] Testes: criação idempotente, rejeição de username inválido/injeção, reconcile não duplica, disable remove acesso de fato
+- [x] Binário fixo `xvpn-user-provision` (`create` / `enable-sftp` / `enable-samba` / `disable`), validação estrita de username via regex antes de qualquer chamada de sistema
+- [x] `sudoers.d` restrito ao caminho exato do binário (sem wildcard de argumento); documentar em `SECURITY.md`
+- [x] Estrutura `/home/<username>/` (root:root, chroot) + `/home/<username>/files/` (dono do usuário — visível via SFTP e via share Samba)
+- [x] Campos novos no model `User`: `SFTPEnabled`, `SambaEnabled`, `SSHPublicKey`
+- [x] `sshd_config`: `Match User` por conta provisionada → `ForceCommand internal-sftp` + `ChrootDirectory`, sem `PasswordAuthentication` (só chave pública)
+- [x] Reconciliação no boot do `xvpn-server` (mesmo padrão do `ReconcilePeers`): cria o que faltar para usuários com toggle ativo
+- [x] Migração dos usuários existentes: conta Unix criada, toggles `SFTPEnabled`/`SambaEnabled` **desligados por padrão**
+- [x] UI painel: toggle único "Acesso a arquivos (SFTP)" + toggle "Acesso Samba" + campo para colar chave pública SSH
+- [x] Audit log: enable/disable de cada capability (actor = admin, não o binário)
+- [x] Rodar `vps-security-audit` após implantar (binário privilegiado novo + `Match User` no sshd)
+- [x] Testes: criação idempotente, rejeição de username inválido/injeção, reconcile não duplica, disable remove acesso de fato
+
+**Notas de implementação:**
+
+- **Binário privilegiado** (`server/cmd/xvpn-user-provision`): subcomandos `create`, `enable-sftp`, `enable-samba`, `disable`, `disable-sftp`, `disable-samba` (granularidade extra para os toggles independentes do painel). Valida username com `^[a-z][a-z0-9_-]{2,31}$` antes de qualquer syscall. Lê a chave pública SSH do stdin em `enable-sftp` (evita vazar no `ps`/`/proc`).
+- **Cliente do binário** (`server/internal/userprovision`): chama via `sudo -n <binário> <subcomando>`, nunca `sh -c`. Pipe de stdin para a chave SSH. `ErrBinaryMissing` quando o caminho configurado não existe (handler devolve 503).
+- **Provisionamento** (`server/internal/provision`): `Runner` interface com métodos granulares (`UserExists`, `UserAdd`, `MkdirAll`, `WriteFile`, `Chown`, `ReloadSSH`, `ReloadSamba`, …) — `osRunner` usa `os/exec` + `os`; testes usam `fakeRunner`. `EnableSFTP`/`EnableSamba` chamam `Create` internamente (idempotentes). Validação `sshd -t` e `testparm -s` antes de recarregar.
+- **Handler** (`server/internal/api/file_access_handler.go`): `PUT /api/users/:id/file-access` (adminOnly). Calcula diff contra o estado atual, chama só o provisionador pro que mudou. **Consistência DB↔sistema**: cada chamada de provisionador que sucede atualiza o campo correspondente no DB imediatamente — se uma chamada falha no meio, o DB já gravou o que sucedeu e o reconcile no boot converge o resto. Audit log registra `sftp=on/off samba=on/off` (não a chave).
+- **Reconcile no boot** (`server/internal/api/reconcile.go`): `App.ReconcileUnixAccounts` percorre usuários do DB e re-aplica `EnableSFTP`/`EnableSamba` para quem tem toggle ativo (idempotente). Best-effort — não bloqueia o boot; agrega falhas e loga. Limitação conhecida: usuários marcados como desligado mas com config stale no sistema não são purgados (fora do escopo do MVP; os `Disable*` do handler cobrem a transição normal).
+- **UI** (`server/web/src/pages/users-page.tsx`): diálogo "Acesso a arquivos" (ícone `FolderKey`) com checkboxes SFTP/Samba + textarea para chave pública. `api.setFileAccess` em `server/web/src/lib/api.ts`. `userResponse` agora inclui os três campos.
+- **Config**: `XVPN_USER_PROVISION_BIN` (default `/opt/xvpn/bin/xvpn-user-provision`) em `server/internal/config`.
 
 **Fora de escopo nesta fase:** FTP tradicional; shell interativo; quotas de disco por usuário; rotação de chave SSH self-service.
 

@@ -18,6 +18,7 @@ import (
 	"github.com/rootkit-lab/xvpn/server/internal/logging"
 	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
+	"github.com/rootkit-lab/xvpn/server/internal/userprovision"
 	"github.com/rootkit-lab/xvpn/server/internal/wireguard"
 )
 
@@ -74,6 +75,14 @@ func run() error {
 		return err
 	}
 
+	// UserProvisioner (Fase 13, PLAN.md §6.9): cliente do binário
+	// privilegiado xvpn-user-provision. Se o binário não existe no
+	// caminho configurado (XVPN_USER_PROVISION_BIN), o client ainda é
+	// criado — a ausência só é detectada na primeira chamada real
+	// (ErrBinaryMissing), e o handler devolve 503. Em produção o
+	// binário é instalado pelo deploy da Fase 13 (ver ROADMAP.md).
+	userProvisioner := userprovision.New(cfg.UserProvisionBinaryPath)
+
 	tokens := auth.NewTokenManager(cfg.JWTSecret, time.Duration(cfg.JWTTokenTTLMinutes)*time.Minute)
 
 	app := &api.App{
@@ -82,9 +91,21 @@ func run() error {
 		Tokens:          tokens,
 		Config:          cfg,
 		Marketplace:     marketplaceStore,
+		UserProvisioner: userProvisioner,
 		ServerPublicKey: privateKey.PublicKey().String(),
 	}
 	router := api.NewRouter(app)
+
+	// Reconcile de contas Unix (Fase 13, PLAN.md §6.9): converte o
+	// estado do DB para o sistema. Best-effort — não bloqueia o boot;
+	// se falhar, o admin vê no log e pode re-rodar (ou corrigir à mão).
+	// Ver api.ReconcileUnixAccounts pra detalhes e limitações.
+	if err := app.ReconcileUnixAccounts(context.Background()); err != nil {
+		slog.Error("reconcile de contas Unix falhou (servidor continua subindo; ver log)",
+			"err", err.Error())
+	} else {
+		slog.Info("unix accounts reconciled from database")
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,

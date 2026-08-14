@@ -1,6 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { Copy, KeyRound, Pencil, Plus, Ticket, Trash2 } from 'lucide-react'
+import { Copy, FolderKey, KeyRound, Pencil, Plus, Ticket, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { api, ApiError, type InviteResponse, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -118,6 +118,7 @@ function UserRow({ user, caller, onChanged }: { user: User; caller: User | null;
       <TableCell className="text-muted-foreground">{formatDateTime(user.created_at)}</TableCell>
       <TableCell className="flex justify-end gap-2">
         {canInvite && <InviteDialog user={user} />}
+        {canManage && <FileAccessDialog user={user} onChanged={onChanged} />}
         {canManage && <EditUserDialog user={user} caller={caller} isSelf={isSelf} onChanged={onChanged} />}
         {canManage && <ResetPasswordDialog user={user} />}
         {canManage && (
@@ -470,6 +471,120 @@ function InviteDialog({ user }: { user: User }) {
             </>
           )}
         </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// FileAccessDialog (Fase 13, PLAN.md §6.9): controla o acesso a
+// arquivos do servidor por usuário — SFTP (chrooted, chave pública)
+// e Samba (share [home-<user>] acessível só via wg0). O back-end
+// provisiona a conta Unix via binário privilegiado e mantém o DB
+// consistente com o sistema (ver api.handleSetFileAccess).
+function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [sftp, setSftp] = useState(false)
+  const [samba, setSamba] = useState(false)
+  const [sshKey, setSshKey] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next)
+    if (next) {
+      setSftp(Boolean(user.sftp_enabled))
+      setSamba(Boolean(user.samba_enabled))
+      setSshKey(user.ssh_public_key ?? '')
+      setError(null)
+    }
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    setError(null)
+    if (sftp && !sshKey.trim()) {
+      setError('Cole a chave pública SSH do usuário para habilitar SFTP.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await api.setFileAccess(user.id, {
+        sftp_enabled: sftp,
+        samba_enabled: samba,
+        ssh_public_key: sshKey,
+      })
+      toast.success(`Acesso a arquivos de "${user.username}" atualizado`)
+      setOpen(false)
+      onChanged()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Falha ao atualizar acesso a arquivos')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" title="Acesso a arquivos (SFTP/Samba)">
+          <FolderKey className="size-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle>Acesso a arquivos — "{user.username}"</DialogTitle>
+            <DialogDescription>
+              Habilita SFTP (chrooted, autenticação por chave pública) e/ou Samba (share acessível só via VPN).
+              A conta Unix é criada automaticamente no servidor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 py-4">
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={sftp}
+                onChange={(e) => setSftp(e.target.checked)}
+              />
+              <span>
+                <strong>SFTP</strong> — acesso via <code>sftp://vpn.officeempresa.com</code> (chrooted em <code>/home/{user.username}/files</code>)
+              </span>
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={samba}
+                onChange={(e) => setSamba(e.target.checked)}
+              />
+              <span>
+                <strong>Samba</strong> — share <code>[home-{user.username}]</code> acessível só pela VPN (guest + force user)
+              </span>
+            </label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`ssh-key-${user.id}`}>Chave pública SSH</Label>
+              <textarea
+                id={`ssh-key-${user.id}`}
+                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                placeholder={sftp ? 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... user@host' : 'Necessária apenas se SFTP estiver habilitado'}
+                value={sshKey}
+                onChange={(e) => setSshKey(e.target.value)}
+                spellCheck={false}
+              />
+              <p className="text-xs text-muted-foreground">
+                Cole a chave pública do usuário (saída de <code>ssh-keygen -y</code> ou <code>~/.ssh/id_*.pub</code>).
+                Pode incluir múltiplas chaves, uma por linha.
+              </p>
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Aplicando…' : 'Aplicar'}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )

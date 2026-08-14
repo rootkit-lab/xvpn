@@ -231,6 +231,279 @@ func TestSambaShareConfig_Content(t *testing.T) {
 	}
 }
 
+// --- CheckSambaTestparmOutput ---
+//
+// As fixtures abaixo são saídas reais de `testparm -s --suppress-prompt`
+// capturadas num container descartável (Samba 4.19.5-Ubuntu) reproduzindo
+// a estrutura da produção com um share pessoal presente, e do próprio VPS
+// (Samba 4.23.6). Não são inventadas — é exatamente o que o gate lê.
+
+// testparmLeakOutput: smb.conf com `include` na 1ª linha do [global] e um
+// share [home-alice] existindo. Note que o testparm sai com código 0 e
+// diz "Loaded services file OK." — mas o [global] ficou praticamente
+// vazio e bind interfaces only/interfaces/hosts allow migraram para o
+// share. É este cenário que viola o invariante 2 do AGENTS.md.
+const testparmLeakOutput = `Load smb config files from /etc/samba/smb.conf
+Global parameter workgroup found in service section!
+Global parameter server string found in service section!
+Global parameter netbios name found in service section!
+Global parameter bind interfaces only found in service section!
+Global parameter interfaces found in service section!
+Global parameter security found in service section!
+Global parameter map to guest found in service section!
+Loaded services file OK.
+Weak crypto is allowed by GnuTLS (e.g. NTLM as a compatibility fallback)
+
+Server role: ROLE_STANDALONE
+
+# Global parameters
+[global]
+	idmap config * : backend = tdb
+	include = /etc/samba/smb.conf.d/xvpn-home-alice.conf
+
+
+[home-alice]
+	force user = alice
+	guest ok = Yes
+	hosts allow = 10.66.66.0/24 127.0.0.1
+	hosts deny = 0.0.0.0/0
+	path = /home/alice/files
+	read only = No
+
+
+[shared]
+	comment = Compartilhamento geral do XVPN
+	create mask = 0660
+	path = /srv/xvpn/shared
+	read only = No
+	valid users = @xvpn-samba
+`
+
+// testparmFixedOutput: mesmo cenário (share pessoal presente), com o
+// `include` no fim do arquivo. Todo o confinamento de rede permanece no
+// [global]; o `include` aparecer dentro de [shared] é inofensivo.
+const testparmFixedOutput = `Load smb config files from /etc/samba/smb.conf
+Loaded services file OK.
+Weak crypto is allowed by GnuTLS (e.g. NTLM as a compatibility fallback)
+
+Server role: ROLE_STANDALONE
+
+# Global parameters
+[global]
+	bind interfaces only = Yes
+	client min protocol = SMB2
+	disable spoolss = Yes
+	interfaces = 10.66.66.1/24 127.0.0.1/8
+	load printers = No
+	log file = /var/log/samba/log.%m
+	logging = systemd
+	map to guest = Bad User
+	max log size = 1000
+	netbios name = XVPN
+	printcap name = /dev/null
+	security = USER
+	server min protocol = SMB2
+	server string = XVPN File Share
+	smb ports = 445
+	idmap config * : backend = tdb
+	hosts allow = 10.66.66.0/24 127.0.0.1
+	hosts deny = 0.0.0.0/0
+	printing = bsd
+
+
+[shared]
+	comment = Compartilhamento geral do XVPN
+	create mask = 0660
+	directory mask = 0770
+	force group = xvpn-samba
+	include = /etc/samba/smb.conf.d/xvpn-home-alice.conf
+	path = /srv/xvpn/shared
+	read only = No
+	valid users = @xvpn-samba
+
+
+[home-alice]
+	force user = alice
+	guest ok = Yes
+	path = /home/alice/files
+	read only = No
+`
+
+// TestCheckSambaTestparmOutput_RejectsIncludeInsideGlobal é o teste
+// central: antes deste gate, ReloadSamba aprovava esta saída (exit code
+// 0) e recarregava um smbd escutando em todas as interfaces.
+func TestCheckSambaTestparmOutput_RejectsIncludeInsideGlobal(t *testing.T) {
+	err := CheckSambaTestparmOutput(testparmLeakOutput)
+	if err == nil {
+		t.Fatal("CheckSambaTestparmOutput aceitou uma config com [global] vazado — " +
+			"é exatamente o caso que expõe o Samba em todas as interfaces")
+	}
+	// A mensagem precisa ser acionável: dizer quais parâmetros vazaram e
+	// o que fazer (mover o include para o fim do arquivo).
+	mustContain := []string{
+		"bind interfaces only",
+		"interfaces",
+		"map to guest",
+		"include",
+		"fim do arquivo",
+		"server/deploy/samba/smb.conf",
+	}
+	for _, s := range mustContain {
+		if !strings.Contains(err.Error(), s) {
+			t.Errorf("mensagem de erro não menciona %q — pouco acionável:\n%v", s, err)
+		}
+	}
+}
+
+func TestCheckSambaTestparmOutput_AcceptsIncludeAtEndOfFile(t *testing.T) {
+	if err := CheckSambaTestparmOutput(testparmFixedOutput); err != nil {
+		t.Fatalf("CheckSambaTestparmOutput reprovou a config corrigida: %v", err)
+	}
+}
+
+// TestCheckSambaTestparmOutput_AcceptsProductionBaseline usa a saída real
+// do VPS com o agregado ainda vazio (nenhum toggle de Samba ligado) —
+// garante que o gate não passa a reprovar o estado atual da produção.
+func TestCheckSambaTestparmOutput_AcceptsProductionBaseline(t *testing.T) {
+	const out = `Load smb config files from /etc/samba/smb.conf
+Loaded services file OK.
+Weak crypto is allowed by GnuTLS (e.g. NTLM as a compatibility fallback)
+
+Server role: ROLE_STANDALONE
+
+# Global parameters
+[global]
+	bind interfaces only = Yes
+	client min protocol = SMB2
+	interfaces = 10.66.66.1/24 127.0.0.1/8
+	map to guest = Bad User
+	netbios name = XVPN
+	security = USER
+	server smb transports = 445
+	server string = XVPN File Share
+	idmap config * : backend = tdb
+	hosts allow = 10.66.66.0/24 127.0.0.1
+	hosts deny = 0.0.0.0/0
+	include = /etc/samba/smb.conf.d/xvpn-shares.conf
+	printing = bsd
+
+
+[shared]
+	comment = Compartilhamento geral do XVPN
+	path = /srv/xvpn/shared
+	read only = No
+	valid users = @xvpn-samba
+`
+	if err := CheckSambaTestparmOutput(out); err != nil {
+		t.Fatalf("gate reprovou o estado atual da produção (agregado vazio): %v", err)
+	}
+}
+
+// TestCheckSambaTestparmOutput_RejectsBindRegressions cobre regressões de
+// confinamento que NÃO vêm acompanhadas do aviso "found in service
+// section" — ex.: alguém editar o smb.conf e remover/afrouxar o bind. O
+// gate tem que barrar esses casos também, senão só protege contra a
+// armadilha específica do include.
+func TestCheckSambaTestparmOutput_RejectsBindRegressions(t *testing.T) {
+	cases := []struct {
+		name        string
+		globalBlock string
+		wantInErr   string
+	}{
+		{
+			name:        "bind interfaces only ausente (volta ao default no)",
+			globalBlock: "\tinterfaces = 10.66.66.1/24 127.0.0.1/8\n",
+			wantInErr:   "ausente do [global]",
+		},
+		{
+			name:        "bind interfaces only desligado explicitamente",
+			globalBlock: "\tbind interfaces only = No\n\tinterfaces = 10.66.66.1/24 127.0.0.1/8\n",
+			wantInErr:   `esperado "Yes"`,
+		},
+		{
+			name:        "interfaces ausente",
+			globalBlock: "\tbind interfaces only = Yes\n",
+			wantInErr:   `"interfaces" ausente`,
+		},
+		{
+			name:        "interfaces sem o IP da wg0",
+			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 127.0.0.1/8\n",
+			wantInErr:   "falta endereço em 10.66.66.0/24",
+		},
+		{
+			name:        "interfaces com bind coringa",
+			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 10.66.66.1/24 0.0.0.0/0\n",
+			wantInErr:   "fora de wg0/loopback",
+		},
+		{
+			name:        "interfaces com IP público do VPS além da wg0",
+			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 10.66.66.1/24 206.189.224.72/32\n",
+			wantInErr:   "fora de wg0/loopback",
+		},
+		{
+			name:        "interfaces com nome de interface (eth0)",
+			globalBlock: "\tbind interfaces only = Yes\n\tinterfaces = 10.66.66.1/24 eth0\n",
+			wantInErr:   "token \"eth0\" inválido",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out := "Loaded services file OK.\n\n# Global parameters\n[global]\n" +
+				c.globalBlock +
+				"\n[shared]\n\tpath = /srv/xvpn/shared\n"
+			err := CheckSambaTestparmOutput(out)
+			if err == nil {
+				t.Fatalf("gate aceitou config sem confinamento de rede:\n%s", out)
+			}
+			if !strings.Contains(err.Error(), c.wantInErr) {
+				t.Errorf("erro não menciona %q:\n%v", c.wantInErr, err)
+			}
+		})
+	}
+}
+
+// TestCheckSambaTestparmOutput_IgnoresBindOutsideGlobal garante que o
+// parser respeita a fronteira de seção: um "bind interfaces only = Yes"
+// dentro de um share não satisfaz a exigência do [global]. Sem isso o
+// gate passaria justamente no caso de vazamento.
+func TestCheckSambaTestparmOutput_IgnoresBindOutsideGlobal(t *testing.T) {
+	const out = `Loaded services file OK.
+
+# Global parameters
+[global]
+	idmap config * : backend = tdb
+
+
+[home-alice]
+	bind interfaces only = Yes
+	interfaces = 10.66.66.1/24 127.0.0.1/8
+	path = /home/alice/files
+`
+	if err := CheckSambaTestparmOutput(out); err == nil {
+		t.Fatal("gate aceitou bind confinado dentro de um share em vez do [global]")
+	}
+}
+
+// TestCheckSambaTestparmOutput_RejectsUnknownLeakWarning: se o Samba
+// mudar a redação do aviso, o gate ainda deve reprovar (cai para a linha
+// inteira em vez de tentar extrair o nome do parâmetro).
+func TestCheckSambaTestparmOutput_RejectsUnknownLeakWarning(t *testing.T) {
+	out := "WARNING: parameter 'interfaces' found in service section (redação nova)\n" + testparmFixedOutput
+	err := CheckSambaTestparmOutput(out)
+	if err == nil {
+		t.Fatal("gate ignorou um aviso de vazamento com redação inesperada")
+	}
+	if !strings.Contains(err.Error(), "redação nova") {
+		t.Errorf("erro deveria repetir a linha não parseada:\n%v", err)
+	}
+}
+
+func TestCheckSambaTestparmOutput_RejectsOutputWithoutGlobalSection(t *testing.T) {
+	if err := CheckSambaTestparmOutput("Loaded services file OK.\n"); err == nil {
+		t.Fatal("gate aceitou saída de testparm sem seção [global]")
+	}
+}
+
 // --- Create ---
 
 func TestCreate_NewUserCreatesAccountAndDirs(t *testing.T) {

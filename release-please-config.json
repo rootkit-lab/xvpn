@@ -4,11 +4,13 @@
   "separate-pull-requests": true,
   "packages": {
     "server": {
+      "//": "initial-version define apenas a PRIMEIRA versão do server (o padrão do release-please para pacote nunca lançado é 1.0.0), alinhando com a linha 0.x do cliente. É consultado só enquanto não existe release anterior: depois que 0.1.0 for cortado, o bump volta a sair dos Conventional Commits e esta chave fica inerte — não precisa ser removida. Não substituir por release-as, que tem precedência sobre tudo e congelaria toda release futura em 0.1.0.",
       "release-type": "go",
       "package-name": "xvpn-server",
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true
+      "bump-patch-for-minor-pre-major": true,
+      "initial-version": "0.1.0"
     },
     "apps/xvpn-client": {
       "release-type": "go",

@@ -382,15 +382,39 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 	// no DB do que deixar configs órfãos no sistema. Se a Fase 13 não
 	// está configurada (provisioner nil) ou o usuário nunca teve
 	// acesso, nada a fazer aqui.
+	//
+	// fileAccessDisabled rastreia se o Disable efetivamente removeu o
+	// acesso — se um passo POSTERIOR (WireGuard ou DB) falhar, os
+	// caminhos de compensação precisam restaurar o acesso a arquivos
+	// também (Bugbot: "Delete skips file-access compensate"), senão o
+	// OS fica off enquanto o DB ainda marca on, e só o reconcile no
+	// próximo boot reconvergiria.
+	fileAccessDisabled := false
 	if a.UserProvisioner != nil && (target.SFTPEnabled || target.SambaEnabled) {
 		if err := a.UserProvisioner.Disable(c.Request.Context(), target.Username); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar acesso a arquivos do usuário: " + provisionerErrMsg(err)})
 			return
 		}
+		fileAccessDisabled = true
+	}
+	// compensateFileAccess restaura o acesso a arquivos que o Disable
+	// removeu, se um passo posterior falhar. Best-effort: se falhar,
+	// o reconcile no boot converge (DB ainda marca enabled).
+	compensateFileAccess := func() {
+		if !fileAccessDisabled || a.UserProvisioner == nil {
+			return
+		}
+		if target.SFTPEnabled && target.SSHPublicKey != "" {
+			_ = a.UserProvisioner.EnableSFTP(c.Request.Context(), target.Username, target.SSHPublicKey)
+		}
+		if target.SambaEnabled {
+			_ = a.UserProvisioner.EnableSamba(c.Request.Context(), target.Username)
+		}
 	}
 
 	var devices []store.Device
 	if err := a.Store.DB.Where("user_id = ?", id).Find(&devices).Error; err != nil {
+		compensateFileAccess()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -400,8 +424,10 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 			// Compensa as remoções já feitas antes de falhar no meio do
 			// loop — sem isso, um subconjunto dos devices do usuário
 			// ficaria removido do WG enquanto o registro dele continua
-			// inteiro no banco (ver ROADMAP.md Fase 9).
+			// inteiro no banco (ver ROADMAP.md Fase 9). Também restaura
+			// o acesso a arquivos (Disable já tinha removido).
 			a.compensateRestorePeers(removed, "user.delete", id)
+			compensateFileAccess()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar dispositivo do usuário na interface WireGuard"})
 			return
 		}
@@ -439,8 +465,9 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		// re-adicionando todos, para não deixar o WG "à frente" do
 		// banco até um eventual restart reconciliar (ver ROADMAP.md
 		// Fase 9). Sem devices removidos (ex.: usuário inexistente),
-		// isso é um no-op.
+		// isso é um no-op. Também restaura o acesso a arquivos.
 		a.compensateRestorePeers(removed, "user.delete", id)
+		compensateFileAccess()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 			return

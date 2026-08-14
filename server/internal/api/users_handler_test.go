@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/rootkit-lab/xvpn/server/internal/store"
@@ -278,6 +279,68 @@ func TestHandleDeleteUser_CompensatesWireGuardWhenDBFails(t *testing.T) {
 // TestHandleDeleteUser_LastSuperAdminGuard cobre a guarda da Fase 10 (ver
 // PLAN.md §6.7): o sistema nunca pode ficar sem nenhum super_admin, ou
 // ninguém mais conseguiria promover/gerenciar contas.
+// TestHandleDeleteUser_CompensatesFileAccessWhenDBFails verifica que
+// se Disable sucede mas a transação DB falha depois, o caminho de
+// compensação re-habilita o SFTP/Samba no OS — senão o OS ficaria off
+// enquanto o DB ainda marca on (Bugbot: "Delete skips file-access
+// compensate"). O reconcile no boot eventualmente convergiria, mas a
+// compensação imediata evita a janela de inconsistência.
+func TestHandleDeleteUser_CompensatesFileAccessWhenDBFails(t *testing.T) {
+	fp := &fakeUserProvisioner{}
+	app, _ := withProvisioner(t, fp)
+	createTestUser(t, app, "boss", "senha-admin-123")
+	target := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	key := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 member1"
+	app.Store.DB.Model(&target).Updates(map[string]any{
+		"sftp_enabled":   true,
+		"samba_enabled":  true,
+		"ssh_public_key": key,
+	})
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "boss", "senha-admin-123")
+	// Simula falha de banco no DELETE final do usuário (depois do
+	// Disable e do WG): a trigger aborta o DELETE dentro da transação,
+	// GORM reverte tudo. O caminho de compensação precisa restaurar o
+	// acesso a arquivos que o Disable removeu (Bugbot: "Delete skips
+	// file-access compensate").
+	if err := app.Store.DB.Exec("CREATE TRIGGER block_user_delete_fa BEFORE DELETE ON users BEGIN SELECT RAISE(ABORT, 'falha simulada de banco'); END;").Error; err != nil {
+		t.Fatalf("erro criando trigger de teste: %v", err)
+	}
+
+	rec := doJSON(t, router, http.MethodDelete, "/api/users/"+strconv.FormatUint(uint64(target.ID), 10), nil, token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperado 500 (DB falhou), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	// Disable deve ter sido chamado (removeu acesso).
+	disableCalled := false
+	for _, c := range fp.calls {
+		if c == "Disable(member1)" {
+			disableCalled = true
+		}
+	}
+	if !disableCalled {
+		t.Fatalf("Disable não foi chamado. calls: %v", fp.calls)
+	}
+	// Compensação: EnableSFTP + EnableSamba devem ter sido chamados pra
+	// restaurar o acesso que o Disable removeu (DB falhou, usuário continua).
+	enableSFTPCalled := false
+	enableSambaCalled := false
+	for _, c := range fp.calls {
+		if strings.Contains(c, "EnableSFTP(member1") {
+			enableSFTPCalled = true
+		}
+		if c == "EnableSamba(member1)" {
+			enableSambaCalled = true
+		}
+	}
+	if !enableSFTPCalled {
+		t.Errorf("compensação não re-habilitou SFTP após DB falhar. calls: %v", fp.calls)
+	}
+	if !enableSambaCalled {
+		t.Errorf("compensação não re-habilitou Samba após DB falhar. calls: %v", fp.calls)
+	}
+}
+
 func TestHandleDeleteUser_LastSuperAdminGuard(t *testing.T) {
 	app, _ := newTestApp(t)
 	boss := createTestUser(t, app, "boss", "senha-admin-123")

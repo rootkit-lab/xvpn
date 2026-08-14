@@ -10,13 +10,16 @@ if [[ -n "${VERSION:-}" ]]; then
   exit 0
 fi
 
-MANIFEST="${ROOT}/../.release-please-manifest.json"
+# ROOT é apps/xvpn-client/, então o manifest da raiz do repo fica dois níveis acima.
+# A chave do componente no manifest é o caminho do pacote, não o nome dele.
+MANIFEST="${ROOT}/../../.release-please-manifest.json"
+COMPONENT_PATH="apps/xvpn-client"
 if [[ -f "${MANIFEST}" ]]; then
   # Prefer jq; fallback to python for environments without jq.
   if command -v jq >/dev/null 2>&1; then
-    ver="$(jq -r '.client // empty' "${MANIFEST}")"
+    ver="$(jq -r --arg key "${COMPONENT_PATH}" '.[$key] // empty' "${MANIFEST}")"
   else
-    ver="$(python3 -c "import json; print(json.load(open('${MANIFEST}')).get('client',''))" 2>/dev/null || true)"
+    ver="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get(sys.argv[2],''))" "${MANIFEST}" "${COMPONENT_PATH}" 2>/dev/null || true)"
   fi
   if [[ -n "${ver}" && "${ver}" != "null" ]]; then
     echo "${ver}"

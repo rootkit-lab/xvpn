@@ -11,7 +11,7 @@ import (
 )
 
 // desktopFileName segue a mesma convenção de nome do atalho instalado
-// manualmente (ver client/build/linux/xvpn-client.desktop) — mas este
+// manualmente (ver apps/xvpn-client/build/linux/xvpn-client.desktop) — mas este
 // arquivo mora em ~/.config/autostart, não em /usr/share/applications, e
 // é gerenciado inteiramente por este pacote (criado/removido pela GUI).
 const desktopFileName = "xvpn-client-autostart.desktop"

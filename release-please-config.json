@@ -10,7 +10,7 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true
     },
-    "client": {
+    "apps/xvpn-client": {
       "release-type": "go",
       "package-name": "xvpn-client",
       "changelog-path": "CHANGELOG.md",

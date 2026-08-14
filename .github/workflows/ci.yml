@@ -38,17 +38,17 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: client
+        working-directory: apps/xvpn-client
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: client/go.mod
+          go-version-file: apps/xvpn-client/go.mod
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client/frontend/package-lock.json
+          cache-dependency-path: apps/xvpn-client/frontend/package-lock.json
       - name: Dependências de build do Wails (GTK/WebKit — ver PLAN.md §11)
         run: |
           sudo apt-get update
@@ -63,15 +63,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: client-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('client/go.mod') }}
-      - name: Instala go-task e wails3 CLI (ver client/README.md)
+          key: client-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('apps/xvpn-client/go.mod') }}
+      - name: Instala go-task e wails3 CLI (ver apps/xvpn-client/README.md)
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: |
           go install github.com/go-task/task/v3/cmd/task@v3.52.0
           WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
           go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
       - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: task build (gera frontend/bindings + frontend/dist antes do go build — client/main.go embute frontend/dist)
+      - name: task build (gera frontend/bindings + frontend/dist antes do go build — apps/xvpn-client/main.go embute frontend/dist)
         run: task build
       - run: go build ./...
       - run: go vet ./...
@@ -89,17 +89,17 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: client
+        working-directory: apps/xvpn-client
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: client/go.mod
+          go-version-file: apps/xvpn-client/go.mod
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: client/frontend/package-lock.json
+          cache-dependency-path: apps/xvpn-client/frontend/package-lock.json
       - name: Dependências p/ compilar o wails3 CLI (não afeta o binário Windows em si — ver client-linux)
         run: |
           sudo apt-get update
@@ -109,8 +109,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/go/bin
-          key: client-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('client/go.mod') }}
-      - name: Instala go-task e wails3 CLI (ver client/README.md)
+          key: client-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('apps/xvpn-client/go.mod') }}
+      - name: Instala go-task e wails3 CLI (ver apps/xvpn-client/README.md)
         if: steps.cache-tools.outputs.cache-hit != 'true'
         run: |
           go install github.com/go-task/task/v3/cmd/task@v3.52.0

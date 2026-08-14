@@ -1,10 +1,10 @@
 # Baixa o driver wintun.dll (WireGuard LLC, https://www.wintun.net/) e o
-# coloca em client/internal/platform/windows/wintun/wintun.dll, de onde
-# `go:embed` o inclui no binário — ver client/internal/platform/windows/wintun.go
+# coloca em apps/xvpn-client/internal/platform/windows/wintun/wintun.dll, de onde
+# `go:embed` o inclui no binário — ver apps/xvpn-client/internal/platform/windows/wintun.go
 # e PLAN.md §11.1. wintun.dll é um binário de terceiros e por isso nunca é
 # commitado neste repositório (ver .gitignore).
 #
-# Uso (PowerShell, no Windows, a partir de client/):
+# Uso (PowerShell, no Windows, a partir de apps/xvpn-client/):
 #   .\build\windows\fetch-wintun.ps1
 #
 # IMPORTANTE: confira o SHA256 do arquivo baixado contra o publicado em

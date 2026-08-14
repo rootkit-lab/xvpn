@@ -41,7 +41,7 @@ vendor/
 
 # ===== Node / React / Vite (painel web e frontend do cliente) =====
 node_modules/
-client/frontend/dist/
+apps/xvpn-client/frontend/dist/
 .vite/
 .cache/
 *.local
@@ -57,12 +57,12 @@ server/internal/webui/dist/*
 !server/internal/webui/dist/placeholder.txt
 
 # ===== Wails (cliente desktop) =====
-client/bin/
-client/build/dist/
-client/build/darwin/
-client/build/windows/*.exe
-client/build/linux/*.deb
-client/build/linux/*.AppImage
+apps/xvpn-client/bin/
+apps/xvpn-client/build/dist/
+apps/xvpn-client/build/darwin/
+apps/xvpn-client/build/windows/*.exe
+apps/xvpn-client/build/linux/*.deb
+apps/xvpn-client/build/linux/*.AppImage
 *.AppImage
 *.deb
 *.msi

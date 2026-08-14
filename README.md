@@ -32,7 +32,7 @@ Dispositivos Windows/Linux entram numa rede privada cujo nó central é um VPS p
 
 Deploy do servidor: build embutindo o painel e substituir `/opt/xvpn/bin/xvpn-server` — ver [`server/README.md`](./server/README.md).
 
-Cliente (dev/instalação): ver [`client/README.md`](./client/README.md). Empacotamento `.deb`/AppImage/NSIS está na Fase 7 (PR).
+Cliente (dev/instalação): ver [`apps/xvpn-client/README.md`](./apps/xvpn-client/README.md). Empacotamento `.deb`/AppImage/NSIS está na Fase 7 (PR).
 
 ## Desenvolvimento local
 
@@ -43,9 +43,9 @@ go test ./...
 go run ./cmd/xvpn-server   # precisa de WG + env; ver server/README.md
 
 # Cliente (Linux)
-cd client
+cd apps/xvpn-client
 task build
-# helper: sudo ./bin/xvpn-client --helper   (ou unit systemd — client/README.md)
+# helper: sudo ./bin/xvpn-client --helper   (ou unit systemd — apps/xvpn-client/README.md)
 ./bin/xvpn-client
 ```
 
@@ -54,11 +54,15 @@ task build
 ```
 xvpn/
 ├── PLAN.md / ROADMAP.md / SECURITY.md / CONTRIBUTING.md / AGENTS.md
+├── apps/            # produtos distribuíveis ao usuário final
+│   └── xvpn-client/ # Desktop Wails3 (GUI + --helper)
 ├── server/          # API Gin + painel React embutido (embed.FS)
-├── client/          # Desktop Wails3 (GUI + --helper)
 ├── .cursor/         # rules, hooks, skills (auditoria VPS, peers WG, PRs…)
 └── assets/          # logo
 ```
+
+`apps/` guarda o que é empacotado e distribuído; `server/` (e futuramente `shared/`)
+ficam na raiz porque são plataforma, não produtos de catálogo.
 
 ## Observabilidade (Fase 8)
 

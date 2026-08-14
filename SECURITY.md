@@ -76,6 +76,22 @@ operações, invocado via `sudo -n` com escopo restrito:
 
 Use a skill `vps-security-audit` (`.cursor/skills/vps-security-audit/`) para revalidar esses pontos periodicamente — ela roda os mesmos checks read-only usados no diagnóstico inicial do projeto.
 
+### Isolamento cross-user no Samba (Fase 13)
+
+**Decisão registrada:** os shares Samba per-user (`[home-<username>]`) usam `guest ok = yes` + `force user = <username>` **sem** `valid users`. Consequência: **qualquer peer autenticado na VPN pode acessar o share de qualquer usuário se souber o nome** — não há isolamento entre usuários *dentro* da VPN. A VPN é tratada como domínio de confiança única.
+
+**Por que aceitamos isso:** reintroduzir `valid users` exigiria uma senha Samba por usuário (gerada/armazenada/rotacionada pelo painel), reabrindo a superfície de credencial que a Fase 5 descartou. A troca foi **simplicidade > isolamento granular**, aceita em revisão de segurança da Fase 13 (Bugbot sinalizou como HIGH; mitigação escolhida: aceitar e documentar).
+
+**O que isso NÃO quebra:**
+- O share `[shared]` (comum, Fase 5) **não** é afetado — ele tem `guest ok = no` + `valid users = @xvpn-samba`, então continua exigindo conta Samba válida. A mudança global `map to guest = Bad User` (necessária pro guest dos shares per-user funcionar) só mapeia pra guest em shares que *aceitam* guest, e `[shared]` não aceita.
+- SFTP **não** é afetado — usa chave pública por usuário, isolamento natural por credencial.
+
+**Mitigações em vigor:**
+- Samba escuta só em `wg0` (`10.66.66.1`) — nunca na internet. O ataque só é viável de dentro da VPN.
+- Shares são `browseable = yes` (qualquer peer vê a lista de `home-*` via `smbclient -L`), então descobrir shares = descobrir usernames do painel. Isso é fraco como defesa, mas o username já é necessário pra qualquer acesso (SFTP/SSH), então não é informação nova sensível.
+
+**Se a ameaça voltar a ser inaceitável:** reintroduzir `valid users = <username>` + senha Samba por usuário (reabre a superfície de credencial descartada na Fase 5). *Não implementado hoje.*
+
 ## Rotação e revogação de chaves
 
 - **Dispositivo perdido/comprometido**: revogar imediatamente pelo painel (remove o peer do `wg0`). Não é necessário rotacionar a chave do servidor nesse caso — só a chave pública daquele dispositivo específico é invalidada.

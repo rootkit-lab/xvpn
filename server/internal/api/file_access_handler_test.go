@@ -249,6 +249,45 @@ func TestHandleSetFileAccess_ProvisionerFailureKeepsDBConsistent(t *testing.T) {
 	}
 }
 
+// TestHandleSetFileAccess_PartialSuccessPersistsSuccessfulSteps
+// verifica a consistência DB↔sistema no cenário que o Bugbot flagrou:
+// habilitar SFTP+Samba, mas EnableSamba falha. O EnableSFTP sucedeu e
+// DEVE estar persistido no DB (SFTPEnabled=true) — senão o OS fica
+// com acesso SFTP mas o DB diz off, e um futuro "both off" não
+// chamaria Disable (DB acha que nada pra desligar), deixando acesso
+// fantasma. O reconcile também não reconvergiria (só re-enable a
+// partir do DB, que diz off).
+func TestHandleSetFileAccess_PartialSuccessPersistsSuccessfulSteps(t *testing.T) {
+	fp := &fakeUserProvisioner{failOn: "EnableSamba", err: errors.New("testparm falhou")}
+	app, _ := withProvisioner(t, fp)
+	router := NewRouter(app)
+	admin := createTestUserWithRole(t, app, "admin", "senha-admin-123", store.RoleAdmin)
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+	key := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 alice"
+
+	// Habilita SFTP (sucede) + Samba (falha). Espera 500.
+	rec := doJSON(t, router, http.MethodPut, "/api/users/"+uidStr(admin)+"/file-access",
+		fileAccessRequest{SFTPEnabled: true, SambaEnabled: true, SSHPublicKey: key}, token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperava 500 (EnableSamba falhou), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var u store.User
+	if err := app.Store.DB.First(&u, admin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	// SFTP sucedeu → DEVE estar persistido (não fica "OS on, DB off").
+	if !u.SFTPEnabled {
+		t.Error("SFTP sucedeu mas DB não persistiu SFTPEnabled=true — consistência DB↔sistema quebrada")
+	}
+	if u.SSHPublicKey != key {
+		t.Errorf("DB deveria ter a chave SFTP persistida, tem %q", u.SSHPublicKey)
+	}
+	// Samba falhou → DB deve continuar off.
+	if u.SambaEnabled {
+		t.Error("Samba falhou mas DB marcou SambaEnabled=true")
+	}
+}
+
 func TestHandleSetFileAccess_NilProvisionerReturns503(t *testing.T) {
 	app, _ := newTestApp(t) // UserProvisioner fica nil
 	router := NewRouter(app)

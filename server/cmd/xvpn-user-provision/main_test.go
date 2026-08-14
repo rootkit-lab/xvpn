@@ -39,9 +39,12 @@ func (n *noopRunner) AddSystemUser(username, homeDir string) error {
 	return nil
 }
 func (n *noopRunner) LookupUIDGID(string) (int, int, error) { return 1000, 1000, nil }
-func (n *noopRunner) MkdirAll(string, os.FileMode) error    { return nil }
-func (n *noopRunner) Chown(string, int, int) error          { return nil }
-func (n *noopRunner) Chmod(string, os.FileMode) error       { return nil }
+func (n *noopRunner) LookupUser(username string) (string, string, error) {
+	return "/home/" + username, "/usr/sbin/nologin", nil
+}
+func (n *noopRunner) MkdirAll(string, os.FileMode) error { return nil }
+func (n *noopRunner) Chown(string, int, int) error       { return nil }
+func (n *noopRunner) Chmod(string, os.FileMode) error    { return nil }
 func (n *noopRunner) WriteFile(path, content string, _ os.FileMode) error {
 	n.writes[path] = content
 	return nil

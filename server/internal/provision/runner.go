@@ -16,6 +16,11 @@ type Runner interface {
 	UserExists(username string) (bool, error)
 	AddSystemUser(username, homeDir string) error
 	LookupUIDGID(username string) (uid, gid int, err error)
+	// LookupUser devolve o home e o shell da conta Unix — usados por
+	// Create pra distinguir uma conta criada pelo provisionador (home
+	// /home/<user>, shell /usr/sbin/nologin) de uma conta de sistema
+	// pré-existente (ex.: root) que não devemos tocar.
+	LookupUser(username string) (home, shell string, err error)
 	MkdirAll(path string, perm os.FileMode) error
 	Chown(path string, uid, gid int) error
 	Chmod(path string, perm os.FileMode) error
@@ -89,6 +94,22 @@ func (osRunner) LookupUIDGID(username string) (int, int, error) {
 		return 0, 0, fmt.Errorf("parseando gid %q: %w", fields[3], err)
 	}
 	return uid, gid, nil
+}
+
+// LookupUser devolve home (campo 6) e shell (campo 7) do getent passwd.
+// Usado por Create pra validar que uma conta pré-existente foi criada
+// por nós (home=/home/<user>, shell=/usr/sbin/nologin) e não é uma
+// conta de sistema alheia.
+func (osRunner) LookupUser(username string) (string, string, error) {
+	out, err := exec.Command("getent", "passwd", username).Output()
+	if err != nil {
+		return "", "", fmt.Errorf("lendo passwd de %q: %w", username, err)
+	}
+	fields := splitFields(string(out))
+	if len(fields) < 7 {
+		return "", "", fmt.Errorf("saída inesperada de getent para %q: %q", username, string(out))
+	}
+	return fields[5], fields[6], nil
 }
 
 // splitFields quebra uma linha de getent passwd por ':' — separada de

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"testing"
@@ -133,6 +134,95 @@ func TestHandleDeleteUser_RevokesDevicesToo(t *testing.T) {
 	app.Store.DB.Model(&store.Device{}).Count(&remaining)
 	if remaining != 0 {
 		t.Fatalf("esperava 0 devices após deletar o usuário, obtido %d", remaining)
+	}
+}
+
+// TestHandleDeleteUser_RevokesUnixFileAccess verifica que deletar um
+// usuário com SFTP/Samba habilitado chama UserProvisioner.Disable
+// ANTES de apagar a linha — senão os drop-ins/shares/home ficariam
+// órfãos no VPS (Bugbot: "Delete leaves file access active").
+func TestHandleDeleteUser_RevokesUnixFileAccess(t *testing.T) {
+	fp := &fakeUserProvisioner{}
+	app, wg := withProvisioner(t, fp)
+	createTestUser(t, app, "boss", "senha-admin-123")
+	target := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	// Marca o usuário com SFTP + Samba habilitados no DB.
+	app.Store.DB.Model(&target).Updates(map[string]any{
+		"sftp_enabled":   true,
+		"samba_enabled":  true,
+		"ssh_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 member1",
+	})
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "boss", "senha-admin-123")
+
+	rec := doJSON(t, router, http.MethodDelete, "/api/users/"+strconv.FormatUint(uint64(target.ID), 10), nil, token)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("esperado 204, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	// Disable deve ter sido chamado uma vez com o username do alvo.
+	found := false
+	for _, c := range fp.calls {
+		if c == "Disable(member1)" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("UserProvisioner.Disable não foi chamado no delete. calls: %v", fp.calls)
+	}
+	// Usuário efetivamente removido do DB.
+	var n int64
+	app.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Count(&n)
+	if n != 0 {
+		t.Errorf("usuário deveria ter sido removido do DB, ainda há %d", n)
+	}
+	_ = wg // mantém wg vivo
+}
+
+// TestHandleDeleteUser_ProvisionerFailureBlocksDelete verifica que,
+// se o provisionador falha ao revogar o acesso Unix, o usuário NÃO é
+// apagado do DB — prefere manter o usuário intacto do que deixar
+// configs órfãos no VPS. O admin resolve e re-tenta (Disable é
+// idempotente).
+func TestHandleDeleteUser_ProvisionerFailureBlocksDelete(t *testing.T) {
+	fp := &fakeUserProvisioner{failOn: "Disable", err: errors.New("sshd -t falhou")}
+	app, _ := withProvisioner(t, fp)
+	createTestUser(t, app, "boss", "senha-admin-123")
+	target := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	app.Store.DB.Model(&target).Updates(map[string]any{"sftp_enabled": true, "ssh_public_key": "ssh-ed25519 AAAA member1"})
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "boss", "senha-admin-123")
+
+	rec := doJSON(t, router, http.MethodDelete, "/api/users/"+strconv.FormatUint(uint64(target.ID), 10), nil, token)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("esperado 500 (Disable falhou), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	// Usuário DEVE continuar no DB.
+	var n int64
+	app.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Count(&n)
+	if n != 1 {
+		t.Errorf("usuário não deveria ter sido removido quando Disable falhou (n=%d)", n)
+	}
+}
+
+// TestHandleDeleteUser_NoProvisionerCallWhenAccessDisabled verifica
+// que o delete de um usuário SEM acesso a arquivos não chama o
+// provisionador (evita Disable desnecessário num usuário que nunca
+// teve SFTP/Samba).
+func TestHandleDeleteUser_NoProvisionerCallWhenAccessDisabled(t *testing.T) {
+	fp := &fakeUserProvisioner{}
+	app, _ := withProvisioner(t, fp)
+	createTestUser(t, app, "boss", "senha-admin-123")
+	target := createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	// member1 sem SFTP/Samba (default false).
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "boss", "senha-admin-123")
+
+	rec := doJSON(t, router, http.MethodDelete, "/api/users/"+strconv.FormatUint(uint64(target.ID), 10), nil, token)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("esperado 204, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	if len(fp.calls) != 0 {
+		t.Errorf("provisioner não deveria ter sido chamado (usuário sem acesso). calls: %v", fp.calls)
 	}
 }
 
@@ -310,6 +400,57 @@ func TestHandleUpdateUser_ChangesUsername(t *testing.T) {
 	}
 	if updated.Role != store.RoleMember {
 		t.Fatalf("trocar só o username não deveria mudar o papel, obtido %q", updated.Role)
+	}
+}
+
+// TestHandleUpdateUser_RefusesRenameWhenFileAccessOn verifica que
+// renomear um usuário com SFTP/Samba habilitado é rejeitado (409) —
+// o provisionamento Unix usa o username como chave, e renomear no DB
+// sem reprovisionar deixaria configs órfãos no VPS (Bugbot: "Rename
+// orphans Unix account configs"). O admin precisa desativar o acesso
+// a arquivos antes de renomear.
+func TestHandleUpdateUser_RefusesRenameWhenFileAccessOn(t *testing.T) {
+	app, _ := withProvisioner(t, &fakeUserProvisioner{})
+	createTestUser(t, app, "admin", "senha-admin-123")
+	target := createTestUserWithRole(t, app, "antigo-nome", "senha-membro-123", store.RoleMember)
+	// Marca SFTP habilitado no DB.
+	app.Store.DB.Model(&target).Updates(map[string]any{
+		"sftp_enabled":   true,
+		"ssh_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 antigo",
+	})
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	newUsername := "novo-nome"
+	rec := doJSON(t, router, http.MethodPatch, "/api/users/"+strconv.FormatUint(uint64(target.ID), 10),
+		updateUserRequest{Username: &newUsername}, token)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("esperado 409 (rename com SFTP on), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	// Username no DB não mudou.
+	var u store.User
+	app.Store.DB.First(&u, target.ID)
+	if u.Username != "antigo-nome" {
+		t.Errorf("username não deveria ter mudado, virou %q", u.Username)
+	}
+}
+
+// TestHandleUpdateUser_AllowsRenameWhenFileAccessOff verifica que o
+// rename volta a ser permitido depois que o acesso a arquivos é
+// desligado (mesmo usuário do teste anterior).
+func TestHandleUpdateUser_AllowsRenameWhenFileAccessOff(t *testing.T) {
+	app, _ := withProvisioner(t, &fakeUserProvisioner{})
+	createTestUser(t, app, "admin", "senha-admin-123")
+	target := createTestUserWithRole(t, app, "antigo-nome", "senha-membro-123", store.RoleMember)
+	// SFTP e Samba ambos off (default) → rename permitido.
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
+
+	newUsername := "novo-nome"
+	rec := doJSON(t, router, http.MethodPatch, "/api/users/"+strconv.FormatUint(uint64(target.ID), 10),
+		updateUserRequest{Username: &newUsername}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200 (rename com acesso off), obtido %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

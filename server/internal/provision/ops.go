@@ -15,6 +15,18 @@ import (
 // em profundidade.
 var ErrInvalidUsername = errors.New("username inválido (deve começar com letra minúscula, 3-32 chars, só minúsculas/dígitos/underscore/hífen)")
 
+// ErrUsernameCollision é devolvido quando o username do painel colide
+// com uma conta Unix pré-existente que NÃO foi criada pelo
+// provisionador (ex.: root, www-data, sshd). Sem isso, um admin que
+// criasse um usuário "root" no painel e ligasse SFTP faria o binário
+// escrever um `Match User root` no sshd, sobrescrevendo o acesso SSH do
+// root de verdade (Bugbot: "Rename orphans"/colisão com conta de
+// sistema). A distinção "nosso" vs "alheio" é feita checando home e
+// shell: contas criadas aqui têm home=/home/<username> e
+// shell=/usr/sbin/nologin (ver Create). Se o usuário existe mas não
+// bate com isso, recusamos em vez de operar em cima.
+var ErrUsernameCollision = errors.New("username colide com conta de sistema pré-existente não criada pelo XVPN")
+
 // homeDir devolve o caminho absoluto da raiz do chroot/home do usuário.
 // Centralizado pra Create/EnableSFTP/Disable usarem o mesmo.
 func homeDir(username string) string {
@@ -52,6 +64,22 @@ func Create(r Runner, username string) error {
 	if !exists {
 		if err := r.AddSystemUser(username, home); err != nil {
 			return err
+		}
+	} else {
+		// O usuário já existe — precisa ser uma conta que NÓS criamos
+		// (re-run idempotente do reconcile), não uma conta de sistema
+		// alheia. Validamos pelos campos que o provisionador fixa em
+		// AddSystemUser: home=/home/<username> e shell=/usr/sbin/nologin.
+		// Se bater, é nosso (re-run ok); se não, é colisão com conta de
+		// sistema (ex.: root, www-data) — recusa pra não sobrescrever
+		// config SSH/Samba de conta alheia (Bugbot: colisão com conta
+		// de sistema).
+		uHome, uShell, lerr := r.LookupUser(username)
+		if lerr != nil {
+			return lerr
+		}
+		if uHome != home || uShell != "/usr/sbin/nologin" {
+			return ErrUsernameCollision
 		}
 	}
 

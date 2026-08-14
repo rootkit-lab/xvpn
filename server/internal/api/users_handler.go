@@ -182,6 +182,20 @@ func (a *App) handleUpdateUser(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "username não pode ficar vazio"})
 			return
 		}
+		// Rename de username é proibido enquanto o usuário tem SFTP ou
+		// Samba habilitado: o provisionamento Unix usa o username como
+		// chave (drop-in sshd `Match User <name>`, share Samba
+		// `[home-<name>]`, /home/<name>/). Renomear no DB sem
+		// reprovisionar deixaria configs órfãos no VPS sob o nome antigo
+		// e o reconcile não os limparia (só conhece o nome novo). Em
+		// vez de tentar reprovisionar atomicamente (complexo e propenso a
+		// deixar metade pronta), exigimos que o admin desligue o acesso
+		// a arquivos antes de renomear — fluxo explícito e seguro
+		// (Bugbot: "Rename orphans Unix account configs").
+		if username != target.Username && (target.SFTPEnabled || target.SambaEnabled) {
+			c.JSON(http.StatusConflict, gin.H{"error": "desative o acesso a arquivos (SFTP/Samba) antes de renomear o usuário"})
+			return
+		}
 		updates["username"] = username
 	}
 	if req.Role != nil {
@@ -355,6 +369,22 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 		}
 		if superAdmins <= 1 {
 			c.JSON(http.StatusConflict, gin.H{"error": "não é possível remover o único super_admin"})
+			return
+		}
+	}
+
+	// Revoga o acesso a arquivos Unix (SFTP/Samba) ANTES de apagar a
+	// linha do DB — depois do delete não teríamos mais o username pra
+	// chamar o provisionador, e os drop-ins/shares/home ficariam órfãos
+	// no VPS (Bugbot: "Delete leaves file access active"). Se o
+	// provisionador falhar, NÃO apagamos o usuário (return error) — o
+	// admin resolve e tenta de novo; prefiro deixar o usuário intacto
+	// no DB do que deixar configs órfãos no sistema. Se a Fase 13 não
+	// está configurada (provisioner nil) ou o usuário nunca teve
+	// acesso, nada a fazer aqui.
+	if a.UserProvisioner != nil && (target.SFTPEnabled || target.SambaEnabled) {
+		if err := a.UserProvisioner.Disable(c.Request.Context(), target.Username); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar acesso a arquivos do usuário: " + provisionerErrMsg(err)})
 			return
 		}
 	}

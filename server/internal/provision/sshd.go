@@ -22,11 +22,19 @@ func sshdDropInPath(username string) string {
 // /home/<username>/.ssh/authorized_keys funciona mesmo com o usuário
 // sem poder escrever no próprio /home/<username>/ (raiz root:root,
 // exigência do chroot).
+//
+// ForceCommand usa `internal-sftp -d /files` pra que a sessão já
+// caia no diretório visível /home/<username>/files (o mesmo que o
+// share Samba enxerga) — sem -d, a sessão cairia na raiz do chroot
+// (/home/<username>), expondo o .ssh/ (Bugbot: "SFTP root is not
+// files directory"). O .ssh/ é root:root e o usuário não pode
+// escrever lá, mas não é pra ele ver; -d /files alinha com o que
+// a UI/descrição prometem ("chrooted em /home/<user>/files").
 func SSHDMatchConfig(username string) string {
 	return fmt.Sprintf(`# Gerado por xvpn-user-provision (Fase 13, PLAN.md §6.9).
 # NÃO editar manualmente — use o painel para ligar/desligar o acesso.
 Match User %s
-    ForceCommand internal-sftp
+    ForceCommand internal-sftp -d /files
     ChrootDirectory /home/%s
     PubkeyAuthentication yes
     PasswordAuthentication no

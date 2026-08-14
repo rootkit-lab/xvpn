@@ -16,13 +16,12 @@ import (
 // Calcula o diff contra o estado atual e chama só o provisionador pro
 // que mudou — idempotente.
 //
-// Consistência DB↔sistema (mesma preocupação da Fase 9 com WireGuard):
-// cada chamada do provisionador que tem sucesso atualiza o campo
-// correspondente no DB imediatamente, então o DB sempre reflete o que
-// o sistema de fato tem. Se uma chamada falha no meio, o DB já gravou
-// o que sucedeu e o handler devolve 500; o reconcile no boot (ver
-// cmd/xvpn-server/main.go) converge o resto. Não há "estado fantasma"
-// onde o DB diz "ligado" mas o sistema não tem.
+// Consistência DB↔sistema (Fase 13, PLAN.md §6.9): cada chamada do
+// provisionador que tem sucesso é seguida imediatamente de uma
+// gravação no DB do campo correspondente (saveFileAccessFields). Assim,
+// se uma chamada falhar no meio, o DB já reflete tudo o que sucedeu —
+// nunca fica "OS ligado mas DB desligado". O reconcile no boot (ver
+// reconcile.go) converge o resto a partir do DB.
 //
 // PUT /api/users/:id/file-access  (adminOnly — ver server.go)
 func (a *App) handleSetFileAccess(c *gin.Context) {
@@ -63,81 +62,123 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 	ctx := c.Request.Context()
 	username := target.Username
 
+	// save persiste o estado atual do target no DB. Chamado depois de
+	// CADA chamada de provisionador que sucede — é o ponto que garante
+	// a consistência DB↔sistema (ver comentário do handler).
+	save := func() {
+		if err := a.saveFileAccessFields(&target); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno ao persistir"})
+			return
+		}
+	}
+	provisionErr := func(err error) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+	}
+
 	// Caminho 1: ambos desligados no destino → remove tudo de uma vez.
-	// Só chama se algo estava ligado antes (evita Disable num usuário
-	// que nunca teve acesso — seria no-op mas recarregaria serviços à toa).
+	// Só chama Disable se algo estava ligado antes (evita Disable num
+	// usuário que nunca teve acesso — seria no-op mas recarregaria
+	// serviços à toa).
 	if !req.SFTPEnabled && !req.SambaEnabled {
 		if target.SFTPEnabled || target.SambaEnabled {
 			if err := a.UserProvisioner.Disable(ctx, username); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+				provisionErr(err)
 				return
 			}
 			target.SFTPEnabled = false
 			target.SambaEnabled = false
 			target.SSHPublicKey = ""
+			save()
+			if c.Writer.Written() {
+				return
+			}
 		}
-		a.persistFileAccess(c, &target)
+		a.respondFileAccess(c, &target)
 		return
 	}
 
 	// Caminho 2: pelo menos um ligado — aplica diffs individuais.
 	// Ordem: desligar antes de ligar (evita recarregar sshd duas vezes
-	// seguidas; e desligar Samba não afeta SFTP, vice-versa).
+	// seguidas; e desligar Samba não afeta SFTP, vice-versa). Cada
+	// passo persiste sozinho.
 	if !req.SFTPEnabled && target.SFTPEnabled {
 		if err := a.UserProvisioner.DisableSFTP(ctx, username); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+			provisionErr(err)
 			return
 		}
 		target.SFTPEnabled = false
 		target.SSHPublicKey = ""
+		save()
+		if c.Writer.Written() {
+			return
+		}
 	}
 	if !req.SambaEnabled && target.SambaEnabled {
 		if err := a.UserProvisioner.DisableSamba(ctx, username); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+			provisionErr(err)
 			return
 		}
 		target.SambaEnabled = false
+		save()
+		if c.Writer.Written() {
+			return
+		}
 	}
 	if req.SFTPEnabled && !target.SFTPEnabled {
 		if err := a.UserProvisioner.EnableSFTP(ctx, username, req.SSHPublicKey); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+			provisionErr(err)
 			return
 		}
 		target.SFTPEnabled = true
 		target.SSHPublicKey = req.SSHPublicKey
+		save()
+		if c.Writer.Written() {
+			return
+		}
 	}
 	if req.SambaEnabled && !target.SambaEnabled {
 		if err := a.UserProvisioner.EnableSamba(ctx, username); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+			provisionErr(err)
 			return
 		}
 		target.SambaEnabled = true
+		save()
+		if c.Writer.Written() {
+			return
+		}
 	}
 	// SFTP já on, mas chave mudou: re-aplica EnableSFTP pra reescrever
 	// o authorized_keys (garante que o arquivo bate com o que o admin colou).
 	if req.SFTPEnabled && target.SFTPEnabled && req.SSHPublicKey != target.SSHPublicKey && req.SSHPublicKey != "" {
 		if err := a.UserProvisioner.EnableSFTP(ctx, username, req.SSHPublicKey); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
+			provisionErr(err)
 			return
 		}
 		target.SSHPublicKey = req.SSHPublicKey
+		save()
+		if c.Writer.Written() {
+			return
+		}
 	}
 
-	a.persistFileAccess(c, &target)
+	a.respondFileAccess(c, &target)
 }
 
-// persistFileAccess grava o estado final no DB e devolve a resposta.
-// O audit log registra a transição (ligou/desligou SFTP/Samba) — não
-// a chave em si (chave pública é pública, mas não precisa ficar no log).
-func (a *App) persistFileAccess(c *gin.Context, target *store.User) {
-	if err := a.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Updates(map[string]any{
+// saveFileAccessFields grava os três campos de acesso a arquivos do
+// usuário no DB. Usado pelo handler após cada chamada de provisionador
+// bem-sucedida (consistência DB↔sistema) e pelo reconcile.
+func (a *App) saveFileAccessFields(target *store.User) error {
+	return a.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Updates(map[string]any{
 		"sftp_enabled":   target.SFTPEnabled,
 		"samba_enabled":  target.SambaEnabled,
 		"ssh_public_key": target.SSHPublicKey,
-	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
+	}).Error
+}
+
+// respondFileAccess grava o audit log e devolve o estado atual. O DB
+// já foi persistido passo a passo; aqui só registramos a transição
+// final (sftp=on/off samba=on/off) e respondemos.
+func (a *App) respondFileAccess(c *gin.Context, target *store.User) {
 	actor, _ := c.Get(auth.ContextUsernameKey)
 	actions := []string{"sftp=off", "samba=off"}
 	if target.SFTPEnabled {
@@ -146,7 +187,8 @@ func (a *App) persistFileAccess(c *gin.Context, target *store.User) {
 	if target.SambaEnabled {
 		actions[1] = "samba=on"
 	}
-	_ = a.Store.LogAudit(actorString(actor), "user.file_access", "user_id="+strconv.FormatUint(uint64(target.ID), 10)+" "+strings.Join(actions, " "))
+	_ = a.Store.LogAudit(actorString(actor), "user.file_access",
+		"user_id="+strconv.FormatUint(uint64(target.ID), 10)+" "+strings.Join(actions, " "))
 	c.JSON(http.StatusOK, fileAccessResponse{
 		SFTPEnabled:  target.SFTPEnabled,
 		SambaEnabled: target.SambaEnabled,

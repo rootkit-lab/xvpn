@@ -17,6 +17,11 @@ type fakeRunner struct {
 	files     map[string]string
 	filePerms map[string]os.FileMode
 	users     map[string]bool // usernames que "existem" no sistema
+	// userHome/userShell, se setados, controlam o que LookupUser devolve
+	// — pra simular colisão com conta de sistema (home/shell diferentes
+	// dos que o provisionador cria). Vazio = defaults "nossos".
+	userHome  string
+	userShell string
 	// failOn, se setado, faz a chamada cujo nome casa devolver errFake
 	// — para testar caminhos de erro/rollback.
 	failOn  string
@@ -54,6 +59,26 @@ func (f *fakeRunner) LookupUIDGID(username string) (int, int, error) {
 	// distinguir usuários diferentes. Não precisa ser real.
 	uid := 1000 + len(username)
 	return uid, uid, f.record("LookupUIDGID(" + username + ")")
+}
+
+// LookupUser no fake: devolve o home/shell que o teste programou em
+// userHome/userShell (se setado); senão devolve os defaults que o
+// provisionador usaria (home=/home/<user>, shell=/usr/sbin/nologin) —
+// simulando uma conta "nossa". Testes que querem simular colisão com
+// conta de sistema setam userShell="/bin/bash" ou userHome="/root".
+func (f *fakeRunner) LookupUser(username string) (string, string, error) {
+	if err := f.record("LookupUser(" + username + ")"); err != nil {
+		return "", "", err
+	}
+	home := f.userHome
+	if home == "" {
+		home = "/home/" + username
+	}
+	shell := f.userShell
+	if shell == "" {
+		shell = "/usr/sbin/nologin"
+	}
+	return home, shell, nil
 }
 
 func (f *fakeRunner) MkdirAll(path string, perm os.FileMode) error {
@@ -175,7 +200,7 @@ func TestSSHDMatchConfig_Content(t *testing.T) {
 	got := SSHDMatchConfig("alice")
 	mustContain := []string{
 		"Match User alice",
-		"ForceCommand internal-sftp",
+		"ForceCommand internal-sftp -d /files",
 		"ChrootDirectory /home/alice",
 		"PubkeyAuthentication yes",
 		"PasswordAuthentication no",
@@ -247,12 +272,39 @@ func TestCreate_NewUserCreatesAccountAndDirs(t *testing.T) {
 func TestCreate_ExistingUserSkipsUseradd(t *testing.T) {
 	r := newFakeRunner()
 	r.users["alice"] = true
+	// Defaults do fake: home=/home/alice, shell=/usr/sbin/nologin →
+	// reconhecido como "nosso", Create segue idempotente.
 	if err := Create(r, "alice"); err != nil {
 		t.Fatalf("Create falhou: %v", err)
 	}
 	for _, c := range r.calls {
 		if strings.HasPrefix(c, "AddSystemUser") {
 			t.Fatalf("AddSystemUser não deveria ter sido chamado para usuário existente: %v", r.calls)
+		}
+	}
+}
+
+// TestCreate_RefusesCollisionWithSystemAccount verifica que Create
+// recusa (ErrUsernameCollision) quando o username já existe mas NÃO
+// foi criado pelo provisionador — home/shell diferentes dos que
+// fixamos. Sem isso, um admin criando um usuário "root" no painel e
+// ligando SFTP faria o binário escrever `Match User root` no sshd
+// (Bugbot: colisão com conta de sistema).
+func TestCreate_RefusesCollisionWithSystemAccount(t *testing.T) {
+	r := newFakeRunner()
+	r.users["root"] = true
+	// Simula conta de sistema: home=/root, shell=/bin/bash (diferente
+	// dos nossos /home/<user> + /usr/sbin/nologin).
+	r.userHome = "/root"
+	r.userShell = "/bin/bash"
+	err := Create(r, "root")
+	if !errors.Is(err, ErrUsernameCollision) {
+		t.Fatalf("esperava ErrUsernameCollision, obtido: %v", err)
+	}
+	// Nenhuma syscall de mutação deveria ter sido feita.
+	for _, c := range r.calls {
+		if strings.HasPrefix(c, "MkdirAll") || strings.HasPrefix(c, "Chown") || strings.HasPrefix(c, "AddSystemUser") {
+			t.Errorf("syscall de mutação chamada em colisão: %q", c)
 		}
 	}
 }

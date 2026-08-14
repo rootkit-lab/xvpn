@@ -45,13 +45,19 @@ export function AppShell() {
   const items = user ? NAV_ITEMS.filter((item) => item.roles.includes(user.role)) : []
 
   return (
-    <div className="flex min-h-svh w-full bg-background">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-white/5 bg-card/60 backdrop-blur">
+    <div className="relative flex min-h-svh w-full bg-background">
+      {/* dot-grid atrás de tudo — assinatura técnica do fundo das telas
+          logadas. Pointer-events-none pra não capturar cliques. */}
+      <div className="dot-grid pointer-events-none fixed inset-0 opacity-60" />
+      <aside className="cyber-frame relative z-10 flex w-64 shrink-0 flex-col border-r border-white/5 bg-card/70 backdrop-blur">
         <div className="flex items-center gap-2 px-6 py-5">
           <img src="/logo-192.png" alt="XVPN" className="size-8 drop-shadow-[0_0_12px_var(--color-glow)]" />
-          <span className="text-lg font-semibold">XVPN</span>
+          <span className="text-lg font-semibold tracking-tight">XVPN</span>
+          <span className="hud-label ml-auto text-muted-foreground/70">ctrl</span>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <div className="scanline mx-3" />
+        <nav className="flex flex-1 flex-col gap-1 px-3 py-4">
+          <span className="hud-label mb-2 px-3 text-muted-foreground/60">// navegação</span>
           {items.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -59,34 +65,41 @@ export function AppShell() {
               end
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-all',
+                  'group relative flex items-center gap-3 rounded-md px-3 py-2 font-mono text-[0.8125rem] tracking-wide transition-all',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-[0_0_20px_-4px_var(--color-glow)]'
+                    ? 'bg-primary/15 text-primary shadow-[inset_1px_0_0_var(--color-primary)]'
                     : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
                 )
               }
             >
-              <Icon className="size-4" />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <Icon className="size-4" />
+                  <span>{label}</span>
+                  {isActive && (
+                    <span className="absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-primary shadow-[0_0_8px_var(--color-glow)]" />
+                  )}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
         <div className="border-t border-white/5 p-3">
           {user && (
             <div className="flex items-center justify-between gap-2 px-3 py-2">
-              <span className="truncate text-sm font-medium" title={user.username}>
+              <span className="truncate font-mono text-sm" title={user.username}>
                 {user.username}
               </span>
               <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
             </div>
           )}
-          <Button variant="ghost" className="w-full justify-start gap-3 rounded-full" onClick={logout}>
+          <Button variant="ghost" className="w-full justify-start gap-3 rounded-md font-mono" onClick={logout}>
             <LogOut className="size-4" />
             Sair
           </Button>
         </div>
       </aside>
-      <main className="relative flex-1 overflow-y-auto p-8">
+      <main className="relative z-10 flex-1 overflow-y-auto p-8">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

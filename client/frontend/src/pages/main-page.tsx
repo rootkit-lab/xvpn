@@ -71,16 +71,19 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
   const glowVar = status.reconnecting ? 'var(--glow-amber)' : status.connected ? 'var(--glow)' : undefined
 
   return (
-    <div className="relative flex h-full flex-col gap-4 overflow-y-auto p-6">
+    <div className="dot-grid relative flex h-full flex-col gap-4 overflow-y-auto p-6">
       <div className="glow-blob pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2" />
 
       <header className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src="/logo-192.png" alt="" className="size-6" />
-          <h1 className="text-lg font-semibold">XVPN</h1>
+          <img src="/logo-192.png" alt="" className="size-6 drop-shadow-[0_0_10px_var(--color-glow)]" />
+          <h1 className="text-lg font-semibold tracking-tight">XVPN</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={status.connected ? 'default' : 'outline'} className="rounded-full">
+          <Badge
+            variant={status.connected ? 'default' : 'outline'}
+            className="rounded-md font-mono tracking-wide"
+          >
             {status.reconnecting
               ? `Reconectando (${status.reconnectAttempt + 1})`
               : status.connected
@@ -90,14 +93,14 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
           <button
             onClick={onOpenDiagnostics}
             aria-label="Diagnóstico"
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <Stethoscope className="h-4 w-4" />
           </button>
           <button
             onClick={onOpenSettings}
             aria-label="Preferências"
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -111,9 +114,12 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
           <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 text-center"
+            className="relative z-10 flex flex-col items-center gap-1.5"
           >
-            <p className="text-[11px] uppercase tracking-widest text-muted-foreground">Conexão segura</p>
+            <div className="flex items-center gap-2">
+              <span className="cyber-diamond size-2 bg-primary" />
+              <span className="hud-label text-muted-foreground/80">Conexão segura</span>
+            </div>
             <p className="font-mono text-3xl font-semibold tabular-nums text-glow">
               {status.connectedSince ? formatElapsedSince(status.connectedSince) : '--:--'}
             </p>
@@ -193,7 +199,7 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       )}
 
       {status.connected && (
-        <Card className="relative z-10 border-white/5 bg-card/70">
+        <Card className="cyber-frame relative z-10 border-white/5 bg-card/70">
           <CardContent className="grid grid-cols-2 gap-3 p-4 text-sm">
             <InfoItem label="IP atribuído" value={status.assignedIP} />
             <InfoItem label="Servidor" value={status.serverEndpoint} />
@@ -219,14 +225,14 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
         <div className="relative z-10 flex gap-3">
           <button
             onClick={() => openFiles('smb')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-border bg-secondary px-3 py-2.5 text-sm font-medium text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
           >
             <FolderOpen className="h-4 w-4" />
             Unidade de rede
           </button>
           <button
             onClick={() => openFiles('filebrowser')}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full border border-border bg-secondary px-3 py-2.5 text-sm font-medium text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
           >
             <Globe className="h-4 w-4" />
             Arquivos (navegador)
@@ -240,8 +246,8 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
 function InfoItem({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="flex items-center gap-1 font-medium">
+      <span className="hud-label text-muted-foreground/70">{label}</span>
+      <span className="flex items-center gap-1 font-mono font-medium">
         {icon}
         {value}
       </span>

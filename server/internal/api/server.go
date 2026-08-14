@@ -143,6 +143,11 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/waitlist", app.handleListWaitlist)
 			viewerUp.GET("/audit", app.handleListAudit)
 			viewerUp.GET("/config", app.handleGetConfig)
+			// Estatísticas agregadas do marketplace (Fase 12): mesmo nível
+			// de leitura do resto do dashboard — não authed (não é algo
+			// que member precise pra navegar o catálogo) nem adminOnly
+			// (não escreve nada).
+			viewerUp.GET("/marketplace/stats", app.handleMarketplaceStats)
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.

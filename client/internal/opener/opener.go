@@ -17,3 +17,13 @@ func OpenURL(url string) error {
 func OpenSMBShare(host, share string) error {
 	return openSMBShare(host, share)
 }
+
+// OpenPath abre um arquivo ou pasta local no aplicativo/gerenciador de
+// arquivos padrão do SO (ex.: um instalador baixado do marketplace, Fase
+// 12 — ROADMAP.md, ou a própria pasta de Downloads). Reaproveita o mesmo
+// mecanismo de OpenURL (xdg-open no Linux e "start" no Windows tratam
+// caminhos de arquivo/pasta locais e URLs de forma idêntica) só com um
+// nome que não confunde quem lê o código chamador com um caminho local.
+func OpenPath(path string) error {
+	return openURL(path)
+}

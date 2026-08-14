@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)** e **11 (marketplace de programas)** concluídas em produção. **Fases 12–13** abertas — consumo do marketplace no cliente, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)** e **11 (marketplace de programas)** concluídas em produção. **Fase 12** (consumo do marketplace no cliente + estatísticas no dashboard) implementada — restando apenas itens opcionais (página móvel `/apps` para Android, quota por usuário) movidos ao [backlog pós-roadmap](#backlog-pós-roadmap). **Fase 13** aberta — contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -257,6 +257,8 @@ Itens herdados do fechamento das Fases 0–8 — não bloqueiam a Parte II, mas 
 - [ ] (Opcional) Certificado de assinatura de código (SmartScreen)
 - [ ] Publicar a **primeira release** do `release-please` (`server`/`client` ainda em `0.0.0`) e anexar `.deb` / AppImage / NSIS na GitHub Release
 - [ ] Operação contínua: `vps-security-audit` periódico, waitlist/usuários no painel
+- [ ] (Fase 12, opcional) Página web móvel `/apps` otimizada para baixar APK no Android com VPN ou JWT (mesmo backend da Fase 11) — sem dispositivo Android no ciclo atual
+- [ ] (Fase 12, opcional) Quota de download por usuário no marketplace (estatísticas agregadas já atendem a visão gerencial do dashboard)
 
 ---
 
@@ -381,14 +383,28 @@ Catálogo interno para distribuir instaladores/APKs/binários aos usuários da V
 
 ## Fase 12 — Consumo do marketplace (cliente + endurecimento)
 
-- [ ] Seção “Apps” no cliente desktop (Wails): lista por plataforma do SO atual + botão baixar/abrir pasta
-- [ ] Deep link ou “abrir após baixar” no Linux/Windows
-- [ ] (Opcional) Página web móvel `/apps` otimizada para baixar APK no Android **com VPN ou JWT** (mesmo backend da Fase 11)
-- [ ] Quota por usuário / estatísticas de download no dashboard admin
-- [ ] Assinatura/checksum exibido na UI antes do download
-- [ ] Revisar `vps-security-audit` após expor download autenticado (path traversal, content-type, tamanho)
+- [x] Seção “Apps” no cliente desktop (Wails): lista por plataforma do SO atual + botão baixar/abrir pasta
+- [x] Deep link ou “abrir após baixar” no Linux/Windows
+- [ ] (Opcional) Página web móvel `/apps` otimizada para baixar APK no Android **com VPN ou JWT** (mesmo backend da Fase 11) — movido ao [backlog pós-roadmap](#backlog-pós-roadmap) (sem dispositivo Android no ciclo atual)
+- [~] Quota por usuário / estatísticas de download no dashboard admin — **parcial**: estatísticas agregadas implementadas (ver notas); quota por usuário movida ao [backlog pós-roadmap](#backlog-pós-roadmap)
+- [x] Assinatura/checksum exibido na UI antes do download
+- [x] Revisar `vps-security-audit` após expor download autenticado (path traversal, content-type, tamanho)
 
-**Critério de saída:** fluxo completo admin sobe → usuário no Linux baixa pelo app; APK testável via navegador autenticado no telefone (com VPN ou sessão).
+**Notas de implementação:**
+
+- **Cliente do marketplace** (`client/internal/marketplaceclient/`, novo pacote): cliente HTTP autenticado como **usuário do painel** (POST `/api/auth/login` → JWT), distinto do `internal/apiclient` (que só faz enrollment de dispositivo, sem JWT). Sessão mantida **só em memória** pelo processo GUI — nunca gravada em disco: expira sozinha (TTL do JWT no servidor, padrão 12h) e some ao fechar o app. É um segundo segredo de sessão além do `device.json` (chave WireGuard), mas efêmero de propósito — não há "lembrar-me". `ErrNotLoggedIn` é devolvido por `ListApps`/`DownloadAsset` quando não há sessão ou o servidor devolve 401 (nesse caso a sessão local é limpa automaticamente); o frontend usa isso para voltar à tela de login em vez de mostrar "erro 401" cru.
+- **Download com verificação de integridade**: `DownloadAsset` faz streaming do corpo direto pra disco (`io.MultiWriter` gravando arquivo + `sha256.New` ao mesmo tempo, sem carregar o arquivo inteiro em memória — mesmo padrão do servidor em `internal/marketplace/storage.go`). `expectedSHA256` vem da própria `ListApps` (não do que o servidor alega no momento do download); se o hash não bater, o arquivo é **apagado** e um erro é devolvido — nunca deixamos um download corrompido/adulterado na pasta do usuário se fazendo passar por íntegro. `uniqueDestPath` evita sobrescrever downloads anteriores do mesmo nome (mesmo padrão "arquivo (1).ext" de navegadores), com `filepath.Base` de novo como defesa em profundidade antes de montar o caminho local.
+- **Pasta de destino**: `xdg.UserDirs.Download` (resolve corretamente em Linux via `xdg-user-dirs` e Windows via *known folder* nativo), com fallback pra home só em ambiente exótico. `DownloadsDir()` é exportado para `vpnservice.go` oferecer "abrir pasta" sem duplicar a lógica.
+- **VPNService** (`client/vpnservice.go`): novos métodos expostos ao frontend via bindings do Wails — `Platform()` (filtra catálogo por `runtime.GOOS`), `MarketplaceLogin`/`Logout`/`SessionStatus`, `ListMarketplaceApps`, `DownloadMarketplaceAsset`, `OpenLocalPath` (abre arquivo baixado), `OpenDownloadsFolder`. O `marketplace` é um `var` de pacote (não campo de `VPNService`) porque várias partes do código instanciam `&VPNService{}` descartáveis (tray no `main.go`, cada chamada do frontend) — um campo não sobreviveria a essas instâncias, mas o var compartilhado sim.
+- **UI** (`client/frontend/src/pages/apps-page.tsx`, nova tela): login de usuário do painel → lista de apps filtrada pela plataforma do dispositivo (apps sem nenhum asset compatível somem, ex.: só Android) → botão "Baixar" por asset com spinner → "Abrir arquivo" / "Abrir pasta" após concluir. SHA-256 exibido no card do asset (tooltip com o prefixo) **antes** do download, atendendo ao item "assinatura/checksum exibido na UI antes do download". Acessada via botão `Store` no header da `MainPage`. Sessão efêmera: qualquer falha de `ListMarketplaceApps` (sessão expirada ou rede) volta pra tela de login com o erro visível — mais simples e robusto do que tentar distinguir os dois casos por texto da mensagem.
+- **Estatísticas agregadas no dashboard admin** (`server/internal/api/marketplace_handler.go` + `server.go`): novo endpoint `GET /api/marketplace/stats` no grupo `viewerUp` (mesmo nível de leitura do resto do dashboard/audit — não `authed`, não `adminOnly`). Devolve contagens (apps/versões/assets), soma total de downloads, **`total_storage_bytes` deduplicado por `storage_path`** (dois `AppAsset` com o mesmo conteúdo compartilham um único blob em disco, ver dedupe da Fase 11 — somar `size_bytes` direto na tabela contaria em dobro) e o ranking dos 10 assets mais baixados (`download_count > 0`). `top_assets` sempre vem como lista (mesmo vazia), nunca `null` — mais simples pro frontend não precisar checar null antes de `.map`/`.length`. Card "Marketplace" adicionado ao `dashboard-page.tsx` com essas métricas e o ranking.
+- **Opener** (`client/internal/opener/opener.go`): `OpenPath` reusa o mesmo mecanismo de `OpenURL` (`xdg-open`/`start` tratam caminhos de arquivo/pasta locais e URLs de forma idêntica) só com um nome que não confunde o chamador com uma URL. Usado por `OpenLocalPath`/`OpenDownloadsFolder`.
+- **Testes**: `client/internal/marketplaceclient/client_test.go` cobre login (sucesso, credenciais inválidas), `ListApps` (exige sessão, envia header `Authorization`, traduz 401 → `ErrNotLoggedIn` limpando sessão), `DownloadAsset` (verifica checksum e grava arquivo, apaga arquivo com checksum incompatível, exige sessão) e `uniqueDestPath` (evita colisão). Server: `TestHandleMarketplaceStats_AggregatesCountsDownloadsAndStorage` (contagens, soma de downloads, dedupe de storage, ranking) + `TestHandleMarketplaceStats_EmptyCatalogReturnsZeroes` (catálogo vazio devolve zeros e lista vazia) + entrada `marketplace-stats` na matriz RBAC (`rbac_routes_test.go`).
+- **Auditoria pós-deploy** (`vps-security-audit`): SSH ok (`passwordauthentication no`, `permitrootlogin prohibit-password`); `ufw` ativo com portas públicas `22/80/443/51820` + `445/8081` só em `wg0`; `smbd` em `10.66.66.1:445`+`127.0.0.1:445`, `filebrowser` em `10.66.66.1:8081`, `xvpn-server` em `127.0.0.1:8080`; `smb.conf` com `interfaces = 10.66.66.1/24 127.0.0.1/8` + `bind interfaces only = yes`; `ip_forward=1`; fail2ban ativo. O download autenticado do marketplace entra pelo Nginx em `443` e chega ao backend em `127.0.0.1:8080` — **nenhuma porta nova exposta**, nenhuma regressão vs. `PLAN.md` §5 / `SECURITY.md`. Path traversal já coberto pelos testes da Fase 11; tamanho limitado por `http.MaxBytesReader` + `io.LimitReader` (2 GiB) e pelo `client_max_body_size` isolado do Nginx (Fase 11).
+
+**Fora de escopo nesta fase (movidos ao [backlog pós-roadmap](#backlog-pós-roadmap)):** página web móvel `/apps` para baixar APK no Android (sem dispositivo Android no ciclo atual); quota de download por usuário (estatísticas agregadas já atendem a visão gerencial do dashboard).
+
+**Critério de saída:** ✅ fluxo completo admin sobe → usuário no Linux baixa pelo app desktop (login de painel → lista filtrada por plataforma → download com verificação de SHA-256 → abrir arquivo/pasta). APK via navegador autenticado no telefone fica como backlog (item opcional explícito no checklist).
 
 ---
 

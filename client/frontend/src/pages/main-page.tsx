@@ -10,6 +10,7 @@ import {
   Settings,
   Stethoscope,
   ShieldCheck,
+  Store,
 } from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
@@ -25,9 +26,10 @@ interface MainPageProps {
   error: string | null
   onOpenSettings: () => void
   onOpenDiagnostics: () => void
+  onOpenApps: () => void
 }
 
-export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagnostics }: MainPageProps) {
+export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagnostics, onOpenApps }: MainPageProps) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   // Re-renderiza 1x/s só pra o timer "conectado há" contar em tempo real,
@@ -87,6 +89,14 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
                 ? 'Conectado'
                 : 'Desconectado'}
           </Badge>
+          <button
+            onClick={onOpenApps}
+            aria-label="Apps"
+            title="Marketplace de programas"
+            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <Store className="h-4 w-4" />
+          </button>
           <button
             onClick={onOpenDiagnostics}
             aria-label="Diagnóstico"

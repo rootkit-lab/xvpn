@@ -59,6 +59,13 @@ type Config struct {
 	// definidos, uma senha aleatória é gerada e logada uma única vez.
 	AdminBootstrapUsername string
 	AdminBootstrapPassword string
+
+	// MarketplaceDataDir é o diretório raiz onde os blobs de asset do
+	// marketplace (Fase 11 — ver PLAN.md §6.8) são gravados, endereçados
+	// por conteúdo (ver internal/marketplace). Em produção fica dentro de
+	// /opt/xvpn/data (único caminho com ReadWritePaths no systemd, ver
+	// PLAN.md §5), nunca fora dele.
+	MarketplaceDataDir string
 }
 
 func getEnv(key, fallback string) string {
@@ -95,6 +102,7 @@ func Load() (*Config, error) {
 		WireGuardEndpoint:       os.Getenv("XVPN_WG_ENDPOINT"),
 		AdminBootstrapUsername:  os.Getenv("XVPN_ADMIN_USERNAME"),
 		AdminBootstrapPassword:  os.Getenv("XVPN_ADMIN_PASSWORD"),
+		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
 	}
 
 	var err error

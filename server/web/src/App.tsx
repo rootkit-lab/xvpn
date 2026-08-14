@@ -18,6 +18,7 @@ const DevicesPage = lazy(() => import('@/pages/devices-page').then((m) => ({ def
 const SharesPage = lazy(() => import('@/pages/shares-page').then((m) => ({ default: m.SharesPage })))
 const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ default: m.WaitlistPage })))
 const DownloadPage = lazy(() => import('@/pages/download-page').then((m) => ({ default: m.DownloadPage })))
+const MarketplacePage = lazy(() => import('@/pages/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
 const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
@@ -40,6 +41,11 @@ export default function App() {
               <Route element={<AppShell />}>
                 <Route path="portal" element={<PortalPage />} />
                 <Route path="download" element={<DownloadPage />} />
+                {/* Marketplace (Fase 11, ROADMAP.md): catálogo separado do
+                    cliente XVPN — admin publica pacotes, qualquer papel
+                    autenticado (inclusive member) navega e baixa o que a
+                    ACL de cada app permitir (ver PLAN.md §6.8). */}
+                <Route path="marketplace" element={<MarketplacePage />} />
                 {/* super_admin/admin/viewer: telas do painel administrativo
                     (leitura garantida a viewer; escrita segue escondida/
                     bloqueada por papel dentro de cada página — ver

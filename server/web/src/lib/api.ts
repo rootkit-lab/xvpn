@@ -27,6 +27,32 @@ export class ApiError extends Error {
   }
 }
 
+// parseErrorMessage extrai `{"error": "..."}` do corpo de uma resposta não-OK
+// — compartilhado por request() e pelos dois helpers de marketplace abaixo
+// (upload/download), que não podem passar por request() porque não usam
+// JSON puro (ver comentário em uploadMarketplaceAsset).
+async function parseErrorMessage(res: Response): Promise<string> {
+  let message = `Erro ${res.status}`
+  try {
+    const body = (await res.json()) as { error?: string }
+    if (body?.error) message = body.error
+  } catch {
+    // corpo não é JSON (ex.: 502 do Nginx) — mantém mensagem genérica
+  }
+  return message
+}
+
+// handleUnauthorized centraliza o que request()/upload/download fazem
+// quando o token expirou ou é inválido — mesmo efeito colateral (limpar
+// token e mandar pro /login) nos três casos.
+function handleUnauthorized(path: string) {
+  if (path.startsWith('/auth/login')) return
+  clearToken()
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login'
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
   headers.set('Content-Type', 'application/json')
@@ -37,28 +63,81 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`/api${path}`, { ...options, headers })
 
-  if (res.status === 401 && !path.startsWith('/auth/login')) {
-    clearToken()
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login'
-    }
+  if (res.status === 401) {
+    handleUnauthorized(path)
   }
 
   if (!res.ok) {
-    let message = `Erro ${res.status}`
-    try {
-      const body = (await res.json()) as { error?: string }
-      if (body?.error) message = body.error
-    } catch {
-      // corpo não é JSON (ex.: 502 do Nginx) — mantém mensagem genérica
-    }
-    throw new ApiError(res.status, message)
+    throw new ApiError(res.status, await parseErrorMessage(res))
   }
 
   if (res.status === 204) {
     return undefined as T
   }
   return (await res.json()) as T
+}
+
+// uploadMarketplaceAsset não passa por request(): o endpoint espera
+// multipart/form-data (ver marketplace_handler.go), e request() sempre
+// força Content-Type: application/json. O boundary do multipart precisa
+// ser gerado pelo próprio browser — nunca setamos Content-Type manualmente
+// aqui, senão o FormData vai sem boundary e o Gin não consegue parsear.
+async function uploadMarketplaceAsset(
+  versionId: number,
+  file: File,
+  platform: MarketplacePlatform,
+  arch: string,
+): Promise<MarketplaceAsset> {
+  const form = new FormData()
+  form.append('platform', platform)
+  if (arch.trim()) form.append('arch', arch.trim())
+  form.append('file', file)
+
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const path = `/marketplace/versions/${versionId}/assets`
+  const res = await fetch(`/api${path}`, { method: 'POST', headers, body: form })
+
+  if (res.status === 401) {
+    handleUnauthorized(path)
+  }
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorMessage(res))
+  }
+  return (await res.json()) as MarketplaceAsset
+}
+
+// downloadMarketplaceAsset também não passa por request(): a resposta é o
+// binário do asset, não JSON, e um <a href> simples não anexaria o header
+// Authorization (o token vive em localStorage, não em cookie) — o
+// download autenticado (PLAN.md §6.8) precisa desse fetch manual. Simula o
+// clique num link temporário apontando pro blob já baixado em memória.
+async function downloadMarketplaceAsset(assetId: number, filename: string): Promise<void> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const path = `/marketplace/assets/${assetId}/download`
+  const res = await fetch(`/api${path}`, { headers })
+
+  if (res.status === 401) {
+    handleUnauthorized(path)
+  }
+  if (!res.ok) {
+    throw new ApiError(res.status, await parseErrorMessage(res))
+  }
+
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 export interface User {
@@ -137,6 +216,49 @@ export interface ConfigResponse {
   jwt_token_ttl_minutes: number
 }
 
+// Espelha store.Platform/store.AppVisibility (server/internal/store/models.go)
+// — Fase 11, ver PLAN.md §6.8.
+export type MarketplacePlatform = 'linux' | 'windows' | 'android'
+export type MarketplaceVisibility = 'global' | 'restricted'
+export type MarketplaceChannel = 'stable' | 'beta'
+
+export interface MarketplaceAsset {
+  id: number
+  version_id: number
+  platform: MarketplacePlatform
+  arch: string
+  filename: string
+  sha256: string
+  size_bytes: number
+  download_count: number
+  created_at: string
+}
+
+export interface MarketplaceVersion {
+  id: number
+  app_id: number
+  version: string
+  channel: string
+  changelog: string
+  created_at: string
+  assets: MarketplaceAsset[]
+}
+
+export interface MarketplaceApp {
+  id: number
+  name: string
+  description: string
+  icon_url?: string
+  visibility: MarketplaceVisibility
+  created_at: string
+  versions: MarketplaceVersion[]
+  // access_user_ids só vem preenchido quando quem pediu administra o
+  // marketplace (ver handleListMarketplaceApps no servidor) — nunca
+  // presente na resposta pra member/viewer, mesmo em apps que eles
+  // enxergam.
+  access_user_ids?: number[]
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', {
@@ -200,4 +322,31 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, role }),
     }),
+
+  // Catálogo do marketplace (Fase 11, PLAN.md §6.8): listMarketplaceApps já
+  // vem filtrado por ACL pelo servidor — o front nunca decide sozinho o
+  // que esconder, só reflete o que a API devolveu.
+  listMarketplaceApps: () => request<MarketplaceApp[]>('/marketplace/apps'),
+  createMarketplaceApp: (input: {
+    name: string
+    description?: string
+    icon_url?: string
+    visibility?: MarketplaceVisibility
+  }) => request<MarketplaceApp>('/marketplace/apps', { method: 'POST', body: JSON.stringify(input) }),
+  updateMarketplaceApp: (
+    id: number,
+    changes: { name?: string; description?: string; icon_url?: string; visibility?: MarketplaceVisibility },
+  ) => request<MarketplaceApp>(`/marketplace/apps/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  deleteMarketplaceApp: (id: number) => request<void>(`/marketplace/apps/${id}`, { method: 'DELETE' }),
+  setMarketplaceAppAccess: (id: number, userIds: number[]) =>
+    request<{ user_ids: number[] }>(`/marketplace/apps/${id}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+  createMarketplaceVersion: (appId: number, input: { version: string; channel?: MarketplaceChannel; changelog?: string }) =>
+    request<MarketplaceVersion>(`/marketplace/apps/${appId}/versions`, { method: 'POST', body: JSON.stringify(input) }),
+  deleteMarketplaceVersion: (id: number) => request<void>(`/marketplace/versions/${id}`, { method: 'DELETE' }),
+  deleteMarketplaceAsset: (id: number) => request<void>(`/marketplace/assets/${id}`, { method: 'DELETE' }),
+  uploadMarketplaceAsset,
+  downloadMarketplaceAsset,
 }

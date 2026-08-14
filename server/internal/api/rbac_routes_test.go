@@ -16,13 +16,16 @@ import (
 // confundam com a checagem de rota (RequireRole) que este arquivo quer
 // isolar.
 type rbacFixtures struct {
-	app            *App
-	router         http.Handler
-	token          string
-	targetUserID   uint
-	targetDeviceID uint
-	ownDeviceID    uint
-	waitlistID     uint
+	app             *App
+	router          http.Handler
+	token           string
+	targetUserID    uint
+	targetDeviceID  uint
+	ownDeviceID     uint
+	waitlistID      uint
+	marketAppID     uint
+	marketVersionID uint
+	marketAssetID   uint
 }
 
 // setupRBACFixtures monta um App novo com um usuário autenticado no papel
@@ -53,14 +56,47 @@ func setupRBACFixtures(t *testing.T, role store.Role) rbacFixtures {
 		t.Fatalf("erro criando cadastro de waitlist: %v", err)
 	}
 
+	// Fixture do marketplace (Fase 11): um app global com uma versão e um
+	// asset cujo blob existe de verdade em disco — assim o caso
+	// "download-marketplace-asset" da matriz exercita o caminho completo
+	// (não só "não é 403"), já que Visibility global libera qualquer
+	// papel autenticado (ver PLAN.md §6.7).
+	marketApp := store.App{Name: "App de teste RBAC", Visibility: store.AppVisibilityGlobal}
+	if err := app.Store.DB.Create(&marketApp).Error; err != nil {
+		t.Fatalf("erro criando app de marketplace de teste: %v", err)
+	}
+	marketVersion := store.AppVersion{AppID: marketApp.ID, Version: "1.0.0", Channel: store.ChannelStable}
+	if err := app.Store.DB.Create(&marketVersion).Error; err != nil {
+		t.Fatalf("erro criando versão de marketplace de teste: %v", err)
+	}
+	putRes, err := app.Marketplace.Put(strings.NewReader("conteudo de teste rbac"))
+	if err != nil {
+		t.Fatalf("erro gravando blob de teste: %v", err)
+	}
+	marketAsset := store.AppAsset{
+		AppVersionID: marketVersion.ID,
+		Platform:     store.PlatformLinux,
+		Arch:         "amd64",
+		Filename:     "teste.deb",
+		SHA256:       putRes.SHA256,
+		SizeBytes:    putRes.Size,
+		StoragePath:  putRes.RelPath,
+	}
+	if err := app.Store.DB.Create(&marketAsset).Error; err != nil {
+		t.Fatalf("erro criando asset de marketplace de teste: %v", err)
+	}
+
 	return rbacFixtures{
-		app:            app,
-		router:         router,
-		token:          token,
-		targetUserID:   target.ID,
-		targetDeviceID: targetDevice.ID,
-		ownDeviceID:    ownDevice.ID,
-		waitlistID:     entry.ID,
+		app:             app,
+		router:          router,
+		token:           token,
+		targetUserID:    target.ID,
+		targetDeviceID:  targetDevice.ID,
+		ownDeviceID:     ownDevice.ID,
+		waitlistID:      entry.ID,
+		marketAppID:     marketApp.ID,
+		marketVersionID: marketVersion.ID,
+		marketAssetID:   marketAsset.ID,
 	}
 }
 
@@ -98,6 +134,17 @@ var rbacRouteCases = []rbacRouteCase{
 	{"approve-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/approve", nil, "adminOnly"},
 	{"reject-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/reject", nil, "adminOnly"},
 	{"provision-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/provision", provisionWaitlistRequest{Username: "gerado-pelo-teste-2"}, "adminOnly"},
+
+	{"list-marketplace-apps", http.MethodGet, "/api/marketplace/apps", nil, "any"},
+	{"download-marketplace-asset", http.MethodGet, "/api/marketplace/assets/{marketAsset}/download", nil, "any"},
+
+	{"create-marketplace-app", http.MethodPost, "/api/marketplace/apps", createMarketplaceAppRequest{Name: "Gerado pelo teste"}, "adminOnly"},
+	{"update-marketplace-app", http.MethodPatch, "/api/marketplace/apps/{marketApp}", updateMarketplaceAppRequest{Description: strPtr("nova descrição")}, "adminOnly"},
+	{"set-marketplace-app-access", http.MethodPut, "/api/marketplace/apps/{marketApp}/access", setMarketplaceAppAccessRequest{}, "adminOnly"},
+	{"create-marketplace-version", http.MethodPost, "/api/marketplace/apps/{marketApp}/versions", createMarketplaceVersionRequest{Version: "9.9.9"}, "adminOnly"},
+	{"delete-marketplace-asset", http.MethodDelete, "/api/marketplace/assets/{marketAsset}", nil, "adminOnly"},
+	{"delete-marketplace-version", http.MethodDelete, "/api/marketplace/versions/{marketVersion}", nil, "adminOnly"},
+	{"delete-marketplace-app", http.MethodDelete, "/api/marketplace/apps/{marketApp}", nil, "adminOnly"},
 }
 
 func strPtr(s string) *string { return &s }
@@ -130,6 +177,9 @@ func resolveRoutePath(path string, f rbacFixtures) string {
 	path = strings.ReplaceAll(path, "{device}", strconv.FormatUint(uint64(f.targetDeviceID), 10))
 	path = strings.ReplaceAll(path, "{ownDevice}", strconv.FormatUint(uint64(f.ownDeviceID), 10))
 	path = strings.ReplaceAll(path, "{waitlist}", strconv.FormatUint(uint64(f.waitlistID), 10))
+	path = strings.ReplaceAll(path, "{marketApp}", strconv.FormatUint(uint64(f.marketAppID), 10))
+	path = strings.ReplaceAll(path, "{marketVersion}", strconv.FormatUint(uint64(f.marketVersionID), 10))
+	path = strings.ReplaceAll(path, "{marketAsset}", strconv.FormatUint(uint64(f.marketAssetID), 10))
 	return path
 }
 

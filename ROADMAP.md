@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)** e **9 (qualidade: bugs/CI/perf)** concluídas em produção. **Fases 10–13** abertas — admin geral, marketplace multiplataforma, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)** e **10 (admin geral/RBAC)** concluídas em produção. **Fases 11–13** abertas — marketplace multiplataforma, contas Unix por usuário. Decisões em [`PLAN.md` §6.7–6.9 e §14](./PLAN.md#67-admin-geral-rbac).
 
 ---
 
@@ -310,21 +310,31 @@ Escopo deliberado pós-fechamento do MVP: **admin geral (RBAC)**, **marketplace 
 
 ---
 
-## Fase 10 — Admin geral (RBAC)
+## Fase 10 — Admin geral (RBAC) ✅
 
 Hoje todo `User` autentica e tem poder total no painel (JWT sem role). Objetivo: **admin geral** com papéis e operação do dia a dia sem improvisar.
 
-- [ ] Campo `role` no model `User` (`super_admin` | `admin` | `viewer` | `member`) — ver [`PLAN.md` §6.7](./PLAN.md#67-admin-geral-rbac)
-- [ ] Claims JWT com `role`; middleware de autorização por rota (não só “autenticado”)
-- [ ] Migração: usuários existentes → `admin` (ou o bootstrap → `super_admin`); único `super_admin` não pode se auto-apagar
-- [ ] UI: badge de papel; esconder ações de escrita para `viewer`; `member` não acessa telas de admin (só portal mínimo, se existir)
-- [ ] Editar usuário (username/role) + reset de senha pelo admin
-- [ ] Waitlist: ação “aprovar e provisionar” (cria `User` + opcionalmente convite) — caminho único ainda via handlers de users/invite, agora orquestrado
-- [ ] Portal do membro (MVP): ver próprios dispositivos + revogar o próprio (opcional nesta fase; senão só na 11)
-- [ ] Auditoria: registrar mudanças de role / reset de senha / provisionamento via waitlist
-- [ ] Testes: matriz role × endpoint (403 onde couber)
+- [x] Campo `role` no model `User` (`super_admin` | `admin` | `viewer` | `member`) — ver [`PLAN.md` §6.7](./PLAN.md#67-admin-geral-rbac)
+- [x] Claims JWT com `role`; middleware de autorização por rota (não só "autenticado")
+- [x] Migração: usuários existentes → `admin` (ou o bootstrap → `super_admin`); único `super_admin` não pode se auto-apagar
+- [x] UI: badge de papel; esconder ações de escrita para `viewer`; `member` não acessa telas de admin (só portal mínimo, se existir)
+- [x] Editar usuário (username/role) + reset de senha pelo admin
+- [x] Waitlist: ação "aprovar e provisionar" (cria `User` + opcionalmente convite) — caminho único ainda via handlers de users/invite, agora orquestrado
+- [x] Portal do membro (MVP): ver próprios dispositivos + revogar o próprio (opcional nesta fase; senão só na 11)
+- [x] Auditoria: registrar mudanças de role / reset de senha / provisionamento via waitlist
+- [x] Testes: matriz role × endpoint (403 onde couber)
 
-**Critério de saída:** operador com `viewer` só lê; `admin` gerencia users/devices/waitlist; `super_admin` gerencia roles; nenhum endpoint authed antigo fica sem checagem de papel.
+**Notas de implementação:**
+
+- Hierarquia de papéis por rank (`store.Role.Rank()`: `super_admin`=3, `admin`=2, `viewer`=1, `member`=0) com `CanManage(target)` = `target.Rank() <= r.Rank()` — um ator só cria/edita/reseta senha/remove alvos no próprio nível ou abaixo; nunca acima (bloqueia auto-promoção e escalação de privilégio em `handleCreateUser`/`handleUpdateUser`/`handleResetPassword`/`handleDeleteUser`). Espelhado no frontend em `server/web/src/lib/roles.ts` (mantido manualmente em sincronia — o frontend não importa tipos Go).
+- Migração idempotente em `store.Open()`: detecta se a coluna `role` já existia antes do `AutoMigrate`; se não existia (banco pré-RBAC), roda `backfillInitialRoles()` uma única vez — promove o usuário mais antigo (bootstrap) a `super_admin` e todos os demais a `admin`. Bootstrap novo (banco vazio) já nasce `super_admin` direto em `cmd/xvpn-server/main.go`.
+- Rotas divididas em três grupos em `server.go`: `authed` (qualquer papel — `/auth/me`, `/me/devices`), `viewerUp` (leitura das telas admin — `viewer`+), `adminOnly` (escrita — `admin`+); a distinção `admin` vs. `super_admin` dentro de `adminOnly` (ex.: só `super_admin` promove outro `super_admin`) é aplicada dentro de cada handler via `CanManage`, não no roteamento.
+- Guarda de "último `super_admin`" em `handleDeleteUser` (409 se for o único) e defesa em profundidade equivalente em `handleUpdateUser` (na prática inalcançável hoje, pois ninguém troca o próprio papel — guarda de auto-modificação dispara antes — mas mantida para o caso dessa outra guarda mudar no futuro).
+- Endpoints novos: `GET /api/auth/me` (restaura `{id, username, role}` no frontend após F5, já que o JWT não é decodificado no cliente), `PATCH /api/users/:id` (username e/ou role), `POST /api/users/:id/reset-password` (senha informada ou gerada e devolvida uma única vez, mesmo padrão do bootstrap), `GET/DELETE /api/me/devices` (autosserviço — qualquer papel autenticado vê/revoga só os próprios dispositivos), `POST /api/waitlist/:id/provision` (cria `User` + `InviteToken` numa transação só, marcando o cadastro aprovado).
+- Frontend: `auth-context.tsx` busca `/auth/me` ao carregar/logar e expõe `user`/`isLoadingUser`; `ProtectedRoute` ganhou `allowedRoles`; `app-shell.tsx` filtra a navegação por papel; `/portal` é a tela mínima do `member` (ver/revogar próprios dispositivos); tela Usuários ganhou badge de papel, edição (username/role) e reset de senha (`CopyField` reutilizável para exibir segredo de uso único); tela Waitlist trocou o simples "aprovar" por um diálogo "aprovar e provisionar" (username sugerido a partir do nome + seletor de papel) que mostra senha e convite gerados.
+- Testes: `store/models_test.go` (`Valid`/`Rank`/`CanManage`), `store/store_test.go` (backfill roda uma vez só em banco pré-existente, não roda de novo em banco já migrado), `rbac_routes_test.go` (`TestRBACRouteMatrix` — todas as rotas authed × todos os papéis, 403 onde esperado, 401 sem autenticação), mais casos específicos de escalação/auto-modificação/último-super-admin em `users_handler_test.go`/`waitlist_handler_test.go`/`devices_handler_test.go`.
+
+**Critério de saída:** ✅ operador com `viewer` só lê; `admin` gerencia users/devices/waitlist; `super_admin` gerencia roles; nenhum endpoint authed antigo fica sem checagem de papel.
 
 ---
 

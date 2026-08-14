@@ -11,7 +11,7 @@ info:
   description: "Cliente desktop da VPN privada XVPN"
   copyright: "(c) 2026, rootkit-lab"
   comments: "VPN privada via WireGuard"
-  version: "0.0.0"
+  version: "0.1.0"
 
 # Dev mode configuration
 dev_mode:

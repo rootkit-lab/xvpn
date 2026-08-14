@@ -17,10 +17,12 @@ type loginRequest struct {
 }
 
 type loginResponse struct {
-	Token string `json:"token"`
+	Token string       `json:"token"`
+	User  userResponse `json:"user"`
 }
 
-// handleLogin autentica um admin do painel e emite um JWT de sessão.
+// handleLogin autentica um usuário do painel e emite um JWT de sessão com o
+// papel (role) dele embutido — ver auth.Claims.
 // POST /api/auth/login
 func (a *App) handleLogin(c *gin.Context) {
 	var req loginRequest
@@ -49,12 +51,28 @@ func (a *App) handleLogin(c *gin.Context) {
 		return
 	}
 
-	token, err := a.Tokens.Issue(user.ID, user.Username)
+	token, err := a.Tokens.Issue(user.ID, user.Username, user.Role)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
 
 	_ = a.Store.LogAudit(user.Username, "login", "")
-	c.JSON(http.StatusOK, loginResponse{Token: token})
+	c.JSON(http.StatusOK, loginResponse{Token: token, User: toUserResponse(user)})
+}
+
+// handleMe devolve os dados do usuário autenticado atual — usado pelo
+// painel para restaurar o papel/username após um refresh de página (o
+// token em localStorage sozinho não é decodificado no cliente).
+// GET /api/auth/me
+func (a *App) handleMe(c *gin.Context) {
+	userIDVal, _ := c.Get(auth.ContextUserIDKey)
+	userID, _ := userIDVal.(uint)
+
+	var user store.User
+	if err := a.Store.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, toUserResponse(user))
 }

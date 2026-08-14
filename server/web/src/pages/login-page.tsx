@@ -3,13 +3,15 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError } from '@/lib/api'
+import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PageFallback } from '@/components/layout/page-fallback'
 
 export function LoginPage() {
-  const { isAuthenticated, login } = useAuth()
+  const { isAuthenticated, isLoadingUser, user, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [username, setUsername] = useState('')
@@ -17,8 +19,14 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  // Já tem token válido de uma sessão anterior: espera o papel carregar
+  // (evita mandar todo mundo pro /dashboard e só depois "saltar" pro
+  // /portal se for member) antes de decidir o redirect.
+  if (isAuthenticated && isLoadingUser) {
+    return <PageFallback />
+  }
   if (isAuthenticated) {
-    const redirectTo = (location.state as { from?: string } | null)?.from ?? '/dashboard'
+    const redirectTo = (location.state as { from?: string } | null)?.from ?? defaultRouteForRole(user?.role ?? 'member')
     return <Navigate to={redirectTo} replace />
   }
 
@@ -27,8 +35,8 @@ export function LoginPage() {
     setError(null)
     setSubmitting(true)
     try {
-      await login(username, password)
-      navigate('/dashboard', { replace: true })
+      const loggedInUser = await login(username, password)
+      navigate(defaultRouteForRole(loggedInUser.role), { replace: true })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Falha ao conectar ao servidor')
     } finally {

@@ -13,22 +13,31 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
+import { ROLE_BADGE_VARIANT, ROLE_LABELS, VIEWER_UP_ROLES, type Role } from '@/lib/roles'
 
-const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/users', label: 'Usuários', icon: Users },
-  { to: '/devices', label: 'Dispositivos', icon: Laptop },
-  { to: '/shares', label: 'Compartilhamentos', icon: HardDrive },
-  { to: '/waitlist', label: 'Lista de espera', icon: ListChecks },
-  { to: '/download', label: 'Downloads', icon: Download },
-  { to: '/settings', label: 'Configurações', icon: Settings },
-  { to: '/audit', label: 'Auditoria', icon: ScrollText },
+// roles: quem vê o item na navegação — ver PLAN.md §6.7. member só enxerga
+// "Meus dispositivos" e "Downloads"; viewer/admin/super_admin veem as telas
+// administrativas completas (a diferença entre eles é dentro de cada
+// página, não na navegação — ver users-page.tsx/waitlist-page.tsx).
+const NAV_ITEMS: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES },
+  { to: '/users', label: 'Usuários', icon: Users, roles: VIEWER_UP_ROLES },
+  { to: '/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES },
+  { to: '/portal', label: 'Meus dispositivos', icon: Laptop, roles: ['member'] },
+  { to: '/shares', label: 'Compartilhamentos', icon: HardDrive, roles: VIEWER_UP_ROLES },
+  { to: '/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES },
+  { to: '/download', label: 'Downloads', icon: Download, roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { to: '/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES },
+  { to: '/audit', label: 'Auditoria', icon: ScrollText, roles: VIEWER_UP_ROLES },
 ]
 
 export function AppShell() {
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const location = useLocation()
+
+  const items = user ? NAV_ITEMS.filter((item) => item.roles.includes(user.role)) : []
 
   return (
     <div className="flex min-h-svh w-full bg-background">
@@ -38,7 +47,7 @@ export function AppShell() {
           <span className="text-lg font-semibold">XVPN</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+          {items.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -58,6 +67,14 @@ export function AppShell() {
           ))}
         </nav>
         <div className="border-t border-white/5 p-3">
+          {user && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="truncate text-sm font-medium" title={user.username}>
+                {user.username}
+              </span>
+              <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
+            </div>
+          )}
           <Button variant="ghost" className="w-full justify-start gap-3 rounded-full" onClick={logout}>
             <LogOut className="size-4" />
             Sair

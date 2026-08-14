@@ -2,6 +2,7 @@
 // .cursor/rules/frontend-react.mdc (nunca `fetch` espalhado por
 // componentes, sempre passar por aqui para tratamento de erro/auth
 // consistente).
+import type { Role } from '@/lib/roles'
 
 const TOKEN_KEY = 'xvpn_token'
 
@@ -63,6 +64,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface User {
   id: number
   username: string
+  role: Role
   created_at: string
 }
 
@@ -82,6 +84,19 @@ export interface Device {
 export interface InviteResponse {
   token: string
   expires_at: string
+}
+
+export interface ResetPasswordResponse {
+  // Só preenchido quando nenhuma senha foi informada no pedido — o
+  // servidor gera uma e devolve nesta única resposta (ver
+  // PLAN.md/AGENTS.md: nunca recuperável depois).
+  password?: string
+}
+
+export interface ProvisionWaitlistResponse {
+  user: User
+  password: string
+  invite: InviteResponse
 }
 
 export interface StatusResponse {
@@ -124,24 +139,43 @@ export interface ConfigResponse {
 
 export const api = {
   login: (username: string, password: string) =>
-    request<{ token: string }>('/auth/login', {
+    request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
+  // me restaura {id, username, role} depois de um refresh de página — o
+  // token em localStorage sozinho não é decodificado no cliente.
+  me: () => request<User>('/auth/me'),
 
   status: () => request<StatusResponse>('/status'),
 
   listUsers: () => request<User[]>('/users'),
-  createUser: (username: string, password: string) =>
+  createUser: (username: string, password: string, role: Role) =>
     request<User>('/users', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, role }),
+    }),
+  updateUser: (id: number, changes: { username?: string; role?: Role }) =>
+    request<User>(`/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
+  resetPassword: (id: number, password?: string) =>
+    request<ResetPasswordResponse>(`/users/${id}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ password: password || undefined }),
     }),
   deleteUser: (id: number) => request<void>(`/users/${id}`, { method: 'DELETE' }),
   createInvite: (userId: number) => request<InviteResponse>(`/users/${userId}/invite`, { method: 'POST' }),
 
   listDevices: () => request<Device[]>('/devices'),
   deleteDevice: (id: number) => request<void>(`/devices/${id}`, { method: 'DELETE' }),
+
+  // listMyDevices/deleteMyDevice são o autosserviço da Fase 10 (ver
+  // PLAN.md §6.7): qualquer papel autenticado gerencia os próprios
+  // dispositivos, sem precisar das telas administrativas.
+  listMyDevices: () => request<Device[]>('/me/devices'),
+  deleteMyDevice: (id: number) => request<void>(`/me/devices/${id}`, { method: 'DELETE' }),
 
   listAudit: () => request<AuditLog[]>('/audit'),
 
@@ -158,4 +192,12 @@ export const api = {
   listWaitlist: () => request<WaitlistEntry[]>('/waitlist'),
   approveWaitlist: (id: number) => request<WaitlistEntry>(`/waitlist/${id}/approve`, { method: 'POST' }),
   rejectWaitlist: (id: number) => request<WaitlistEntry>(`/waitlist/${id}/reject`, { method: 'POST' }),
+  // provisionWaitlist orquestra "aprovar e provisionar": cria o User +
+  // InviteToken num só passo e marca o cadastro como aprovado (ver
+  // handleProvisionWaitlist no servidor).
+  provisionWaitlist: (id: number, username: string, role: Role) =>
+    request<ProvisionWaitlistResponse>(`/waitlist/${id}/provision`, {
+      method: 'POST',
+      body: JSON.stringify({ username, role }),
+    }),
 }

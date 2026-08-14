@@ -1,8 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth-context'
+import { VIEWER_UP_ROLES } from '@/lib/roles'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AppShell } from '@/components/layout/app-shell'
+import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
 
@@ -18,14 +20,7 @@ const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ d
 const DownloadPage = lazy(() => import('@/pages/download-page').then((m) => ({ default: m.DownloadPage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
-
-function PageFallback() {
-  return (
-    <div className="flex h-64 items-center justify-center">
-      <div className="size-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-    </div>
-  )
-}
+const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
 
 export default function App() {
   return (
@@ -36,19 +31,28 @@ export default function App() {
             {/* "/" é a landing pública do produto (ver ROADMAP.md): explica o
                 que é o XVPN e recebe cadastros na lista de espera, sem exigir
                 login. Quem já está autenticado é mandado direto pro
-                dashboard. */}
+                dashboard/portal, conforme o papel. */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            {/* Qualquer papel autenticado (inclusive member) — telas comuns a
+                todos, sem controles administrativos. */}
             <Route element={<ProtectedRoute />}>
               <Route element={<AppShell />}>
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="devices" element={<DevicesPage />} />
-                <Route path="shares" element={<SharesPage />} />
-                <Route path="waitlist" element={<WaitlistPage />} />
+                <Route path="portal" element={<PortalPage />} />
                 <Route path="download" element={<DownloadPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="audit" element={<AuditPage />} />
+                {/* super_admin/admin/viewer: telas do painel administrativo
+                    (leitura garantida a viewer; escrita segue escondida/
+                    bloqueada por papel dentro de cada página — ver
+                    PLAN.md §6.7). member nunca entra aqui. */}
+                <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="users" element={<UsersPage />} />
+                  <Route path="devices" element={<DevicesPage />} />
+                  <Route path="shares" element={<SharesPage />} />
+                  <Route path="waitlist" element={<WaitlistPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  <Route path="audit" element={<AuditPage />} />
+                </Route>
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -46,6 +46,27 @@ func HashPassword(password string) (string, error) {
 	return encoded, nil
 }
 
+// randomPasswordBytes é o tamanho (em bytes, antes da codificação) das
+// senhas aleatórias geradas pelo servidor — bootstrap do primeiro admin
+// (cmd/xvpn-server/main.go) e reset de senha pelo admin (Fase 10, ver
+// api/users_handler.go). 18 bytes vira 24 caracteres em base64url, entropia
+// bem acima do mínimo de 8 caracteres exigido de senhas escolhidas por
+// humano.
+const randomPasswordBytes = 18
+
+// GenerateRandomPassword gera uma senha aleatória criptograficamente segura,
+// codificada em base64url (sem padding, sem caracteres que exigem escape em
+// URL/JSON). Usada sempre que o servidor precisa criar uma senha sem que o
+// operador tenha fornecido uma — ela é devolvida ao chamador uma única vez;
+// o servidor nunca a guarda em texto puro.
+func GenerateRandomPassword() (string, error) {
+	buf := make([]byte, randomPasswordBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("gerando senha: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
 // VerifyPassword confere se password bate com o hash codificado gerado por
 // HashPassword. Usa comparação em tempo constante para evitar timing attacks.
 func VerifyPassword(encoded, password string) (bool, error) {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,13 +19,36 @@ import (
 )
 
 type userResponse struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uint       `json:"id"`
+	Username  string     `json:"username"`
+	Role      store.Role `json:"role"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 func toUserResponse(u store.User) userResponse {
-	return userResponse{ID: u.ID, Username: u.Username, CreatedAt: u.CreatedAt}
+	return userResponse{ID: u.ID, Username: u.Username, Role: u.Role, CreatedAt: u.CreatedAt}
+}
+
+// callerRole/callerUserID leem a identidade definida por auth.RequireAuth no
+// gin.Context — pequenos helpers para não repetir a asserção de tipo em
+// cada handler que precisa checar permissão (ver store.Role.CanManage).
+func callerRole(c *gin.Context) store.Role {
+	role, _ := auth.RoleFromContext(c)
+	return role
+}
+
+func callerUserID(c *gin.Context) uint {
+	v, _ := c.Get(auth.ContextUserIDKey)
+	id, _ := v.(uint)
+	return id
+}
+
+// countSuperAdmins conta quantos usuários têm hoje o papel super_admin —
+// usado para nunca deixar o sistema sem nenhum (ver ROADMAP.md Fase 10).
+func (a *App) countSuperAdmins() (int64, error) {
+	var count int64
+	err := a.Store.DB.Model(&store.User{}).Where("role = ?", store.RoleSuperAdmin).Count(&count).Error
+	return count, err
 }
 
 // handleListUsers lista os usuários cadastrados (sem hash de senha).
@@ -43,16 +67,33 @@ func (a *App) handleListUsers(c *gin.Context) {
 }
 
 type createUserRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
+	Username string     `json:"username" binding:"required"`
+	Password string     `json:"password" binding:"required,min=8"`
+	Role     store.Role `json:"role"`
 }
 
-// handleCreateUser cria um novo usuário admin do painel.
+// handleCreateUser cria um novo usuário do painel. O papel (Fase 10, ver
+// PLAN.md §6.7) é opcional no corpo — o default é o mais restritivo
+// (member) — mas quem cria nunca pode conceder um papel acima do próprio
+// (store.Role.CanManage), ou seja, só super_admin cria outro super_admin.
 // POST /api/users
 func (a *App) handleCreateUser(c *gin.Context) {
 	var req createUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "username e password (mín. 8 caracteres) são obrigatórios"})
+		return
+	}
+
+	role := req.Role
+	if role == "" {
+		role = store.RoleMember
+	}
+	if !role.Valid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role inválido (use super_admin, admin, viewer ou member)"})
+		return
+	}
+	if !callerRole(c).CanManage(role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode criar um usuário com esse papel"})
 		return
 	}
 
@@ -62,26 +103,247 @@ func (a *App) handleCreateUser(c *gin.Context) {
 		return
 	}
 
-	user := store.User{Username: req.Username, PasswordHash: hash}
+	user := store.User{Username: req.Username, PasswordHash: hash, Role: role}
 	if err := a.Store.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "usuário já existe ou dado inválido"})
 		return
 	}
 
 	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "user.create", "username="+user.Username)
+	_ = a.Store.LogAudit(actorString(actor), "user.create", "username="+user.Username+" role="+string(user.Role))
 
 	c.JSON(http.StatusCreated, toUserResponse(user))
 }
 
+type updateUserRequest struct {
+	Username *string     `json:"username"`
+	Role     *store.Role `json:"role"`
+}
+
+// handleUpdateUser edita o username e/ou o papel de um usuário existente —
+// nunca a senha (ver handleResetPassword). Regras de autorização (Fase 10,
+// PLAN.md §6.7):
+//   - o papel atual do alvo precisa estar no nível do chamador ou abaixo
+//     (store.Role.CanManage) — um admin não mexe numa conta super_admin;
+//   - o papel NOVO pedido também passa pela mesma checagem — um admin não
+//     promove ninguém a super_admin;
+//   - ninguém troca o próprio papel por aqui (evita auto-promoção/
+//     rebaixamento acidental — use outra conta com o papel adequado);
+//   - rebaixar o único super_admin restante é bloqueado, pelo mesmo motivo
+//     do guard em handleDeleteUser.
+//
+// PATCH /api/users/:id
+func (a *App) handleUpdateUser(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+
+	var req updateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	if req.Username == nil && req.Role == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "informe username e/ou role para atualizar"})
+		return
+	}
+
+	var target store.User
+	if err := a.Store.DB.First(&target, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+
+	role := callerRole(c)
+	if !role.CanManage(target.Role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode editar este usuário"})
+		return
+	}
+
+	updates := map[string]any{}
+	if req.Username != nil {
+		username := strings.TrimSpace(*req.Username)
+		if username == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "username não pode ficar vazio"})
+			return
+		}
+		updates["username"] = username
+	}
+	if req.Role != nil {
+		newRole := *req.Role
+		if !newRole.Valid() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "role inválido"})
+			return
+		}
+		if callerUserID(c) == target.ID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "você não pode alterar o próprio papel"})
+			return
+		}
+		if !role.CanManage(newRole) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode conceder esse papel"})
+			return
+		}
+		if target.Role == store.RoleSuperAdmin && newRole != store.RoleSuperAdmin {
+			// Defesa em profundidade: dado que ninguém troca o próprio
+			// papel (guarda acima) e CanManage exige rank >= o do alvo,
+			// na prática só outro super_admin chega aqui — e se ele
+			// existe, a contagem é >= 2, então este branch nunca deveria
+			// disparar de verdade. Mantido caso a guarda de
+			// auto-modificação mude no futuro (ver
+			// TestHandleUpdateUser_CannotDemoteLastSuperAdmin).
+			superAdmins, err := a.countSuperAdmins()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+				return
+			}
+			if superAdmins <= 1 {
+				c.JSON(http.StatusConflict, gin.H{"error": "não é possível rebaixar o único super_admin"})
+				return
+			}
+		}
+		updates["role"] = newRole
+	}
+
+	if err := a.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "não foi possível atualizar (username já em uso?)"})
+		return
+	}
+
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	detail := "user_id=" + c.Param("id")
+	if req.Username != nil {
+		detail += " new_username=" + *req.Username
+	}
+	if req.Role != nil {
+		detail += " new_role=" + string(*req.Role)
+		_ = a.Store.LogAudit(actorString(actor), "user.role_changed", detail)
+	} else {
+		_ = a.Store.LogAudit(actorString(actor), "user.update", detail)
+	}
+
+	if err := a.Store.DB.First(&target, id).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	c.JSON(http.StatusOK, toUserResponse(target))
+}
+
+type resetPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+type resetPasswordResponse struct {
+	// Password só vem preenchida quando o admin não informou uma senha no
+	// corpo — o servidor gera uma e a devolve nesta única resposta, nunca
+	// mais (mesmo padrão do bootstrap em cmd/xvpn-server/main.go).
+	Password string `json:"password,omitempty"`
+}
+
+// handleResetPassword troca a senha de outro usuário, definida pelo admin —
+// não é o fluxo de "esqueci minha senha" do próprio usuário (que exigiria
+// e-mail/verificação e não existe no MVP). Mesma checagem de hierarquia de
+// handleUpdateUser: só quem gerencia o papel do alvo pode resetar a senha.
+// POST /api/users/:id/reset-password
+func (a *App) handleResetPassword(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+
+	var req resetPasswordRequest
+	// Corpo é opcional (senha gerada automaticamente se omitido) — só
+	// rejeita JSON malformado, não a ausência de corpo.
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+			return
+		}
+	}
+
+	var target store.User
+	if err := a.Store.DB.First(&target, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+
+	if !callerRole(c).CanManage(target.Role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode redefinir a senha deste usuário"})
+		return
+	}
+
+	password := req.Password
+	generated := false
+	if password == "" {
+		password, err = auth.GenerateRandomPassword()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+			return
+		}
+		generated = true
+	} else if len(password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "senha deve ter ao menos 8 caracteres"})
+		return
+	}
+
+	hash, err := auth.HashPassword(password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if err := a.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Update("password_hash", hash).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	_ = a.Store.LogAudit(actorString(actor), "user.password_reset", "user_id="+c.Param("id"))
+
+	resp := resetPasswordResponse{}
+	if generated {
+		resp.Password = password
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 // handleDeleteUser remove um usuário e revoga todos os dispositivos dele
-// (removendo os peers correspondentes da interface WireGuard).
+// (removendo os peers correspondentes da interface WireGuard). Bloqueia
+// duas coisas (Fase 10, PLAN.md §6.7): remover um usuário cujo papel esteja
+// acima do que o chamador gerencia (store.Role.CanManage), e remover o
+// único super_admin restante — "único super_admin não pode se auto-apagar"
+// generalizado para "ninguém apaga o único super_admin", mais simples e
+// estrito.
 // DELETE /api/users/:id
 func (a *App) handleDeleteUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
 		return
+	}
+
+	var target store.User
+	if err := a.Store.DB.First(&target, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+
+	if !callerRole(c).CanManage(target.Role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode remover este usuário"})
+		return
+	}
+
+	if target.Role == store.RoleSuperAdmin {
+		superAdmins, err := a.countSuperAdmins()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+			return
+		}
+		if superAdmins <= 1 {
+			c.JSON(http.StatusConflict, gin.H{"error": "não é possível remover o único super_admin"})
+			return
+		}
 	}
 
 	var devices []store.Device

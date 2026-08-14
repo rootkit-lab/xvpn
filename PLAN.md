@@ -513,11 +513,12 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **Fase 9 (qualidade: bugs, CI, performance) concluída (2026-08-13).** Rollback de enroll e revogação de device/user agora fail-safe (compensação quando o passo pós-WG falha, em vez de depender de um restart para reconciliar); rate limit em login (10/5min) e enroll (20/10min) por IP; cache de 2s em `GET /api/status`; polling do painel sem sobreposição; `Helper.mu` do cliente separado de `engineMu` (IPC de preferências/logs não trava mais durante um `Connect` lento); ring buffers com capacidade fixa; CI mínima (`.github/workflows/ci.yml`: build/vet/gofmt/test server+client, cross-compile Windows como build-check, lint+build do painel). Vitest do painel React fica pendente (sem infra de teste no frontend ainda).
 
-**Aberto (`ROADMAP.md` Fases 10–13):**
+**Fase 10 (admin geral / RBAC) concluída (2026-08-13).** Papéis `super_admin`/`admin`/`viewer`/`member` com hierarquia por rank (`CanManage`); claim `role` no JWT + middleware `RequireRole` cobrindo todas as rotas authed (`viewerUp` leitura, `adminOnly` escrita); migração com backfill idempotente para bancos pré-RBAC; edição de usuário (username/role) e reset de senha com regras anti-escalação; ação "aprovar e provisionar" na waitlist (cria `User`+convite numa transação); autosserviço `/api/me/devices` + tela `/portal` para `member`; navegação e ações do painel filtradas por papel; matriz de testes role×endpoint. Ver §6.7 e `ROADMAP.md` Fase 10 para o detalhamento completo.
+
+**Aberto (`ROADMAP.md` Fases 11–13):**
 
 | Fase | Foco |
 |---|---|
-| **10** | Admin geral (RBAC: `super_admin` / `admin` / `viewer` / `member`) — §6.7 |
 | **11** | Marketplace multiplataforma (Linux/Android/Windows assets) — §6.8 |
 | **12** | Consumo no cliente desktop + página APK / quotas |
 | **13** | Contas Unix reais por usuário (SFTP + Samba integrados) — §6.9 |

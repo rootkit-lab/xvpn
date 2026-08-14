@@ -2,10 +2,7 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -146,7 +143,7 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 	password := cfg.AdminBootstrapPassword
 	generated := false
 	if password == "" {
-		password, err = generateRandomPassword()
+		password, err = auth.GenerateRandomPassword()
 		if err != nil {
 			return err
 		}
@@ -158,7 +155,11 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 		return err
 	}
 
-	if err := db.DB.Create(&store.User{Username: username, PasswordHash: hash}).Error; err != nil {
+	// O bootstrap sempre vira super_admin (Fase 10, PLAN.md §6.7): é o
+	// único usuário criado com a tabela vazia, então não há papel "mais
+	// antigo" para herdar — precisa nascer com o papel mais alto para
+	// poder promover/gerenciar qualquer conta futura.
+	if err := db.DB.Create(&store.User{Username: username, PasswordHash: hash, Role: store.RoleSuperAdmin}).Error; err != nil {
 		return err
 	}
 
@@ -176,12 +177,4 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 	}
 
 	return nil
-}
-
-func generateRandomPassword() (string, error) {
-	buf := make([]byte, 18)
-	if _, err := rand.Read(buf); err != nil {
-		return "", fmt.Errorf("gerando senha: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(buf), nil
 }

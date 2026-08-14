@@ -105,23 +105,51 @@ func NewRouter(app *App) *gin.Engine {
 		// nova precisa de justificativa explícita).
 		apiGroup.POST("/waitlist", rateLimit(app.waitlistLimiter), app.handleJoinWaitlist)
 
+		// authed: qualquer papel autenticado (inclusive member) — só
+		// identidade própria, sem telas de admin (ver PLAN.md §6.7,
+		// tabela de papéis: "member: sem telas de admin, portal
+		// mínimo").
 		authed := apiGroup.Group("")
 		authed.Use(auth.RequireAuth(app.Tokens))
 		{
-			authed.GET("/users", app.handleListUsers)
-			authed.POST("/users", app.handleCreateUser)
-			authed.DELETE("/users/:id", app.handleDeleteUser)
-			authed.POST("/users/:id/invite", app.handleCreateInvite)
+			authed.GET("/auth/me", app.handleMe)
 
-			authed.GET("/devices", app.handleListDevices)
-			authed.DELETE("/devices/:id", app.handleDeleteDevice)
+			authed.GET("/me/devices", app.handleListMyDevices)
+			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
+		}
 
-			authed.GET("/waitlist", app.handleListWaitlist)
-			authed.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
-			authed.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
+		// viewerUp: leitura das telas de admin (dashboard, listas,
+		// audit) — inclui viewer, admin e super_admin.
+		viewerUp := apiGroup.Group("")
+		viewerUp.Use(auth.RequireAuth(app.Tokens), auth.RequireRole(store.ViewerUpRoles...))
+		{
+			viewerUp.GET("/users", app.handleListUsers)
+			viewerUp.GET("/devices", app.handleListDevices)
+			viewerUp.GET("/waitlist", app.handleListWaitlist)
+			viewerUp.GET("/audit", app.handleListAudit)
+			viewerUp.GET("/config", app.handleGetConfig)
+		}
 
-			authed.GET("/audit", app.handleListAudit)
-			authed.GET("/config", app.handleGetConfig)
+		// adminOnly: escrita nas telas de admin — admin e super_admin.
+		// viewer fica de fora mesmo aqui (ex.: "não cria convites", ver
+		// PLAN.md §6.7); a distinção admin-vs-super_admin dentro desse
+		// grupo (ex.: só super_admin promove outro super_admin) é
+		// aplicada dentro de cada handler via store.Role.CanManage, não
+		// aqui no roteamento.
+		adminOnly := apiGroup.Group("")
+		adminOnly.Use(auth.RequireAuth(app.Tokens), auth.RequireRole(store.AdminRoles...))
+		{
+			adminOnly.POST("/users", app.handleCreateUser)
+			adminOnly.PATCH("/users/:id", app.handleUpdateUser)
+			adminOnly.DELETE("/users/:id", app.handleDeleteUser)
+			adminOnly.POST("/users/:id/invite", app.handleCreateInvite)
+			adminOnly.POST("/users/:id/reset-password", app.handleResetPassword)
+
+			adminOnly.DELETE("/devices/:id", app.handleDeleteDevice)
+
+			adminOnly.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
+			adminOnly.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
+			adminOnly.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 		}
 	}
 

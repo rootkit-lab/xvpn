@@ -33,7 +33,7 @@ const splitTunnelCIDR = "10.66.66.0/24"
 const logBufferLines = 500
 
 // EnrollRequest são os parâmetros do método RPC "enroll" — mesmo tipo é
-// usado pelo cliente IPC do lado da GUI (ver client/vpnservice.go), já que
+// usado pelo cliente IPC do lado da GUI (ver apps/xvpn-client/vpnservice.go), já que
 // ambos vivem no mesmo módulo Go.
 type EnrollRequest struct {
 	ServerBaseURL string `json:"server_base_url"`
@@ -127,7 +127,7 @@ func (h *Helper) Run() error {
 	// A partir daqui, tudo que passar por log.Print* (deste processo)
 	// também fica disponível via get_logs para a página de diagnóstico da
 	// GUI — além de continuar indo pro stderr normal (journalctl no
-	// systemd, ver client/deploy/systemd).
+	// systemd, ver apps/xvpn-client/deploy/systemd).
 	log.SetOutput(io.MultiWriter(os.Stderr, h.logs))
 
 	listener, err := ipc.Listen()

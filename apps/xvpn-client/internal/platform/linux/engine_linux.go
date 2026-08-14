@@ -61,7 +61,7 @@ type Engine struct {
 }
 
 // New abre o cliente wgctrl. Requer CAP_NET_ADMIN (ou root) — ver
-// client/deploy/systemd/xvpn-client-helper.service.
+// apps/xvpn-client/deploy/systemd/xvpn-client-helper.service.
 func New() (*Engine, error) {
 	client, err := wgctrl.New()
 	if err != nil {

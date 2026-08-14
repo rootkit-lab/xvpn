@@ -1,3 +1,9 @@
+// O module path termina em /client embora o diretório seja apps/xvpn-client:
+// a divergência é deliberada (Fase 16.1). Nada fora deste módulo o importa, e o
+// Wails gera os bindings do frontend num caminho derivado do module path
+// (frontend/bindings/github.com/rootkit-lab/xvpn/client), então renomear
+// arrastaria os imports de todas as páginas .tsx sem ganho funcional.
+// Não "alinhe" os dois sem discutir antes.
 module github.com/rootkit-lab/xvpn/client
 
 go 1.25.0

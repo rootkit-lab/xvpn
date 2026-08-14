@@ -9,7 +9,7 @@ Type=simple
 # Usuário/grupo dedicados, sem shell/home — criados pelo instalador (Fase 7)
 # junto com o grupo "xvpn" (ver internal/ipc/transport_linux.go): quem
 # estiver nesse grupo pode falar com o helper via socket sem sudo, mesmo
-# modelo do grupo "docker". Em desenvolvimento manual, ver client/README.md.
+# modelo do grupo "docker". Em desenvolvimento manual, ver apps/xvpn-client/README.md.
 User=xvpn-client-helper
 Group=xvpn
 ExecStart=/usr/local/bin/xvpn-client --helper

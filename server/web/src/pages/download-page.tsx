@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 const RELEASES_URL = 'https://github.com/rootkit-lab/xvpn/releases'
 const CLIENT_README_URL =
-  'https://github.com/rootkit-lab/xvpn/blob/main/client/README.md'
+  'https://github.com/rootkit-lab/xvpn/blob/main/apps/xvpn-client/README.md'
 
 const PACKAGES = [
   {
@@ -85,7 +85,7 @@ export function DownloadPage() {
         <CardContent>
           <Button asChild variant="outline" className="rounded-full">
             <a href={CLIENT_README_URL} target="_blank" rel="noreferrer">
-              Ver client/README.md
+              Ver apps/xvpn-client/README.md
               <ExternalLink className="size-4" />
             </a>
           </Button>

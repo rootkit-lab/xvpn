@@ -205,7 +205,7 @@ tasks:
       COMMENT: 'Conecta à sua VPN privada XVPN'
       # Caminho absoluto, não só o nome do binário: o PATH usado pelo menu
       # de aplicativos/launcher gráfico (systemd --user, .desktop autostart)
-      # nem sempre inclui /usr/local/bin — ver client/README.md (instalação
+      # nem sempre inclui /usr/local/bin — ver apps/xvpn-client/README.md (instalação
       # do helper) para onde o binário é copiado.
       EXEC: '/usr/local/bin/{{.APP_NAME}}'
       ICON: '{{.APP_NAME}}'

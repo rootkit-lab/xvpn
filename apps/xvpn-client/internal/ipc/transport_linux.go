@@ -16,7 +16,7 @@ import (
 // falar com o helper sem sudo, mas usuários fora do grupo não podem —
 // mesmo modelo do grupo "docker". O instalador (Fase 7) cria o grupo e
 // adiciona o usuário que instalou; em ambiente de desenvolvimento, rode
-// `sudo usermod -aG xvpn $USER` manualmente (ver client/README.md).
+// `sudo usermod -aG xvpn $USER` manualmente (ver apps/xvpn-client/README.md).
 const SocketPath = "/run/xvpn-client/helper.sock"
 
 const socketGroup = "xvpn"

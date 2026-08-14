@@ -38,7 +38,7 @@ func ensureWintunDLL() error {
 
 	data, err := wintunFS.ReadFile("wintun/wintun.dll")
 	if err != nil {
-		return fmt.Errorf("wintun.dll não embutido no binário — rode client/build/windows/fetch-wintun.ps1 antes de compilar para Windows: %w", err)
+		return fmt.Errorf("wintun.dll não embutido no binário — rode apps/xvpn-client/build/windows/fetch-wintun.ps1 antes de compilar para Windows: %w", err)
 	}
 	if err := os.WriteFile(dest, data, 0o755); err != nil {
 		return fmt.Errorf("gravando wintun.dll em %q: %w", dest, err)

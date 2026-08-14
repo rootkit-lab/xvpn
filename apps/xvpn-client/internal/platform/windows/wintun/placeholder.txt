@@ -4,8 +4,8 @@ O wintun.dll real (driver TUN da WireGuard LLC, https://www.wintun.net/) NÃO
 é commitado neste repositório — é um binário de terceiros. Antes de compilar
 o cliente para Windows, rode:
 
-    client/build/windows/fetch-wintun.ps1
+    apps/xvpn-client/build/windows/fetch-wintun.ps1
 
 Esse script baixa o .zip oficial, extrai o wintun.dll da arquitetura correta
-(amd64) e o coloca aqui. Ver client/internal/platform/windows/wintun.go e
+(amd64) e o coloca aqui. Ver apps/xvpn-client/internal/platform/windows/wintun.go e
 PLAN.md §11.1 (convenção de build e artefatos).

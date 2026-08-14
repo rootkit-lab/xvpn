@@ -69,6 +69,12 @@ func TestValidSSHPublicKey(t *testing.T) {
 		{"ssh-ed25519", false},      // sem base64
 		{"bogus AAAA alice", false}, // tipo desconhecido
 		{"ssh-ed25519 " + strings.Repeat("A", 9000) + " alice", false}, // base64 absurdo (>8192)
+		// Teto de QUANTIDADE de linhas (Fase 14): o tamanho de cada chave
+		// já era limitado, mas sem esse teto o campo aceitaria um arquivo
+		// arbitrariamente grande, que depois ainda seria unido às chaves
+		// dos dispositivos.
+		{strings.TrimSuffix(strings.Repeat("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 alice\n", maxAuthorizedKeyLines), "\n"), true},
+		{strings.Repeat("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 alice\n", maxAuthorizedKeyLines+1), false},
 	}
 	for _, c := range cases {
 		if got := validSSHPublicKey(c.key); got != c.want {
@@ -77,16 +83,35 @@ func TestValidSSHPublicKey(t *testing.T) {
 	}
 }
 
-func TestHandleSetFileAccess_EnableSFTPRequiresKey(t *testing.T) {
-	app, _ := newTestApp(t)
+// TestHandleSetFileAccess_EnableSFTPWithoutManualKey cobre a inversão da
+// Fase 14: até a Fase 13 ligar SFTP sem chave colada era 400 ("chave
+// pública SSH é obrigatória"), o que travava o fluxo — o admin virava
+// intermediário de um dado que a máquina do usuário já conhece. Agora é um
+// fluxo válido: o toggle liga, o authorized_keys nasce com as chaves dos
+// dispositivos (nenhuma, neste teste) e passa a incluir a de cada máquina
+// no instante em que ela se registrar.
+func TestHandleSetFileAccess_EnableSFTPWithoutManualKey(t *testing.T) {
+	fp := &fakeUserProvisioner{}
+	app, _ := withProvisioner(t, fp)
 	router := NewRouter(app)
 	admin := createTestUserWithRole(t, app, "admin", "senha-admin-123", store.RoleAdmin)
 	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
 
 	rec := doJSON(t, router, http.MethodPut, "/api/users/"+uidStr(admin)+"/file-access",
 		fileAccessRequest{SFTPEnabled: true}, token)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("esperava 400 (SFTP sem chave), obtido %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperava 200 (SFTP sem chave manual é válido desde a Fase 14), obtido %d: %s",
+			rec.Code, rec.Body.String())
+	}
+	if len(fp.calls) != 1 || fp.calls[0] != "EnableSFTP(admin,)" {
+		t.Fatalf("esperava EnableSFTP com authorized_keys vazio, obtido %v", fp.calls)
+	}
+	var u store.User
+	if err := app.Store.DB.First(&u, admin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !u.SFTPEnabled {
+		t.Error("DB deveria marcar SFTPEnabled=true")
 	}
 }
 

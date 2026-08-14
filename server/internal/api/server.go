@@ -23,7 +23,13 @@ import (
 // APIVersion é o contrato de compatibilidade cliente↔servidor descrito em
 // PLAN.md §13.3: um inteiro incremental, bump sempre que um endpoint mudar
 // de forma incompatível com clientes existentes.
-const APIVersion = 1
+//
+// 2 (Fase 14): o enrollment passou a devolver `username` e a API ganhou as
+// rotas de identidade por túnel (GET /api/me, POST /api/me/ssh-key). Um
+// cliente da versão 1 continua funcionando contra um servidor 2, mas o
+// contrário não: o cliente 2 conta com o username para abrir o share
+// pessoal.
+const APIVersion = 2
 
 // Limites dos endpoints públicos sensíveis (sem essa proteção, alguém
 // podia tentar senhas/códigos de convite em loop apertado — ver
@@ -36,6 +42,15 @@ const (
 
 	enrollRateLimitMax    = 20
 	enrollRateLimitWindow = 10 * time.Minute
+
+	// POST /api/me/ssh-key só responde dentro do túnel e é idempotente
+	// (mesma chave = no-op), mas trocar de chave a cada requisição faz o
+	// servidor reescrever o authorized_keys e recarregar o sshd. O limite
+	// existe para isso: um peer comprometido não deve conseguir manter o
+	// sshd em recarga contínua. Folgado o suficiente para o uso normal, que
+	// é uma chamada por conexão de túnel.
+	sshKeyRateLimitMax    = 12
+	sshKeyRateLimitWindow = 10 * time.Minute
 )
 
 // StartedAt é preenchido no boot do processo, usado por GET /api/status
@@ -86,6 +101,11 @@ type App struct {
 	// convite) contra tentativas em loop — ver ratelimit.go.
 	loginLimiter  *ipRateLimiter
 	enrollLimiter *ipRateLimiter
+
+	// sshKeyLimiter protege POST /api/me/ssh-key, que também não usa JWT
+	// (autentica pelo IP de origem dentro do túnel) e chama o
+	// provisionador — ver sshKeyRateLimitMax.
+	sshKeyLimiter *ipRateLimiter
 
 	// statusCache* memoizam a última resposta de GET /api/status por
 	// statusCacheTTL — endpoint público e chamado em polling pelo painel
@@ -146,6 +166,9 @@ func NewRouter(app *App) *gin.Engine {
 	if app.enrollLimiter == nil {
 		app.enrollLimiter = newIPRateLimiter(enrollRateLimitMax, enrollRateLimitWindow)
 	}
+	if app.sshKeyLimiter == nil {
+		app.sshKeyLimiter = newIPRateLimiter(sshKeyRateLimitMax, sshKeyRateLimitWindow)
+	}
 
 	apiGroup := r.Group("/api")
 	{
@@ -156,6 +179,21 @@ func NewRouter(app *App) *gin.Engine {
 		// waitlist_handler.go e AGENTS.md (qualquer superfície pública
 		// nova precisa de justificativa explícita).
 		apiGroup.POST("/waitlist", rateLimit(app.waitlistLimiter), app.handleJoinWaitlist)
+
+		// Identidade por túnel (Fase 14, PLAN.md §6.9): as duas únicas
+		// rotas que autenticam por IP de origem em vez de JWT. Ficam neste
+		// mesmo router de propósito — RequireTunnelOrigin exige
+		// RemoteIP() dentro de 10.66.66.0/24, e o Nginx conecta de
+		// 127.0.0.1, então tudo que vem pelo painel público é rejeitado
+		// por construção, sem precisar de uma segunda árvore de rotas.
+		// Em produção elas só são alcançáveis pelo listener adicional em
+		// 10.66.66.1:8080 (XVPN_TUNNEL_HTTP_ADDR, ver PLAN.md §5), porque
+		// o HTTPS do painel não trafega dentro do túnel.
+		tunnel := apiGroup.Group("", app.RequireTunnelOrigin())
+		{
+			tunnel.GET("/me", app.handleTunnelIdentity)
+			tunnel.POST("/me/ssh-key", rateLimit(app.sshKeyLimiter), app.handleRegisterDeviceSSHKey)
+		}
 
 		// authed: qualquer papel autenticado (inclusive member) — só
 		// identidade própria, sem telas de admin (ver PLAN.md §6.7,
@@ -214,6 +252,13 @@ func NewRouter(app *App) *gin.Engine {
 			// + chave pública SSH por usuário. adminOnly — ação de escrita
 			// que provisiona conta Unix na VPS.
 			adminOnly.PUT("/users/:id/file-access", app.handleSetFileAccess)
+			// Chaves SSH auto-registradas pelos dispositivos do usuário
+			// (Fase 14), em modo leitura: alimenta o diálogo de acesso a
+			// arquivos do painel. adminOnly pelo mesmo motivo do PUT acima
+			// — é a superfície administrativa de acesso a arquivos, e o
+			// diálogo que consome isso só aparece para quem pode gerenciar
+			// aquele usuário.
+			adminOnly.GET("/users/:id/ssh-keys", app.handleListUserSSHKeys)
 
 			adminOnly.DELETE("/devices/:id", app.handleDeleteDevice)
 

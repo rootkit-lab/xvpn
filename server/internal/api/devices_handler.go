@@ -23,10 +23,15 @@ type enrollRequest struct {
 }
 
 type enrollResponse struct {
-	AssignedIP          string `json:"assigned_ip"`
-	ServerPublicKey     string `json:"server_public_key"`
-	Endpoint            string `json:"endpoint"`
-	AllowedIPs          string `json:"allowed_ips"`
+	AssignedIP      string `json:"assigned_ip"`
+	ServerPublicKey string `json:"server_public_key"`
+	Endpoint        string `json:"endpoint"`
+	AllowedIPs      string `json:"allowed_ips"`
+	// Username é o dono do convite consumido. Sem ele o cliente não sabe
+	// quem é a pessoa e não consegue montar o nome do share pessoal
+	// (`home-<username>`) — é o caminho rápido da Fase 14 para
+	// enrollments novos; os já existentes descobrem via GET /api/me.
+	Username            string `json:"username"`
 	PersistentKeepalive int    `json:"persistent_keepalive"`
 	APIVersion          int    `json:"api_version"`
 }
@@ -131,11 +136,21 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 
 	_ = a.Store.LogAudit("enrollment", "device.enroll", "device_id="+strconv.FormatUint(uint64(device.ID), 10))
 
+	// Falha em carregar o dono não invalida o enrollment (que já foi
+	// concluído): o cliente só fica sem o caminho rápido do username e
+	// resolve depois via GET /api/me, dentro do túnel.
+	var owner store.User
+	if err := a.Store.DB.First(&owner, device.UserID).Error; err != nil {
+		slog.Warn("enrollment concluído mas dono não encontrado para devolver username",
+			"device_id", device.ID, "user_id", device.UserID, "err", err)
+	}
+
 	c.JSON(http.StatusCreated, enrollResponse{
 		AssignedIP:          device.AllowedIP,
 		ServerPublicKey:     a.ServerPublicKey,
 		Endpoint:            a.Config.WireGuardEndpoint,
 		AllowedIPs:          "0.0.0.0/0, ::/0",
+		Username:            owner.Username,
 		PersistentKeepalive: 25,
 		APIVersion:          APIVersion,
 	})
@@ -275,10 +290,19 @@ func (a *App) handleDeleteMyDevice(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// revokeDevice remove o peer do WireGuard e o registro do banco,
-// compensando (re-adicionando o peer) se o passo do banco falhar depois do
-// peer já ter saído do kernel (ver ROADMAP.md Fase 9). Em caso de erro, já
-// escreve a resposta HTTP e retorna false — o chamador só precisa parar.
+// revokeDevice remove o peer do WireGuard, o registro do banco e a chave
+// SSH que aquele dispositivo tinha auto-registrado, compensando
+// (re-adicionando o peer) se o passo do banco falhar depois do peer já ter
+// saído do kernel (ver ROADMAP.md Fase 9). Em caso de erro, já escreve a
+// resposta HTTP e retorna false — o chamador só precisa parar.
+//
+// É o ponto único de revogação dos dois caminhos que removem dispositivo
+// (DELETE /api/devices/:id e DELETE /api/me/devices/:id). A
+// re-renderização do authorized_keys mora aqui, e não em cada handler,
+// justamente porque em um só deles sobraria chave viva de dispositivo
+// revogado (ver ROADMAP.md Fase 14.2). O terceiro caminho,
+// handleDeleteUser, revoga o acesso a arquivos inteiro antes de apagar o
+// usuário, então não depende desta função.
 func (a *App) revokeDevice(c *gin.Context, device store.Device, actor string) bool {
 	if err := a.WG.RemovePeer(device.PublicKey); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao revogar peer na interface WireGuard"})
@@ -296,6 +320,24 @@ func (a *App) revokeDevice(c *gin.Context, device store.Device, actor string) bo
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return false
+	}
+
+	// A linha do dispositivo já saiu do banco, então a união recalculada
+	// aqui não inclui mais a chave dele. Best-effort de propósito: o
+	// dispositivo já perdeu o peer WireGuard e portanto não alcança mais o
+	// SFTP (que só responde na porta 22 do servidor, atingível pelo túnel
+	// ou pela internet — e é por isso que não é *só* best-effort: logamos
+	// alto e o reconcile do boot converge). Falhar a requisição aqui seria
+	// pior: o admin veria erro numa revogação que de fato aconteceu.
+	if device.SSHPublicKey != "" {
+		var owner store.User
+		if err := a.Store.DB.First(&owner, device.UserID).Error; err != nil {
+			slog.Error("falha ao carregar dono para re-renderizar authorized_keys após revogar dispositivo",
+				"device_id", device.ID, "err", err)
+		} else if err := a.applyAuthorizedKeys(c.Request.Context(), owner); err != nil {
+			slog.Error("falha ao remover chave SSH de dispositivo revogado do authorized_keys",
+				"device_id", device.ID, "username", owner.Username, "err", err)
+		}
 	}
 
 	_ = a.Store.LogAudit(actor, "device.revoke", "device_id="+strconv.FormatUint(uint64(device.ID), 10))

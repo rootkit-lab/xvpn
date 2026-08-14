@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -107,22 +108,33 @@ func run() error {
 		slog.Info("unix accounts reconciled from database")
 	}
 
-	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           router,
-		ReadHeaderTimeout: 10 * time.Second,
+	// Dois listeners, um router só (Fase 14 — ver PLAN.md §5 e §6.9):
+	// - cfg.HTTPAddr (127.0.0.1:8080): o painel/API atrás do Nginx.
+	// - cfg.TunnelHTTPAddr (10.66.66.1:8080): o mesmo handler na wg0, único
+	//   caminho pelo qual um peer alcança a API com um 10.66.66.x como IP
+	//   de origem — o HTTPS do painel não trafega dentro do túnel.
+	//
+	// Não é preciso um router separado para o segundo: as rotas que
+	// autenticam por IP de origem exigem RemoteIP() dentro da sub-rede da
+	// VPN (api.RequireTunnelOrigin), o que já rejeita tudo que chega pelo
+	// Nginx, que conecta de 127.0.0.1.
+	servers := []*http.Server{newHTTPServer(cfg.HTTPAddr, router)}
+	if cfg.TunnelHTTPAddr != "" {
+		servers = append(servers, newHTTPServer(cfg.TunnelHTTPAddr, router))
 	}
 
-	errCh := make(chan error, 1)
-	go func() {
-		slog.Info("listening",
-			"addr", cfg.HTTPAddr,
-			"wireguard_interface", cfg.WireGuardInterface,
-		)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- err
-		}
-	}()
+	errCh := make(chan error, len(servers))
+	for _, srv := range servers {
+		go func(srv *http.Server) {
+			slog.Info("listening",
+				"addr", srv.Addr,
+				"wireguard_interface", cfg.WireGuardInterface,
+			)
+			if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				errCh <- fmt.Errorf("listener %s: %w", srv.Addr, err)
+			}
+		}(srv)
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -136,7 +148,21 @@ func run() error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return srv.Shutdown(ctx)
+	var shutdownErr error
+	for _, srv := range servers {
+		if err := srv.Shutdown(ctx); err != nil && shutdownErr == nil {
+			shutdownErr = err
+		}
+	}
+	return shutdownErr
+}
+
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 }
 
 func reconcilePeersFromDB(db *store.Store, wg *wireguard.Manager) error {

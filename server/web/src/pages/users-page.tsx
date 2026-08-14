@@ -2,7 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
 import { Copy, FolderKey, KeyRound, Pencil, Plus, Ticket, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
-import { api, ApiError, type InviteResponse, type User } from '@/lib/api'
+import { api, ApiError, type DeviceSSHKey, type InviteResponse, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
@@ -486,6 +486,7 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
   const [sftp, setSftp] = useState(false)
   const [samba, setSamba] = useState(false)
   const [sshKey, setSshKey] = useState('')
+  const [deviceKeys, setDeviceKeys] = useState<DeviceSSHKey[]>([])
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -495,17 +496,18 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
       setSftp(Boolean(user.sftp_enabled))
       setSamba(Boolean(user.samba_enabled))
       setSshKey(user.ssh_public_key ?? '')
+      setDeviceKeys([])
       setError(null)
+      void api.listUserSSHKeys(user.id).then(
+        (res) => setDeviceKeys(res.device_keys ?? []),
+        () => setDeviceKeys([]),
+      )
     }
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
-    if (sftp && !sshKey.trim()) {
-      setError('Cole a chave pública SSH do usuário para habilitar SFTP.')
-      return
-    }
     setSubmitting(true)
     try {
       await api.setFileAccess(user.id, {
@@ -536,7 +538,7 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
             <DialogTitle>Acesso a arquivos — "{user.username}"</DialogTitle>
             <DialogDescription>
               Habilita SFTP (chrooted, autenticação por chave pública) e/ou Samba (share acessível só via VPN).
-              A conta Unix é criada automaticamente no servidor.
+              A conta Unix é criada automaticamente no servidor. A chave SSH chega sozinha quando a pessoa abre o XVPN.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
@@ -563,18 +565,35 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
               </span>
             </label>
             <div className="flex flex-col gap-2">
-              <Label htmlFor={`ssh-key-${user.id}`}>Chave pública SSH</Label>
+              <Label>Chaves dos dispositivos (automáticas)</Label>
+              {deviceKeys.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma chave registrada ainda. Elas aparecem aqui quando a pessoa abrir o XVPN conectado à VPN —
+                  não é preciso colar nada para ligar o SFTP.
+                </p>
+              ) : (
+                <ul className="space-y-1.5 rounded-md border border-border p-2 font-mono text-xs">
+                  {deviceKeys.map((k) => (
+                    <li key={k.device_id} className="flex flex-col gap-0.5">
+                      <span className="text-foreground">{k.device_name}</span>
+                      <span className="text-muted-foreground">{k.fingerprint}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`ssh-key-${user.id}`}>Chave pública extra (opcional)</Label>
               <textarea
                 id={`ssh-key-${user.id}`}
                 className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
-                placeholder={sftp ? 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... user@host' : 'Necessária apenas se SFTP estiver habilitado'}
+                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... user@host"
                 value={sshKey}
                 onChange={(e) => setSshKey(e.target.value)}
                 spellCheck={false}
               />
               <p className="text-xs text-muted-foreground">
-                Cole a chave pública do usuário (saída de <code>ssh-keygen -y</code> ou <code>~/.ssh/id_*.pub</code>).
-                Pode incluir múltiplas chaves, uma por linha.
+                Escape hatch para celular ou máquina sem XVPN. Pode incluir múltiplas chaves, uma por linha.
               </p>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}

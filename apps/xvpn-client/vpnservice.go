@@ -3,17 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"runtime"
 	"time"
 
+	"github.com/rootkit-lab/xvpn/client/internal/apiclient"
 	"github.com/rootkit-lab/xvpn/client/internal/autostart"
 	"github.com/rootkit-lab/xvpn/client/internal/helper"
 	"github.com/rootkit-lab/xvpn/client/internal/ipc"
 	"github.com/rootkit-lab/xvpn/client/internal/marketplaceclient"
 	"github.com/rootkit-lab/xvpn/client/internal/opener"
+	"github.com/rootkit-lab/xvpn/client/internal/sshkey"
 	"github.com/rootkit-lab/xvpn/client/internal/version"
 )
 
@@ -35,6 +38,11 @@ const serverVPNAddress = "10.66.66.1"
 // sharedSambaName é o nome do compartilhamento Samba criado na Fase 5 (ver
 // server/deploy/samba/smb.conf).
 const sharedSambaName = "shared"
+
+// homeSambaPrefix compõe o nome do compartilhamento pessoal
+// ("home-<username>"), que passa a existir quando o admin liga o Samba
+// para aquele usuário — ver PLAN.md §6.9.
+const homeSambaPrefix = "home-"
 
 // VPNService é o serviço Wails vinculado ao frontend (bindings TS gerados
 // automaticamente por `wails3 generate bindings`). Roda no processo GUI,
@@ -68,6 +76,13 @@ type StatusView struct {
 	KillSwitchActive bool       `json:"killSwitchActive"`
 	Reconnecting     bool       `json:"reconnecting"`
 	ReconnectAttempt int        `json:"reconnectAttempt"`
+	// Username é a conta desta pessoa no painel, descoberta pelo helper a
+	// cada conexão; SambaEnabled/SFTPEnabled espelham os toggles do
+	// painel, para a UI desabilitar um botão com a razão visível em vez
+	// de deixar o clique virar um erro de mount (ROADMAP.md Fase 14).
+	Username     string `json:"username"`
+	SambaEnabled bool   `json:"sambaEnabled"`
+	SFTPEnabled  bool   `json:"sftpEnabled"`
 }
 
 // Preferences são os recursos opcionais da Fase 6 (ver ROADMAP.md) —
@@ -146,6 +161,9 @@ func (s *VPNService) Status() (StatusView, error) {
 		KillSwitchActive: resp.KillSwitchActive,
 		Reconnecting:     resp.Reconnecting,
 		ReconnectAttempt: resp.ReconnectAttempt,
+		Username:         resp.Username,
+		SambaEnabled:     resp.SambaEnabled,
+		SFTPEnabled:      resp.SFTPEnabled,
 	}, nil
 }
 
@@ -187,20 +205,108 @@ func (s *VPNService) Disconnect() error {
 	return client.Call(ipc.MethodDisconnect, nil, nil)
 }
 
-// OpenServerFiles abre o acesso a arquivos do servidor (Fase 5) no
-// aplicativo padrão do SO. kind é "smb" (unidade de rede) ou "filebrowser"
-// (interface web). Não passa pelo helper: é uma ação local da GUI que só
-// funciona de fato com o túnel ativo (Samba/FileBrowser só escutam em
-// wg0 — ver PLAN.md §3.4).
+// OpenServerFiles abre o acesso a arquivos do servidor no aplicativo
+// padrão do SO. kind é "smb-home" (o compartilhamento pessoal desta
+// pessoa), "smb-shared" (o compartilhamento comum da Fase 5) ou
+// "filebrowser" (interface web).
+//
+// Confere o estado real da conexão com o helper antes de abrir, em vez de
+// confiar no que a UI tinha em mãos: um clique num status de 2 segundos
+// atrás abriria o gerenciador de arquivos numa janela de rede vazia, que
+// é exatamente o sintoma reportado na Fase 14 e não diz nada ao usuário
+// sobre o que fazer.
 func (s *VPNService) OpenServerFiles(kind string) error {
+	status, err := s.Status()
+	if err != nil {
+		return fmt.Errorf("não foi possível confirmar o estado da conexão: %w", err)
+	}
+	if !status.HelperReachable {
+		return fmt.Errorf("serviço xvpn-client-helper indisponível — verifique se está instalado e rodando")
+	}
+	if !status.Connected {
+		return fmt.Errorf("conecte a VPN primeiro — os arquivos do servidor só são alcançáveis por dentro do túnel")
+	}
+
 	switch kind {
-	case "smb":
+	case "smb-home":
+		if err := requireSamba(status); err != nil {
+			return err
+		}
+		if status.Username == "" {
+			return fmt.Errorf("ainda não foi possível descobrir qual é a sua conta no painel — desconecte e conecte de novo para o servidor informar")
+		}
+		return opener.OpenSMBShare(serverVPNAddress, homeSambaPrefix+status.Username)
+	case "smb-shared":
+		if err := requireSamba(status); err != nil {
+			return err
+		}
 		return opener.OpenSMBShare(serverVPNAddress, sharedSambaName)
 	case "filebrowser":
 		return opener.OpenURL(fmt.Sprintf("http://%s:8081", serverVPNAddress))
 	default:
 		return fmt.Errorf("tipo de acesso a arquivos desconhecido: %q", kind)
 	}
+}
+
+// requireSamba transforma "o admin não liberou" num erro que explica o
+// que houve — sem isso o usuário só veria a falha de mount do SO, que não
+// distingue permissão negada de compartilhamento inexistente.
+func requireSamba(status StatusView) error {
+	if !status.SambaEnabled {
+		return fmt.Errorf("o administrador ainda não liberou o acesso a arquivos (Samba) para a sua conta — peça a liberação no painel")
+	}
+	return nil
+}
+
+// SSHKeyStatus é o que a página de Diagnóstico mostra sobre a chave SSH
+// deste dispositivo. Só metadados: a chave privada nunca sai de ~/.ssh
+// (ver internal/sshkey) e nem a pública precisa aparecer aqui — o
+// fingerprint já basta para conferir com o painel.
+type SSHKeyStatus struct {
+	Fingerprint string `json:"fingerprint"`
+	// SFTPEnabled=false não é erro: a chave fica guardada no servidor e
+	// passa a valer no instante em que o admin ligar o acesso.
+	SFTPEnabled bool `json:"sftpEnabled"`
+	// Changed=false significa que esta mesma chave já estava registrada
+	// (o servidor é idempotente).
+	Changed bool `json:"changed"`
+}
+
+// RegisterSSHKey garante o par de chaves local, registra a pública no
+// servidor e deixa o atalho `sftp xvpn-files` pronto no ~/.ssh/config.
+// Roda no processo GUI sem privilégio de propósito — a chave precisa ser
+// legível pelo cliente SFTP do próprio usuário, ver PLAN.md §6.9.
+func (s *VPNService) RegisterSSHKey() (SSHKeyStatus, error) {
+	status, err := s.Status()
+	if err != nil {
+		return SSHKeyStatus{}, fmt.Errorf("não foi possível confirmar o estado da conexão: %w", err)
+	}
+	if !status.Connected {
+		return SSHKeyStatus{}, fmt.Errorf("conecte a VPN primeiro — a chave só pode ser registrada por dentro do túnel")
+	}
+
+	publicKey, err := sshkey.Ensure()
+	if err != nil {
+		return SSHKeyStatus{}, err
+	}
+
+	result, err := apiclient.New(apiclient.TunnelBaseURL).RegisterSSHKey(context.Background(), publicKey)
+	if err != nil {
+		return SSHKeyStatus{}, err
+	}
+
+	// O atalho do ~/.ssh/config é conveniência: se falhar, a chave já
+	// está registrada e o acesso funciona informando usuário e host à
+	// mão — não vale reverter nem alarmar por isso.
+	if err := sshkey.EnsureSSHConfigEntry(status.Username); err != nil {
+		slog.Warn("ssh config entry failed", "err", err)
+	}
+
+	return SSHKeyStatus{
+		Fingerprint: result.Fingerprint,
+		SFTPEnabled: result.SFTPEnabled,
+		Changed:     result.Changed,
+	}, nil
 }
 
 // Platform devolve o SO deste processo ("linux" ou "windows") — usado
@@ -411,6 +517,32 @@ func (s *VPNService) SetPreferences(prefs Preferences) (Preferences, error) {
 		return Preferences{}, fmt.Errorf("salvando preferências: %w", err)
 	}
 	return result, nil
+}
+
+// GetMTU/SetMTU expõem o override manual do MTU do túnel (0 =
+// automático), que até a Fase 14 só podia ser escolhido no enrollment.
+// A faixa aceita e o motivo de existir estão em handleSetMTU (helper).
+func (s *VPNService) GetMTU() (int, error) {
+	client, err := ipc.Dial()
+	if err != nil {
+		return 0, fmt.Errorf("serviço xvpn-client-helper indisponível: %w", err)
+	}
+	defer client.Close()
+
+	var result helper.MTUSetting
+	if err := client.Call(ipc.MethodGetMTU, nil, &result); err != nil {
+		return 0, fmt.Errorf("consultando MTU: %w", err)
+	}
+	return result.MTU, nil
+}
+
+func (s *VPNService) SetMTU(mtu int) error {
+	client, err := ipc.Dial()
+	if err != nil {
+		return fmt.Errorf("serviço xvpn-client-helper indisponível: %w", err)
+	}
+	defer client.Close()
+	return client.Call(ipc.MethodSetMTU, helper.MTUSetting{MTU: mtu}, nil)
 }
 
 // GetAutostart/SetAutostart não passam pelo helper — inicialização

@@ -5,6 +5,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import type { Preferences } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
 interface SettingsPageProps {
@@ -14,6 +16,8 @@ interface SettingsPageProps {
 export function SettingsPage({ onBack }: SettingsPageProps) {
   const [prefs, setPrefs] = useState<Preferences | null>(null)
   const [autostart, setAutostart] = useState<boolean | null>(null)
+  const [mtu, setMtu] = useState(0)
+  const [mtuDraft, setMtuDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -22,9 +26,15 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     setLoading(true)
     setError(null)
     try {
-      const [p, a] = await Promise.all([VPNService.GetPreferences(), VPNService.GetAutostart()])
+      const [p, a, m] = await Promise.all([
+        VPNService.GetPreferences(),
+        VPNService.GetAutostart(),
+        VPNService.GetMTU(),
+      ])
       setPrefs(p)
       setAutostart(a)
+      setMtu(m)
+      setMtuDraft(m === 0 ? '' : String(m))
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -63,6 +73,28 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setAutostart(previous)
+    }
+  }
+
+  async function saveMTU() {
+    const trimmed = mtuDraft.trim()
+    const next = trimmed === '' ? 0 : Number(trimmed)
+    if (!Number.isInteger(next) || (next !== 0 && (next < 1280 || next > 1500))) {
+      setError('MTU deve ser vazio (automático) ou um inteiro entre 1280 e 1500')
+      return
+    }
+    const previous = mtu
+    setMtu(next)
+    setSaving(true)
+    setError(null)
+    try {
+      await VPNService.SetMTU(next)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setMtu(previous)
+      setMtuDraft(previous === 0 ? '' : String(previous))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -115,6 +147,42 @@ export function SettingsPage({ onBack }: SettingsPageProps) {
             checked={autostart ?? false}
             onCheckedChange={toggleAutostart}
           />
+          <Card className="border-white/5 bg-card/70">
+            <CardContent className="flex flex-col gap-3 p-4">
+              <div>
+                <p className="text-sm font-medium">MTU do túnel</p>
+                <p className="text-xs text-muted-foreground">
+                  Deixe vazio para o padrão (1420). Use um valor menor (1280–1500) se HTTP/TLS
+                  travar atrás de outra VPN ou rede com PMTU reduzido.
+                </p>
+              </div>
+              <div className="flex items-end gap-2">
+                <div className="flex flex-1 flex-col gap-1.5">
+                  <Label htmlFor="mtu-override" className="hud-label text-muted-foreground/80">
+                    MTU
+                  </Label>
+                  <Input
+                    id="mtu-override"
+                    type="number"
+                    min={1280}
+                    max={1500}
+                    placeholder="automático"
+                    value={mtuDraft}
+                    onChange={(e) => setMtuDraft(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={saveMTU}
+                  disabled={saving}
+                  className="rounded-md border border-border bg-secondary px-3 py-2 font-mono text-sm disabled:opacity-50"
+                >
+                  Salvar
+                </button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </motion.div>

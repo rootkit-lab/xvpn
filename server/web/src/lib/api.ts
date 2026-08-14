@@ -159,6 +159,13 @@ export interface FileAccessResponse {
   ssh_public_key: string
 }
 
+export interface DeviceSSHKey {
+  device_id: number
+  device_name: string
+  fingerprint: string
+  updated_at?: string
+}
+
 export interface Device {
   id: number
   user_id: number
@@ -336,6 +343,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+  // Chaves SSH auto-registradas pelos dispositivos do usuário (Fase 14).
+  // Só leitura — para revogar, revoga-se o dispositivo.
+  listUserSSHKeys: (id: number) =>
+    request<{ device_keys: DeviceSSHKey[] }>(`/users/${id}/ssh-keys`),
 
   listDevices: () => request<Device[]>('/devices'),
   deleteDevice: (id: number) => request<void>(`/devices/${id}`, { method: 'DELETE' }),

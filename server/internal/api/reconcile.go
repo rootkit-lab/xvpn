@@ -56,10 +56,18 @@ func (a *App) ReconcileUnixAccounts(ctx context.Context) error {
 // reconcileUser aplica o estado de um usuário só. Ordem: SFTP antes
 // de Samba (ambos chamam Create internamente, então o segundo Create
 // é no-op). Se SFTP falha, ainda tenta Samba — são independentes.
+//
+// O authorized_keys é recomputado como a união das chaves dos
+// dispositivos com a manual (applyAuthorizedKeys), não escrito só com a
+// manual. Passar u.SSHPublicKey direto para EnableSFTP aqui — como esta
+// função fazia até a Fase 14 — faria um `systemctl restart xvpn-server`
+// reescrever o arquivo sem as chaves auto-registradas e derrubar o SFTP
+// de todos os dispositivos. É um bug que só apareceria no próximo boot,
+// então não sairia em teste manual.
 func (a *App) reconcileUser(ctx context.Context, u store.User) error {
 	var firstErr error
 	if u.SFTPEnabled {
-		if err := a.UserProvisioner.EnableSFTP(ctx, u.Username, u.SSHPublicKey); err != nil && firstErr == nil {
+		if err := a.applyAuthorizedKeys(ctx, u); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -40,10 +41,12 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "chave pública SSH malformada"})
 		return
 	}
-	if req.SFTPEnabled && req.SSHPublicKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "chave pública SSH é obrigatória para habilitar SFTP"})
-		return
-	}
+	// Até a Fase 13 o handler bloqueava aqui quando SFTP era ligado sem
+	// chave colada. Isso deixou de ser um erro na Fase 14: as chaves dos
+	// dispositivos entram no authorized_keys sozinhas (ver
+	// renderAuthorizedKeys), então ligar o toggle antes de a pessoa abrir
+	// o XVPN é um fluxo válido — o acesso passa a valer no instante em que
+	// a chave dela chegar, sem uma segunda rodada de conversa.
 	if a.UserProvisioner == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "provisionamento de contas Unix não configurado neste servidor"})
 		return
@@ -74,6 +77,17 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 	provisionErr := func(err error) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": provisionerErrMsg(err)})
 	}
+	// enableSFTP escreve o authorized_keys como a união das chaves dos
+	// dispositivos do usuário com a chave manual que o admin enviou nesta
+	// requisição — nunca só a manual, que apagaria o acesso de todos os
+	// dispositivos auto-registrados.
+	enableSFTP := func() error {
+		content, err := a.renderAuthorizedKeys(target.ID, req.SSHPublicKey)
+		if err != nil {
+			return err
+		}
+		return a.UserProvisioner.EnableSFTP(ctx, username, content)
+	}
 
 	// Caminho 1: ambos desligados no destino → remove tudo de uma vez.
 	// Só chama Disable se algo estava ligado antes (evita Disable num
@@ -87,6 +101,13 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 			}
 			target.SFTPEnabled = false
 			target.SambaEnabled = false
+			// Zera só a chave MANUAL. As chaves dos dispositivos
+			// (Device.SSHPublicKey) sobrevivem de propósito: desligar o
+			// toggle é revogar o acesso, não desfazer o registro de quem
+			// já se apresentou. Assim, religar o toggle volta a valer na
+			// hora, sem pedir nada ao usuário — que é justamente o ponto
+			// da Fase 14. Quem quiser revogar a chave de um dispositivo
+			// específico revoga o dispositivo (ver revokeDevice).
 			target.SSHPublicKey = ""
 			save()
 			if c.Writer.Written() {
@@ -107,6 +128,8 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 			return
 		}
 		target.SFTPEnabled = false
+		// Mesma decisão do caminho 1: só a chave manual sai (ver
+		// comentário lá).
 		target.SSHPublicKey = ""
 		save()
 		if c.Writer.Written() {
@@ -125,7 +148,7 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 		}
 	}
 	if req.SFTPEnabled && !target.SFTPEnabled {
-		if err := a.UserProvisioner.EnableSFTP(ctx, username, req.SSHPublicKey); err != nil {
+		if err := enableSFTP(); err != nil {
 			provisionErr(err)
 			return
 		}
@@ -147,10 +170,13 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 			return
 		}
 	}
-	// SFTP já on, mas chave mudou: re-aplica EnableSFTP pra reescrever
-	// o authorized_keys (garante que o arquivo bate com o que o admin colou).
-	if req.SFTPEnabled && target.SFTPEnabled && req.SSHPublicKey != target.SSHPublicKey && req.SSHPublicKey != "" {
-		if err := a.UserProvisioner.EnableSFTP(ctx, username, req.SSHPublicKey); err != nil {
+	// SFTP já on, mas a chave manual mudou: reescreve o authorized_keys
+	// para o arquivo bater com o que o admin colou. Diferente da Fase 13,
+	// esvaziar o campo também é uma mudança a aplicar — significa "remova
+	// a chave manual, mantenha as dos dispositivos", e sem reescrever o
+	// arquivo a chave removida continuaria autorizada.
+	if req.SFTPEnabled && target.SFTPEnabled && req.SSHPublicKey != target.SSHPublicKey {
+		if err := enableSFTP(); err != nil {
 			provisionErr(err)
 			return
 		}
@@ -162,6 +188,62 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 	}
 
 	a.respondFileAccess(c, &target)
+}
+
+// deviceSSHKeyResponse descreve uma chave auto-registrada por um
+// dispositivo, para o painel listar em modo leitura. Devolve o
+// fingerprint, não a chave: é o que identifica a chave numa tela sem
+// transformá-la num campo de texto gigante que o admin pode achar que
+// deve editar (o textarea do diálogo continua sendo só para as chaves
+// manuais).
+type deviceSSHKeyResponse struct {
+	DeviceID    uint       `json:"device_id"`
+	DeviceName  string     `json:"device_name"`
+	Fingerprint string     `json:"fingerprint"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
+}
+
+// handleListUserSSHKeys lista as chaves que os dispositivos daquele
+// usuário registraram sozinhos (Fase 14 — ver handleRegisterDeviceSSHKey).
+// Só leitura: não existe caminho de API para o admin editar a chave de um
+// dispositivo, porque quem a informa é a máquina dona dela. Para revogar,
+// revoga-se o dispositivo.
+//
+// GET /api/users/:id/ssh-keys  (adminOnly — ver server.go)
+func (a *App) handleListUserSSHKeys(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	var target store.User
+	if err := a.Store.DB.First(&target, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	if !callerRole(c).CanManage(target.Role) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode ver o acesso a arquivos deste usuário"})
+		return
+	}
+
+	var devices []store.Device
+	if err := a.Store.DB.
+		Where("user_id = ? AND ssh_public_key <> ''", target.ID).
+		Order("id").Find(&devices).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+
+	keys := make([]deviceSSHKeyResponse, 0, len(devices))
+	for _, d := range devices {
+		keys = append(keys, deviceSSHKeyResponse{
+			DeviceID:    d.ID,
+			DeviceName:  d.Name,
+			Fingerprint: sshKeyFingerprint(d.SSHPublicKey),
+			UpdatedAt:   d.SSHKeyUpdatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"device_keys": keys})
 }
 
 // saveFileAccessFields grava os três campos de acesso a arquivos do

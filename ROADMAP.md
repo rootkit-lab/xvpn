@@ -491,9 +491,9 @@ Corrige os dois bugs reportados no botão "Unidade de rede" do cliente desktop. 
 - [x] `OpenServerFiles` aceita `"smb-home"` e `"smb-shared"`; revalida a conexão antes de abrir (hoje confia só no estado da UI)
 - [x] UI: botões "Meus arquivos" e "Compartilhado" na `main-page` e no tray, desabilitados com explicação quando `samba_enabled=false`
 - [x] **(pré-requisito, PR separada)** Corrigir o `smb.conf` nos **dois** lados — repositório e produção — e redeployar; ver análise abaixo
-- [ ] Limpar as contas Unix órfãs da produção (`smbtest1`, `xvpntest1`, `xvpntest2`) **antes** de validar a fase
-- [ ] Atualizar `shares-page`, a skill `samba-user-ops`, `PLAN.md`, `SECURITY.md` e o `CHANGELOG.md` raiz
-
+- [x] Limpar as contas Unix órfãs da produção (`smbtest1`, `xvpntest1`, `xvpntest2`) **antes** de validar a fase
+- [x] Atualizar `shares-page`, a skill `samba-user-ops`, `PLAN.md`, `SECURITY.md` e o `CHANGELOG.md` raiz
+- [x] `[shared]` com `guest ok = yes` + `force user = xvpn-shared` (mesma barreira VPN dos shares pessoais)
 **O `smb.conf` é bloqueador desta subfase, não dívida cosmética.** O diagnóstico anterior ("o repositório está desatualizado") subestimava o problema: **os dois lados estão errados, de formas diferentes e ambas graves.**
 
 *No repositório* (`server/deploy/samba/smb.conf`): tem `map to guest = never` e não tem o `include` nenhum. Um redeploy hoje apagaria o include e derrubaria o `guest ok` de que os shares `home-<username>` dependem.
@@ -597,31 +597,31 @@ O custo real da divergência é um leitor estranhar que a pasta `apps/xvpn-clien
 
 ### 16.2 Manifesto como fonte da verdade
 
-- [ ] `apps/<slug>/marketplace.yaml` (pasta sem manifesto é ignorada — dá para ter projeto no monorepo sem publicá-lo)
-- [ ] `source: build` — versão e SHA-256 resolvidos pelo CI depois do build; sem release para a versão do manifesto, o app é pulado com aviso
-- [ ] `source: external` — `url` + `sha256` fixos no arquivo, que é como publicar binário de terceiro sem commitar binário (invariante 6 do `AGENTS.md`)
-- [ ] Validação de schema no `ci.yml`, para manifesto quebrado reprovar o PR em vez do deploy
+- [x] `apps/<slug>/marketplace.yaml` (pasta sem manifesto é ignorada — dá para ter projeto no monorepo sem publicá-lo)
+- [x] `source: build` — versão e SHA-256 resolvidos pelo CI depois do build; sem release para a versão do manifesto, o app é pulado com aviso
+- [x] `source: external` — `url` + `sha256` fixos no arquivo, que é como publicar binário de terceiro sem commitar binário (invariante 6 do `AGENTS.md`)
+- [x] Validação de schema no `ci.yml`, para manifesto quebrado reprovar o PR em vez do deploy
 
 ### 16.3 Publicação
 
-- [ ] `POST /api/marketplace/sync` idempotente, substituindo os três passos manuais de hoje
-- [ ] Autenticação por `XVPN_PUBLISH_TOKEN` (comparação em tempo constante; rota não registrada se a variável não existir) ou JWT de `super_admin` para re-sync manual
-- [ ] Corpo = lista **completa** de manifestos: é o full sync que dá sentido a "só aparece o que está no diretório"
-- [ ] Assets buscados por URL com verificação de SHA-256 antes de gravar; o storage content-addressed já deduplica, então re-sync sem mudança não baixa nada
-- [ ] **Guarda anti-SSRF** obrigatória: só `https`, rejeitando loopback/privado/link-local — sem isso a URL do manifesto vira proxy para `127.0.0.1:8080` ou `10.66.66.1`
-- [ ] Slug que sumiu do diretório é **arquivado**, não apagado — um job de CI com poder de deletar linha de produção é armadilha
-- [ ] `App` ganha `Slug` (unique), `Source`, `SourcePath` e `ArchivedAt`
+- [x] `POST /api/marketplace/sync` idempotente, substituindo os três passos manuais de hoje
+- [x] Autenticação por `XVPN_PUBLISH_TOKEN` (comparação em tempo constante; rota não registrada se a variável não existir) ou JWT de `super_admin` para re-sync manual
+- [x] Corpo = lista **completa** de manifestos: é o full sync que dá sentido a "só aparece o que está no diretório"
+- [x] Assets buscados por URL com verificação de SHA-256 antes de gravar; o storage content-addressed já deduplica, então re-sync sem mudança não baixa nada
+- [x] **Guarda anti-SSRF** obrigatória: só `https`, rejeitando loopback/privado/link-local — sem isso a URL do manifesto vira proxy para `127.0.0.1:8080` ou `10.66.66.1`
+- [x] Slug que sumiu do diretório é **arquivado**, não apagado — um job de CI com poder de deletar linha de produção é armadilha
+- [x] `App` ganha `Slug` (unique), `Source`, `SourcePath` e `ArchivedAt`
 
 ### 16.4 Painel somente-leitura
 
-- [ ] Remover as rotas de publicação manual (`POST`/`PATCH`/`DELETE` de apps, versões e assets) — o invariante vale na API, não escondendo botão
-- [ ] Manter `GET /apps`, download e `PUT /apps/:id/access`: quem enxerga um app restrito é decisão operacional, não do repositório
-- [ ] `marketplace-page.tsx` perde os diálogos de criação/upload e ganha selo de origem `apps/<slug>`
+- [x] Remover as rotas de publicação manual (`POST`/`PATCH`/`DELETE` de apps, versões e assets) — o invariante vale na API, não escondendo botão
+- [x] Manter `GET /apps`, download e `PUT /apps/:id/access`: quem enxerga um app restrito é decisão operacional, não do repositório
+- [x] `marketplace-page.tsx` perde os diálogos de criação/upload e ganha selo de origem `apps/<slug>`
 
 ### 16.5 CI
 
-- [ ] `release-client.yml`: dispara na tag `xvpn-client-v*`, builda Linux + Windows, publica na GitHub Release e chama o sync (hoje esse build é manual)
-- [ ] `marketplace-sync.yml`: push na `main` + `workflow_dispatch`, com o diff (`created`/`updated`/`unchanged`/`archived`) visível no log
+- [x] `release-client.yml`: dispara na tag `xvpn-client-v*`, builda Linux + Windows, publica na GitHub Release e chama o sync (hoje esse build é manual)
+- [x] `marketplace-sync.yml`: push na `main` + `workflow_dispatch`, com o diff (`created`/`updated`/`unchanged`/`archived`) visível no log
 - [x] Habilitar "Allow GitHub Actions to create and approve pull requests" no repositório — era o que travava o `release-please` e o motivo de a v0.1.0 do cliente ter saído na mão. **Feito** (confirmado via API: `default_workflow_permissions: write`, `can_approve_pull_request_reviews: true`)
 
 **Consequência assumida:** com o cliente dentro de `apps/`, ele passa a ter entrada no catálogo — hoje o struct `App` é documentado como "sempre outro software" e o cliente sai só por `/download`. A página `/download` continua sendo o caminho de primeira instalação (quem chega ali ainda não tem VPN nem, possivelmente, login); o marketplace vira o canal de atualização.

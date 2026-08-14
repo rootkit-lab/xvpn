@@ -1,0 +1,44 @@
+name: marketplace-sync
+
+# Fase 16.5 — full sync do catálogo a partir de apps/*/marketplace.yaml
+# (PLAN.md §6.10.5). workflow_dispatch existe para re-sincronizar se o
+# servidor estiver fora do ar durante um merge.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/**/marketplace.yaml"
+      - ".release-please-manifest.json"
+      - ".github/scripts/marketplace-sync-payload.py"
+      - ".github/workflows/marketplace-sync.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instala PyYAML
+        run: pip install --user pyyaml
+      - name: Monta payload
+        run: |
+          python3 .github/scripts/marketplace-sync-payload.py \
+            --commit "${GITHUB_SHA}" \
+            --out /tmp/marketplace-sync.json
+          cat /tmp/marketplace-sync.json
+      - name: POST /api/marketplace/sync
+        env:
+          XVPN_PUBLISH_TOKEN: ${{ secrets.XVPN_PUBLISH_TOKEN }}
+          XVPN_SYNC_URL: ${{ secrets.XVPN_SYNC_URL }}
+        run: |
+          if [ -z "${XVPN_PUBLISH_TOKEN}" ] || [ -z "${XVPN_SYNC_URL}" ]; then
+            echo "XVPN_PUBLISH_TOKEN / XVPN_SYNC_URL não configurados — sync ignorado"
+            exit 0
+          fi
+          curl -fsS -X POST "${XVPN_SYNC_URL%/}/api/marketplace/sync" \
+            -H "Authorization: Bearer ${XVPN_PUBLISH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/marketplace-sync.json | tee /tmp/sync-result.json

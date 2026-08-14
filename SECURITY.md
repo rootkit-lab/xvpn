@@ -83,8 +83,8 @@ Use a skill `vps-security-audit` (`.cursor/skills/vps-security-audit/`) para rev
 **Por que aceitamos isso:** reintroduzir `valid users` exigiria uma senha Samba por usuário (gerada/armazenada/rotacionada pelo painel), reabrindo a superfície de credencial que a Fase 5 descartou. A troca foi **simplicidade > isolamento granular**, aceita em revisão de segurança da Fase 13 (Bugbot sinalizou como HIGH; mitigação escolhida: aceitar e documentar).
 
 **O que isso NÃO quebra:**
-- O share `[shared]` (comum, Fase 5) **não** é afetado — ele tem `guest ok = no` + `valid users = @xvpn-samba`, então continua exigindo conta Samba válida. A mudança global `map to guest = Bad User` (necessária pro guest dos shares per-user funcionar) só mapeia pra guest em shares que *aceitam* guest, e `[shared]` não aceita.
-- SFTP **não** é afetado — usa chave pública por usuário, isolamento natural por credencial.
+- O share `[shared]` (comum) **passa a usar o mesmo modelo guest** na Fase 14 (`guest ok = yes` + `force user = xvpn-shared` + `force group = xvpn-samba`): qualquer peer autenticado na VPN alcança `/srv/xvpn/shared` sem senha Samba — alinhado à decisão “VPN como barreira” dos shares pessoais. Contas `smbpasswd` manuais deixam de ser o caminho normal (skill `samba-user-ops` só cobre legado/`xvpn-shared`).
+- SFTP **não** é afetado — usa chave pública por usuário (e, na Fase 14.2, união com chaves auto-registradas por dispositivo), isolamento natural por credencial.
 
 **Mitigações em vigor:**
 - Samba escuta só em `wg0` (`10.66.66.1`) — nunca na internet. O ataque só é viável de dentro da VPN.

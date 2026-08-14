@@ -6,6 +6,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -74,6 +75,10 @@ type App struct {
 	// (Fase 11 — ver PLAN.md §6.8). Nunca nil em produção (inicializado
 	// em cmd/xvpn-server/main.go junto com o restante do App).
 	Marketplace *marketplace.Store
+
+	// fetchAsset baixa um asset por URL durante o sync (Fase 16). Nil =
+	// marketplace.FetchAndPut. Os testes injetam um fake sem rede.
+	fetchAsset func(context.Context, *marketplace.Store, string, string) (marketplace.PutResult, string, error)
 
 	// UserProvisioner chama o binário privilegiado xvpn-user-provision
 	// (Fase 13 — ver PLAN.md §6.9) para criar contas Unix e habilitar/
@@ -266,17 +271,18 @@ func NewRouter(app *App) *gin.Engine {
 			adminOnly.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 			adminOnly.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 
-			// Marketplace: gestão do catálogo (criar/editar/remover
-			// apps/versões, subir asset, ajustar ACL) — ver PLAN.md §6.7,
-			// "admin: Admin + download" no marketplace.
-			adminOnly.POST("/marketplace/apps", app.handleCreateMarketplaceApp)
-			adminOnly.PATCH("/marketplace/apps/:id", app.handleUpdateMarketplaceApp)
-			adminOnly.DELETE("/marketplace/apps/:id", app.handleDeleteMarketplaceApp)
+			// Marketplace (Fase 16): publicação só via POST /sync (CI).
+			// No painel resta só a ACL operacional (quem vê app restrito).
 			adminOnly.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
-			adminOnly.POST("/marketplace/apps/:id/versions", app.handleCreateMarketplaceVersion)
-			adminOnly.DELETE("/marketplace/versions/:id", app.handleDeleteMarketplaceVersion)
-			adminOnly.POST("/marketplace/versions/:id/assets", app.handleUploadMarketplaceAsset)
-			adminOnly.DELETE("/marketplace/assets/:id", app.handleDeleteMarketplaceAsset)
+		}
+
+		// Sync do catálogo a partir de apps/*/marketplace.yaml (Fase 16).
+		// Só registra a rota se XVPN_PUBLISH_TOKEN estiver definido —
+		// servidor sem publicação não expõe a superfície.
+		if app.Config != nil && app.Config.PublishToken != "" {
+			publish := apiGroup.Group("")
+			publish.Use(app.requireMarketplacePublishAuth())
+			publish.POST("/marketplace/sync", app.handleMarketplaceSync)
 		}
 	}
 

@@ -1,11 +1,9 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +12,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
-	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -46,10 +43,13 @@ type marketplaceVersionResponse struct {
 
 type marketplaceAppResponse struct {
 	ID          uint                         `json:"id"`
+	Slug        string                       `json:"slug"`
 	Name        string                       `json:"name"`
 	Description string                       `json:"description"`
 	IconURL     string                       `json:"icon_url,omitempty"`
 	Visibility  string                       `json:"visibility"`
+	Source      string                       `json:"source,omitempty"`
+	SourcePath  string                       `json:"source_path,omitempty"`
 	CreatedAt   time.Time                    `json:"created_at"`
 	Versions    []marketplaceVersionResponse `json:"versions"`
 	// AccessUserIDs só é preenchido para quem administra o marketplace
@@ -96,10 +96,13 @@ func toMarketplaceAppResponse(app store.App) marketplaceAppResponse {
 	}
 	return marketplaceAppResponse{
 		ID:          app.ID,
+		Slug:        app.Slug,
 		Name:        app.Name,
 		Description: app.Description,
 		IconURL:     app.IconURL,
 		Visibility:  string(app.Visibility),
+		Source:      app.Source,
+		SourcePath:  app.SourcePath,
 		CreatedAt:   app.CreatedAt,
 		Versions:    versions,
 	}
@@ -121,6 +124,7 @@ func isMarketplaceAdmin(role store.Role) bool {
 func (a *App) handleListMarketplaceApps(c *gin.Context) {
 	var apps []store.App
 	err := a.Store.DB.
+		Where("archived_at IS NULL").
 		Preload("Versions", func(db *gorm.DB) *gorm.DB { return db.Order("id desc") }).
 		Preload("Versions.Assets", func(db *gorm.DB) *gorm.DB { return db.Order("platform, arch") }).
 		Order("name").Find(&apps).Error
@@ -196,7 +200,7 @@ type marketplaceStatsResponse struct {
 func (a *App) handleMarketplaceStats(c *gin.Context) {
 	var resp marketplaceStatsResponse
 
-	if err := a.Store.DB.Model(&store.App{}).Count(&resp.TotalApps).Error; err != nil {
+	if err := a.Store.DB.Model(&store.App{}).Where("archived_at IS NULL").Count(&resp.TotalApps).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -231,7 +235,7 @@ func (a *App) handleMarketplaceStats(c *gin.Context) {
 			app_assets.download_count AS download_count`).
 		Joins("JOIN app_versions ON app_versions.id = app_assets.app_version_id").
 		Joins("JOIN apps ON apps.id = app_versions.app_id").
-		Where("app_assets.download_count > 0").
+		Where("app_assets.download_count > 0 AND apps.archived_at IS NULL").
 		Order("app_assets.download_count DESC").
 		Limit(marketplaceStatsTopAssetsLimit).
 		Find(&topAssets).Error
@@ -245,187 +249,6 @@ func (a *App) handleMarketplaceStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
-}
-
-type createMarketplaceAppRequest struct {
-	Name        string              `json:"name" binding:"required"`
-	Description string              `json:"description"`
-	IconURL     string              `json:"icon_url"`
-	Visibility  store.AppVisibility `json:"visibility"`
-}
-
-// handleCreateMarketplaceApp cria uma entrada nova no catálogo (o "publish"
-// inicial de um programa — ver ROADMAP.md Fase 11, item de audit log).
-// POST /api/marketplace/apps
-func (a *App) handleCreateMarketplaceApp(c *gin.Context) {
-	var req createMarketplaceAppRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name é obrigatório"})
-		return
-	}
-	name := strings.TrimSpace(req.Name)
-	if name == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "name é obrigatório"})
-		return
-	}
-	visibility := req.Visibility
-	if visibility == "" {
-		visibility = store.AppVisibilityGlobal
-	}
-	if !visibility.Valid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "visibility inválido (use global ou restricted)"})
-		return
-	}
-
-	app := store.App{
-		Name:        name,
-		Description: strings.TrimSpace(req.Description),
-		IconURL:     strings.TrimSpace(req.IconURL),
-		Visibility:  visibility,
-	}
-	if err := a.Store.DB.Create(&app).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.app_create",
-		fmt.Sprintf("app_id=%d name=%s visibility=%s", app.ID, app.Name, app.Visibility))
-
-	c.JSON(http.StatusCreated, toMarketplaceAppResponse(app))
-}
-
-type updateMarketplaceAppRequest struct {
-	Name        *string              `json:"name"`
-	Description *string              `json:"description"`
-	IconURL     *string              `json:"icon_url"`
-	Visibility  *store.AppVisibility `json:"visibility"`
-}
-
-// handleUpdateMarketplaceApp edita metadados de um app existente — nunca
-// mexe em versões/assets (ver handle*MarketplaceVersion/Asset).
-// PATCH /api/marketplace/apps/:id
-func (a *App) handleUpdateMarketplaceApp(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
-		return
-	}
-	var app store.App
-	if err := a.Store.DB.First(&app, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "app não encontrado"})
-		return
-	}
-
-	var req updateMarketplaceAppRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
-		return
-	}
-
-	updates := map[string]any{}
-	if req.Name != nil {
-		name := strings.TrimSpace(*req.Name)
-		if name == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "name não pode ficar vazio"})
-			return
-		}
-		updates["name"] = name
-	}
-	if req.Description != nil {
-		updates["description"] = strings.TrimSpace(*req.Description)
-	}
-	if req.IconURL != nil {
-		updates["icon_url"] = strings.TrimSpace(*req.IconURL)
-	}
-	if req.Visibility != nil {
-		if !req.Visibility.Valid() {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "visibility inválido (use global ou restricted)"})
-			return
-		}
-		updates["visibility"] = *req.Visibility
-	}
-	if len(updates) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "nada para atualizar"})
-		return
-	}
-
-	if err := a.Store.DB.Model(&store.App{}).Where("id = ?", app.ID).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.app_update", "app_id="+c.Param("id"))
-
-	if err := a.Store.DB.First(&app, id).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-	c.JSON(http.StatusOK, toMarketplaceAppResponse(app))
-}
-
-// handleDeleteMarketplaceApp remove um app e tudo que pertence a ele
-// (versões, assets, ACL) — os blobs físicos em disco só são removidos se
-// nenhum outro AppAsset (de outro app) ainda referenciar o mesmo conteúdo
-// (ver removeOrphanBlobs, dedupe do internal/marketplace).
-// DELETE /api/marketplace/apps/:id
-func (a *App) handleDeleteMarketplaceApp(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
-		return
-	}
-	var app store.App
-	if err := a.Store.DB.First(&app, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "app não encontrado"})
-		return
-	}
-
-	var versions []store.AppVersion
-	if err := a.Store.DB.Where("app_id = ?", app.ID).Find(&versions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-	versionIDs := make([]uint, 0, len(versions))
-	for _, v := range versions {
-		versionIDs = append(versionIDs, v.ID)
-	}
-
-	var assets []store.AppAsset
-	if len(versionIDs) > 0 {
-		if err := a.Store.DB.Where("app_version_id IN ?", versionIDs).Find(&assets).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-			return
-		}
-	}
-
-	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
-		if len(versionIDs) > 0 {
-			if err := tx.Where("app_version_id IN ?", versionIDs).Delete(&store.AppAsset{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("app_id = ?", app.ID).Delete(&store.AppVersion{}).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Where("app_id = ?", app.ID).Delete(&store.AppAccess{}).Error; err != nil {
-			return err
-		}
-		return tx.Delete(&store.App{}, app.ID).Error
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	a.removeOrphanBlobs(assets)
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.app_delete",
-		fmt.Sprintf("app_id=%d name=%s", app.ID, app.Name))
-
-	c.Status(http.StatusNoContent)
 }
 
 type setMarketplaceAppAccessRequest struct {
@@ -491,235 +314,6 @@ func (a *App) handleSetMarketplaceAppAccess(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user_ids": userIDs})
 }
 
-type createMarketplaceVersionRequest struct {
-	Version   string `json:"version" binding:"required"`
-	Channel   string `json:"channel"`
-	Changelog string `json:"changelog"`
-}
-
-// handleCreateMarketplaceVersion publica uma nova versão de um app — o
-// upload dos assets (arquivos de verdade) é um passo à parte, ver
-// handleUploadMarketplaceAsset.
-// POST /api/marketplace/apps/:id/versions
-func (a *App) handleCreateMarketplaceVersion(c *gin.Context) {
-	appID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
-		return
-	}
-	var app store.App
-	if err := a.Store.DB.First(&app, appID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "app não encontrado"})
-		return
-	}
-
-	var req createMarketplaceVersionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "version é obrigatório"})
-		return
-	}
-	version := strings.TrimSpace(req.Version)
-	if version == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "version é obrigatório"})
-		return
-	}
-	channel := strings.TrimSpace(req.Channel)
-	if channel == "" {
-		channel = store.ChannelStable
-	}
-	if !store.ValidChannel(channel) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "channel inválido (use stable ou beta)"})
-		return
-	}
-
-	v := store.AppVersion{
-		AppID:     app.ID,
-		Version:   version,
-		Channel:   channel,
-		Changelog: strings.TrimSpace(req.Changelog),
-	}
-	if err := a.Store.DB.Create(&v).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.version_create",
-		fmt.Sprintf("app_id=%d version_id=%d version=%s channel=%s", app.ID, v.ID, v.Version, v.Channel))
-
-	c.JSON(http.StatusCreated, toMarketplaceVersionResponse(v))
-}
-
-// handleDeleteMarketplaceVersion remove uma versão e seus assets — mesma
-// lógica de limpeza de blob órfão da remoção de app.
-// DELETE /api/marketplace/versions/:id
-func (a *App) handleDeleteMarketplaceVersion(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
-		return
-	}
-	var version store.AppVersion
-	if err := a.Store.DB.First(&version, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "versão não encontrada"})
-		return
-	}
-
-	var assets []store.AppAsset
-	if err := a.Store.DB.Where("app_version_id = ?", version.ID).Find(&assets).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("app_version_id = ?", version.ID).Delete(&store.AppAsset{}).Error; err != nil {
-			return err
-		}
-		return tx.Delete(&store.AppVersion{}, version.ID).Error
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	a.removeOrphanBlobs(assets)
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.version_delete",
-		fmt.Sprintf("app_id=%d version_id=%d version=%s", version.AppID, version.ID, version.Version))
-
-	c.Status(http.StatusNoContent)
-}
-
-// handleUploadMarketplaceAsset recebe um arquivo (multipart/form-data,
-// campos "platform", "arch" opcional e "file") para uma versão existente,
-// grava o blob content-addressed (internal/marketplace) e registra o
-// AppAsset com o SHA-256/tamanho calculados no próprio upload — nunca
-// confiando em hash informado pelo cliente.
-// POST /api/marketplace/versions/:id/assets
-func (a *App) handleUploadMarketplaceAsset(c *gin.Context) {
-	versionID, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
-		return
-	}
-	var version store.AppVersion
-	if err := a.Store.DB.First(&version, versionID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "versão não encontrada"})
-		return
-	}
-
-	// Limite duro no corpo da requisição inteira, além do limite já
-	// aplicado dentro de marketplace.Store.Put — defesa em profundidade
-	// contra um upload gigante consumir disco/tempo de parsing do
-	// multipart antes mesmo de chegarmos ao Put (margem extra para o
-	// overhead de framing do multipart e dos outros campos do form).
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, marketplace.MaxAssetSize+2<<20)
-
-	platform := store.Platform(strings.TrimSpace(c.PostForm("platform")))
-	if !platform.Valid() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "platform inválida (use linux, windows ou android)"})
-		return
-	}
-	arch := strings.TrimSpace(c.PostForm("arch"))
-	if arch == "" {
-		arch = defaultAssetArch
-	}
-	if len(arch) > 32 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "arch inválida"})
-		return
-	}
-
-	fileHeader, err := c.FormFile("file")
-	if err != nil {
-		if strings.Contains(err.Error(), "too large") {
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede o tamanho máximo permitido"})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": "arquivo (\"file\") é obrigatório"})
-		return
-	}
-
-	src, err := fileHeader.Open()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-	defer src.Close()
-
-	result, err := a.Marketplace.Put(src)
-	if err != nil {
-		if errors.Is(err, marketplace.ErrAssetTooLarge) {
-			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede o tamanho máximo permitido"})
-			return
-		}
-		slog.Error("falha ao gravar asset do marketplace", "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	filename := filepath.Base(fileHeader.Filename)
-	if len(filename) > 255 {
-		filename = filename[:255]
-	}
-
-	asset := store.AppAsset{
-		AppVersionID: version.ID,
-		Platform:     platform,
-		Arch:         arch,
-		Filename:     filename,
-		SHA256:       result.SHA256,
-		SizeBytes:    result.Size,
-		StoragePath:  result.RelPath,
-	}
-	if err := a.Store.DB.Create(&asset).Error; err != nil {
-		// O blob já foi gravado em disco (Put acima) antes de sabermos se o
-		// Create ia funcionar — sem este rollback, uma falha aqui (ex.: DB
-		// travado/cheio) deixaria um blob órfão pra sempre, já que nenhum
-		// AppAsset chegou a referenciá-lo. removeOrphanBlobs confere de novo
-		// se algum outro asset já referencia o mesmo hash (dedup) antes de
-		// apagar — nunca remove um blob ainda em uso.
-		a.removeOrphanBlobs([]store.AppAsset{{StoragePath: result.RelPath}})
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.asset_upload",
-		fmt.Sprintf("app_id=%d version_id=%d asset_id=%d platform=%s arch=%s filename=%s sha256=%s size_bytes=%d",
-			version.AppID, version.ID, asset.ID, asset.Platform, asset.Arch, asset.Filename, asset.SHA256, asset.SizeBytes))
-
-	c.JSON(http.StatusCreated, toMarketplaceAssetResponse(asset))
-}
-
-// handleDeleteMarketplaceAsset remove um único asset (uma plataforma/
-// arquitetura específica) sem apagar a versão inteira.
-// DELETE /api/marketplace/assets/:id
-func (a *App) handleDeleteMarketplaceAsset(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
-		return
-	}
-	var asset store.AppAsset
-	if err := a.Store.DB.First(&asset, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "asset não encontrado"})
-		return
-	}
-
-	if err := a.Store.DB.Delete(&store.AppAsset{}, asset.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-	a.removeOrphanBlobs([]store.AppAsset{asset})
-
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "marketplace.asset_delete",
-		fmt.Sprintf("asset_id=%d version_id=%d filename=%s", asset.ID, asset.AppVersionID, asset.Filename))
-
-	c.Status(http.StatusNoContent)
-}
-
 // handleDownloadMarketplaceAsset serve o blob de um asset a um usuário
 // autenticado — nunca anônimo (rota fica no grupo "authed" de server.go),
 // ver PLAN.md §6.8. Aplica a mesma regra de ACL de handleListMarketplaceApps
@@ -745,6 +339,10 @@ func (a *App) handleDownloadMarketplaceAsset(c *gin.Context) {
 	var app store.App
 	if err := a.Store.DB.First(&app, version.AppID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if app.ArchivedAt != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "asset não encontrado"})
 		return
 	}
 

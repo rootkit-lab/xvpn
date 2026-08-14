@@ -316,6 +316,13 @@ O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — u
 
 **Fora de escopo desta fase:** FTP tradicional; shell interativo; quotas de disco por usuário (backlog); rotação de chave SSH pelo próprio usuário sem passar pelo admin (também backlog).
 
+**Revisão na Fase 14 — chave SSH deixa de ser digitada pelo admin.** O desenho acima assume que o admin cola a chave pública do usuário no painel, e o handler chega a bloquear o toggle de SFTP sem ela. Na prática isso trava o fluxo: o usuário final não sabe gerar nem localizar a própria chave, e o admin vira intermediário de um dado que a máquina do usuário já conhece. A Fase 14 inverte isso reaproveitando a identidade por IP do túnel:
+
+- A chave passa a ser **por dispositivo** (`Device.SSHPublicKey`), não por usuário. O `authorized_keys` de `<username>` vira a união das chaves dos devices dele com `User.SSHPublicKey` (a manual, mantida como escape hatch para celular ou máquina sem XVPN instalado). Revogar um device revoga só a chave daquele device.
+- O cliente gera `~/.ssh/xvpn_ed25519` **no processo GUI sem privilégio**, não no helper: a chave precisa ser legível pelo cliente SFTP do próprio usuário, então não pode ficar junto da chave WireGuard (root-only, `0600`, ver §8). A privada continua nunca saindo da máquina — o invariante 1 do `AGENTS.md` vale igual aqui.
+- O registro é um `POST /api/me/ssh-key` restrito à origem `10.66.66.0/24`, idempotente. Não é uma superfície nova de confiança: o IP de origem já identifica o device de forma não falsificável (mesma premissa do Samba guest), um peer só registra chave para si mesmo, e a chave só concede SFTP ao diretório daquele mesmo usuário.
+- A chave é aceita e guardada mesmo com `SFTPEnabled=false`, para que ligar o toggle no painel passe a valer imediatamente, sem uma segunda rodada de conversa com o usuário.
+
 ---
 
 ## 7. Especificação do Cliente Desktop (`xvpn-client`)
@@ -532,11 +539,16 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **Fase 11 (marketplace de programas) concluída (2026-08-13).** Catálogo `App`→`AppVersion`→`AppAsset` com storage content-addressed (sha256, dedup automático) em `XVPN_MARKETPLACE_DIR`; upload multipart com hash calculado no servidor (nunca confiado do cliente) e limite de 2 GiB/arquivo; ACL global vs. restrita a lista de usuários (`AppAccess`); download autenticado via JWT (mesmo domínio/porta, sem superfície nova) incrementando `download_count`; audit log de upload/publish/delete/download; tela `/marketplace` no painel visível a todo papel autenticado, com controles de admin embutidos na própria tela; backup diário passou a espelhar os blobs via `rsync` incremental. Ver §6.8 e `ROADMAP.md` Fase 11 para o detalhamento completo.
 
-**Aberto (`ROADMAP.md` Fases 12–13):**
+**Fase 12 (consumo do marketplace no cliente) concluída (2026-08-14).** Tela "Apps" no cliente desktop com login de usuário do painel (sessão JWT só em memória, nunca em disco — distinta do enrollment de dispositivo), catálogo filtrado pela plataforma do SO atual, download com verificação de SHA-256 antes de entregar o arquivo (hash vindo da listagem, não do que o servidor alega no momento do download) e ações "abrir arquivo"/"abrir pasta"; `GET /api/marketplace/stats` no grupo `viewerUp` alimentando um card de métricas agregadas no dashboard, com `total_storage_bytes` deduplicado por `storage_path` para não contar blob compartilhado duas vezes. Ver `ROADMAP.md` Fase 12.
+
+**Fase 13 (contas Unix reais por usuário) concluída (2026-08-14).** Binário privilegiado `xvpn-user-provision` chamado via `sudo` com caminho exato no `sudoers.d`; `/home/<username>` (chroot, root:root) + `files/` do usuário servindo SFTP e Samba ao mesmo diretório; toggles `SFTPEnabled`/`SambaEnabled` + chave pública SSH no model `User`, com reconciliação idempotente no boot; Samba per-user via `guest ok = yes` + `force user`, com a VPN como barreira de autenticação e o isolamento cross-user documentado como limitação aceita (§6.9 e `SECURITY.md`). Ver `ROADMAP.md` Fase 13.
+
+**Ciclo v0.2 — aberto (`ROADMAP.md` Fases 14–16):**
 
 | Fase | Foco |
 |---|---|
-| **12** | Consumo no cliente desktop + página APK / quotas |
-| **13** | Contas Unix reais por usuário (SFTP + Samba integrados) — §6.9 |
+| **14** | Acesso a arquivos sincronizado com o usuário da VPN — `GET /api/me` por IP do túnel, shares `home-<username>` no cliente, correção do drift do `smb.conf` |
+| **15** | Melhorias represadas: quotas de disco, rotação de chave SSH self-service, MTU em preferências, Vitest, Windows E2E, `LICENSE` |
+| **16** | Monorepo `apps/` + Marketplace alimentado pelo diretório via CI — desenho em `ROADMAP.md` Fase 16; §6.10 entra aqui quando a fase for executada |
 
-Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, `LICENSE`, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.
+Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.

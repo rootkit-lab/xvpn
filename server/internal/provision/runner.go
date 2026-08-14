@@ -194,8 +194,17 @@ func (osRunner) ReloadSSH() error {
 func (osRunner) ReloadSamba() error {
 	// testparm valida o smb.conf inteiro (incluindo o include novo)
 	// antes do reload — mesmo princípio do sshd -t.
-	if out, err := exec.Command("testparm", "-s", "--suppress-prompt").CombinedOutput(); err != nil {
+	//
+	// O código de saída do testparm não basta como gate: ele sai 0 e diz
+	// "Loaded services file OK." mesmo quando o [global] foi esvaziado por
+	// vazamento de escopo do `include`, reportando isso apenas como aviso.
+	// CheckSambaTestparmOutput inspeciona a saída e reprova esse caso.
+	out, err := exec.Command("testparm", "-s", "--suppress-prompt").CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("testparm rejeitou a config: %w: %s", err, string(out))
+	}
+	if err := CheckSambaTestparmOutput(string(out)); err != nil {
+		return err
 	}
 	if err := exec.Command("systemctl", "reload", "smbd").Run(); err != nil {
 		// smbd reload pode não existir em todas as versões; fallback

@@ -192,7 +192,25 @@ func (s *VPNService) Connect() error {
 		return fmt.Errorf("serviço xvpn-client-helper indisponível: %w", err)
 	}
 	defer client.Close()
-	return client.Call(ipc.MethodConnect, nil, nil)
+	if err := client.Call(ipc.MethodConnect, nil, nil); err != nil {
+		return err
+	}
+	s.mountFileSharesBestEffort()
+	return nil
+}
+
+// mountFileSharesBestEffort monta [shared] e [home-<user>] via GVFS guest
+// depois que o túnel sobe. Falha silenciosa: o clique em Compartilhado
+// ainda tenta montar de novo e devolve o erro ao usuário.
+func (s *VPNService) mountFileSharesBestEffort() {
+	status, err := s.Status()
+	if err != nil || !status.Connected || !status.SambaEnabled {
+		return
+	}
+	_ = opener.EnsureSMBMounted(serverVPNAddress, sharedSambaName)
+	if status.Username != "" {
+		_ = opener.EnsureSMBMounted(serverVPNAddress, homeSambaPrefix+status.Username)
+	}
 }
 
 // Disconnect desfaz o túnel.

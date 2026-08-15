@@ -15,39 +15,97 @@ func openURL(url string) error {
 	return exec.Command("xdg-open", url).Start()
 }
 
-// openSMBShare abre o compartilhamento SMB no gerenciador de arquivos
-// padrão do usuário. Não basta `xdg-open smb://...`: isso só funciona se o
-// gerenciador de arquivos tiver se registrado como handler do esquema
-// "x-scheme-handler/smb" (via MimeType no próprio .desktop) — nem todo
-// gerenciador faz isso. Achado real (ver ROADMAP.md Fase 6): o COSMIC
-// Files (padrão no Pop!_OS) só declara "inode/directory", então o
-// xdg-open, sem handler pra "smb", caía no navegador padrão em vez do
-// gerenciador de arquivos. Resolvemos o gerenciador de arquivos padrão
-// pelo mesmo mecanismo que o próprio ambiente usa pra abrir pastas
-// (inode/directory) e o executamos diretamente com a URI — funciona com
-// qualquer gerenciador que aceite uma URI como argumento (Nautilus,
-// Dolphin, Nemo, Thunar, PCManFM, COSMIC Files, etc.) em qualquer
-// distro/ambiente, com `gio open` e `xdg-open` como fallback caso a
-// resolução do gerenciador padrão falhe por algum motivo.
+// openSMBShare monta o share via GVFS como guest (anônimo) e abre o
+// caminho local em /run/user/$UID/gvfs/…. Não passa smb:// direto ao
+// gerenciador de arquivos: o COSMIC Files (Pop!_OS) só declara
+// MimeType=inode/directory — com URI smb:// ele sobe a janela no Home
+// local e ignora o destino (sintoma reportado na validação pós-Fase 14).
+//
+// --anonymous casa com guest ok = yes no Samba do VPS (Fase 14); sem
+// isso o gio pede usuário/senha e o mount interativo falha na GUI.
 func openSMBShare(host, share string) error {
-	uri := fmt.Sprintf("smb://%s/%s", host, share)
+	if err := ensureSMBMounted(host, share); err != nil {
+		return err
+	}
+	path := resolveGVFSMount(host, share)
+	if path == "" {
+		return fmt.Errorf("compartilhamento //%s/%s montado, mas o caminho local GVFS não apareceu", host, share)
+	}
+	return openLocalDir(path)
+}
 
-	if cmd, args := defaultFileManagerCommand(uri); cmd != "" {
+func ensureSMBMounted(host, share string) error {
+	if resolveGVFSMount(host, share) != "" {
+		return nil
+	}
+	uri := fmt.Sprintf("smb://%s/%s", host, share)
+	out, err := exec.Command("gio", "mount", "--anonymous", uri).CombinedOutput()
+	msg := strings.TrimSpace(string(out))
+	if err == nil {
+		return nil
+	}
+	// Segunda chamada (já montado) sai ≠0 com esta mensagem — sucesso.
+	if strings.Contains(msg, "already mounted") {
+		return nil
+	}
+	if resolveGVFSMount(host, share) != "" {
+		return nil
+	}
+	if msg == "" {
+		msg = err.Error()
+	}
+	return fmt.Errorf("montando %s: %s", uri, msg)
+}
+
+// resolveGVFSMount acha o diretório FUSE do share. Prefere o mount
+// anônimo (sem ,user=); aceita mounts com user= só como fallback (legado
+// xvpntest no Desktop/keyring) — o botão do XVPN não deve depender disso.
+func resolveGVFSMount(host, share string) string {
+	return pickGVFSEntry(gvfsRoot(), host, share)
+}
+
+// pickGVFSEntry escolhe entre mounts anônimo vs user= no diretório GVFS.
+// Separado pra testar sem depender de /run/user.
+func pickGVFSEntry(root, host, share string) string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return ""
+	}
+	anon := fmt.Sprintf("smb-share:server=%s,share=%s", host, share)
+	var withUser string
+	for _, e := range entries {
+		name := e.Name()
+		if name == anon {
+			return filepath.Join(root, name)
+		}
+		if strings.HasPrefix(name, anon+",user=") {
+			withUser = filepath.Join(root, name)
+		}
+	}
+	return withUser
+}
+
+func gvfsRoot() string {
+	return fmt.Sprintf("/run/user/%d/gvfs", os.Getuid())
+}
+
+func openLocalDir(path string) error {
+	if cmd, args := defaultFileManagerCommand(path); cmd != "" {
 		if err := exec.Command(cmd, args...).Start(); err == nil {
 			return nil
 		}
 	}
-	if err := exec.Command("gio", "open", uri).Start(); err == nil {
+	if err := exec.Command("gio", "open", path).Start(); err == nil {
 		return nil
 	}
-	return exec.Command("xdg-open", uri).Start()
+	return exec.Command("xdg-open", path).Start()
 }
 
 // defaultFileManagerCommand descobre o gerenciador de arquivos padrão do
 // usuário (associado ao tipo MIME "inode/directory") e monta o comando
-// pronto para rodar com uri como argumento, substituindo os "field codes"
-// (%f/%F/%u/%U) da Desktop Entry Specification do freedesktop.org.
-func defaultFileManagerCommand(uri string) (string, []string) {
+// pronto para rodar com pathOrURI como argumento, substituindo os
+// "field codes" (%f/%F/%u/%U) da Desktop Entry Specification.
+func defaultFileManagerCommand(pathOrURI string) (string, []string) {
 	out, err := exec.Command("xdg-mime", "query", "default", "inode/directory").Output()
 	if err != nil {
 		return "", nil
@@ -77,24 +135,20 @@ func defaultFileManagerCommand(uri string) (string, []string) {
 	for _, f := range fields[1:] {
 		switch f {
 		case "%f", "%F", "%u", "%U":
-			args = append(args, uri)
+			args = append(args, pathOrURI)
 			uriConsumed = true
 		case "%i", "%c", "%k":
-			// Field codes sem uso aqui (ícone/nome/caminho do próprio
-			// .desktop) — fazem sentido só num lançador gráfico, omitidos.
+			// Field codes de lançador gráfico — omitidos.
 		default:
 			args = append(args, f)
 		}
 	}
 	if !uriConsumed {
-		args = append(args, uri)
+		args = append(args, pathOrURI)
 	}
 	return fields[0], args
 }
 
-// findDesktopFile procura o arquivo .desktop pelo ID nos diretórios padrão
-// da Desktop Entry Specification, na ordem de precedência especificada
-// (XDG_DATA_HOME antes de cada diretório de XDG_DATA_DIRS).
 func findDesktopFile(id string) string {
 	var dirs []string
 	dataHome := os.Getenv("XDG_DATA_HOME")
@@ -125,8 +179,6 @@ func findDesktopFile(id string) string {
 	return ""
 }
 
-// parseExecLine lê a linha "Exec=" do grupo [Desktop Entry] — não vale a
-// pena um parser INI completo só pra isso.
 func parseExecLine(path string) string {
 	f, err := os.Open(path)
 	if err != nil {

@@ -1,13 +1,25 @@
 name: release-chat
 
 # Build + GitHub Release na tag xvpn-chat-v*, depois sync do marketplace.
+# O release-please cria a tag com GITHUB_TOKEN — isso NÃO dispara este
+# workflow. Por isso existe workflow_dispatch: depois de land da PR de
+# release, rode com a tag (ex. xvpn-chat-v0.1.1).
 on:
   push:
     tags:
       - "xvpn-chat-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ex.: xvpn-chat-v0.1.1)"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   linux:
@@ -17,6 +29,8 @@ jobs:
         working-directory: apps/xvpn-chat
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/xvpn-chat/go.mod
@@ -45,7 +59,7 @@ jobs:
       - name: Versão da tag
         id: ver
         run: |
-          VERSION="${GITHUB_REF_NAME#xvpn-chat-v}"
+          VERSION="${RELEASE_TAG#xvpn-chat-v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
       - name: Package (.deb)
@@ -75,6 +89,8 @@ jobs:
         working-directory: apps/xvpn-chat
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/xvpn-chat/go.mod
@@ -102,7 +118,7 @@ jobs:
       - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Versão da tag
         run: |
-          VERSION="${GITHUB_REF_NAME#xvpn-chat-v}"
+          VERSION="${RELEASE_TAG#xvpn-chat-v}"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
       - name: Build Windows .exe (best-effort)
         continue-on-error: true
@@ -121,6 +137,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -128,7 +146,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${RELEASE_TAG}"
           VERSION="${TAG#xvpn-chat-v}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Release automática do XVPN Chat ${VERSION}"
           find artifacts -type f \( -name '*.deb' -o -name '*.exe' \) -print0 | xargs -0 -r gh release upload "$TAG" --clobber

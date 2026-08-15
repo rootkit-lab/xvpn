@@ -39,6 +39,19 @@ function threadToContact(t: Thread): Contact {
   }
 }
 
+export type ChatPopout = { key: string; minimized: boolean }
+
+const MAX_EXPANDED_POPOUTS = 3
+
+function upsertPopout(prev: ChatPopout[], key: string): ChatPopout[] {
+  const rest = prev.filter((p) => p.key !== key)
+  let next: ChatPopout[] = [...rest, { key, minimized: false }]
+  const expanded = next.filter((p) => !p.minimized)
+  if (expanded.length <= MAX_EXPANDED_POPOUTS) return next
+  const oldest = expanded[0]
+  return next.map((p) => (p.key === oldest.key ? { ...p, minimized: true } : p))
+}
+
 type ChatContextValue = {
   api: ChatAPI
   mode: 'web' | 'desktop'
@@ -52,6 +65,10 @@ type ChatContextValue = {
   unread: Record<string, number>
   activeKey: string | null
   setActiveKey: (k: string | null) => void
+  popouts: ChatPopout[]
+  openPopout: (key: string, hint?: Pick<Contact, 'kind' | 'id'>) => void
+  closePopout: (key: string) => void
+  minimizePopout: (key: string) => void
   dockOpen: boolean
   setDockOpen: (v: boolean) => void
   query: string
@@ -88,7 +105,8 @@ export function ChatProvider({
   const [messages, setMessages] = useState<Record<string, Message[]>>({})
   const [typing, setTyping] = useState<Record<string, boolean>>({})
   const [unread, setUnread] = useState<Record<string, number>>({})
-  const [activeKey, setActiveKey] = useState<string | null>(null)
+  const [activeKey, setActiveKeyState] = useState<string | null>(null)
+  const [popouts, setPopouts] = useState<ChatPopout[]>([])
   const [dockOpen, setDockOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [people, setPeople] = useState<Profile[]>([])
@@ -118,11 +136,11 @@ export function ChatProvider({
     setContacts([...dms, ...groups])
   }, [api])
 
-  const activeKeyRef = useRef<string | null>(null)
-  const dockOpenRef = useRef(false)
+  const popoutsRef = useRef<ChatPopout[]>([])
+  const contactsRef = useRef<Contact[]>([])
   const loadListsRef = useRef(loadLists)
-  activeKeyRef.current = activeKey
-  dockOpenRef.current = dockOpen
+  popoutsRef.current = popouts
+  contactsRef.current = contacts
   loadListsRef.current = loadLists
 
   useEffect(() => {
@@ -144,6 +162,37 @@ export function ChatProvider({
       setMessages((prev) => ({ ...prev, [key]: page.items ?? [] }))
     },
     [api],
+  )
+
+  const openPopout = useCallback(
+    (key: string, hint?: Pick<Contact, 'kind' | 'id'>) => {
+      setPopouts((prev) => upsertPopout(prev, key))
+      setActiveKeyState(key)
+      setUnread((u) => ({ ...u, [key]: 0 }))
+      const c = hint ?? contactsRef.current.find((x) => x.key === key)
+      if (c) void loadMessages(key, c.kind, c.id)
+    },
+    [loadMessages],
+  )
+  const openPopoutRef = useRef(openPopout)
+  openPopoutRef.current = openPopout
+
+  const closePopout = useCallback((key: string) => {
+    setPopouts((prev) => prev.filter((p) => p.key !== key))
+    setActiveKeyState((a) => (a === key ? null : a))
+  }, [])
+
+  const minimizePopout = useCallback((key: string) => {
+    setPopouts((prev) => prev.map((p) => (p.key === key ? { ...p, minimized: true } : p)))
+    setActiveKeyState((a) => (a === key ? null : a))
+  }, [])
+
+  const setActiveKey = useCallback(
+    (k: string | null) => {
+      if (k) openPopout(k)
+      else setActiveKeyState(null)
+    },
+    [openPopout],
   )
 
   useEffect(() => {
@@ -181,7 +230,7 @@ export function ChatProvider({
         setContacts((prev) =>
           prev.map((c) => (c.key === key ? { ...c, lastBody: msg.body, lastAt: msg.created_at } : c)),
         )
-        const focused = dockOpenRef.current && activeKeyRef.current === key
+        const focused = popoutsRef.current.some((p) => p.key === key && !p.minimized)
         if (!focused || document.hidden) {
           setUnread((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }))
           if (document.hidden) {
@@ -209,9 +258,7 @@ export function ChatProvider({
           const th = await api.openThread(detail.username!)
           const c = threadToContact(th)
           setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
-          setActiveKey(c.key)
-          setUnread((prev) => ({ ...prev, [c.key]: 0 }))
-          await loadMessages(c.key, c.kind, c.id)
+          openPopoutRef.current(c.key, c)
         })()
       }
       if (detail.groupId) {
@@ -222,13 +269,12 @@ export function ChatProvider({
           title: detail.title || `Grupo #${detail.groupId}`,
         }
         setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
-        setActiveKey(c.key)
-        void loadMessages(c.key, 'group', c.id)
+        openPopoutRef.current(c.key, c)
       }
     }
     window.addEventListener(OPEN_CHAT_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_CHAT_EVENT, onOpen)
-  }, [api, loadMessages])
+  }, [api])
 
   const setMyStatus = useCallback(
     (s: Exclude<PresenceStatus, 'offline'>) => {
@@ -251,23 +297,21 @@ export function ChatProvider({
       const th = await api.openThread(username)
       const c = threadToContact(th)
       setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
-      setActiveKey(c.key)
+      openPopout(c.key, c)
       setDockOpen(true)
-      await loadMessages(c.key, c.kind, c.id)
       return c
     },
-    [api, loadMessages],
+    [api, openPopout],
   )
 
   const openGroup = useCallback(
     (id: number, title: string) => {
       const c: Contact = { key: contactKey('group', id), kind: 'group', id, title }
       setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
-      setActiveKey(c.key)
-      void loadMessages(c.key, 'group', id)
+      openPopout(c.key, c)
       return c
     },
-    [loadMessages],
+    [openPopout],
   )
 
   const send = useCallback(
@@ -304,6 +348,8 @@ export function ChatProvider({
     setSession(null)
     setContacts([])
     setMessages({})
+    setPopouts([])
+    setActiveKeyState(null)
   }, [api])
 
   const contactByKey = useCallback((key: string) => contacts.find((c) => c.key === key), [contacts])
@@ -327,14 +373,11 @@ export function ChatProvider({
       typing,
       unread,
       activeKey,
-      setActiveKey: (k: string | null) => {
-        setActiveKey(k)
-        if (k) {
-          setUnread((u) => ({ ...u, [k]: 0 }))
-          const c = contacts.find((x) => x.key === k)
-          if (c) void loadMessages(k, c.kind, c.id)
-        }
-      },
+      setActiveKey,
+      popouts,
+      openPopout,
+      closePopout,
+      minimizePopout,
       dockOpen,
       setDockOpen,
       query,
@@ -362,8 +405,11 @@ export function ChatProvider({
       typing,
       unread,
       activeKey,
-      contacts,
-      loadMessages,
+      setActiveKey,
+      popouts,
+      openPopout,
+      closePopout,
+      minimizePopout,
       dockOpen,
       query,
       people,

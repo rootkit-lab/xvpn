@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -45,6 +46,9 @@ func (f *fakeUserProvisioner) DisableSamba(_ context.Context, username string) e
 }
 func (f *fakeUserProvisioner) Disable(_ context.Context, username string) error {
 	return f.record("Disable(" + username + ")")
+}
+func (f *fakeUserProvisioner) SetQuota(_ context.Context, username string, quotaMB uint64) error {
+	return f.record("SetQuota(" + username + "," + strconv.FormatUint(quotaMB, 10) + ")")
 }
 
 // withProvisioner retorna um App de teste com o provisioner fake injetado.

@@ -121,12 +121,14 @@ export interface User {
   sftp_enabled?: boolean
   samba_enabled?: boolean
   ssh_public_key?: string
+  disk_quota_mb?: number
 }
 
 export interface FileAccessResponse {
   sftp_enabled: boolean
   samba_enabled: boolean
   ssh_public_key: string
+  disk_quota_mb: number
 }
 
 export interface DeviceSSHKey {
@@ -311,6 +313,7 @@ export const api = {
     sftp_enabled: boolean
     samba_enabled: boolean
     ssh_public_key: string
+    disk_quota_mb: number
   }) =>
     request<FileAccessResponse>(`/users/${id}/file-access`, {
       method: 'PUT',

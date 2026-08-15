@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 // Runner isola as chamadas de sistema que o provisionador faz (useradd,
@@ -30,6 +31,9 @@ type Runner interface {
 	RemoveFile(path string) error
 	ReloadSSH() error
 	ReloadSamba() error
+	// SetUserQuota aplica quota de disco (ext4 usrquota) em KB soft=0
+	// hard=blocksKB. blocksKB=0 remove a quota do usuário.
+	SetUserQuota(username string, blocksKB uint64) error
 }
 
 // osRunner é a implementação de produção de Runner: chama useradd via
@@ -212,6 +216,20 @@ func (osRunner) ReloadSamba() error {
 		if err2 := exec.Command("systemctl", "restart", "smbd").Run(); err2 != nil {
 			return fmt.Errorf("recarregando smbd: %w (restart também falhou: %v)", err, err2)
 		}
+	}
+	return nil
+}
+
+func (osRunner) SetUserQuota(username string, blocksKB uint64) error {
+	// setquota -u user soft hard softino hardino filesystem
+	// Valores em blocos de 1 KiB (man setquota). soft=0 → só hard limit.
+	soft, hard := "0", strconv.FormatUint(blocksKB, 10)
+	if blocksKB == 0 {
+		hard = "0"
+	}
+	cmd := exec.Command("setquota", "-u", username, soft, hard, "0", "0", "/")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("setquota %q: %w: %s", username, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

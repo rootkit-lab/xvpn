@@ -58,7 +58,9 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 		return
 	}
 	if !callerRole(c).CanManage(target.Role) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode gerenciar acesso a arquivos deste usuário"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "seu papel atual não pode gerenciar acesso a arquivos deste usuário — se você acabou de ser promovido, atualize a página ou faça login de novo",
+		})
 		return
 	}
 
@@ -222,7 +224,9 @@ func (a *App) handleListUserSSHKeys(c *gin.Context) {
 		return
 	}
 	if !callerRole(c).CanManage(target.Role) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode ver o acesso a arquivos deste usuário"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "seu papel atual não pode ver o acesso a arquivos deste usuário — se você acabou de ser promovido, atualize a página ou faça login de novo",
+		})
 		return
 	}
 

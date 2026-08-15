@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { ProgressBar } from '@/components/ui/progress-bar'
 
 export function UsersPage() {
   const { user: caller } = useAuth()
@@ -487,6 +488,7 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
   const [samba, setSamba] = useState(false)
   const [sshKey, setSshKey] = useState('')
   const [deviceKeys, setDeviceKeys] = useState<DeviceSSHKey[]>([])
+  const [keysLoading, setKeysLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -498,10 +500,16 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
       setSshKey(user.ssh_public_key ?? '')
       setDeviceKeys([])
       setError(null)
+      setKeysLoading(true)
       void api.listUserSSHKeys(user.id).then(
         (res) => setDeviceKeys(res.device_keys ?? []),
-        () => setDeviceKeys([]),
-      )
+        (err) => {
+          setDeviceKeys([])
+          if (err instanceof ApiError && err.status === 403) {
+            setError(err.message)
+          }
+        },
+      ).finally(() => setKeysLoading(false))
     }
   }
 
@@ -515,11 +523,17 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
         samba_enabled: samba,
         ssh_public_key: sshKey,
       })
-      toast.success(`Acesso a arquivos de "${user.username}" atualizado`)
+      toast.success(
+        sftp || samba
+          ? `Acesso de "${user.username}" atualizado — shares/SFTP já valem na VPN`
+          : `Acesso a arquivos de "${user.username}" desligado`,
+      )
       setOpen(false)
       onChanged()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao atualizar acesso a arquivos')
+      const msg = err instanceof ApiError ? err.message : 'Falha ao atualizar acesso a arquivos'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -541,7 +555,7 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
               A conta Unix é criada automaticamente no servidor. A chave SSH chega sozinha quando a pessoa abre o XVPN.
             </DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
+          <fieldset disabled={submitting} className="flex flex-col gap-4 py-4 disabled:opacity-70">
             <label className="flex items-center gap-3 text-sm">
               <input
                 type="checkbox"
@@ -566,7 +580,9 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
             </label>
             <div className="flex flex-col gap-2">
               <Label>Chaves dos dispositivos (automáticas)</Label>
-              {deviceKeys.length === 0 ? (
+              {keysLoading ? (
+                <ProgressBar label="Carregando chaves registradas…" />
+              ) : deviceKeys.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
                   Nenhuma chave registrada ainda. Elas aparecem aqui quando a pessoa abrir o XVPN conectado à VPN —
                   não é preciso colar nada para ligar o SFTP.
@@ -596,8 +612,11 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
                 Escape hatch para celular ou máquina sem XVPN. Pode incluir múltiplas chaves, uma por linha.
               </p>
             </div>
+            {submitting && (
+              <ProgressBar label="Aplicando no servidor (cria conta Unix / atualiza Samba e SFTP)…" />
+            )}
             {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
+          </fieldset>
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Aplicando…' : 'Aplicar'}

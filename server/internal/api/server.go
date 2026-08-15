@@ -205,7 +205,7 @@ func NewRouter(app *App) *gin.Engine {
 		// tabela de papéis: "member: sem telas de admin, portal
 		// mínimo").
 		authed := apiGroup.Group("")
-		authed.Use(auth.RequireAuth(app.Tokens))
+		authed.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB())
 		{
 			authed.GET("/auth/me", app.handleMe)
 
@@ -225,7 +225,7 @@ func NewRouter(app *App) *gin.Engine {
 		// viewerUp: leitura das telas de admin (dashboard, listas,
 		// audit) — inclui viewer, admin e super_admin.
 		viewerUp := apiGroup.Group("")
-		viewerUp.Use(auth.RequireAuth(app.Tokens), auth.RequireRole(store.ViewerUpRoles...))
+		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.ViewerUpRoles...))
 		{
 			viewerUp.GET("/users", app.handleListUsers)
 			viewerUp.GET("/devices", app.handleListDevices)
@@ -246,7 +246,7 @@ func NewRouter(app *App) *gin.Engine {
 		// aplicada dentro de cada handler via store.Role.CanManage, não
 		// aqui no roteamento.
 		adminOnly := apiGroup.Group("")
-		adminOnly.Use(auth.RequireAuth(app.Tokens), auth.RequireRole(store.AdminRoles...))
+		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.AdminRoles...))
 		{
 			adminOnly.POST("/users", app.handleCreateUser)
 			adminOnly.PATCH("/users/:id", app.handleUpdateUser)

@@ -257,7 +257,7 @@ Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` s
 | Conteúdo | dispositivos, arquivos, downloads, apps, conta (senha/SSH) | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | dashboard, **diretório de usuários** (lista + ficha), papéis, devices, waitlist, marketplace ACL, settings, audit |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
-Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username`, não mistura com SSH/cota. Chat autenticado abre na **sidebar esquerda** a partir da **status bar** do `SystemChrome` (Fase 20), não uma tela só do Social.
+Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username`, não mistura com SSH/cota. Chat autenticado: **contatos** na sidebar direita, **conversa** em modal, **contas** na faixa inferior, gatilho na status bar do `SystemChrome` (Fase 20).
 
 Página admin de papéis: `/admin/rbac`. Usuários: lista paginada `/admin/users` + ficha `/admin/users/:id` (abas), não tabela com cinco ícones por linha.
 
@@ -453,7 +453,7 @@ O `workflow_dispatch` no segundo é deliberado: quando o catálogo divergir do d
 | Superfície | Onde | Papel |
 |---|---|---|
 | `/social/*` | SPA do painel | **rede social** (diretório, perfil, follow, grupos). Integra o chat (mensagem a partir do perfil) sem virar o messenger |
-| `ChatSidebar` + status bar | `SystemChrome` em `/my`, `/admin`, `/social` | botão Chat na barra de status; o messenger substitui o nav esquerdo (sobrevive à navegação) |
+| `ChatSidebar` + modal + contas | `SystemChrome` em `/my`, `/admin`, `/social` | botão Chat na status bar; contatos à direita; conversa em modal; contas na faixa inferior |
 | `/social/messages` | SPA do painel | página cheia do mesmo messenger |
 | `apps/xvpn-chat` | marketplace (Go/Wails3) | o **mesmo** frontend React na janela desktop |
 | `xvpn-server` | control-plane | identidade JWT, persistência SQLite, hub WebSocket |
@@ -489,7 +489,7 @@ Eventos: `message.new`, `message.ack`, `typing`, `presence`, `group.updated`. Hi
 
 Cliente do protocolo acima, não dono dele. JWT só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `vpn.officeempresa.com`. Publicação pelo pipeline da Fase 16 (`marketplace.yaml`, `source: build`, Linux+Windows). Esqueleto no marketplace: `ROADMAP.md` Fase 19.4. Produto (web + desktop, UI ICQ): Fase 20.
 
-**Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **sidebar esquerda** acionada pela status bar do `SystemChrome` (todas as rotas autenticadas do domínio, conversas abertas sobrevivem à navegação; tema `inherit` para casar com o navy/azul do painel) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB flutuante, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
+**Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **sidebar direita de contatos** + **modal de conversa** + **barra inferior de contas**, acionados pela status bar do `SystemChrome` (todas as rotas autenticadas; tema `inherit`) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
 
 **Visual:** redesign moderno inspirado no ICQ (lista de contatos + conversa + status colorido; acento verde-flor). Temas `light` / `dark` / `icq`. Não é clone do protocolo AOL e não é a DataTable Workspace da 19.3. `/social` não é substituído pelo chat.
 
@@ -733,4 +733,4 @@ Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CO
 
 **Ciclo v0.4 concluído (`ROADMAP.md` Fase 19):** redesign estilo Google Workspace. Prefixo do membro `/my` sem alias `/app`. `/social` (perfis, follow, DM, grupos via WebSocket); `/admin` com diretório lista+ficha; kit de UI + paginação; esqueleto `apps/xvpn-chat` no marketplace. Decisões em [§6.7](#67-admin-geral-rbac) e [§6.11](#611-xvpn-social-e-xvpn-chat).
 
-**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual redesign ICQ, temas SASS. `/social` permanece rede social; o chat integra nela e abre na sidebar esquerda a partir da status bar em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.
+**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual redesign ICQ, temas SASS. `/social` permanece rede social; o chat integra nela (sidebar direita + modal + contas na faixa inferior) em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.

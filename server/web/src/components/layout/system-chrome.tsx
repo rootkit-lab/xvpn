@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ChatAccountsBar } from '@chat/messenger/ChatAccountsBar'
+import { ChatConversationModal } from '@chat/messenger/ChatConversationModal'
 import { ChatSidebar } from '@chat/messenger/ChatSidebar'
 import { cn } from '@/lib/utils'
 import { PanelHeader } from '@/components/layout/panel-header'
 import { PanelStatusBar } from '@/components/layout/panel-status-bar'
 import { useChatPanel } from '@/components/layout/use-chat-panel'
 
-/** Chrome de sistema compartilhado — sidebar + header + main + status bar. */
+/** Chrome de sistema compartilhado — nav esquerda, chat à direita, contas embaixo. */
 export function SystemChrome({
   variant,
   subtitle,
@@ -24,7 +26,8 @@ export function SystemChrome({
   mainClassName?: string
 }) {
   const location = useLocation()
-  const { open: chatOpen } = useChatPanel()
+  const { open: chatOpen, hidden, session } = useChatPanel()
+  const showAccounts = Boolean(session?.loggedIn && !hidden)
 
   return (
     <div className={cn('relative flex h-svh w-full overflow-hidden bg-background', className)}>
@@ -40,64 +43,65 @@ export function SystemChrome({
         />
       )}
       <aside
-        id="xvpn-chat-sidebar"
         className={cn(
-          'relative z-20 flex h-full shrink-0 flex-col border-r backdrop-blur-xl transition-[width] duration-200',
-          chatOpen ? 'w-80 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-30 max-md:w-[min(100%,20rem)] max-md:shadow-2xl' : 'w-60',
-          variant === 'admin'
-            ? 'cyber-frame border-white/5 bg-card/70 backdrop-blur'
-            : 'border-white/8 bg-card/50',
-          variant === 'admin' && !chatOpen && 'w-64',
+          'relative z-20 flex h-full w-60 shrink-0 flex-col border-r backdrop-blur-xl',
+          variant === 'admin' ? 'cyber-frame w-64 border-white/5 bg-card/70 backdrop-blur' : 'border-white/8 bg-card/50',
           asideClassName,
         )}
       >
-        {chatOpen ? (
-          <ChatSidebar />
-        ) : (
-          <>
-            <div className={cn('flex items-center gap-2.5 px-5 py-4', variant === 'admin' && 'px-6')}>
-              <img
-                src="/logo-192.png"
-                alt="XVPN"
-                className={cn(
-                  'size-8',
-                  variant === 'admin' && 'drop-shadow-[0_0_12px_var(--color-glow)]',
-                  variant !== 'admin' && 'rounded-[10px]',
-                )}
-              />
-              <div className="min-w-0">
-                <span className={cn('block font-semibold tracking-tight', variant === 'admin' ? 'text-lg' : 'text-base')}>
-                  XVPN
-                </span>
-                {variant === 'admin' ? (
-                  <span className="hud-label text-muted-foreground/70">{subtitle}</span>
-                ) : (
-                  <span className="text-[11px] text-muted-foreground">{subtitle}</span>
-                )}
-              </div>
-            </div>
-            {variant === 'admin' && <div className="scanline mx-3" />}
-            {nav}
-          </>
-        )}
+        <div className={cn('flex items-center gap-2.5 px-5 py-4', variant === 'admin' && 'px-6')}>
+          <img
+            src="/logo-192.png"
+            alt="XVPN"
+            className={cn(
+              'size-8',
+              variant === 'admin' && 'drop-shadow-[0_0_12px_var(--color-glow)]',
+              variant !== 'admin' && 'rounded-[10px]',
+            )}
+          />
+          <div className="min-w-0">
+            <span className={cn('block font-semibold tracking-tight', variant === 'admin' ? 'text-lg' : 'text-base')}>
+              XVPN
+            </span>
+            {variant === 'admin' ? (
+              <span className="hud-label text-muted-foreground/70">{subtitle}</span>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">{subtitle}</span>
+            )}
+          </div>
+        </div>
+        {variant === 'admin' && <div className="scanline mx-3" />}
+        {nav}
       </aside>
       <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <PanelHeader variant={variant} />
-        <main className={cn('min-h-0 flex-1 overflow-y-auto', variant === 'admin' ? 'p-8' : 'p-6 md:p-8', mainClassName)}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
+        <div className="flex min-h-0 flex-1">
+          <main className={cn('min-h-0 flex-1 overflow-y-auto', variant === 'admin' ? 'p-8' : 'p-6 md:p-8', mainClassName)}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={location.pathname}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </main>
+          {chatOpen && (
+            <aside
+              id="xvpn-chat-sidebar"
+              className="relative z-20 flex h-full w-72 shrink-0 flex-col border-l border-white/8 bg-card/50 backdrop-blur-xl max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-[min(100%,18rem)] max-md:shadow-2xl"
             >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
-        </main>
+              <ChatSidebar />
+            </aside>
+          )}
+        </div>
+        {showAccounts && <ChatAccountsBar />}
         <PanelStatusBar variant={variant === 'admin' ? 'admin' : 'user'} />
       </div>
+      {showAccounts && <ChatConversationModal />}
     </div>
   )
 }

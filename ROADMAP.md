@@ -860,16 +860,16 @@ Substituir abas Pessoas/Mensagens/Grupos e a DataTable de threads por um clone c
 
 ### 20.3 Dock global no domínio + integração no Social
 
-O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/:username`, follow, páginas de grupo). O chat entra de dois jeitos: **botão na status bar** que abre o messenger na **sidebar esquerda**, e **página cheia** em `/social/messages`.
+O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/:username`, follow, páginas de grupo). O chat entra de dois jeitos: **botão na status bar** (contatos à direita, conversa em modal, contas na faixa inferior), e **página cheia** em `/social/messages`.
 
-- [x] **`ChatSidebar` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. O botão Chat vive na **status bar** (badge de não lidas); ao abrir, o aside esquerdo troca o nav pelo messenger (lista + conversa). Tema `inherit` (navy/azul do painel, sem FAB verde). **Não desmontar** na troca de rota — navegar de `/my` para `/admin/users` mantém as conversas abertas.
+- [x] **`ChatSidebar` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. O botão Chat vive na **status bar**; ao abrir, o **aside direito** mostra só contatos (o nav esquerdo permanece). Clicar um contato abre `ChatConversationModal`. `ChatAccountsBar` na faixa inferior lista as contas/conversas já existentes. Tema `inherit`. **Não desmontar** na troca de rota.
 - [x] **Fora do chrome de chat:** landing, `/my/login`, `/admin/login`. Sem token na query do WS. 401 → `/my/login` (ou `/admin/login` se o path for admin).
 - [x] **Página cheia** `/social/messages`: o UI da 20.2 no `main`. Sem iframe. A DataTable de threads some.
-- [x] **Integração Social:** no perfil, “enviar mensagem” **abre a sidebar** com aquele contato e **não** tira o usuário da página de perfil. Na página de grupo social, “conversar” abre o thread `group` na sidebar. `/social/groups` continua página de rede (membros, convite, sobre), não vira o messenger.
-- [x] Responsivo: no mobile web a sidebar de chat sobrepõe o conteúdo; no desktop, o aside troca o nav pelo messenger.
+- [x] **Integração Social:** no perfil, “enviar mensagem” **abre o modal** com aquele contato e **não** tira o usuário da página. Na página de grupo social, “conversar” abre o thread `group` no modal. `/social/groups` continua página de rede.
+- [x] Responsivo: no mobile a lista de contatos sobrepõe à direita; no desktop, aside direito extra (nav esquerdo intacto).
 - [x] Testes/lint do `server/web` verdes; nenhum `Upgrade` no catch-all do Nginx.
 
-**Critério de saída:** um membro em `/my` (ou `/admin`) abre o Chat na status bar e conversa na sidebar esquerda enquanto usa o painel; o outro pode estar no Social, na sidebar ou no app desktop; hard refresh em `/social` mostra a rede, não só o chat; `/social/messages` é o messenger cheio.
+**Critério de saída:** um membro em `/my` (ou `/admin`) abre o Chat na status bar, vê contatos à direita e conversa no modal; as contas aparecem na faixa inferior; hard refresh em `/social` mostra a rede; `/social/messages` é o messenger cheio.
 
 ### 20.4 Janela desktop (Wails3)
 

@@ -56,19 +56,23 @@ const CHANNEL_LABELS: Record<MarketplaceChannel, string> = {
 
 const GITHUB_APPS_BASE = 'https://github.com/rootkit-lab/xvpn/tree/main/'
 
-export function MarketplacePage() {
+export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' | 'manage' }) {
   const { user: caller } = useAuth()
-  const isAdmin = isAdminRole(caller?.role)
+  const isManage = variant === 'manage' && isAdminRole(caller?.role)
   const fetchApps = useCallback(() => api.listMarketplaceApps(), [])
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Marketplace</h1>
+        <p className="hud-label mb-1 text-muted-foreground/70">
+          {isManage ? '// administração · marketplace' : '// meu espaço · apps'}
+        </p>
+        <h1 className="text-2xl font-semibold">{isManage ? 'Marketplace' : 'Apps'}</h1>
         <p className="text-muted-foreground">
-          Catálogo espelhado de <code className="font-mono text-xs">apps/*/marketplace.yaml</code> — publicação só via
-          CI (Fase 16). Aqui você só controla quem vê apps restritos e baixa os arquivos.
+          {isManage
+            ? 'Catálogo espelhado de apps/*/marketplace.yaml — publicação só via CI. Aqui você controla ACL de apps restritos e baixa os arquivos.'
+            : 'Programas liberados para a sua conta. Baixe o instalador da sua plataforma e confira o SHA-256 antes de instalar.'}
         </p>
       </div>
 
@@ -77,49 +81,53 @@ export function MarketplacePage() {
       {loading || !apps ? (
         <Skeleton className="h-32 w-full" />
       ) : apps.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Catálogo ainda vazio</CardTitle>
-            <CardDescription>
-              O painel só espelha o que o CI publicou. Nada aparece aqui até existir uma release GitHub
-              compatível com o manifesto e um sync bem-sucedido.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <ol className="list-decimal space-y-2 pl-5">
-              <li>
-                Release com tag <code className="font-mono text-xs">xvpn-client-v*</code> e assets
-                nomeados como no <code className="font-mono text-xs">apps/xvpn-client/marketplace.yaml</code>{' '}
-                (ex.: <code className="font-mono text-xs">xvpn-client_0.1.0_amd64.deb</code>).
-              </li>
-              <li>
-                Workflow <code className="font-mono text-xs">marketplace-sync</code> no GitHub Actions
-                (secrets <code className="font-mono text-xs">XVPN_PUBLISH_TOKEN</code> +{' '}
-                <code className="font-mono text-xs">XVPN_SYNC_URL</code>).
-              </li>
-              <li>
-                Se o sync pular o app, o log do CI costuma mostrar 404 no download da release — a tag
-                antiga <code className="font-mono text-xs">client-v*</code> não alimenta o manifesto novo.
-              </li>
-            </ol>
-            <p>
-              Fonte:{' '}
-              <a
-                href={`${GITHUB_APPS_BASE}xvpn-client/marketplace.yaml`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
-              >
-                apps/xvpn-client/marketplace.yaml
-                <ExternalLink className="size-3" />
-              </a>
-            </p>
-          </CardContent>
-        </Card>
+        isManage ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Catálogo ainda vazio</CardTitle>
+              <CardDescription>
+                O painel só espelha o que o CI publicou. Nada aparece aqui até existir uma release GitHub
+                compatível com o manifesto e um sync bem-sucedido.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <ol className="list-decimal space-y-2 pl-5">
+                <li>
+                  Release com tag <code className="font-mono text-xs">xvpn-client-v*</code> e assets
+                  nomeados como no <code className="font-mono text-xs">apps/xvpn-client/marketplace.yaml</code>.
+                </li>
+                <li>
+                  Workflow <code className="font-mono text-xs">marketplace-sync</code> no GitHub Actions.
+                </li>
+              </ol>
+              <p>
+                Fonte:{' '}
+                <a
+                  href={`${GITHUB_APPS_BASE}xvpn-client/marketplace.yaml`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+                >
+                  apps/xvpn-client/marketplace.yaml
+                  <ExternalLink className="size-3" />
+                </a>
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Nenhum app disponível</CardTitle>
+              <CardDescription>
+                Quando um administrador liberar programas para você, eles aparecem aqui para download.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )
       ) : (
         <div className="flex flex-col gap-4">
           {apps.map((app) => (
-            <AppCard key={app.id} app={app} isAdmin={isAdmin} onChanged={reload} />
+            <AppCard key={app.id} app={app} isAdmin={isManage} onChanged={reload} />
           ))}
         </div>
       )}

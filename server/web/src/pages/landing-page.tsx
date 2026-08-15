@@ -89,7 +89,7 @@ export function LandingPage() {
           <span className="text-lg font-semibold">XVPN</span>
         </div>
         <Button variant="ghost" className="rounded-full" asChild>
-          <Link to="/login">Entrar</Link>
+          <Link to="/app/login">Entrar</Link>
         </Button>
       </header>
 
@@ -121,7 +121,7 @@ export function LandingPage() {
               <a href="#waitlist">Entrar na lista de espera</a>
             </Button>
             <Button size="lg" variant="outline" className="rounded-full px-8" asChild>
-              <Link to="/login">Já tenho acesso</Link>
+              <Link to="/app/login">Já tenho acesso</Link>
             </Button>
           </div>
         </motion.section>
@@ -215,8 +215,12 @@ export function LandingPage() {
 
       <footer className="relative z-10 border-t border-white/5 px-6 py-6 text-center text-sm text-muted-foreground">
         XVPN — rede privada pessoal.{' '}
-        <Link to="/login" className="underline">
+        <Link to="/app/login" className="underline">
           Já tem acesso? Entre aqui.
+        </Link>
+        {' · '}
+        <Link to="/admin/login" className="underline">
+          Administração
         </Link>
       </footer>
     </div>

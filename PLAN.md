@@ -243,6 +243,18 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - Bootstrap do primeiro usuário continua sendo `super_admin`.
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
 
+**Dois painéis de UI (SPA único, namespaces separados):**
+
+| | Painel do Usuário | Administração do Sistema |
+|---|---|---|
+| Prefixo | `/app/*` | `/admin/*` |
+| Login | `/app/login` | `/admin/login` |
+| Shell | `UserShell` (Início, Downloads, Apps) | `AdminShell` (dashboard, users, devices, …) |
+| Destino pós-login | `member` → `/app` | `viewer+` → `/admin` |
+| Cruzamento | viewer+ vê link “Administração” | link “Meu espaço” → `/app` |
+
+Aliases legados: `/portal`→`/app`, `/dashboard`→`/admin`, `/users`→`/admin/users`, etc. A API RBAC não muda — só o chrome e as URLs.
+
 ### 6.8 Marketplace de software
 
 **Objetivo:** catálogo interno para distribuir programas (`.deb` / AppImage / `.exe`·`.msi` / `.apk`) a usuários autorizados — Linux, Windows e Android como **plataformas de asset**, não como lojas oficiais.
@@ -268,7 +280,7 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - **Configuração**: `XVPN_MARKETPLACE_DIR` (`internal/config/config.go`), obrigatória em produção com caminho absoluto dentro de `ReadWritePaths` do systemd (mesmo motivo do `XVPN_DB_PATH`, ver achado da Fase 2) — produção usa `/opt/xvpn/data/marketplace` (`server/deploy/xvpn-server.env.example`).
 - **Backup dos blobs**: como o conteúdo nunca muda depois de escrito (só é criado ou apagado), `server/deploy/backup.sh` passou a espelhar `XVPN_MARKETPLACE_DIR` para `$XVPN_BACKUP_DIR/marketplace/` via `rsync -a --delete` (incremental, sem gzip — os assets já costumam ser binários compactados) na mesma rotina diária que já fazia o `.backup` do `xvpn.db`. Mesma limitação de sempre: é uma cópia no mesmo disco da VPS, protege contra bug/exclusão acidental na aplicação, não contra falha física do disco (backup off-site fica fora do escopo desta fase).
 - **API**: na Fase 11 havia CRUD de app/versão/asset em `adminOnly`; a **Fase 16 removeu a publicação manual** — permanece `PUT /marketplace/apps/:id/access` (ACL operacional), `GET /marketplace/apps`, `GET /marketplace/assets/:id/download` e `POST /marketplace/sync` (token de CI / `super_admin`, ver §6.10). Modelo: `App` (com `Slug`/`Source`/`SourcePath`/`ArchivedAt`) → `AppVersion` → `AppAsset`; `AppAccess` só para apps `restricted`.
-- **UI**: tela `/marketplace` somente-leitura para publicação (selo de origem `apps/<slug>`); admin só gerencia ACL e download. O cliente XVPN pode figurar no catálogo (canal de atualização); `/download` continua sendo a primeira instalação.
+- **UI**: tela `/admin/marketplace` para gestão (ACL + download); `/app/marketplace` só consumo. O cliente XVPN pode figurar no catálogo (canal de atualização); `/app/download` (alias legado `/download`) continua sendo a primeira instalação.
 
 ### 6.9 Contas Unix reais por usuário (SFTP + Samba integrados)
 

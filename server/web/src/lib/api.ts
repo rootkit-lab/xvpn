@@ -50,8 +50,11 @@ async function parseErrorMessage(res: Response): Promise<string> {
 function handleUnauthorized(path: string) {
   if (path.startsWith('/auth/login')) return
   clearToken()
-  if (window.location.pathname !== '/login') {
-    window.location.href = '/login'
+  const here = window.location.pathname
+  const login =
+    here.startsWith('/admin') || here === '/admin/login' ? '/admin/login' : '/app/login'
+  if (here !== login && here !== '/login') {
+    window.location.href = login
   }
 }
 

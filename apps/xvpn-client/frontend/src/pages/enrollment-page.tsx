@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
-import { NetworkGlobe } from '@/components/network-globe'
+import { ConnectionRings } from '@/components/connection-rings'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,9 +42,9 @@ export function EnrollmentPage({ onEnrolled }: EnrollmentPageProps) {
   }
 
   return (
-    <div className="relative flex h-full items-center justify-center overflow-hidden p-6">
-      <div className="glow-blob pointer-events-none absolute top-1/4 left-1/2 h-64 w-64 -translate-x-1/2" />
-      <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-0 h-48 w-full opacity-50" />
+    <div className="watch-face relative flex h-full items-center justify-center overflow-hidden p-6">
+      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
+      <ConnectionRings className="pointer-events-none absolute left-1/2 top-[-10%] h-56 w-56 -translate-x-1/2 opacity-40" />
 
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -52,11 +52,11 @@ export function EnrollmentPage({ onEnrolled }: EnrollmentPageProps) {
         transition={{ duration: 0.35, ease: 'easeOut' }}
         className="relative z-10 w-full max-w-sm"
       >
-        <Card className="border-white/5 bg-card/80 backdrop-blur">
+        <Card className="rounded-[22px] border-white/8 bg-card/75 backdrop-blur-xl">
           <CardHeader className="items-center text-center">
-            <img src="/logo-192.png" alt="XVPN" className="mb-1 h-12 w-12 drop-shadow-[0_0_16px_var(--color-glow)]" />
-            <CardTitle>Conectar este dispositivo</CardTitle>
-            <CardDescription>Insira o código de convite gerado no painel web XVPN.</CardDescription>
+            <img src="/logo-192.png" alt="XVPN" className="mb-1 h-12 w-12 rounded-full" />
+            <CardTitle className="font-display">Conectar este dispositivo</CardTitle>
+            <CardDescription className="font-display">Insira o código de convite gerado no painel web XVPN.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">

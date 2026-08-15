@@ -11,13 +11,12 @@ import {
   Stethoscope,
   ShieldCheck,
   Store,
+  Share2,
 } from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { NetworkGlobe } from '@/components/network-globe'
+import { ConnectionRings } from '@/components/connection-rings'
 import { formatBytes, formatElapsedSince, formatRelativeTime } from '@/lib/format'
 
 interface MainPageProps {
@@ -32,10 +31,6 @@ interface MainPageProps {
 export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagnostics, onOpenApps }: MainPageProps) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  // Re-renderiza 1x/s só pra o timer "conectado há" contar em tempo real,
-  // sem depender do intervalo de polling do status (2s, ver App.tsx) —
-  // formatElapsedSince recalcula a partir de status.connectedSince a cada
-  // chamada, então um tick local aqui já é suficiente.
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -77,230 +72,190 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       ? 'Seu usuário ainda não tem Samba habilitado no painel'
       : undefined
 
-  const glowVar = status.reconnecting ? 'var(--glow-amber)' : status.connected ? 'var(--glow)' : undefined
+  const statusLabel = status.reconnecting
+    ? 'Reconectando'
+    : status.connected
+      ? 'Protegido'
+      : 'Desligado'
+
+  const elapsed = status.connectedSince ? formatElapsedSince(status.connectedSince) : '00:00'
 
   return (
-    <div className="dot-grid relative flex h-full flex-col gap-4 overflow-y-auto p-6">
-      <div className="glow-blob pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2" />
+    <div className="watch-face relative flex h-full flex-col overflow-hidden px-5 pb-5 pt-4">
+      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
 
       <header className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/logo-192.png" alt="" className="size-6 drop-shadow-[0_0_10px_var(--color-glow)]" />
-          <h1 className="text-lg font-semibold tracking-tight">XVPN</h1>
+        <div className="flex items-center gap-2.5">
+          <img src="/logo-192.png" alt="" className="size-7 rounded-full" />
+          <span className="font-display text-[17px] font-semibold tracking-tight">XVPN</span>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={status.connected ? 'default' : 'outline'}
-            className="rounded-md font-mono tracking-wide"
+        <div className="flex items-center gap-1">
+          <span
+            className={`mr-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+              status.connected
+                ? 'bg-primary/15 text-primary'
+                : status.reconnecting
+                  ? 'bg-amber-500/15 text-amber-400'
+                  : 'bg-white/5 text-muted-foreground'
+            }`}
           >
-            {status.reconnecting
-              ? `Reconectando (${status.reconnectAttempt + 1})`
-              : status.connected
-                ? 'Conectado'
-                : 'Desconectado'}
-          </Badge>
-          <button
-            onClick={onOpenApps}
-            aria-label="Apps"
-            title="Marketplace de programas"
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
+            <span
+              className={`size-1.5 rounded-full ${
+                status.connected ? 'bg-primary shadow-[0_0_8px_var(--glow)]' : status.reconnecting ? 'bg-amber-400' : 'bg-muted-foreground/50'
+              }`}
+            />
+            {statusLabel}
+          </span>
+          <IconBtn onClick={onOpenApps} label="Apps" title="Marketplace">
             <Store className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onOpenDiagnostics}
-            aria-label="Diagnóstico"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
+          </IconBtn>
+          <IconBtn onClick={onOpenDiagnostics} label="Diagnóstico">
             <Stethoscope className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onOpenSettings}
-            aria-label="Preferências"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
+          </IconBtn>
+          <IconBtn onClick={onOpenSettings} label="Preferências">
             <Settings className="h-4 w-4" />
-          </button>
+          </IconBtn>
         </div>
       </header>
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3">
-        <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-56 w-full -translate-y-1/2 opacity-60" />
+      {/* Face central — tipografia + anéis + botão */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center">
+        <AnimatePresence mode="wait">
+          {status.connected ? (
+            <motion.div
+              key="on"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-1 flex flex-col items-center"
+            >
+              <p className="font-display text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80">
+                Conexão segura
+              </p>
+              <p className="font-display text-[44px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+                {elapsed}
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="off"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              className="mb-1 flex flex-col items-center"
+            >
+              <p className="font-display text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground/80">
+                {status.reconnecting ? 'Reconectando' : 'Pronto'}
+              </p>
+              <p className="font-display text-[44px] font-semibold leading-none tracking-tight text-muted-foreground/35">
+                —:—
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {status.connected && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 flex flex-col items-center gap-1.5"
-          >
-            <div className="flex items-center gap-2">
-              <span className="cyber-diamond size-2 bg-primary" />
-              <span className="hud-label text-muted-foreground/80">Conexão segura</span>
-            </div>
-            <p className="font-mono text-3xl font-semibold tabular-nums text-glow">
-              {status.connectedSince ? formatElapsedSince(status.connectedSince) : '--:--'}
-            </p>
-          </motion.div>
-        )}
-
-        <div className="relative z-20 flex size-40 items-center justify-center">
-          {/* Halos suaves (blur) — evitam o aliasing do anel SVG único. */}
-          <div
-            className={`pointer-events-none absolute inset-0 rounded-full transition-opacity ${
-              status.connected ? 'opacity-100' : 'opacity-40'
-            }`}
-            aria-hidden="true"
-          >
-            <div className="absolute inset-[-18%] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--glow)_40%,transparent)_0%,transparent_70%)] blur-xl" />
-            <div className="absolute inset-2 rounded-full border border-primary/20" />
-            <div className="absolute inset-0 rounded-full border border-primary/10" />
-          </div>
-          <svg
-            viewBox="0 0 100 100"
-            className="pointer-events-none absolute inset-0 h-full w-full animate-spin-slow text-primary/50"
-            aria-hidden="true"
-            shapeRendering="geometricPrecision"
-          >
-            <circle
-              cx="50"
-              cy="50"
-              r="46.5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.25"
-              strokeDasharray="1.5 7"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-          <svg
-            viewBox="0 0 100 100"
-            className="pointer-events-none absolute inset-[6%] h-[88%] w-[88%] animate-spin-slow text-primary/25"
-            style={{ animationDirection: 'reverse', animationDuration: '18s' }}
-            aria-hidden="true"
-            shapeRendering="geometricPrecision"
-          >
-            <circle
-              cx="50"
-              cy="50"
-              r="46"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="0.8"
-              strokeDasharray="12 10"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
+        <div className="relative mt-1 flex size-[200px] items-center justify-center">
+          <ConnectionRings
+            className="absolute inset-0"
+            active={status.connected && !busy}
+            reconnecting={status.reconnecting}
+          />
           <motion.button
             type="button"
             onClick={toggle}
             disabled={busy}
             aria-label={status.connected ? 'Desconectar' : 'Conectar'}
-            whileTap={{ scale: 0.94 }}
-            whileHover={busy ? undefined : { scale: 1.03 }}
-            animate={status.connected && !busy ? { scale: [1, 1.025, 1] } : { scale: 1 }}
-            transition={status.connected ? { duration: 2.8, repeat: Infinity, ease: 'easeInOut' } : { type: 'spring', stiffness: 380, damping: 24 }}
-            className={`power-btn relative z-10 flex h-[7.25rem] w-[7.25rem] cursor-pointer items-center justify-center rounded-full border-[3px] transition-[border-color,background-color,color,box-shadow] duration-300 disabled:cursor-wait disabled:opacity-60 ${
+            whileTap={{ scale: 0.92 }}
+            whileHover={busy ? undefined : { scale: 1.04 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+            className={`relative z-10 flex size-[88px] cursor-pointer items-center justify-center rounded-full transition-colors duration-300 disabled:cursor-wait ${
               status.connected
-                ? 'power-btn--on border-primary bg-primary/15 text-primary'
+                ? 'bg-primary text-primary-foreground shadow-[0_8px_32px_-4px_color-mix(in_oklch,var(--glow)_70%,transparent)]'
                 : status.reconnecting
-                  ? 'border-amber-500/70 bg-amber-500/10 text-amber-400 shadow-[0_0_28px_-6px_var(--glow-amber)]'
-                  : 'border-border/80 bg-secondary/90 text-muted-foreground hover:border-primary/55 hover:bg-secondary hover:text-primary'
+                  ? 'bg-amber-500/90 text-black shadow-[0_8px_28px_-6px_var(--glow-amber)]'
+                  : 'bg-white/10 text-foreground backdrop-blur-md hover:bg-white/16'
             }`}
-            style={glowVar ? ({ '--glow': glowVar } as React.CSSProperties) : undefined}
           >
             <AnimatePresence mode="wait">
               {busy ? (
-                <motion.div key="busy" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
-                  <Loader2 className="h-10 w-10 animate-spin" />
+                <motion.div key="busy" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
+                  <Loader2 className="h-8 w-8 animate-spin" strokeWidth={2.25} />
                 </motion.div>
               ) : (
-                <motion.div key="power" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
-                  <Power className="h-10 w-10 drop-shadow-[0_0_12px_color-mix(in_oklch,var(--glow)_55%,transparent)]" strokeWidth={1.75} />
+                <motion.div key="power" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}>
+                  <Power className="h-8 w-8" strokeWidth={2.25} />
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.button>
         </div>
 
-        <p className="relative z-10 text-sm text-muted-foreground">
+        <p className="mt-3 font-display text-[13px] text-muted-foreground">
           {busy
             ? 'Aplicando…'
             : status.reconnecting
-              ? 'Túnel caiu, tentando reconectar automaticamente…'
+              ? 'Restaurando o túnel…'
               : status.connected
-                ? 'Toque para desconectar'
-                : 'Toque para conectar'}
+                ? 'Toque para desligar'
+                : 'Toque para ligar'}
         </p>
+
         {status.killSwitchActive && (
-          <p className="relative z-10 flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mt-1.5 flex items-center gap-1 font-display text-[11px] text-muted-foreground/80">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Kill switch ativo — tráfego fora da VPN bloqueado
+            Kill switch ativo
           </p>
         )}
       </div>
 
       {(error || actionError) && (
-        <p className="relative z-10 text-center text-sm text-destructive">{actionError ?? error}</p>
+        <p className="relative z-10 mb-2 text-center font-display text-[13px] text-destructive">{actionError ?? error}</p>
       )}
 
       {status.connected && (
-        <Card className="cyber-frame relative z-10 border-white/5 bg-card/70">
-          <CardContent className="grid grid-cols-2 gap-3 p-4 text-sm">
-            <InfoItem label="IP atribuído" value={status.assignedIP} />
-            <InfoItem label="Servidor" value={status.serverEndpoint} />
-            <InfoItem
-              label="Último handshake"
+        <div className="relative z-10 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Complication label="IP" value={shortIP(status.assignedIP)} />
+            <Complication label="Servidor" value={shortEndpoint(status.serverEndpoint)} />
+            <Complication
+              label="Handshake"
               value={status.lastHandshake ? formatRelativeTime(status.lastHandshake) : '—'}
             />
-            <InfoItem
-              label="Recebido"
-              value={formatBytes(status.receiveBytes)}
-              icon={<ArrowDown className="h-3.5 w-3.5 text-primary" />}
+            <Complication
+              label="Tráfego"
+              value={`${formatBytes(status.receiveBytes)} ↓`}
+              icon={<ArrowDown className="h-3 w-3 opacity-70" />}
+              secondary={`${formatBytes(status.transmitBytes)} ↑`}
+              secondaryIcon={<ArrowUp className="h-3 w-3 opacity-70" />}
             />
-            <InfoItem
-              label="Enviado"
-              value={formatBytes(status.transmitBytes)}
-              icon={<ArrowUp className="h-3.5 w-3.5 text-primary" />}
-            />
-          </CardContent>
-        </Card>
-      )}
+          </div>
 
-      {status.connected && (
-        <div className="relative z-10 flex flex-col gap-2">
-          <div className="grid grid-cols-3 gap-2">
-            <button
+          <div className="flex justify-center gap-5 pt-1">
+            <AppSlot
               onClick={() => openFiles('smb-home')}
               disabled={!sambaReady}
-              title={sambaHint ?? 'Meus arquivos (Samba)'}
-              className="file-action-btn"
-            >
-              <FolderOpen className="h-4 w-4 shrink-0 opacity-90" />
-              <span className="w-full truncate text-center leading-tight">Meus arquivos</span>
-            </button>
-            <button
+              title={sambaHint ?? 'Meus arquivos'}
+              label="Arquivos"
+              icon={<FolderOpen className="h-5 w-5" />}
+            />
+            <AppSlot
               onClick={() => openFiles('smb-shared')}
               disabled={!sambaReady}
               title={sambaHint ?? 'Compartilhado'}
-              className="file-action-btn"
-            >
-              <FolderOpen className="h-4 w-4 shrink-0 opacity-90" />
-              <span className="w-full truncate text-center leading-tight">Compartilhado</span>
-            </button>
-            <button
+              label="Shared"
+              icon={<Share2 className="h-5 w-5" />}
+            />
+            <AppSlot
               onClick={() => openFiles('filebrowser')}
-              title="Navegador de arquivos (web)"
-              className="file-action-btn"
-            >
-              <Globe className="h-4 w-4 shrink-0 opacity-90" />
-              <span className="w-full truncate text-center leading-tight">Navegador</span>
-            </button>
+              title="Navegador web"
+              label="Browser"
+              icon={<Globe className="h-5 w-5" />}
+            />
           </div>
-          {status.connected && !status.sambaEnabled && (
-            <p className="text-center text-xs text-muted-foreground">
-              Samba desabilitado para {status.username || 'seu usuário'} — peça ao admin no painel.
+
+          {!status.sambaEnabled && (
+            <p className="text-center font-display text-[11px] text-muted-foreground">
+              Samba desabilitado para {status.username || 'seu usuário'}
             </p>
           )}
         </div>
@@ -309,14 +264,98 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
   )
 }
 
-function InfoItem({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+function IconBtn({
+  children,
+  onClick,
+  label,
+  title,
+}: {
+  children: ReactNode
+  onClick: () => void
+  label: string
+  title?: string
+}) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="hud-label text-muted-foreground/70">{label}</span>
-      <span className="flex items-center gap-1 font-mono font-medium">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={title ?? label}
+      className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground"
+    >
+      {children}
+    </button>
+  )
+}
+
+function Complication({
+  label,
+  value,
+  icon,
+  secondary,
+  secondaryIcon,
+}: {
+  label: string
+  value: string
+  icon?: ReactNode
+  secondary?: string
+  secondaryIcon?: ReactNode
+}) {
+  return (
+    <div className="watch-complication rounded-[18px] px-3.5 py-2.5">
+      <p className="font-display text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75">{label}</p>
+      <p className="mt-0.5 flex items-center gap-1 font-display text-[13px] font-semibold tabular-nums tracking-tight">
         {icon}
-        {value}
-      </span>
+        <span className="truncate">{value}</span>
+      </p>
+      {secondary && (
+        <p className="mt-0.5 flex items-center gap-1 font-display text-[12px] tabular-nums text-muted-foreground">
+          {secondaryIcon}
+          {secondary}
+        </p>
+      )}
     </div>
   )
+}
+
+function AppSlot({
+  onClick,
+  disabled,
+  title,
+  label,
+  icon,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  title: string
+  label: string
+  icon: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="group flex flex-col items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <span className="flex size-12 items-center justify-center rounded-[16px] bg-gradient-to-b from-white/14 to-white/6 text-foreground shadow-[inset_0_1px_0_color-mix(in_oklch,white_18%,transparent)] transition-transform group-hover:scale-105 group-active:scale-95">
+        {icon}
+      </span>
+      <span className="font-display text-[10px] font-medium text-muted-foreground">{label}</span>
+    </button>
+  )
+}
+
+function shortIP(ip: string) {
+  // 10.66.66.2/32 → 10.66.66.2
+  return ip.replace(/\/\d+$/, '')
+}
+
+function shortEndpoint(ep: string) {
+  // host:port — keep compact
+  if (ep.length <= 18) return ep
+  const [host, port] = ep.split(':')
+  if (!port) return ep.slice(0, 16) + '…'
+  return `${host.slice(0, 10)}…:${port}`
 }

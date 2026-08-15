@@ -253,7 +253,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
 Itens herdados do fechamento das Fases 0–8 — não bloqueiam a Parte II, mas continuam válidos.
 
-- [ ] Definir e adicionar `LICENSE` (repo público — ver README)
+- [x] Definir e adicionar `LICENSE` (repo público — ver README) — MIT na raiz
 - [ ] Validar enrollment + conexão ponta a ponta no Windows (máquina/VM real)
 - [ ] Validar kill switch / reconexão / split-tunnel no Windows (hardware real)
 - [ ] Testar instalação limpa do instalador NSIS em VM Windows nova
@@ -566,12 +566,12 @@ sequenceDiagram
 Itens que já estavam sinalizados como backlog explícito nas fases anteriores — nada inventado aqui.
 
 - [ ] Quotas de disco por usuário, expostas no painel — backlog explícito da Fase 13
-- [ ] Rotação de chave SSH **no `/portal`, para o próprio usuário** — reescopado: pelo caminho do admin isso **já funciona** hoje (o painel tem o textarea, e `file_access_handler_apply.go:152-162` reaplica o `authorized_keys` quando a chave muda), e a rotação dos dispositivos com XVPN deixa de existir como trabalho com a Fase 14.2. O que sobra é só expor no portal o autosserviço da chave manual — se não valer o esforço para 1 usuário, fechar o item em vez de arrastá-lo
+- [x] Rotação de chave SSH **no `/portal`, para o próprio usuário** — reescopado: pelo caminho do admin isso **já funciona** hoje (o painel tem o textarea, e `file_access_handler_apply.go:152-162` reaplica o `authorized_keys` quando a chave muda), e a rotação dos dispositivos com XVPN deixa de existir como trabalho com a Fase 14.2. O que sobra é só expor no portal o autosserviço da chave manual — `PUT /api/me/ssh-public-key` + card no portal
 - [x] MTU editável em Preferências/Diagnóstico do cliente (hoje só no enrollment) — [`PLAN.md` §7.2](./PLAN.md#72-funcionalidades-do-cliente) e achado da Fase 1. **Pegou carona no PR da Fase 14**: toca os mesmos arquivos (`internal/helper/helper.go`, `settings-page.tsx`)
-- [ ] Edição de Configurações no painel (hoje somente leitura)
-- [ ] Vitest no painel web — dívida assumida na Fase 9
+- [x] Edição de Configurações no painel — TTLs de convite/sessão via `PATCH /api/config` (persistidos no DB); rede WireGuard permanece somente leitura (env + restart)
+- [x] Vitest no painel web — dívida assumida na Fase 9 (`use-polling-data` + job `npm test` no CI)
 - [ ] Validação E2E em Windows real + helper como Windows Service — [backlog legado](#backlog-legado-mvp--fora-das-fases-9). **Investigar antes de reservar máquina** (ver abaixo)
-- [ ] `LICENSE` no repositório público — adiado desde a Fase 0
+- [x] `LICENSE` no repositório público — MIT (adiado desde a Fase 0)
 
 **Suspeita a investigar antes do E2E em Windows — rota de exceção ausente.** No Linux, `Connect` instala uma rota `/32` para o IP do servidor via o gateway original antes de trocar a rota padrão (`addHostRouteException`), sem a qual os próprios pacotes do handshake WireGuard entrariam em loop. O engine do Windows **não tem equivalente**: `configureInterface` só adiciona rotas para os `AllowedIPs` (`client/internal/platform/windows/engine_windows.go:249-258`). Com `AllowedIPs = 0.0.0.0/0` isso tende a dar loop de roteamento. **Não foi confirmado em Windows real** — o `wireguard-go` em userspace pode se comportar diferente do kernel do Linux aqui, e o próprio arquivo carrega um aviso de plataforma não testada no topo. Registrado como suspeita a checar em VM antes de reservar hardware, **não** como fato: se procede, é bug de código a corrigir antes do teste; se não, o item segue como estava.
 

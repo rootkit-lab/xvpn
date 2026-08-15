@@ -329,10 +329,19 @@ export const api = {
   // dispositivos, sem precisar das telas administrativas.
   listMyDevices: () => request<Device[]>('/me/devices'),
   deleteMyDevice: (id: number) => request<void>(`/me/devices/${id}`, { method: 'DELETE' }),
+  // Chave SSH manual no portal (Fase 15) — distinta das chaves automáticas
+  // dos dispositivos (POST /me/ssh-key via túnel).
+  updateMySSHPublicKey: (sshPublicKey: string) =>
+    request<User>('/me/ssh-public-key', {
+      method: 'PUT',
+      body: JSON.stringify({ ssh_public_key: sshPublicKey }),
+    }),
 
   listAudit: () => request<AuditLog[]>('/audit'),
 
   getConfig: () => request<ConfigResponse>('/config'),
+  updateConfig: (body: { invite_token_ttl_minutes?: number; jwt_token_ttl_minutes?: number }) =>
+    request<ConfigResponse>('/config', { method: 'PATCH', body: JSON.stringify(body) }),
 
   // joinWaitlist é o único endpoint de escrita público (sem
   // autenticação) de toda a API — chamado da landing page em "/". Ver

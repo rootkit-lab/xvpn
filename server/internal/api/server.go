@@ -211,6 +211,7 @@ func NewRouter(app *App) *gin.Engine {
 
 			authed.GET("/me/devices", app.handleListMyDevices)
 			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
+			authed.PUT("/me/ssh-public-key", app.handleUpdateMySSHPublicKey)
 
 			// Marketplace (Fase 11, PLAN.md §6.8): catálogo e download são
 			// liberados a qualquer papel autenticado (inclusive member) —
@@ -270,6 +271,8 @@ func NewRouter(app *App) *gin.Engine {
 			adminOnly.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
 			adminOnly.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 			adminOnly.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
+
+			adminOnly.PATCH("/config", app.handleUpdateConfig)
 
 			// Marketplace (Fase 16): publicação só via POST /sync (CI).
 			// No painel resta só a ACL operacional (quem vê app restrito).

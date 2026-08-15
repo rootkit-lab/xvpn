@@ -1,18 +1,29 @@
-import { useCallback } from 'react'
-import { api } from '@/lib/api'
+import { useCallback, useState, type FormEvent } from 'react'
+import { toast } from 'sonner'
+import { api, ApiError, type ConfigResponse } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
+import { useAuth } from '@/lib/auth-context'
+import { isAdminRole } from '@/lib/roles'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ProgressBar } from '@/components/ui/progress-bar'
 
 export function SettingsPage() {
+  const { user: caller } = useAuth()
+  const canEdit = isAdminRole(caller?.role)
   const fetchConfig = useCallback(() => api.getConfig(), [])
-  const { data: config, loading, error } = usePollingData(fetchConfig, 60_000)
+  const { data: config, loading, error, reload } = usePollingData(fetchConfig, 60_000)
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Configurações</h1>
-        <p className="text-muted-foreground">Parâmetros de rede atuais do servidor (somente leitura).</p>
+        <p className="text-muted-foreground">
+          Rede WireGuard (somente leitura) e TTLs editáveis de convite/sessão.
+        </p>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -21,8 +32,8 @@ export function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Rede WireGuard</CardTitle>
           <CardDescription>
-            Edição via painel ainda não é suportada — altere via variáveis de ambiente do servidor (ver{' '}
-            <code>server/README.md</code>) e reinicie o serviço.
+            Alterar sub-rede, porta ou endpoint em runtime quebraria peers e firewall — continue via
+            variáveis de ambiente do servidor (ver <code>server/README.md</code>) e reinicie o serviço.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -36,6 +47,26 @@ export function SettingsPage() {
               <SettingItem label="Porta de escuta (UDP)" value={String(config.wireguard_listen_port)} />
               <SettingItem label="Endpoint público" value={config.wireguard_endpoint} />
               <SettingItem label="Chave pública do servidor" value={config.server_public_key} mono />
+            </dl>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Validades</CardTitle>
+          <CardDescription>
+            Persistidas no banco (sobrevivem a restart). Sessões JWT já emitidas mantêm a expiração
+            original até renovar o login.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading || !config ? (
+            <Skeleton className="h-28 w-full" />
+          ) : canEdit ? (
+            <TTLEditForm config={config} onSaved={reload} />
+          ) : (
+            <dl className="grid gap-4 sm:grid-cols-2">
               <SettingItem label="Validade do convite" value={`${config.invite_token_ttl_minutes} min`} />
               <SettingItem label="Validade da sessão do painel" value={`${config.jwt_token_ttl_minutes} min`} />
             </dl>
@@ -43,6 +74,73 @@ export function SettingsPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+function TTLEditForm({ config, onSaved }: { config: ConfigResponse; onSaved: () => void }) {
+  const [inviteTTL, setInviteTTL] = useState(String(config.invite_token_ttl_minutes))
+  const [jwtTTL, setJwtTTL] = useState(String(config.jwt_token_ttl_minutes))
+  const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    setError(null)
+    const invite = Number(inviteTTL)
+    const jwt = Number(jwtTTL)
+    if (!Number.isFinite(invite) || !Number.isFinite(jwt)) {
+      setError('Informe números válidos')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await api.updateConfig({
+        invite_token_ttl_minutes: invite,
+        jwt_token_ttl_minutes: jwt,
+      })
+      toast.success('Validades atualizadas')
+      onSaved()
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : 'Falha ao salvar'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex max-w-md flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="invite-ttl">Validade do convite (minutos)</Label>
+        <Input
+          id="invite-ttl"
+          type="number"
+          min={1}
+          max={10080}
+          value={inviteTTL}
+          onChange={(e) => setInviteTTL(e.target.value)}
+          disabled={submitting}
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="jwt-ttl">Validade da sessão do painel (minutos)</Label>
+        <Input
+          id="jwt-ttl"
+          type="number"
+          min={5}
+          max={10080}
+          value={jwtTTL}
+          onChange={(e) => setJwtTTL(e.target.value)}
+          disabled={submitting}
+        />
+      </div>
+      {submitting && <ProgressBar label="Salvando…" />}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <Button type="submit" disabled={submitting}>
+        {submitting ? 'Salvando…' : 'Salvar'}
+      </Button>
+    </form>
   )
 }
 

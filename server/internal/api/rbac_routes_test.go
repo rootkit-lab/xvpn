@@ -121,6 +121,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"auth-me", http.MethodGet, "/api/auth/me", nil, "any"},
 	{"list-my-devices", http.MethodGet, "/api/me/devices", nil, "any"},
 	{"delete-my-device", http.MethodDelete, "/api/me/devices/{ownDevice}", nil, "any"},
+	{"update-my-ssh-public-key", http.MethodPut, "/api/me/ssh-public-key", updateMySSHPublicKeyRequest{SSHPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE5x portal@test"}, "any"},
 
 	{"list-users", http.MethodGet, "/api/users", nil, "viewerUp"},
 	{"list-devices", http.MethodGet, "/api/devices", nil, "viewerUp"},
@@ -139,6 +140,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"approve-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/approve", nil, "adminOnly"},
 	{"reject-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/reject", nil, "adminOnly"},
 	{"provision-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/provision", provisionWaitlistRequest{Username: "gerado-pelo-teste-2"}, "adminOnly"},
+	{"update-config", http.MethodPatch, "/api/config", updateConfigRequest{InviteTokenTTLMinutes: intPtr(30)}, "adminOnly"},
 
 	{"list-marketplace-apps", http.MethodGet, "/api/marketplace/apps", nil, "any"},
 	{"download-marketplace-asset", http.MethodGet, "/api/marketplace/assets/{marketAsset}/download", nil, "any"},
@@ -147,6 +149,7 @@ var rbacRouteCases = []rbacRouteCase{
 }
 
 func strPtr(s string) *string { return &s }
+func intPtr(n int) *int       { return &n }
 
 func tierAllows(tier string, role store.Role) bool {
 	switch tier {

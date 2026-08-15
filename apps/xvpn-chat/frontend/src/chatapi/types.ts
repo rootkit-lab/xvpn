@@ -1,6 +1,6 @@
 export type PresenceStatus = 'online' | 'away' | 'dnd' | 'invisible' | 'offline'
 
-export type ChatTheme = 'light' | 'dark' | 'icq'
+export type ChatTheme = 'light' | 'dark' | 'icq' | 'inherit'
 
 export type Session = {
   loggedIn: boolean

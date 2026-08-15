@@ -54,9 +54,6 @@ type ChatContextValue = {
   setActiveKey: (k: string | null) => void
   dockOpen: boolean
   setDockOpen: (v: boolean) => void
-  dockWindows: string[]
-  openDockWindow: (key: string) => void
-  closeDockWindow: (key: string) => void
   query: string
   setQuery: (q: string) => void
   people: Profile[]
@@ -93,7 +90,6 @@ export function ChatProvider({
   const [unread, setUnread] = useState<Record<string, number>>({})
   const [activeKey, setActiveKey] = useState<string | null>(null)
   const [dockOpen, setDockOpen] = useState(false)
-  const [dockWindows, setDockWindows] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [people, setPeople] = useState<Profile[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -123,10 +119,10 @@ export function ChatProvider({
   }, [api])
 
   const activeKeyRef = useRef<string | null>(null)
-  const dockWindowsRef = useRef<string[]>([])
+  const dockOpenRef = useRef(false)
   const loadListsRef = useRef(loadLists)
   activeKeyRef.current = activeKey
-  dockWindowsRef.current = dockWindows
+  dockOpenRef.current = dockOpen
   loadListsRef.current = loadLists
 
   useEffect(() => {
@@ -185,7 +181,7 @@ export function ChatProvider({
         setContacts((prev) =>
           prev.map((c) => (c.key === key ? { ...c, lastBody: msg.body, lastAt: msg.created_at } : c)),
         )
-        const focused = activeKeyRef.current === key || dockWindowsRef.current.includes(key)
+        const focused = dockOpenRef.current && activeKeyRef.current === key
         if (!focused || document.hidden) {
           setUnread((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }))
           if (document.hidden) {
@@ -213,7 +209,6 @@ export function ChatProvider({
           const th = await api.openThread(detail.username!)
           const c = threadToContact(th)
           setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
-          setDockWindows((prev) => (prev.includes(c.key) ? prev : [...prev, c.key].slice(-3)))
           setActiveKey(c.key)
           setUnread((prev) => ({ ...prev, [c.key]: 0 }))
           await loadMessages(c.key, c.kind, c.id)
@@ -227,7 +222,6 @@ export function ChatProvider({
           title: detail.title || `Grupo #${detail.groupId}`,
         }
         setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
-        setDockWindows((prev) => (prev.includes(c.key) ? prev : [...prev, c.key].slice(-3)))
         setActiveKey(c.key)
         void loadMessages(c.key, 'group', c.id)
       }
@@ -244,21 +238,6 @@ export function ChatProvider({
     [api],
   )
 
-  const openDockWindow = useCallback(
-    (key: string) => {
-      setDockWindows((prev) => (prev.includes(key) ? prev : [...prev, key].slice(-3)))
-      setActiveKey(key)
-      setUnread((u) => ({ ...u, [key]: 0 }))
-      const c = contacts.find((x) => x.key === key)
-      if (c) void loadMessages(key, c.kind, c.id)
-    },
-    [contacts, loadMessages],
-  )
-
-  const closeDockWindow = useCallback((key: string) => {
-    setDockWindows((prev) => prev.filter((k) => k !== key))
-  }, [])
-
   const searchPeople = useCallback(
     async (q: string) => {
       const page = await api.listPeople(1, q)
@@ -273,7 +252,7 @@ export function ChatProvider({
       const c = threadToContact(th)
       setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
       setActiveKey(c.key)
-      setDockWindows((prev) => (prev.includes(c.key) ? prev : [...prev, c.key].slice(-3)))
+      setDockOpen(true)
       await loadMessages(c.key, c.kind, c.id)
       return c
     },
@@ -358,9 +337,6 @@ export function ChatProvider({
       },
       dockOpen,
       setDockOpen,
-      dockWindows,
-      openDockWindow,
-      closeDockWindow,
       query,
       setQuery,
       people,
@@ -389,9 +365,6 @@ export function ChatProvider({
       contacts,
       loadMessages,
       dockOpen,
-      dockWindows,
-      openDockWindow,
-      closeDockWindow,
       query,
       people,
       searchPeople,

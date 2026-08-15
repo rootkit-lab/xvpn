@@ -19,6 +19,10 @@ const MarketplacePage = lazy(() => import('@/pages/marketplace-page').then((m) =
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
 const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
+const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
+const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
+const FilesPage = lazy(() => import('@/pages/files-page').then((m) => ({ default: m.FilesPage })))
+const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
 
 export default function App() {
   return (
@@ -37,8 +41,11 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/app" element={<UserShell />}>
                 <Route index element={<PortalPage />} />
+                <Route path="files" element={<FilesPage />} />
                 <Route path="download" element={<DownloadPage />} />
                 <Route path="marketplace" element={<MarketplacePage variant="consume" />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="account" element={<AccountPage />} />
               </Route>
             </Route>
 
@@ -47,6 +54,7 @@ export default function App() {
               <Route path="/admin" element={<AdminShell />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="rbac" element={<RbacPage />} />
                 <Route path="devices" element={<DevicesPage />} />
                 <Route path="shares" element={<SharesPage />} />
                 <Route path="waitlist" element={<WaitlistPage />} />

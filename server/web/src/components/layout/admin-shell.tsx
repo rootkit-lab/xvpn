@@ -12,6 +12,7 @@ import {
   Download,
   Store,
   UserRound,
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import { ROLE_BADGE_VARIANT, ROLE_LABELS, VIEWER_UP_ROLES, type Role } from '@/l
 const ADMIN_NAV: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES },
   { to: '/admin/users', label: 'Usuários', icon: Users, roles: VIEWER_UP_ROLES },
+  { to: '/admin/rbac', label: 'Papéis', icon: Shield, roles: VIEWER_UP_ROLES },
   { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES },
   { to: '/admin/shares', label: 'Compartilhamentos', icon: HardDrive, roles: VIEWER_UP_ROLES },
   { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES },

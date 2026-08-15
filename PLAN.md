@@ -249,9 +249,14 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 |---|---|---|
 | Prefixo | `/app/*` | `/admin/*` |
 | Login | `/app/login` | `/admin/login` |
-| Shell | `UserShell` (Início, Downloads, Apps) | `AdminShell` (dashboard, users, devices, …) |
+| Shell | `UserShell` (Início, Arquivos, Downloads, Apps; Perfil e Editar conta no rodapé) | `AdminShell` (dashboard, users, papéis, devices, …) |
 | Destino pós-login | `member` → `/app` | `viewer+` → `/admin` |
 | Cruzamento | viewer+ vê link “Administração” | link “Meu espaço” → `/app` |
+| Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
+
+Páginas do membro (`/app`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, Perfil (somente leitura), Editar conta (senha + chave SSH).
+
+Página admin de papéis: `/admin/rbac` (hierarquia `CanManage`, matriz de permissões, contagens). A lista `/admin/users` filtra por papel.
 
 Aliases legados: `/portal`→`/app`, `/dashboard`→`/admin`, `/users`→`/admin/users`, etc. A API RBAC não muda — só o chrome e as URLs.
 

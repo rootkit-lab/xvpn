@@ -122,6 +122,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-my-devices", http.MethodGet, "/api/me/devices", nil, "any"},
 	{"delete-my-device", http.MethodDelete, "/api/me/devices/{ownDevice}", nil, "any"},
 	{"update-my-ssh-public-key", http.MethodPut, "/api/me/ssh-public-key", updateMySSHPublicKeyRequest{SSHPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE5x portal@test"}, "any"},
+	{"change-my-password", http.MethodPatch, "/api/me/password", changeMyPasswordRequest{CurrentPassword: "senha-caller-123", NewPassword: "senha-nova-456"}, "any"},
 
 	{"list-users", http.MethodGet, "/api/users", nil, "viewerUp"},
 	{"list-devices", http.MethodGet, "/api/devices", nil, "viewerUp"},

@@ -8,7 +8,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Próximo / em curso (v0.3):** [Fase 17 — Separar Painel do Usuário × Administração](#fase-17--separar-painel-do-usuário--administração). Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
+> **Próximo / em curso (v0.3):** [Fase 18 — Conta do membro e papéis no admin](#fase-18--conta-do-membro-e-papéis-no-admin) (após a [Fase 17](#fase-17--separar-painel-do-usuário--administração) já entregue). Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
 >
 > **Ordem histórica do ciclo v0.2:** correções urgentes → **16.1** → **Fase 14** → resto da **16** → **Fase 15**. Ver [justificativa](#ordem-de-execução-do-ciclo-v02-decidida).
 
@@ -646,6 +646,22 @@ O SPA do painel deixou de ser um shell único filtrado por papel. Dois namespace
 - [x] Documentação em `PLAN.md` §6.7
 
 **Critério de saída:** member autenticado não vê chrome nem rotas de administração; admin/viewer caem em `/admin`; URLs antigas redirecionam; build do `server/web` verde.
+
+---
+
+## Fase 18 — Conta do membro e papéis no admin
+
+O painel do usuário deixa de ser só Início/Downloads/Apps: perfil, edição da própria conta e caminhos de arquivo. No admin, a hierarquia RBAC ganha uma tela própria em vez de viver só nos diálogos de `/admin/users`.
+
+- [x] `PATCH /api/me/password` (authed): senha atual + nova (mín. 8), Argon2id, audit `me.password_change`; 400 se a atual estiver errada (não 401, para não derrubar a sessão); rate limit reusa o do login
+- [x] Páginas `/app/profile` (somente leitura: papel, cota, SFTP/Samba, resumo de devices) e `/app/account` (trocar senha + chave SSH)
+- [x] Página `/app/files` com UNC/URI Samba, SFTP e FileBrowser em `10.66.66.1` (member não chama `GET /api/config`)
+- [x] `UserShell`: nav Arquivos; Perfil e Editar conta no rodapé; username liga ao perfil
+- [x] `/admin/rbac`: hierarquia `CanManage`, matriz de permissões, contagens por papel
+- [x] `/admin/users`: cards de contagem, filtro por papel, coluna SFTP/Samba, atalho para papéis
+- [x] Matriz RBAC e testes do handler de senha; docs em `PLAN.md` §6.7
+
+**Critério de saída:** member troca a própria senha sem admin; perfil e arquivos visíveis no Meu espaço; admin vê a matriz de papéis e filtra usuários por role; `go test` no server e build do `server/web` verdes.
 
 ---
 

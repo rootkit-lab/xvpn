@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Download, Home, LogOut, Settings2, Store } from 'lucide-react'
+import { Download, FolderOpen, Home, LogOut, Settings2, Store, UserRound, UserCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -9,8 +9,14 @@ import { isViewerUpRole, ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
 
 const USER_NAV = [
   { to: '/app', label: 'Início', icon: Home, end: true },
+  { to: '/app/files', label: 'Arquivos', icon: FolderOpen, end: false },
   { to: '/app/download', label: 'Downloads', icon: Download, end: false },
   { to: '/app/marketplace', label: 'Apps', icon: Store, end: false },
+] as const
+
+const ACCOUNT_NAV = [
+  { to: '/app/profile', label: 'Perfil', icon: UserRound },
+  { to: '/app/account', label: 'Editar conta', icon: UserCog },
 ] as const
 
 /** Shell do painel do usuário — autosserviço, sem chrome de ops. */
@@ -58,13 +64,33 @@ export function UserShell() {
           ))}
         </nav>
         <div className="space-y-1 border-t border-white/8 p-3">
+          {ACCOUNT_NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+                )
+              }
+            >
+              <Icon className="size-4" />
+              {label}
+            </NavLink>
+          ))}
           {user && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <Link
+              to="/app/profile"
+              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 hover:bg-white/5"
+            >
               <span className="truncate text-sm font-medium" title={user.username}>
                 {user.username}
               </span>
               <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
-            </div>
+            </Link>
           )}
           {showAdminLink && (
             <Button variant="ghost" className="w-full justify-start gap-3 rounded-xl" asChild>

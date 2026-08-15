@@ -18,6 +18,7 @@ const ThemeCtx = createContext<{ theme: ChatTheme; setTheme: (t: ChatTheme) => v
 export function ChatThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ChatTheme>(readTheme)
   const setTheme = useCallback((t: ChatTheme) => {
+    if (t === 'inherit') return
     setThemeState(t)
     try {
       localStorage.setItem(KEY, t)

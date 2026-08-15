@@ -66,6 +66,15 @@
   --status-offline: oklch(0.7 0.02 260);
 }
 
+/* Chrome do painel: herda navy/azul do Workspace, só define bolinhas de status. */
+.xvpn-chat-root[data-chat-theme='inherit'] {
+  background: transparent;
+  --status-online: oklch(0.75 0.18 145);
+  --status-away: oklch(0.8 0.16 85);
+  --status-dnd: oklch(0.65 0.2 25);
+  --status-offline: oklch(0.55 0.02 260);
+}
+
 .xvpn-chat-root[data-chat-theme='icq'] {
   --background: oklch(0.18 0.03 145);
   --foreground: oklch(0.97 0.02 135);

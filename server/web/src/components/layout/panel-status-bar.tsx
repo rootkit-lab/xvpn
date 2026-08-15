@@ -1,18 +1,22 @@
-import { useCallback } from 'react'
-import { Activity, Shield } from 'lucide-react'
+import { useCallback, useMemo } from 'react'
+import { Activity, MessageCircle, Shield } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDuration } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
 import { ROLE_LABELS } from '@/lib/roles'
 import { cn } from '@/lib/utils'
+import { useChatPanel } from '@/components/layout/use-chat-panel'
 
-/** Barra de status fixa — saúde da API e sessão. GET /api/status é público. */
+/** Barra de status fixa — saúde da API, chat e sessão. GET /api/status é público. */
 export function PanelStatusBar({ variant }: { variant: 'user' | 'admin' }) {
   const { user } = useAuth()
   const fetchStatus = useCallback(() => api.status(), [])
   const { data: status, error } = usePollingData(fetchStatus, 10_000)
   const online = Boolean(status) && !error
+  const { hidden, open, setDockOpen, unread, session } = useChatPanel()
+  const totalUnread = useMemo(() => Object.values(unread).reduce((a, b) => a + b, 0), [unread])
+  const showChat = Boolean(session?.loggedIn && !hidden)
 
   return (
     <footer
@@ -23,6 +27,32 @@ export function PanelStatusBar({ variant }: { variant: 'user' | 'admin' }) {
           : 'border-white/8 bg-card/70 backdrop-blur-xl',
       )}
     >
+      {showChat && (
+        <>
+          <button
+            type="button"
+            aria-pressed={open}
+            aria-controls="xvpn-chat-sidebar"
+            aria-label={open ? 'Fechar chat' : 'Abrir chat'}
+            onClick={() => setDockOpen(!open)}
+            className={cn(
+              'relative flex items-center gap-1.5 rounded-md px-2 py-0.5 font-sans transition-colors',
+              open
+                ? 'bg-primary/15 text-primary'
+                : 'hover:bg-white/5 hover:text-foreground',
+            )}
+          >
+            <MessageCircle className="size-3.5" />
+            Chat
+            {totalUnread > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {totalUnread > 9 ? '9+' : totalUnread}
+              </span>
+            )}
+          </button>
+          <span className="text-white/15">│</span>
+        </>
+      )}
       <span className="flex items-center gap-1.5">
         <span
           className={cn(

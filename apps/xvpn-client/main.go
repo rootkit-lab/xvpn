@@ -145,6 +145,15 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 	connectItem := menu.Add("Conectar").OnClick(func(_ *application.Context) {
 		go func() {
 			svc := &VPNService{}
+			// Sem sessão do painel (mesmo JWT do marketplace), abre a janela
+			// para o fluxo AnyConnect — usuário/senha antes do túnel. Com
+			// sessão válida nesta execução, sobe o túnel direto.
+			if !svc.MarketplaceSessionStatus().LoggedIn {
+				window.Show()
+				window.Focus()
+				app.Event.Emit("xvpn:request-connect-auth")
+				return
+			}
 			if err := svc.Connect(); err != nil {
 				slog.Warn("tray connect failed", "err", err)
 			}

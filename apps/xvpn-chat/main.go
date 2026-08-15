@@ -41,7 +41,7 @@ func main() {
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "XVPN Chat",
-		Width:            920,
+		Width:            960,
 		Height:           640,
 		BackgroundColour: application.NewRGB(15, 17, 21),
 		URL:              "/",

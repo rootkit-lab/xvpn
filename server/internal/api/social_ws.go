@@ -65,7 +65,10 @@ func (a *App) handleSocialWS(c *gin.Context) {
 	ch := a.Hub.subscribe(claims.UserID)
 	defer a.Hub.unsubscribe(claims.UserID, ch)
 
-	_ = conn.WriteJSON(wsEvent{Type: "presence", Payload: gin.H{"ok": true, "user_id": claims.UserID}})
+	selfStatus := a.Hub.statusOf(claims.UserID)
+	_ = conn.WriteJSON(wsEvent{Type: "presence", Payload: gin.H{"user_id": claims.UserID, "status": selfStatus}})
+	_ = conn.WriteJSON(wsEvent{Type: "presence.snapshot", Payload: a.Hub.presenceSnapshot()})
+	a.Hub.broadcastPresence(claims.UserID, selfStatus)
 
 	done := make(chan struct{})
 	go func() {
@@ -82,6 +85,8 @@ func (a *App) handleSocialWS(c *gin.Context) {
 			switch incoming.Type {
 			case "typing":
 				a.relayTyping(claims.UserID, incoming.Payload)
+			case "presence":
+				a.applyPresence(claims.UserID, incoming.Payload)
 			case "message.ack":
 				// cliente confirma recebimento — sem persistência extra
 			}
@@ -102,6 +107,17 @@ func (a *App) handleSocialWS(c *gin.Context) {
 			}
 		}
 	}
+}
+
+func (a *App) applyPresence(from uint, payload any) {
+	raw, _ := json.Marshal(payload)
+	var body struct {
+		Status string `json:"status"`
+	}
+	if json.Unmarshal(raw, &body) != nil {
+		return
+	}
+	a.Hub.setStatus(from, body.Status)
 }
 
 func (a *App) relayTyping(from uint, payload any) {

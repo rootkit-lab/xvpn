@@ -312,6 +312,8 @@ export interface SocialThread {
   kind: 'dm' | 'group'
   title: string
   peer_user_id?: number
+  last_body?: string
+  last_at?: string
 }
 
 export interface SocialMessage {

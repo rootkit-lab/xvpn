@@ -1,0 +1,119 @@
+/* Temas do messenger (Fase 20). Tokens só valem dentro de .xvpn-chat-root
+   para não pintar o chrome Workspace do painel. */
+
+.xvpn-chat-root {
+  --icq-green: oklch(0.72 0.19 135);
+  --radius: 0.75rem;
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+.xvpn-chat-root[data-chat-theme='dark'] {
+  --background: oklch(0.16 0.02 260);
+  --foreground: oklch(0.97 0.01 260);
+  --card: oklch(0.22 0.025 260);
+  --card-foreground: oklch(0.97 0.01 260);
+  --primary: oklch(0.7 0.14 230);
+  --primary-foreground: oklch(0.16 0.02 230);
+  --secondary: oklch(0.28 0.02 260);
+  --secondary-foreground: oklch(0.96 0.005 260);
+  --muted: oklch(0.24 0.02 260);
+  --muted-foreground: oklch(0.7 0.02 260);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.7 0.14 230);
+  --status-online: oklch(0.75 0.18 145);
+  --status-away: oklch(0.8 0.16 85);
+  --status-dnd: oklch(0.65 0.2 25);
+  --status-offline: oklch(0.55 0.02 260);
+}
+
+.xvpn-chat-root[data-chat-theme='light'] {
+  --background: oklch(0.97 0.01 90);
+  --foreground: oklch(0.22 0.03 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 260);
+  --primary: oklch(0.55 0.16 230);
+  --primary-foreground: oklch(0.99 0.01 230);
+  --secondary: oklch(0.94 0.02 260);
+  --secondary-foreground: oklch(0.25 0.03 260);
+  --muted: oklch(0.93 0.015 260);
+  --muted-foreground: oklch(0.45 0.02 260);
+  --destructive: oklch(0.55 0.2 25);
+  --border: oklch(0.22 0.03 260 / 12%);
+  --input: oklch(0.22 0.03 260 / 10%);
+  --ring: oklch(0.55 0.16 230);
+  --status-online: oklch(0.62 0.18 145);
+  --status-away: oklch(0.72 0.16 85);
+  --status-dnd: oklch(0.58 0.2 25);
+  --status-offline: oklch(0.7 0.02 260);
+}
+
+.xvpn-chat-root[data-chat-theme='icq'] {
+  --background: oklch(0.18 0.03 145);
+  --foreground: oklch(0.97 0.02 135);
+  --card: oklch(0.24 0.04 145);
+  --card-foreground: oklch(0.97 0.02 135);
+  --primary: oklch(0.78 0.2 135);
+  --primary-foreground: oklch(0.18 0.04 135);
+  --secondary: oklch(0.3 0.04 145);
+  --secondary-foreground: oklch(0.96 0.02 135);
+  --muted: oklch(0.26 0.03 145);
+  --muted-foreground: oklch(0.78 0.04 135);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(0.78 0.2 135 / 22%);
+  --input: oklch(0.78 0.2 135 / 16%);
+  --ring: oklch(0.78 0.2 135);
+  --status-online: oklch(0.82 0.22 135);
+  --status-away: oklch(0.82 0.16 85);
+  --status-dnd: oklch(0.65 0.2 25);
+  --status-offline: oklch(0.5 0.02 145);
+}
+
+.xvpn-chat-flower {
+  width: 1.25rem;
+  height: 1.25rem;
+  position: relative;
+}
+
+.xvpn-chat-flower span {
+  position: absolute;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: var(--primary);
+}
+
+.xvpn-chat-flower span:nth-child(1) {
+  top: 0;
+  left: 0.4rem;
+}
+.xvpn-chat-flower span:nth-child(2) {
+  top: 0.4rem;
+  right: 0;
+}
+.xvpn-chat-flower span:nth-child(3) {
+  bottom: 0;
+  left: 0.4rem;
+}
+.xvpn-chat-flower span:nth-child(4) {
+  top: 0.4rem;
+  left: 0;
+}

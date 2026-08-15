@@ -143,11 +143,11 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
 const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/social/messages',
-    meta: { kicker: 'Social', title: 'Mensagens', description: 'Conversas privadas com outros membros.' },
+    meta: { kicker: 'Social', title: 'Mensagens', description: 'Messenger da organização — a rede continua em Pessoas e Grupos.' },
   },
   {
     prefix: '/social/groups',
-    meta: { kicker: 'Social', title: 'Grupos', description: 'Espaços de conversa da organização.' },
+    meta: { kicker: 'Social', title: 'Grupos', description: 'Espaços da organização. O chat abre no dock, sem sair desta página.' },
   },
   {
     prefix: '/social/u',

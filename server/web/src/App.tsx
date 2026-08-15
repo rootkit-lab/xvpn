@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
 import { SocialShell } from '@/components/layout/social-shell'
+import { ChatHost } from '@/components/layout/chat-host'
 import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
@@ -43,6 +44,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ChatHost>
         <Suspense fallback={<PageFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
@@ -87,6 +89,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
+        </ChatHost>
       </AuthProvider>
     </BrowserRouter>
   )

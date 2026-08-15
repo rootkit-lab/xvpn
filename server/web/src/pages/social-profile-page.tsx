@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { openChat } from '@chat/messenger/open-chat'
 import { toast } from 'sonner'
 import { api, ApiError, type SocialProfile } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -15,7 +16,6 @@ import { Badge } from '@/components/ui/badge'
 export function SocialProfilePage() {
   const { username } = useParams()
   const { user } = useAuth()
-  const navigate = useNavigate()
   const fetchProfile = useCallback(() => api.getSocialProfile(username ?? ''), [username])
   const { data, loading, error, reload } = usePollingData(fetchProfile, 20_000)
 
@@ -37,13 +37,8 @@ export function SocialProfilePage() {
     }
   }
 
-  async function openDM() {
-    try {
-      await api.openSocialThread(profile.username)
-      navigate('/social/messages')
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Falha ao abrir conversa')
-    }
+  function openDM() {
+    openChat({ username: profile.username })
   }
 
   return (

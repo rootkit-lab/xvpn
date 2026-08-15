@@ -13,7 +13,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@chat/*": ["src/*"]
     },
     "strict": true,
     "noUnusedLocals": true,

@@ -11,12 +11,21 @@ Group=xvpn
 WorkingDirectory=/opt/xvpn
 ExecStart=/opt/xvpn/bin/xvpn-server
 
-# CAP_NET_ADMIN é suficiente para criar/configurar a interface WireGuard
-# (ip link add, endereço, wgctrl) — não roda como root (ver PLAN.md §6.1 e
-# .cursor/rules/go-backend.mdc).
+# CAP_NET_ADMIN no processo xvpn (não-root) basta para WireGuard via
+# wgctrl (PLAN.md §6.1). AmbientCapabilities entrega essa cap sem
+# precisar de root no servidor.
+#
+# NÃO restringir CapabilityBoundingSet só a CAP_NET_ADMIN: a Fase 13
+# chama `sudo -n /opt/xvpn/bin/xvpn-user-provision`, e o bounding set
+# do systemd aplica-se também ao filho elevado — root via sudo ficaria
+# sem CAP_CHOWN/SETUID/DAC_OVERRIDE e useradd/setquota falhariam.
 AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
-NoNewPrivileges=true
+
+# Fase 13 (sudoers → xvpn-user-provision): NoNewPrivileges=true impede
+# o sudo de elevar para root ("the 'no new privileges' flag is set").
+# Troca consciente — o escopo privilegiado continua no binário fixo +
+# sudoers sem wildcard (SECURITY.md), não no processo do servidor.
+NoNewPrivileges=false
 
 # Variáveis de ambiente específicas do host (segredo do JWT, endpoint
 # público, credenciais do primeiro admin) ficam fora do repositório — ver
@@ -26,11 +35,22 @@ EnvironmentFile=/opt/xvpn/xvpn-server.env
 Restart=on-failure
 RestartSec=5
 
-# Hardening adicional (systemd sandboxing) — o serviço não precisa de mais
-# acesso ao sistema de arquivos do que isto.
-ProtectSystem=strict
+# Hardening (systemd sandboxing).
+#
+# ProtectSystem=strict torna quase tudo RO e exige liberar cada path
+# gravável. Isso quebra o useradd da Fase 13: o lock é /etc/.pwd.lock
+# (arquivo criado sob demanda — não dá para listar em ReadWritePaths
+# antes de existir) e backups passwd-/shadow- idem. ProtectSystem=true
+# mantém /usr e /boot RO e deixa /etc,/home,/var,/opt graváveis o
+# bastante para o provisionador — ver SECURITY.md.
+ProtectSystem=true
+# Diretório de dados do servidor (DB, marketplace). Redundante com
+# ProtectSystem=true (/opt já é RW), mas documenta a intenção e evita
+# surpresa se no futuro voltarmos a strict.
 ReadWritePaths=/opt/xvpn/data
-ProtectHome=true
+# ProtectHome=true montaria /home inacessível no namespace do serviço —
+# incompatível com create/enable-sftp mesmo após sudo.
+ProtectHome=false
 PrivateTmp=true
 ReadOnlyPaths=/etc/wireguard
 

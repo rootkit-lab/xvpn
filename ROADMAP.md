@@ -4,13 +4,13 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2** (Fases 0–16) e **v0.3** (Fases 17–18 + chrome fixo) concluídos em código/produção.
+> **Status:** Ciclos **v0.2** (Fases 0–16), **v0.3** (Fases 17–18 + chrome fixo) e **v0.4** (Fase 19) concluídos em código/produção.
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Próximo / em curso (v0.4):** [Fase 19 — Redesign Workspace, social e chat](#fase-19--redesign-workspace-social-e-chat). Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
+> **Próximo / em curso (v0.5):** [Fase 20 — `xvpn-chat` web + desktop (ICQ)](#fase-20--xvpn-chat-web--desktop-icq). Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
 >
-> **Ordem desta fase:** **19.1** chrome/rotas/componentes → **19.2** diretório de usuários → **19.3** XVPN Social (web + WebSocket) → **19.4** app `xvpn-chat` no marketplace. Ver [justificativa](#ordem-de-execução-do-ciclo-v04-decidida).
+> **Ordem desta fase:** **20.1** stack compartilhada + temas → **20.2** messenger estilo ICQ → **20.3** superfície web → **20.4** janela desktop. Ver [justificativa](#ordem-de-execução-do-ciclo-v05-decidida).
 
 ---
 
@@ -804,6 +804,83 @@ Cliente nativo do protocolo da 19.3, publicado pelo mesmo pipeline da Fase 16 (`
 
 **Fora de escopo desta fase:** rede social pública (sem login / indexável), stories/feed estilo Instagram, E2E encryption (a organização já é o perímetro da VPN; mensagens ficam no SQLite do servidor), segundo domínio, porta extra, Redis/broker MQTT.
 
+A 19.4 entregou o **esqueleto** (Wails3 + JWT + WS + catálogo). O produto de messenger — um frontend só, web e desktop, visual moderno inspirado no ICQ — é a [Fase 20](#fase-20--xvpn-chat-web--desktop-icq).
+
+---
+
+
+
+## Fase 20 — `xvpn-chat` web + desktop (ICQ)
+
+Ciclo **v0.5**. O `xvpn-client` já é o app de VPN (Go / Wails3 / React / Tailwind / shadcn). O `xvpn-chat` precisa do mesmo tratamento: **um cliente de messenger**, não uma tabela Workspace e não um formulário Wails de três abas.
+
+**Alvo visual:** redesign moderno inspirado no **ICQ** (clone contemporâneo, não pixel-perfect de 2002): lista de contatos à esquerda com nick, avatar, última mensagem e bolinha de status; conversa à direita; presença (online / ausente / ocupado / invisível) mapeada no `presence` do WebSocket da 19.3; acento verde-flor ICQ. Temas em **SASS** (claro, escuro, ICQ) via tokens → CSS variables, consumidos pelo Tailwind/shadcn.
+
+**Um frontend, duas cascas** — o mesmo React em `apps/xvpn-chat/frontend`:
+
+| Cascas | Onde | Chrome |
+|---|---|---|
+| Desktop | `apps/xvpn-chat` (Wails3, já no marketplace) | janela própria, sem waffle Workspace |
+| Web | `/social/messages` e `/social/groups` no SPA do painel | `SocialShell` (header/waffle do sistema); o `main` é o messenger |
+
+Adapter: desktop fala com o Go via bindings Wails (`ChatService`); browser usa `fetch` + `wss://vpn.officeempresa.com/api/ws` com o JWT da sessão do painel. **Mesmo backend** da 19.3. Sem porta, domínio ou processo novo (`PLAN.md` §5 / §6.11).
+
+### Ordem de execução do ciclo v0.5 (decidida)
+
+Sem a stack compartilhada (20.1), a UI ICQ (20.2) seria copiada duas vezes e divergiria na primeira semana. A superfície web (20.3) só troca a tabela atual depois que o messenger existir. O polimento da janela Wails (20.4) é o último porque o marketplace e o protocolo já estão na 19.4. Ordem: **20.1 → 20.2 → 20.3 → 20.4**.
+
+### 20.1 Stack compartilhada e temas
+
+Alinhar o chat ao `xvpn-client` e permitir claro/escuro/ICQ sem fork de CSS.
+
+- [ ] Frontend único em `apps/xvpn-chat/frontend`: React + Tailwind + shadcn/ui + **SASS** para temas (tokens de cor, raio, tipografia). Não duplicar o kit em `server/web`.
+- [ ] Adapter `web` × `desktop`: a UI não importa `@wailsio/runtime` nem `ChatService` direto — uma fachada (`chatapi`) com login, REST, WS, presença. Implementação Wails no binário; implementação HTTP/WS no browser.
+- [ ] Temas: `light`, `dark`, `icq` (acento verde-flor). Persistência: `localStorage` na web; preferência em memória (ou config local não-secreta) no desktop. Troca sem reload.
+- [ ] shadcn mínimo do messenger (button, input, scroll-area, avatar, tooltip, dropdown de status) — reusar o padrão do cliente VPN, não inventar outro design system.
+- [ ] Build: `npm run build` do frontend alimenta o `go:embed` do Wails **e** um ponto de montagem no painel (20.3). Artefatos `dist/` continuam fora do Git (`PLAN.md` §11.1); só o `placeholder.txt` commitado.
+
+**Critério de saída:** o mesmo `App.tsx` sobe no Vite do chat e, com o adapter web, num harness do painel; trocar o tema altera tokens SASS visíveis; `go test` do módulo chat e build do frontend verdes.
+
+### 20.2 Messenger estilo ICQ
+
+Substituir abas Pessoas/Mensagens/Grupos e a DataTable de threads por um clone contemporâneo do ICQ.
+
+- [ ] **Layout de dois painéis:** lista de contatos (e grupos) à esquerda; conversa + composer à direita. Sem tabela de threads como tela principal.
+- [ ] **Contato:** avatar, display name / nick, preview da última mensagem, horário, bolinha de status (online / ausente / ocupado / invisível / offline). Busca no topo da lista.
+- [ ] **Conversa:** bolhas, dia, typing, scroll para o fim, histórico paginado (REST da 19.3) + eventos ao vivo (`message.new`, `message.ack`). Composer com Enter para enviar.
+- [ ] **Status do usuário logado** editável no chrome do messenger (não no waffle Workspace); publica `presence` no WS.
+- [ ] Grupos na mesma lista (ícone distinto); abrir grupo usa o thread `group` já existente. Criar/convidar continua usando a API da 19.3 — pode ser diálogo, não página Workspace.
+- [ ] Diretório “encontrar pessoas” / follow: painel ou modal a partir da lista, não uma rota que derruba o messenger.
+- [ ] Acessível: contraste dos temas, foco no composer, lista navegável por teclado.
+
+**Critério de saída:** dois usuários reconhecem a tela como messenger (contatos + chat), não como admin; DM e grupo funcionam com WS; presença muda a bolinha no outro lado.
+
+### 20.3 Superfície web
+
+O browser deixa de usar a DataTable de `/social/messages`. O produto Social do Workspace continua existindo (perfis, follow); o **chat** passa a ser o frontend da 20.2.
+
+- [ ] Montar o messenger no `main` de `/social/messages` (e grupos, se a lista unificada absorver `/social/groups`). Sem iframe. JWT e WS os da sessão do painel (`/my/login`).
+- [ ] `/social/u/:username` (perfil) permanece página Workspace; atalho “enviar mensagem” abre o messenger com aquele contato.
+- [ ] 401 no adapter web → `/my/login` (mesmo padrão do painel). Sem token na query do WS.
+- [ ] Responsivo: em viewport estreito, lista **ou** conversa (não os dois espremidos); desktop web continua dois painéis.
+- [ ] Testes/lint do `server/web` verdes; nenhum `Upgrade` no catch-all do Nginx.
+
+**Critério de saída:** um membro no browser e outro no app desktop trocam DM na mesma UI; hard refresh em `/social/messages` restaura o messenger, não a tabela.
+
+### 20.4 Janela desktop (Wails3)
+
+O binário da 19.4 deixa de ser o formulário de três abas e passa a ser a casca nativa do mesmo frontend.
+
+- [ ] Janela Wails carrega a UI da 20.2 (adapter desktop). Login JWT só em memória (Fase 12 / 19.4).
+- [ ] Notificação local + som discreto de mensagem nova (quando a janela não está em foco). Sem listener de rede, sem Samba/FileBrowser.
+- [ ] Tema da 20.1 aplicável na janela; tamanho mínimo que caiba lista + conversa.
+- [ ] `marketplace.yaml` / CI `chat-linux` / `release-chat.yml` inalterados em espírito (Linux `.deb` + Windows `.exe`, `source: build`, `visibility: global`).
+- [ ] CI: build/vet/test do módulo + build do frontend; artefatos não commitados.
+
+**Critério de saída:** o `.deb`/`.exe` do marketplace abre o messenger ICQ; dois desktops (ou desktop + browser) conversam; `PLAN.md` §5 sem linha nova.
+
+**Fora de escopo desta fase:** protocolo/servidores da AOL/ICQ, stickers/GIF marketplace, E2E encryption, segundo domínio, porta extra, Redis, app Android/iOS nativo, reabrir o chrome Workspace do `/admin` e `/my`.
+
 ---
 
 
@@ -815,6 +892,7 @@ Cliente nativo do protocolo da 19.3, publicado pelo mesmo pipeline da Fase 16 (`
 - **Parte III (14–16):** ordem executada — correções urgentes → 16.1 → Fase 14 → resto da 16 → Fase 15 (ver [justificativa](#ordem-de-execução-do-ciclo-v02-decidida)).
 - **Parte IV (17–18):** v0.3 — split `/app`×`/admin`, depois conta do membro e papéis.
 - **Parte V (19):** v0.4 — 19.1 → 19.2 → 19.3 → 19.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v04-decidida)).
+- **Parte VI (20):** v0.5 — 20.1 → 20.2 → 20.3 → 20.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v05-decidida)).
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

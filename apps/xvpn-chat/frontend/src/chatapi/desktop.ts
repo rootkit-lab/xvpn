@@ -2,16 +2,16 @@ import { Events } from '@wailsio/runtime'
 import { ChatService } from '../../bindings/github.com/rootkit-lab/xvpn/chat'
 import type { ChatAPI, Group, Message, Page, Profile, Thread, WSEvent } from './types'
 
-type WailsPage<T> = {
-  items?: T[] | null
+type Envelope = {
+  items?: unknown[] | null
   total?: number
   page?: number
   per_page?: number
 }
 
-function asPage<T>(raw: WailsPage<T> | null | undefined): Page<T> {
+function asPage<T>(raw: Envelope | null | undefined, items: T[]): Page<T> {
   return {
-    items: raw?.items ?? [],
+    items,
     total: raw?.total ?? 0,
     page: raw?.page ?? 1,
     per_page: raw?.per_page ?? 25,
@@ -60,19 +60,23 @@ export function createDesktopChatAPI(): ChatAPI {
       await ChatService.Logout()
     },
     async listPeople(page, q) {
-      return asPage<Profile>(await ChatService.ListPeople(page, q))
+      const raw = await ChatService.ListPeople(page, q)
+      return asPage<Profile>(raw, (raw.items ?? []) as Profile[])
     },
     async listThreads(page) {
-      return asPage<Thread>(await ChatService.ListThreads(page))
+      const raw = await ChatService.ListThreads(page)
+      return asPage(raw, (raw.items ?? []).map(mapThread))
     },
     async listGroups(page) {
-      return asPage<Group>(await ChatService.ListGroups(page))
+      const raw = await ChatService.ListGroups(page)
+      return asPage<Group>(raw, (raw.items ?? []) as Group[])
     },
     async openThread(username) {
       return mapThread(await ChatService.OpenThread(username))
     },
     async listMessages(kind, id, page) {
-      return asPage<Message>(await ChatService.ListMessages(kind, id, page))
+      const raw = await ChatService.ListMessages(kind, id, page)
+      return asPage<Message>(raw, (raw.items ?? []) as Message[])
     },
     async postMessage(kind, id, body) {
       return (await ChatService.PostMessage(kind, id, body)) as Message

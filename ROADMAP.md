@@ -860,16 +860,16 @@ Substituir abas Pessoas/Mensagens/Grupos e a DataTable de threads por um clone c
 
 ### 20.3 Dock global no domínio + integração no Social
 
-O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/:username`, follow, páginas de grupo). O chat entra de dois jeitos: **botão na status bar** (rail direito opaco: contatos RTL + conversa acoplada + contas no rodapé), e **página cheia** em `/social/messages`.
+O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/:username`, follow, páginas de grupo). O chat entra de dois jeitos: **botão na status bar** (rail direito de contatos RTL + janelas de conversa no rodapé, estilo Facebook), e **página cheia** em `/social/messages`.
 
-- [x] **`ChatSidebar` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. O botão Chat vive na **status bar** (à direita); ao abrir, o **aside direito opaco** mostra contatos (RTL) e a conversa **dentro do rail** — sem modal nem backdrop sobre o `/my`. `ChatAccountsBar` no rodapé do rail lista as contas já existentes. Tema `inherit`. **Não desmontar** na troca de rota.
+- [x] **`ChatSidebar` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. O botão Chat vive na **status bar** (à direita); o **aside direito opaco** mostra só contatos (RTL). Clicar um contato abre uma **janela no rodapé** (`ChatPopouts`) — várias ao mesmo tempo, minimizar vira bolha, sem overlay sobre o `/my`. Tema `inherit`. **Não desmontar** na troca de rota.
 - [x] **Fora do chrome de chat:** landing, `/my/login`, `/admin/login`. Sem token na query do WS. 401 → `/my/login` (ou `/admin/login` se o path for admin).
 - [x] **Página cheia** `/social/messages`: o UI da 20.2 no `main`. Sem iframe. A DataTable de threads some.
-- [x] **Integração Social:** no perfil, “enviar mensagem” **abre o rail** com aquele contato e **não** tira o usuário da página. Na página de grupo social, “conversar” abre o thread `group` no rail. `/social/groups` continua página de rede.
+- [x] **Integração Social:** no perfil, “enviar mensagem” **abre uma janela** com aquele contato e **não** tira o usuário da página. Na página de grupo social, “conversar” abre o thread `group` numa janela. `/social/groups` continua página de rede.
 - [x] Responsivo: no mobile a lista de contatos sobrepõe à direita; no desktop, aside direito extra (nav esquerdo intacto).
 - [x] Testes/lint do `server/web` verdes; nenhum `Upgrade` no catch-all do Nginx.
 
-**Critério de saída:** um membro em `/my` (ou `/admin`) abre o Chat na status bar, vê contatos à direita (RTL) e conversa no próprio rail (sem overlay); as contas ficam no rodapé do rail; hard refresh em `/social` mostra a rede; `/social/messages` é o messenger cheio.
+**Critério de saída:** um membro em `/my` (ou `/admin`) abre o Chat na status bar, vê contatos à direita (RTL) e conversas em janelas no rodapé (como no Facebook); hard refresh em `/social` mostra a rede; `/social/messages` é o messenger cheio.
 
 ### 20.4 Janela desktop (Wails3)
 

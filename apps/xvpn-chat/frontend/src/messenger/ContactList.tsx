@@ -19,7 +19,7 @@ export function ContactList({
   compact?: boolean
   alignEnd?: boolean
 }) {
-  const { contacts, activeKey, presence, unread, query, setQuery, session } = useChat()
+  const { contacts, popouts, activeKey, presence, unread, query, setQuery, session } = useChat()
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -44,17 +44,18 @@ export function ContactList({
                 ? 'online'
                 : 'offline'
           const n = unread[c.key] ?? 0
+          const selected = popouts.some((p) => p.key === c.key) || activeKey === c.key
           return (
             <li key={c.key}>
               <button
                 type="button"
                 role="option"
-                aria-selected={activeKey === c.key}
+                aria-selected={selected}
                 onClick={() => onSelect(c.key)}
                 className={cn(
                   'flex w-full items-center gap-2 px-3 py-2 hover:bg-secondary/80',
                   alignEnd ? 'flex-row-reverse text-right' : 'text-left',
-                  activeKey === c.key && 'bg-secondary',
+                  selected && 'bg-secondary',
                   compact && 'py-1.5',
                 )}
               >

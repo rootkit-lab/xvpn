@@ -257,7 +257,7 @@ Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` s
 | Conteúdo | dispositivos, arquivos, downloads, apps, conta (senha/SSH) | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | dashboard, **diretório de usuários** (lista + ficha), papéis, devices, waitlist, marketplace ACL, settings, audit |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
-Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username`, não mistura com SSH/cota. Chat autenticado: **contatos + conversa** no rail direito (lista RTL, sem overlay), **contas** no rodapé do rail, gatilho na status bar do `SystemChrome` (Fase 20).
+Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username`, não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
 
 Página admin de papéis: `/admin/rbac`. Usuários: lista paginada `/admin/users` + ficha `/admin/users/:id` (abas), não tabela com cinco ícones por linha.
 
@@ -437,10 +437,11 @@ Um endpoint idempotente substitui os três passos manuais de hoje.
 
 | Workflow | Gatilho | O que faz |
 |---|---|---|
-| `release-client.yml` | tag `xvpn-client-v*` | Builda Linux + Windows, publica na GitHub Release e chama o sync. Hoje esse build é manual — é o motivo de a `v0.1.0` do cliente ter saído na mão |
+| `release-client.yml` | tag `xvpn-client-v*` | Builda Linux + Windows, publica na GitHub Release e chama o sync |
+| `release-chat.yml` | tag `xvpn-chat-v*` **ou** `workflow_dispatch` (input `tag`) | Idem para o chat. O release-please cria a tag com `GITHUB_TOKEN`, o que **não** dispara o `on: push: tags` — depois de mergear a PR `chore(main): release xvpn-chat`, rode o dispatch com a tag. Sem `.deb`/`.exe` na Release o sync **pula** o app |
 | `marketplace-sync.yml` | push na `main` + `workflow_dispatch` | Envia o full sync, com o diff (`created`/`updated`/`unchanged`/`archived`) visível no log |
 
-O `workflow_dispatch` no segundo é deliberado: quando o catálogo divergir do diretório por qualquer motivo (servidor fora do ar durante um merge, por exemplo), a correção é re-rodar o sync, não editar o banco à mão.
+O `workflow_dispatch` do `marketplace-sync.yml` é deliberado: quando o catálogo divergir do diretório por qualquer motivo (servidor fora do ar durante um merge, por exemplo), a correção é re-rodar o sync, não editar o banco à mão.
 
 **Pré-requisito já resolvido:** "Allow GitHub Actions to create and approve pull requests" está habilitado no repositório (`default_workflow_permissions: write`, `can_approve_pull_request_reviews: true`) — era o que travava o `release-please`.
 
@@ -453,7 +454,7 @@ O `workflow_dispatch` no segundo é deliberado: quando o catálogo divergir do d
 | Superfície | Onde | Papel |
 |---|---|---|
 | `/social/*` | SPA do painel | **rede social** (diretório, perfil, follow, grupos). Integra o chat (mensagem a partir do perfil) sem virar o messenger |
-| `ChatSidebar` (rail direito) | `SystemChrome` em `/my`, `/admin`, `/social` | botão Chat na status bar; contatos RTL + conversa acoplada no aside direito opaco; contas no rodapé do rail |
+| `ChatSidebar` + `ChatPopouts` | `SystemChrome` em `/my`, `/admin`, `/social` | botão Chat na status bar; contatos RTL no aside direito; conversas em janelas no rodapé (Facebook), sem overlay |
 | `/social/messages` | SPA do painel | página cheia do mesmo messenger |
 | `apps/xvpn-chat` | marketplace (Go/Wails3) | o **mesmo** frontend React na janela desktop |
 | `xvpn-server` | control-plane | identidade JWT, persistência SQLite, hub WebSocket |
@@ -489,7 +490,7 @@ Eventos: `message.new`, `message.ack`, `typing`, `presence`, `group.updated`. Hi
 
 Cliente do protocolo acima, não dono dele. JWT só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `vpn.officeempresa.com`. Publicação pelo pipeline da Fase 16 (`marketplace.yaml`, `source: build`, Linux+Windows). Esqueleto no marketplace: `ROADMAP.md` Fase 19.4. Produto (web + desktop, UI ICQ): Fase 20.
 
-**Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **rail direito** (contatos RTL + conversa acoplada + contas no rodapé), acionado pela status bar do `SystemChrome` (todas as rotas autenticadas; tema `inherit`; sem modal sobre o conteúdo) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
+**Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **rail direito de contatos** + **janelas de conversa no rodapé** (estilo Facebook, sem modal), acionados pela status bar do `SystemChrome` (todas as rotas autenticadas; tema `inherit`) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
 
 **Visual:** redesign moderno inspirado no ICQ (lista de contatos + conversa + status colorido; acento verde-flor). Temas `light` / `dark` / `icq`. Não é clone do protocolo AOL e não é a DataTable Workspace da 19.3. `/social` não é substituído pelo chat.
 
@@ -733,4 +734,4 @@ Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CO
 
 **Ciclo v0.4 concluído (`ROADMAP.md` Fase 19):** redesign estilo Google Workspace. Prefixo do membro `/my` sem alias `/app`. `/social` (perfis, follow, DM, grupos via WebSocket); `/admin` com diretório lista+ficha; kit de UI + paginação; esqueleto `apps/xvpn-chat` no marketplace. Decisões em [§6.7](#67-admin-geral-rbac) e [§6.11](#611-xvpn-social-e-xvpn-chat).
 
-**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual redesign ICQ, temas SASS. `/social` permanece rede social; o chat integra nela (rail direito opaco, sem overlay) em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.
+**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual redesign ICQ, temas SASS. `/social` permanece rede social; o chat integra nela (rail de contatos + janelas no rodapé) em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.

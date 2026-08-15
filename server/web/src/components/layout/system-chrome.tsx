@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ChatPopouts } from '@chat/messenger/ChatPopouts'
 import { ChatSidebar } from '@chat/messenger/ChatSidebar'
 import { cn } from '@/lib/utils'
 import { PanelHeader } from '@/components/layout/panel-header'
@@ -24,7 +25,8 @@ export function SystemChrome({
   mainClassName?: string
 }) {
   const location = useLocation()
-  const { open: chatOpen, activeKey } = useChatPanel()
+  const { open: chatOpen, hidden, session } = useChatPanel()
+  const showPopouts = Boolean(session?.loggedIn && !hidden)
 
   return (
     <div className={cn('relative flex h-svh w-full overflow-hidden bg-background', className)}>
@@ -89,10 +91,7 @@ export function SystemChrome({
           {chatOpen && (
             <aside
               id="xvpn-chat-sidebar"
-              className={cn(
-                'relative z-20 flex h-full shrink-0 flex-col border-l border-white/8 bg-card max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:shadow-2xl',
-                activeKey ? 'w-96 max-md:w-[min(100%,24rem)]' : 'w-80 max-md:w-[min(100%,20rem)]',
-              )}
+              className="relative z-20 flex h-full w-80 shrink-0 flex-col border-l border-white/8 bg-card max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-[min(100%,20rem)] max-md:shadow-2xl"
             >
               <ChatSidebar />
             </aside>
@@ -100,6 +99,7 @@ export function SystemChrome({
         </div>
         <PanelStatusBar variant={variant === 'admin' ? 'admin' : 'user'} />
       </div>
+      {showPopouts && <ChatPopouts railOpen={chatOpen} />}
     </div>
   )
 }

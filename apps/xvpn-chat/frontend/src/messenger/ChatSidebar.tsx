@@ -1,9 +1,7 @@
 import { MessageCircle, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useChat } from '@chat/messenger/ChatProvider'
-import { ChatAccountsBar } from '@chat/messenger/ChatAccountsBar'
 import { ContactList } from '@chat/messenger/ContactList'
-import { Conversation } from '@chat/messenger/Conversation'
 import { NewChatDialog } from '@chat/messenger/NewChatDialog'
 import { StatusDot } from '@chat/messenger/StatusDot'
 import { ChatRoot } from '@chat/messenger/ui'
@@ -18,23 +16,10 @@ const STATUS_LABEL: Record<string, string> = {
   invisible: 'Invisível',
 }
 
-/** Rail direito: contatos RTL, conversa acoplada, contas no rodapé. Sem overlay. */
+/** Rail direito: só contatos (RTL). A conversa abre em janela no rodapé. */
 export function ChatSidebar() {
-  const { session, setDockOpen, activeKey, setActiveKey, myStatus, setMyStatus } = useChat()
+  const { session, setDockOpen, setActiveKey, myStatus, setMyStatus } = useChat()
   const [statusOpen, setStatusOpen] = useState(false)
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      if (activeKey) {
-        setActiveKey(null)
-        return
-      }
-      setDockOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [activeKey, setActiveKey, setDockOpen])
 
   if (!session?.loggedIn) return null
 
@@ -87,19 +72,9 @@ export function ChatSidebar() {
         </div>
       )}
       <NewChatDialog alignEnd />
-      <div className={cn('min-h-0', activeKey ? 'max-h-[38%] shrink-0 overflow-hidden' : 'flex-1')}>
-        <ContactList onSelect={(k) => setActiveKey(k)} compact={Boolean(activeKey)} alignEnd />
+      <div className="min-h-0 flex-1">
+        <ContactList onSelect={(k) => setActiveKey(k)} alignEnd />
       </div>
-      {activeKey ? (
-        <div className="min-h-0 flex-1 border-t border-white/8">
-          <Conversation threadKey={activeKey} onClose={() => setActiveKey(null)} alignEnd />
-        </div>
-      ) : (
-        <p className="shrink-0 border-t border-white/8 px-3 py-2 text-right text-[11px] text-muted-foreground">
-          Selecione um contato para conversar
-        </p>
-      )}
-      <ChatAccountsBar />
     </ChatRoot>
   )
 }

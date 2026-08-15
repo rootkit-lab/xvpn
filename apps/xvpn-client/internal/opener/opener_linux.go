@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 func openURL(url string) error {
@@ -41,25 +42,37 @@ func ensureSMBMounted(host, share string) error {
 	uri := fmt.Sprintf("smb://%s/%s", host, share)
 	out, err := exec.Command("gio", "mount", "--anonymous", uri).CombinedOutput()
 	msg := strings.TrimSpace(string(out))
-	if err == nil {
-		return nil
+	ok := err == nil || strings.Contains(msg, "already mounted")
+	if !ok && resolveGVFSMount(host, share) == "" {
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("montando %s: %s", uri, msg)
 	}
-	// Segunda chamada (já montado) sai ≠0 com esta mensagem — sucesso.
-	if strings.Contains(msg, "already mounted") {
-		return nil
+	// gio pode sair 0 antes do FUSE publicar o diretório em
+	// /run/user/$UID/gvfs — espera curta evita o botão abrir nada / Home.
+	if waitGVFSMount(host, share, 3*time.Second) == "" {
+		return fmt.Errorf("montando %s: caminho local GVFS não apareceu a tempo", uri)
 	}
-	if resolveGVFSMount(host, share) != "" {
-		return nil
-	}
-	if msg == "" {
-		msg = err.Error()
-	}
-	return fmt.Errorf("montando %s: %s", uri, msg)
+	return nil
 }
 
-// resolveGVFSMount acha o diretório FUSE do share. Prefere o mount
-// anônimo (sem ,user=); aceita mounts com user= só como fallback (legado
-// xvpntest no Desktop/keyring) — o botão do XVPN não deve depender disso.
+func waitGVFSMount(host, share string, timeout time.Duration) string {
+	deadline := time.Now().Add(timeout)
+	for {
+		if p := resolveGVFSMount(host, share); p != "" {
+			return p
+		}
+		if time.Now().After(deadline) {
+			return ""
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// resolveGVFSMount acha o diretório FUSE do share. Prefere Stat no path
+// anônimo esperado (sem ,user=); ReadDir só para fallback de mounts
+// legados com user= (ex.: xvpntest).
 func resolveGVFSMount(host, share string) string {
 	return pickGVFSEntry(gvfsRoot(), host, share)
 }
@@ -67,18 +80,22 @@ func resolveGVFSMount(host, share string) string {
 // pickGVFSEntry escolhe entre mounts anônimo vs user= no diretório GVFS.
 // Separado pra testar sem depender de /run/user.
 func pickGVFSEntry(root, host, share string) string {
+	anonName := fmt.Sprintf("smb-share:server=%s,share=%s", host, share)
+	anonPath := filepath.Join(root, anonName)
+	if fi, err := os.Stat(anonPath); err == nil && fi.IsDir() {
+		return anonPath
+	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return ""
 	}
-	anon := fmt.Sprintf("smb-share:server=%s,share=%s", host, share)
 	var withUser string
 	for _, e := range entries {
 		name := e.Name()
-		if name == anon {
+		if name == anonName {
 			return filepath.Join(root, name)
 		}
-		if strings.HasPrefix(name, anon+",user=") {
+		if strings.HasPrefix(name, anonName+",user=") {
 			withUser = filepath.Join(root, name)
 		}
 	}

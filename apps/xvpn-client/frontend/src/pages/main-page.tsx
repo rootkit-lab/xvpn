@@ -143,24 +143,53 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
           </motion.div>
         )}
 
-        <div className="relative z-20 flex size-36 items-center justify-center">
-          {/* Anel decorativo: pointer-events-none obrigatório — com
-              animate-spin (transform) o SVG cria stacking context e, no
-              WebKitGTK do Wails, interceptava cliques no botão por baixo. */}
+        <div className="relative z-20 flex size-40 items-center justify-center">
+          {/* Halos suaves (blur) — evitam o aliasing do anel SVG único. */}
+          <div
+            className={`pointer-events-none absolute inset-0 rounded-full transition-opacity ${
+              status.connected ? 'opacity-100' : 'opacity-40'
+            }`}
+            aria-hidden="true"
+          >
+            <div className="absolute inset-[-18%] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--glow)_40%,transparent)_0%,transparent_70%)] blur-xl" />
+            <div className="absolute inset-2 rounded-full border border-primary/20" />
+            <div className="absolute inset-0 rounded-full border border-primary/10" />
+          </div>
           <svg
             viewBox="0 0 100 100"
-            className="pointer-events-none absolute inset-0 h-full w-full animate-spin-slow text-primary/40"
+            className="pointer-events-none absolute inset-0 h-full w-full animate-spin-slow text-primary/50"
             aria-hidden="true"
+            shapeRendering="geometricPrecision"
           >
             <circle
               cx="50"
               cy="50"
-              r="47"
+              r="46.5"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.5"
-              strokeDasharray="2 8"
+              strokeWidth="1.25"
+              strokeDasharray="1.5 7"
               strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+          <svg
+            viewBox="0 0 100 100"
+            className="pointer-events-none absolute inset-[6%] h-[88%] w-[88%] animate-spin-slow text-primary/25"
+            style={{ animationDirection: 'reverse', animationDuration: '18s' }}
+            aria-hidden="true"
+            shapeRendering="geometricPrecision"
+          >
+            <circle
+              cx="50"
+              cy="50"
+              r="46"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.8"
+              strokeDasharray="12 10"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
             />
           </svg>
           <motion.button
@@ -169,14 +198,15 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
             disabled={busy}
             aria-label={status.connected ? 'Desconectar' : 'Conectar'}
             whileTap={{ scale: 0.94 }}
-            animate={status.connected && !busy ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-            transition={status.connected ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' } : undefined}
-            className={`relative z-10 flex h-32 w-32 cursor-pointer items-center justify-center rounded-full border-4 transition-colors disabled:cursor-wait disabled:opacity-60 ${
+            whileHover={busy ? undefined : { scale: 1.03 }}
+            animate={status.connected && !busy ? { scale: [1, 1.025, 1] } : { scale: 1 }}
+            transition={status.connected ? { duration: 2.8, repeat: Infinity, ease: 'easeInOut' } : { type: 'spring', stiffness: 380, damping: 24 }}
+            className={`power-btn relative z-10 flex h-[7.25rem] w-[7.25rem] cursor-pointer items-center justify-center rounded-full border-[3px] transition-[border-color,background-color,color,box-shadow] duration-300 disabled:cursor-wait disabled:opacity-60 ${
               status.connected
-                ? 'animate-pulse-glow border-primary bg-primary/10 text-primary'
+                ? 'power-btn--on border-primary bg-primary/15 text-primary'
                 : status.reconnecting
-                  ? 'border-amber-500/60 bg-amber-500/10 text-amber-400'
-                  : 'border-border bg-secondary text-muted-foreground hover:border-primary/50'
+                  ? 'border-amber-500/70 bg-amber-500/10 text-amber-400 shadow-[0_0_28px_-6px_var(--glow-amber)]'
+                  : 'border-border/80 bg-secondary/90 text-muted-foreground hover:border-primary/55 hover:bg-secondary hover:text-primary'
             }`}
             style={glowVar ? ({ '--glow': glowVar } as React.CSSProperties) : undefined}
           >
@@ -187,7 +217,7 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
                 </motion.div>
               ) : (
                 <motion.div key="power" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
-                  <Power className="h-10 w-10" />
+                  <Power className="h-10 w-10 drop-shadow-[0_0_12px_color-mix(in_oklch,var(--glow)_55%,transparent)]" strokeWidth={1.75} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -240,31 +270,32 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
 
       {status.connected && (
         <div className="relative z-10 flex flex-col gap-2">
-          <div className="flex gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => openFiles('smb-home')}
               disabled={!sambaReady}
-              title={sambaHint}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:shadow-none"
+              title={sambaHint ?? 'Meus arquivos (Samba)'}
+              className="file-action-btn"
             >
-              <FolderOpen className="h-4 w-4" />
-              Meus arquivos
+              <FolderOpen className="h-4 w-4 shrink-0 opacity-90" />
+              <span className="w-full truncate text-center leading-tight">Meus arquivos</span>
             </button>
             <button
               onClick={() => openFiles('smb-shared')}
               disabled={!sambaReady}
-              title={sambaHint}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:shadow-none"
+              title={sambaHint ?? 'Compartilhado'}
+              className="file-action-btn"
             >
-              <FolderOpen className="h-4 w-4" />
-              Compartilhado
+              <FolderOpen className="h-4 w-4 shrink-0 opacity-90" />
+              <span className="w-full truncate text-center leading-tight">Compartilhado</span>
             </button>
             <button
               onClick={() => openFiles('filebrowser')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
+              title="Navegador de arquivos (web)"
+              className="file-action-btn"
             >
-              <Globe className="h-4 w-4" />
-              Navegador
+              <Globe className="h-4 w-4 shrink-0 opacity-90" />
+              <span className="w-full truncate text-center leading-tight">Navegador</span>
             </button>
           </div>
           {status.connected && !status.sambaEnabled && (

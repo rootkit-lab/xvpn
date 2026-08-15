@@ -78,9 +78,42 @@ export function MarketplacePage() {
         <Skeleton className="h-32 w-full" />
       ) : apps.length === 0 ? (
         <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            Nenhum app sincronizado ainda. Apps entram no catálogo quando o CI publica um manifesto em{' '}
-            <code className="font-mono text-xs">apps/</code>.
+          <CardHeader>
+            <CardTitle className="text-base">Catálogo ainda vazio</CardTitle>
+            <CardDescription>
+              O painel só espelha o que o CI publicou. Nada aparece aqui até existir uma release GitHub
+              compatível com o manifesto e um sync bem-sucedido.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <ol className="list-decimal space-y-2 pl-5">
+              <li>
+                Release com tag <code className="font-mono text-xs">xvpn-client-v*</code> e assets
+                nomeados como no <code className="font-mono text-xs">apps/xvpn-client/marketplace.yaml</code>{' '}
+                (ex.: <code className="font-mono text-xs">xvpn-client_0.1.0_amd64.deb</code>).
+              </li>
+              <li>
+                Workflow <code className="font-mono text-xs">marketplace-sync</code> no GitHub Actions
+                (secrets <code className="font-mono text-xs">XVPN_PUBLISH_TOKEN</code> +{' '}
+                <code className="font-mono text-xs">XVPN_SYNC_URL</code>).
+              </li>
+              <li>
+                Se o sync pular o app, o log do CI costuma mostrar 404 no download da release — a tag
+                antiga <code className="font-mono text-xs">client-v*</code> não alimenta o manifesto novo.
+              </li>
+            </ol>
+            <p>
+              Fonte:{' '}
+              <a
+                href={`${GITHUB_APPS_BASE}xvpn-client/marketplace.yaml`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+              >
+                apps/xvpn-client/marketplace.yaml
+                <ExternalLink className="size-3" />
+              </a>
+            </p>
           </CardContent>
         </Card>
       ) : (

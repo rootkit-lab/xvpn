@@ -29,7 +29,7 @@ export function DashboardPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <span className="hud-label text-muted-foreground/70">// painel administrativo</span>
+          <span className="hud-label text-muted-foreground/70">// administração do sistema</span>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">Visão geral da VPN em tempo real.</p>
         </div>

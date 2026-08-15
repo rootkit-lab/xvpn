@@ -40,9 +40,10 @@ export function PortalPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Meus dispositivos</h1>
+        <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Meu espaço</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Início</h1>
         <p className="text-muted-foreground">
-          Dispositivos VPN registrados na sua conta. Para adicionar um novo, peça um convite a um administrador.
+          Seus dispositivos VPN e chave SSH. Para adicionar um dispositivo novo, peça um convite a um administrador.
         </p>
       </div>
 

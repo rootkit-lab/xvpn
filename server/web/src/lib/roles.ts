@@ -29,12 +29,16 @@ export const ALL_ROLES: Role[] = ['super_admin', 'admin', 'viewer', 'member']
 
 // VIEWER_UP_ROLES/ADMIN_ROLES espelham store.ViewerUpRoles/store.AdminRoles
 // — usados tanto para decidir o que a navegação mostra quanto para os
-// ProtectedRoute de cada grupo de telas (ver app-shell.tsx e App.tsx).
+// ProtectedRoute de cada grupo de telas.
 export const VIEWER_UP_ROLES: Role[] = ['super_admin', 'admin', 'viewer']
 export const ADMIN_ROLES: Role[] = ['super_admin', 'admin']
 
 export function isAdminRole(role: Role | undefined): boolean {
   return role !== undefined && ADMIN_ROLES.includes(role)
+}
+
+export function isViewerUpRole(role: Role | undefined): boolean {
+  return role !== undefined && VIEWER_UP_ROLES.includes(role)
 }
 
 // canManageRole reproduz store.Role.CanManage: um ator só gerencia (edita
@@ -52,10 +56,16 @@ export function assignableRoles(actor: Role | undefined): Role[] {
   return ALL_ROLES.filter((r) => canManageRole(actor, r))
 }
 
-// defaultRouteForRole decide para onde mandar o usuário logo após o login
-// (ou ao tentar acessar uma rota fora do seu papel): member cai no portal
-// mínimo de autosserviço, os demais papéis caem no dashboard administrativo
-// (ver PLAN.md §6.7).
+/** Home pós-login: member → painel do usuário; viewer+ → administração. */
 export function defaultRouteForRole(role: Role): string {
-  return role === 'member' ? '/portal' : '/dashboard'
+  return role === 'member' ? '/app' : '/admin'
+}
+
+/** Login alinhado ao namespace que o usuário tentou abrir. */
+export function loginPathForLocation(pathname: string): string {
+  return pathname.startsWith('/admin') ? '/admin/login' : '/app/login'
+}
+
+export function loginPathForRole(role: Role): string {
+  return role === 'member' ? '/app/login' : '/admin/login'
 }

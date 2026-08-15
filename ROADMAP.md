@@ -4,11 +4,11 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclo **v0.2 concluído** em código/produção: Fases **0–16** (MVP + RBAC + marketplace + contas Unix + sync VPN↔arquivos + monorepo `apps/` + melhorias da Fase 15). Quotas de disco, portal SSH, TTLs no painel, Vitest e LICENSE já entregues.
+> **Status:** Ciclo **v0.2 concluído** em código/produção: Fases **0–16**. Quotas de disco, portal SSH, TTLs no painel, Vitest e LICENSE já entregues.
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Próximo foco:** [backlog legado](#backlog-legado-mvp--fora-das-fases-9) (Windows E2E/instalador/Service, release-please, `/apps` Android opcional, quota de *download* do marketplace) ou abrir um ciclo **v0.3** com escopo novo em `PLAN.md`.
+> **Próximo / em curso (v0.3):** [Fase 17 — Separar Painel do Usuário × Administração](#fase-17--separar-painel-do-usuário--administração). Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
 >
 > **Ordem histórica do ciclo v0.2:** correções urgentes → **16.1** → **Fase 14** → resto da **16** → **Fase 15**. Ver [justificativa](#ordem-de-execução-do-ciclo-v02-decidida).
 
@@ -629,6 +629,23 @@ O custo real da divergência é um leitor estranhar que a pasta `apps/xvpn-clien
 **Consequência assumida:** com o cliente dentro de `apps/`, ele passa a ter entrada no catálogo — hoje o struct `App` é documentado como "sempre outro software" e o cliente sai só por `/download`. A página `/download` continua sendo o caminho de primeira instalação (quem chega ali ainda não tem VPN nem, possivelmente, login); o marketplace vira o canal de atualização.
 
 **Critério de saída:** criar uma pasta em `apps/` com manifesto e mergear na `main` faz o programa aparecer no catálogo sem nenhum passo manual no painel; remover a pasta o tira da listagem; não existe mais caminho de API para publicar algo que não veio do diretório.
+
+---
+
+## Fase 17 — Separar Painel do Usuário × Administração
+
+O SPA do painel deixou de ser um shell único filtrado por papel. Dois namespaces + dois shells (mesmo deploy, mesma API RBAC) — ver [`PLAN.md` §6.7](./PLAN.md#67-admin-geral-rbac).
+
+- [x] Prefixo `/app/*` + `UserShell` (Início / Downloads / Apps) para autosserviço
+- [x] Prefixo `/admin/*` + `AdminShell` (dashboard, users, devices, shares, waitlist, marketplace, settings, audit) para `viewer+`
+- [x] Logins distintos `/app/login` e `/admin/login` (mesmo `POST /api/auth/login`, copy diferente)
+- [x] `defaultRouteForRole`: `member` → `/app`; `viewer+` → `/admin`
+- [x] Marketplace: `variant=consume` em `/app/marketplace` vs `variant=manage` (ACL) em `/admin/marketplace`
+- [x] Redirects legados (`/portal`, `/dashboard`, `/users`, …)
+- [x] Links cruzados: “Administração” no user shell (só viewer+); “Meu espaço” no admin shell
+- [x] Documentação em `PLAN.md` §6.7
+
+**Critério de saída:** member autenticado não vê chrome nem rotas de administração; admin/viewer caem em `/admin`; URLs antigas redirecionam; build do `server/web` verde.
 
 ---
 

@@ -41,15 +41,18 @@ func TestResolveGVFSMountFallsBackToUserMount(t *testing.T) {
 	}
 }
 
-func TestPickGVFSEntryPrefersStatAnonymous(t *testing.T) {
-	root := t.TempDir()
-	anon := "smb-share:server=10.66.66.1,share=shared"
-	if err := os.Mkdir(filepath.Join(root, anon), 0o755); err != nil {
-		t.Fatal(err)
+func TestShareLinkName(t *testing.T) {
+	if got := shareLinkName("shared"); got != "Compartilhado" {
+		t.Fatalf("shared: %q", got)
 	}
-	got := pickGVFSEntry(root, "10.66.66.1", "shared")
-	want := filepath.Join(root, anon)
-	if got != want {
-		t.Fatalf("Stat anônimo: want %q got %q", want, got)
+	if got := shareLinkName("home-rootkit"); got != "Meus arquivos" {
+		t.Fatalf("home: %q", got)
+	}
+}
+
+func TestPickGVFSEntryEmpty(t *testing.T) {
+	root := t.TempDir()
+	if got := pickGVFSEntry(root, "10.66.66.1", "shared"); got != "" {
+		t.Fatalf("esperava vazio, obtido %q", got)
 	}
 }

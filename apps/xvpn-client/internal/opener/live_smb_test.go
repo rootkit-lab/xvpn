@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 )
@@ -48,38 +47,20 @@ func TestLiveAnonymousMountOpenShared(t *testing.T) {
 		t.Fatalf("contas.txt no shared: %v", err)
 	}
 
+	link, err := ensureUserShareLink("10.66.66.1", "shared")
+	if err != nil {
+		t.Fatalf("ensureUserShareLink: %v", err)
+	}
+	if filepath.Base(link) != "Compartilhado" {
+		t.Fatalf("atalho: %q", link)
+	}
+	if _, err := os.Stat(filepath.Join(link, "contas.txt")); err != nil {
+		t.Fatalf("contas.txt via symlink: %v", err)
+	}
+
 	if err := openSMBShare("10.66.66.1", "shared"); err != nil {
 		t.Fatalf("openSMBShare: %v", err)
 	}
 	time.Sleep(600 * time.Millisecond)
-
-	if processArgsContain(shared) || processArgsContain("share=shared") {
-		t.Log("file manager args contêm o path GVFS — destino correto")
-	} else {
-		t.Log("não achei path nos args do file manager (janela reusada?); mount+contas.txt OK")
-	}
-}
-
-func processArgsContain(substr string) bool {
-	ents, err := os.ReadDir("/proc")
-	if err != nil {
-		return false
-	}
-	for _, e := range ents {
-		if !e.IsDir() {
-			continue
-		}
-		cmdline, err := os.ReadFile(filepath.Join("/proc", e.Name(), "cmdline"))
-		if err != nil || len(cmdline) == 0 {
-			continue
-		}
-		s := string(cmdline)
-		if !strings.Contains(s, "cosmic-files") && !strings.Contains(s, "gio") {
-			continue
-		}
-		if strings.Contains(s, substr) {
-			return true
-		}
-	}
-	return false
+	t.Logf("openSMBShare OK via %s", link)
 }

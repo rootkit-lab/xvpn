@@ -253,12 +253,20 @@ func (s *VPNService) OpenServerFiles(kind string) error {
 		if status.Username == "" {
 			return fmt.Errorf("ainda não foi possível descobrir qual é a sua conta no painel — desconecte e conecte de novo para o servidor informar")
 		}
-		return opener.OpenSMBShare(serverVPNAddress, homeSambaPrefix+status.Username)
+		err := opener.OpenSMBShare(serverVPNAddress, homeSambaPrefix+status.Username)
+		if err != nil {
+			slog.Warn("open smb-home failed", "err", err, "user", status.Username)
+		}
+		return err
 	case "smb-shared":
 		if err := requireSamba(status); err != nil {
 			return err
 		}
-		return opener.OpenSMBShare(serverVPNAddress, sharedSambaName)
+		err := opener.OpenSMBShare(serverVPNAddress, sharedSambaName)
+		if err != nil {
+			slog.Warn("open smb-shared failed", "err", err)
+		}
+		return err
 	case "filebrowser":
 		return opener.OpenURL(fmt.Sprintf("http://%s:8081", serverVPNAddress))
 	default:

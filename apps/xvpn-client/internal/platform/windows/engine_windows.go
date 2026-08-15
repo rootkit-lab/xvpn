@@ -49,6 +49,12 @@ type Engine struct {
 	cfg            tunnel.Config
 	connectedSince time.Time
 
+	// hostRouteException é o IP do servidor para o qual adicionamos a
+	// rota /32 via gateway original (equivalente a addHostRouteException
+	// no Linux). Precisa ser removida no teardown — o Close() do wintun
+	// só limpa rotas do adaptador XVPN, não a exceção na interface física.
+	hostRouteException net.IP
+
 	// killSwitch é nil quando o bloqueio fail-closed não está ativo — ver
 	// killswitch_windows.go e ROADMAP.md Fase 6. Ao contrário do Linux
 	// (engine_linux.go), aqui o kill switch é sempre desfeito e refeito a
@@ -80,6 +86,22 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 		return err
 	}
 
+	serverAddr, err := net.ResolveUDPAddr("udp", cfg.ServerEndpoint)
+	if err != nil {
+		return fmt.Errorf("não foi possível resolver %q: %w", cfg.ServerEndpoint, err)
+	}
+	// Mesma invariante do Linux (engine_linux.go): a rota /32 para o
+	// servidor via gateway original precisa existir ANTES de instalar
+	// AllowedIPs=0.0.0.0/0 no adaptador XVPN — senão o handshake WireGuard
+	// entra em loop pela própria VPN (suspeita registrada na Fase 15).
+	if err := addHostRouteException(serverAddr.IP); err != nil {
+		return fmt.Errorf("adicionando rota de exceção para %s: %w", serverAddr.IP, err)
+	}
+	e.hostRouteException = append(net.IP(nil), serverAddr.IP.To4()...)
+	if e.hostRouteException == nil {
+		e.hostRouteException = append(net.IP(nil), serverAddr.IP...)
+	}
+
 	mtu := cfg.MTU
 	if mtu <= 0 {
 		mtu = defaultMTU
@@ -87,6 +109,8 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 
 	tunDevice, err := tun.CreateTUN(ifaceName, mtu)
 	if err != nil {
+		removeHostRouteException(e.hostRouteException)
+		e.hostRouteException = nil
 		return fmt.Errorf("criando adaptador wintun %q: %w", ifaceName, err)
 	}
 
@@ -96,19 +120,27 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 	uapiConfig, err := buildUAPIConfig(cfg)
 	if err != nil {
 		dev.Close()
+		removeHostRouteException(e.hostRouteException)
+		e.hostRouteException = nil
 		return err
 	}
 	if err := dev.IpcSet(uapiConfig); err != nil {
 		dev.Close()
+		removeHostRouteException(e.hostRouteException)
+		e.hostRouteException = nil
 		return fmt.Errorf("configurando dispositivo WireGuard: %w", err)
 	}
 	if err := dev.Up(); err != nil {
 		dev.Close()
+		removeHostRouteException(e.hostRouteException)
+		e.hostRouteException = nil
 		return fmt.Errorf("subindo dispositivo WireGuard: %w", err)
 	}
 
 	if err := configureInterface(cfg); err != nil {
 		dev.Close()
+		removeHostRouteException(e.hostRouteException)
+		e.hostRouteException = nil
 		return err
 	}
 
@@ -116,6 +148,8 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 		ks, err := enableKillSwitchForConfig(tunDevice, cfg)
 		if err != nil {
 			dev.Close()
+			removeHostRouteException(e.hostRouteException)
+			e.hostRouteException = nil
 			return fmt.Errorf("ativando kill switch: %w", err)
 		}
 		e.killSwitch = ks
@@ -170,6 +204,8 @@ func (e *Engine) teardown() error {
 		e.dev.Close()
 		e.dev = nil
 	}
+	removeHostRouteException(e.hostRouteException)
+	e.hostRouteException = nil
 	e.connected = false
 	e.cfg = tunnel.Config{}
 	return nil

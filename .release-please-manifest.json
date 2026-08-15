@@ -1,5 +1,5 @@
 {
   "server": "0.0.0",
   "apps/xvpn-client": "0.1.1",
-  "apps/xvpn-chat": "0.0.0"
+  "apps/xvpn-chat": "0.1.0"
 }

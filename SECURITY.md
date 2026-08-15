@@ -73,6 +73,19 @@ operações, invocado via `sudo -n` com escopo restrito:
 - **Auditoria**: cada enable/disable é logado no audit log do painel
   (`user.file_access`, actor = admin que clicou o toggle), não pelo
   binário. O binário só loga erros no stderr.
+- **systemd (`xvpn-server.service`)**: para o caminho
+  `sudo → xvpn-user-provision` funcionar:
+  - `NoNewPrivileges=false` (com a flag ligada o sudo não eleva);
+  - sem `CapabilityBoundingSet` restrito só a `CAP_NET_ADMIN` (o
+    bounding set herda no filho elevado e quebraria
+    `useradd`/`setquota`);
+  - `ProtectSystem=true` (não `strict`) — sob `strict`, o `useradd`
+    falha com `cannot lock /etc/passwd` porque `/etc/.pwd.lock` é
+    criado sob demanda e não cabe em `ReadWritePaths` pré-existente;
+  - `ProtectHome=false` (homes SFTP/Samba em `/home/<user>`).
+  O servidor em si continua como usuário `xvpn` com
+  `AmbientCapabilities=CAP_NET_ADMIN` apenas — o root só entra no
+  caminho estreito do binário via sudoers.
 
 Use a skill `vps-security-audit` (`.cursor/skills/vps-security-audit/`) para revalidar esses pontos periodicamente — ela roda os mesmos checks read-only usados no diagnóstico inicial do projeto.
 

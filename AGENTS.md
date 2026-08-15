@@ -39,7 +39,7 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 - `.cursor/skills/` — workflows executáveis para tarefas recorrentes:
   - Infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`), checagem de colisão de porta/domínio (`port-domain-registry-check`) e deploy do binário (`deploy-xvpn-server`).
   - Git/GitHub: criar branch (`start-task`), abrir PR (`ship-pr`), squash-merge (`land-pr`), releases pendentes (`release-status`) e publicação no catálogo (`marketplace-publish`) — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases).
-  - Painel: chrome do chat (`chat-chrome`) — status bar + sidebar direita (contatos) + modal + barra de contas, nunca FAB.
+  - Painel: chrome do chat (`chat-chrome`) — status bar + rail direito (contatos RTL + conversa acoplada + contas), nunca FAB nem modal.
   Use-as em vez de reinventar os mesmos comandos a cada vez.
 - **Criação proativa de Skills**: sempre que, numa mesma sessão, um comando ou sequência de passos for repetido 3 ou mais vezes (ou já existir claramente destinado a se repetir no futuro), o agente deve propor ao usuário transformá-lo numa nova Skill em `.cursor/skills/`, seguindo o padrão já estabelecido (`SKILL.md` com frontmatter `name`/`description` + `scripts/`). Não espere o usuário pedir explicitamente — isso mantém o fluxo de trabalho consistente e evita reinventar o mesmo comando de formas ligeiramente diferentes ao longo do tempo.
 

@@ -1,15 +1,13 @@
 import type { ReactNode } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChatAccountsBar } from '@chat/messenger/ChatAccountsBar'
-import { ChatConversationModal } from '@chat/messenger/ChatConversationModal'
 import { ChatSidebar } from '@chat/messenger/ChatSidebar'
 import { cn } from '@/lib/utils'
 import { PanelHeader } from '@/components/layout/panel-header'
 import { PanelStatusBar } from '@/components/layout/panel-status-bar'
 import { useChatPanel } from '@/components/layout/use-chat-panel'
 
-/** Chrome de sistema compartilhado — nav esquerda, chat à direita, contas embaixo. */
+/** Chrome de sistema compartilhado — nav esquerda, chat no rail direito. */
 export function SystemChrome({
   variant,
   subtitle,
@@ -26,8 +24,7 @@ export function SystemChrome({
   mainClassName?: string
 }) {
   const location = useLocation()
-  const { open: chatOpen, hidden, session } = useChatPanel()
-  const showAccounts = Boolean(session?.loggedIn && !hidden)
+  const { open: chatOpen, activeKey } = useChatPanel()
 
   return (
     <div className={cn('relative flex h-svh w-full overflow-hidden bg-background', className)}>
@@ -92,16 +89,17 @@ export function SystemChrome({
           {chatOpen && (
             <aside
               id="xvpn-chat-sidebar"
-              className="relative z-20 flex h-full w-72 shrink-0 flex-col border-l border-white/8 bg-card/50 backdrop-blur-xl max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-[min(100%,18rem)] max-md:shadow-2xl"
+              className={cn(
+                'relative z-20 flex h-full shrink-0 flex-col border-l border-white/8 bg-card max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:shadow-2xl',
+                activeKey ? 'w-96 max-md:w-[min(100%,24rem)]' : 'w-80 max-md:w-[min(100%,20rem)]',
+              )}
             >
               <ChatSidebar />
             </aside>
           )}
         </div>
-        {showAccounts && <ChatAccountsBar />}
         <PanelStatusBar variant={variant === 'admin' ? 'admin' : 'user'} />
       </div>
-      {showAccounts && <ChatConversationModal />}
     </div>
   )
 }

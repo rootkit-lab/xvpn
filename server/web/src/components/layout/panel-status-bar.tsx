@@ -27,32 +27,6 @@ export function PanelStatusBar({ variant }: { variant: 'user' | 'admin' }) {
           : 'border-white/8 bg-card/70 backdrop-blur-xl',
       )}
     >
-      {showChat && (
-        <>
-          <button
-            type="button"
-            aria-pressed={open}
-            aria-controls="xvpn-chat-sidebar"
-            aria-label={open ? 'Fechar chat' : 'Abrir chat'}
-            onClick={() => setDockOpen(!open)}
-            className={cn(
-              'relative flex items-center gap-1.5 rounded-md px-2 py-0.5 font-sans transition-colors',
-              open
-                ? 'bg-primary/15 text-primary'
-                : 'hover:bg-white/5 hover:text-foreground',
-            )}
-          >
-            <MessageCircle className="size-3.5" />
-            Chat
-            {totalUnread > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {totalUnread > 9 ? '9+' : totalUnread}
-              </span>
-            )}
-          </button>
-          <span className="text-white/15">│</span>
-        </>
-      )}
       <span className="flex items-center gap-1.5">
         <span
           className={cn(
@@ -81,6 +55,30 @@ export function PanelStatusBar({ variant }: { variant: 'user' | 'admin' }) {
       <span className="ml-auto truncate">
         {user ? `${user.username} · ${ROLE_LABELS[user.role]}` : ''}
       </span>
+      {showChat && (
+        <>
+          <span className="text-white/15">│</span>
+          <button
+            type="button"
+            aria-pressed={open}
+            aria-controls="xvpn-chat-sidebar"
+            aria-label={open ? 'Fechar chat' : 'Abrir chat'}
+            onClick={() => setDockOpen(!open)}
+            className={cn(
+              'relative flex items-center gap-1.5 rounded-md px-2 py-0.5 font-sans transition-colors',
+              open ? 'bg-primary/15 text-primary' : 'hover:bg-white/5 hover:text-foreground',
+            )}
+          >
+            <MessageCircle className="size-3.5" />
+            Chat
+            {totalUnread > 0 && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                {totalUnread > 9 ? '9+' : totalUnread}
+              </span>
+            )}
+          </button>
+        </>
+      )}
     </footer>
   )
 }

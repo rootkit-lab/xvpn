@@ -233,6 +233,10 @@ func monitorTray(h *trayHandles) {
 		applyTrayStatus(h, status)
 		if status.Connected && !wasConnected {
 			go registerSSHKeyInBackground()
+			// Monta shares Samba (guest/GVFS) assim que o túnel sobe —
+			// inclusive se o app abriu já conectado. Cosmic Files só
+			// abre pasta local; o mount precisa existir antes do clique.
+			go svc.mountFileSharesBestEffort()
 		}
 		wasConnected = status.Connected
 		<-ticker.C

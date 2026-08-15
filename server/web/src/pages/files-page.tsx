@@ -19,14 +19,6 @@ export function FilesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Meu espaço</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Arquivos</h1>
-        <p className="text-muted-foreground">
-          Samba, SFTP e FileBrowser só respondem dentro da VPN. Conecte o cliente XVPN antes de abrir estes caminhos.
-        </p>
-      </div>
-
       <Card>
         <CardHeader className="flex-row items-start gap-3 space-y-0">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-muted-foreground" />

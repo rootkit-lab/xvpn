@@ -1,6 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { Shield, Users } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
@@ -15,7 +14,6 @@ import {
   type Role,
 } from '@/lib/roles'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -35,23 +33,6 @@ export function RbacPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span className="hud-label text-muted-foreground/70">// papéis e permissões</span>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Papéis</h1>
-          <p className="text-muted-foreground">
-            Hierarquia RBAC do painel. Quem gerencia quem segue o rank: um ator só altera contas no próprio nível ou
-            abaixo.
-          </p>
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/admin/users">
-            <Users className="size-4" />
-            Ir para usuários
-          </Link>
-        </Button>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

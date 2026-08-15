@@ -2,7 +2,6 @@ import { Download, ExternalLink, Monitor, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-const RELEASES_URL = 'https://github.com/rootkit-lab/xvpn/releases'
 const CLIENT_README_URL =
   'https://github.com/rootkit-lab/xvpn/blob/main/apps/xvpn-client/README.md'
 
@@ -39,21 +38,6 @@ const PACKAGES = [
 export function DownloadPage() {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Downloads</h1>
-          <p className="text-muted-foreground">
-            Cliente desktop do XVPN. Baixe a release mais recente e siga as instruções da sua plataforma.
-          </p>
-        </div>
-        <Button asChild className="rounded-full">
-          <a href={RELEASES_URL} target="_blank" rel="noreferrer">
-            Abrir GitHub Releases
-            <ExternalLink className="size-4" />
-          </a>
-        </Button>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-3">
         {PACKAGES.map(({ id, icon: Icon, title, description, install, note }) => (
           <Card key={id} className="border-white/5 bg-card/60">

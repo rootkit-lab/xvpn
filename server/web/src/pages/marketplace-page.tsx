@@ -64,18 +64,6 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="hud-label mb-1 text-muted-foreground/70">
-          {isManage ? '// administração · marketplace' : '// meu espaço · apps'}
-        </p>
-        <h1 className="text-2xl font-semibold">{isManage ? 'Marketplace' : 'Apps'}</h1>
-        <p className="text-muted-foreground">
-          {isManage
-            ? 'Catálogo espelhado de apps/*/marketplace.yaml — publicação só via CI. Aqui você controla ACL de apps restritos e baixa os arquivos.'
-            : 'Programas liberados para a sua conta. Baixe o instalador da sua plataforma e confira o SHA-256 antes de instalar.'}
-        </p>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {loading || !apps ? (

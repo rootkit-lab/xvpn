@@ -16,11 +16,6 @@ export function SharesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Compartilhamentos</h1>
-        <p className="text-muted-foreground">Diretórios do VPS compartilhados na rede privada (só via VPN).</p>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>

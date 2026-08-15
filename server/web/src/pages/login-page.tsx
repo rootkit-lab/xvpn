@@ -38,12 +38,10 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
     try {
       const loggedInUser = await login(username, password)
       const from = (location.state as { from?: string } | null)?.from
-      // Member que entrou pelo login de admin não fica no /admin — vai pro /app.
-      // Viewer+ que entrou pelo login de usuário pode ir ao destino default (admin)
-      // ou ao `from` se for rota permitida.
+      // Member que entrou pelo login de admin não fica no /admin — vai pro /my.
       let dest = from ?? defaultRouteForRole(loggedInUser.role)
       if (loggedInUser.role === 'member' && dest.startsWith('/admin')) {
-        dest = '/app'
+        dest = '/my'
       }
       if (loggedInUser.role !== 'member' && isAdminLogin && !from) {
         dest = '/admin'
@@ -129,7 +127,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
           {isAdminLogin ? (
             <>
               Conta de membro?{' '}
-              <Link to="/app/login" className="underline underline-offset-4 hover:text-foreground">
+              <Link to="/my/login" className="underline underline-offset-4 hover:text-foreground">
                 Entrar no meu espaço
               </Link>
             </>

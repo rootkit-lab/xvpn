@@ -1,0 +1,25 @@
+name: "xvpn-chat"
+arch: ${GOARCH}
+platform: "linux"
+version: ${XVPN_VERSION}
+section: "net"
+priority: "optional"
+maintainer: "rootkit-lab <noreply@officeempresa.com>"
+description: Cliente desktop de chat da organização XVPN.
+vendor: "rootkit-lab"
+homepage: "https://vpn.officeempresa.com"
+license: "MIT"
+
+contents:
+  - src: "./bin/xvpn-chat"
+    dst: "/usr/local/bin/xvpn-chat"
+    file_info:
+      mode: 0755
+  - src: "./build/appicon.png"
+    dst: "/usr/share/icons/hicolor/128x128/apps/xvpn-chat.png"
+  - src: "./build/linux/xvpn-chat.desktop"
+    dst: "/usr/share/applications/xvpn-chat.desktop"
+
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0

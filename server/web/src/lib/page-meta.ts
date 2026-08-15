@@ -6,7 +6,7 @@ export type PageMeta = {
 
 const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
-    prefix: '/app/profile',
+    prefix: '/my/profile',
     meta: {
       kicker: 'Meu espaço',
       title: 'Perfil',
@@ -14,7 +14,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
-    prefix: '/app/account',
+    prefix: '/my/account',
     meta: {
       kicker: 'Meu espaço',
       title: 'Editar minha conta',
@@ -22,7 +22,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
-    prefix: '/app/files',
+    prefix: '/my/files',
     meta: {
       kicker: 'Meu espaço',
       title: 'Arquivos',
@@ -30,7 +30,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
-    prefix: '/app/download',
+    prefix: '/my/download',
     meta: {
       kicker: 'Meu espaço',
       title: 'Downloads',
@@ -38,7 +38,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
-    prefix: '/app/marketplace',
+    prefix: '/my/marketplace',
     meta: {
       kicker: 'Meu espaço',
       title: 'Apps',
@@ -46,7 +46,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
-    prefix: '/app',
+    prefix: '/my',
     exact: true,
     meta: {
       kicker: 'Meu espaço',
@@ -140,6 +140,26 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   },
 ]
 
+const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
+  {
+    prefix: '/social/messages',
+    meta: { kicker: 'Social', title: 'Mensagens', description: 'Conversas privadas com outros membros.' },
+  },
+  {
+    prefix: '/social/groups',
+    meta: { kicker: 'Social', title: 'Grupos', description: 'Espaços de conversa da organização.' },
+  },
+  {
+    prefix: '/social/u',
+    meta: { kicker: 'Social', title: 'Perfil', description: 'Página pública do membro na organização.' },
+  },
+  {
+    prefix: '/social',
+    exact: true,
+    meta: { kicker: 'Social', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+  },
+]
+
 function matchMeta(pathname: string, table: { prefix: string; exact?: boolean; meta: PageMeta }[]): PageMeta | null {
   for (const row of table) {
     if (row.exact) {
@@ -157,6 +177,15 @@ export function pageMetaForPath(pathname: string): PageMeta {
       matchMeta(pathname, ADMIN_PAGES) ?? {
         kicker: 'Administração',
         title: 'Painel',
+        description: '',
+      }
+    )
+  }
+  if (pathname.startsWith('/social')) {
+    return (
+      matchMeta(pathname, SOCIAL_PAGES) ?? {
+        kicker: 'Social',
+        title: 'XVPN Social',
         description: '',
       }
     )

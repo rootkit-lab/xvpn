@@ -125,6 +125,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"change-my-password", http.MethodPatch, "/api/me/password", changeMyPasswordRequest{CurrentPassword: "senha-caller-123", NewPassword: "senha-nova-456"}, "any"},
 
 	{"list-users", http.MethodGet, "/api/users", nil, "viewerUp"},
+	{"get-user", http.MethodGet, "/api/users/{user}", nil, "viewerUp"},
 	{"list-devices", http.MethodGet, "/api/devices", nil, "viewerUp"},
 	{"list-waitlist", http.MethodGet, "/api/waitlist", nil, "viewerUp"},
 	{"list-audit", http.MethodGet, "/api/audit", nil, "viewerUp"},
@@ -147,6 +148,17 @@ var rbacRouteCases = []rbacRouteCase{
 	{"download-marketplace-asset", http.MethodGet, "/api/marketplace/assets/{marketAsset}/download", nil, "any"},
 
 	{"set-marketplace-app-access", http.MethodPut, "/api/marketplace/apps/{marketApp}/access", setMarketplaceAppAccessRequest{}, "adminOnly"},
+
+	{"social-people", http.MethodGet, "/api/social/people", nil, "any"},
+	{"social-profile-me", http.MethodGet, "/api/social/profile", nil, "any"},
+	{"social-profile-patch", http.MethodPatch, "/api/social/profile", patchSocialProfileRequest{DisplayName: strPtr("Caller")}, "any"},
+	{"social-profile-get", http.MethodGet, "/api/social/u/target", nil, "any"},
+	{"social-follow", http.MethodPost, "/api/social/follow/target", nil, "any"},
+	{"social-unfollow", http.MethodDelete, "/api/social/follow/target", nil, "any"},
+	{"social-list-groups", http.MethodGet, "/api/social/groups", nil, "any"},
+	{"social-create-group", http.MethodPost, "/api/social/groups", createGroupRequest{Name: "grupo-rbac"}, "any"},
+	{"social-list-threads", http.MethodGet, "/api/social/threads", nil, "any"},
+	{"social-open-thread", http.MethodPost, "/api/social/threads", openThreadRequest{Username: "target"}, "any"},
 }
 
 func strPtr(s string) *string { return &s }

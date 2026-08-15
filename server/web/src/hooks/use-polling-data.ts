@@ -52,8 +52,7 @@ export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000
       cancelled = true
       clearInterval(id)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reloadToken, intervalMs])
+  }, [reloadToken, intervalMs, fetcher])
 
   return { data, error, loading, reload }
 }

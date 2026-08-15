@@ -1,5 +1,4 @@
-import { NavLink, Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -7,19 +6,15 @@ import {
   HardDrive,
   Settings,
   ScrollText,
-  LogOut,
   ListChecks,
   Download,
   Store,
-  UserRound,
   Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import { useAuth } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES, type Role } from '@/lib/roles'
-import { PanelHeader } from '@/components/layout/panel-header'
-import { PanelStatusBar } from '@/components/layout/panel-status-bar'
+import { SystemChrome } from '@/components/layout/system-chrome'
 
 const ADMIN_NAV: { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES },
@@ -34,25 +29,15 @@ const ADMIN_NAV: { to: string; label: string; icon: typeof LayoutDashboard; role
   { to: '/admin/audit', label: 'Auditoria', icon: ScrollText, roles: VIEWER_UP_ROLES },
 ]
 
-/** Shell da administração — sidebar, header e statusbar fixos. */
 export function AdminShell() {
-  const { user, logout } = useAuth()
-  const location = useLocation()
-  const navigate = useNavigate()
+  const { user } = useAuth()
   const items = user ? ADMIN_NAV.filter((item) => item.roles.includes(user.role)) : []
 
   return (
-    <div className="relative flex h-svh w-full overflow-hidden bg-background">
-      <div className="dot-grid pointer-events-none fixed inset-0 opacity-60" />
-      <aside className="cyber-frame relative z-20 flex h-full w-64 shrink-0 flex-col border-r border-white/5 bg-card/70 backdrop-blur">
-        <div className="flex items-center gap-2 px-6 py-4">
-          <img src="/logo-192.png" alt="XVPN" className="size-8 drop-shadow-[0_0_12px_var(--color-glow)]" />
-          <div className="min-w-0">
-            <span className="block text-lg font-semibold tracking-tight">XVPN</span>
-            <span className="hud-label text-muted-foreground/70">administração</span>
-          </div>
-        </div>
-        <div className="scanline mx-3" />
+    <SystemChrome
+      variant="admin"
+      subtitle="administração"
+      nav={
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
           <span className="hud-label mb-2 px-3 text-muted-foreground/60">// sistema</span>
           {items.map(({ to, label, icon: Icon }) => (
@@ -81,43 +66,7 @@ export function AdminShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="border-t border-white/5 p-3">
-          <Button variant="ghost" className="w-full justify-start gap-3 rounded-md font-mono" asChild>
-            <Link to="/app">
-              <UserRound className="size-4" />
-              Meu espaço
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start gap-3 rounded-md font-mono"
-            onClick={() => {
-              logout()
-              navigate('/admin/login', { replace: true })
-            }}
-          >
-            <LogOut className="size-4" />
-            Sair
-          </Button>
-        </div>
-      </aside>
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-        <PanelHeader variant="admin" />
-        <main className="min-h-0 flex-1 overflow-y-auto p-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
-        </main>
-        <PanelStatusBar variant="admin" />
-      </div>
-    </div>
+      }
+    />
   )
 }

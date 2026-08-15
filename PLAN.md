@@ -166,6 +166,7 @@ graph TB
 | Samba (SMB) | `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0`. NetBIOS/`139` (`nmbd`) desabilitado de propósito: clientes modernos resolvem por IP direto via SMB2/3, dispensando essa superfície extra (ver Fase 5 do `ROADMAP.md`) |
 | FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via API em `127.0.0.1:8080` → `https://vpn.officeempresa.com` (JWT) | **Sem porta/domínio novo.** Não confundir com Samba/FileBrowser (só `wg0`). Download autenticado; nunca anônimo na internet pública. |
+| WebSocket social/chat (Fase 19) | `wss://vpn.officeempresa.com/api/ws` → mesmo `127.0.0.1:8080` | **Sem porta/domínio novo.** `location /api/ws` no Nginx com `Upgrade`/`Connection` só nesse path (não no catch-all). Auth no primeiro frame, nunca token na query string. O app `xvpn-chat` é cliente desse endpoint — não abre listener próprio. |
 | SFTP por usuário (Fase 13) | `22/tcp` (reaproveitada, `Match User` no `sshd_config`) | **Sem porta nova.** Só `internal-sftp` + chroot em `/home/<username>`; sem shell. Ver §6.9. |
 | SSH | `22/tcp` | Mantém, mas hardening (§9) |
 | DNS interno (opcional, fase futura) | `10.66.66.1:53` | Evita vazamento de DNS quando full-tunnel ativo |
@@ -243,22 +244,28 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - Bootstrap do primeiro usuário continua sendo `super_admin`.
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
 
-**Dois painéis de UI (SPA único, namespaces separados):**
+**Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19, estilo Google Workspace:**
 
-| | Painel do Usuário | Administração do Sistema |
-|---|---|---|
-| Prefixo | `/app/*` | `/admin/*` |
-| Login | `/app/login` | `/admin/login` |
-| Shell | `UserShell` (Início, Arquivos, Downloads, Apps; Perfil e Editar conta no rodapé) | `AdminShell` (dashboard, users, papéis, devices, …) |
-| Destino pós-login | `member` → `/app` | `viewer+` → `/admin` |
-| Cruzamento | viewer+ vê link “Administração” | link “Meu espaço” → `/app` |
-| Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
+Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` só tem conteúdo da página. O header carrega o **menu da conta logada** (avatar → perfil social, conta, sair) e o seletor de produto (waffle).
 
-Páginas do membro (`/app`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, Perfil (somente leitura), Editar conta (senha + chave SSH).
+| | Meu espaço | XVPN Social | Administração |
+|---|---|---|---|
+| Prefixo | `/my/*` | `/social/*` | `/admin/*` |
+| Login | `/my/login` | mesmo JWT; entra autenticado | `/admin/login` |
+| Shell | `UserShell` / MyShell | `SocialShell` | `AdminShell` |
+| Destino pós-login | `member` → `/my` | atalho no waffle | `viewer+` → `/admin` |
+| Conteúdo | dispositivos, arquivos, downloads, apps, conta (senha/SSH) | perfis, follow, DMs, grupos | dashboard, **diretório de usuários** (lista + ficha), papéis, devices, waitlist, marketplace ACL, settings, audit |
+| Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio; mensagens | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
-Página admin de papéis: `/admin/rbac` (hierarquia `CanManage`, matriz de permissões, contagens). A lista `/admin/users` filtra por papel.
+Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username`, não mistura com SSH/cota.
 
-Aliases legados: `/portal`→`/app`, `/dashboard`→`/admin`, `/users`→`/admin/users`, etc. A API RBAC não muda — só o chrome e as URLs.
+Página admin de papéis: `/admin/rbac`. Usuários: lista paginada `/admin/users` + ficha `/admin/users/:id` (abas), não tabela com cinco ícones por linha.
+
+Sem alias e sem rota antiga: `/app`, `/portal`, `/dashboard`, `/login`, `/download` (raiz) e os demais `Navigate` da Fase 17 são **apagados** na 19.1 — o ambiente ainda é dev/homologação, não há bookmark de produção a preservar. A API RBAC não muda com o rename de URL.
+
+Listas (users, devices, waitlist, audit, social) são **paginadas no servidor** (`page`/`per_page`/`q`, default 25, máx. 100) e renderizadas pelo kit compartilhado (`DataTable` / `Pagination`). Ver `ROADMAP.md` Fase 19.1–19.2.
+
+Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat).
 
 ### 6.8 Marketplace de software
 
@@ -285,7 +292,7 @@ Aliases legados: `/portal`→`/app`, `/dashboard`→`/admin`, `/users`→`/admin
 - **Configuração**: `XVPN_MARKETPLACE_DIR` (`internal/config/config.go`), obrigatória em produção com caminho absoluto dentro de `ReadWritePaths` do systemd (mesmo motivo do `XVPN_DB_PATH`, ver achado da Fase 2) — produção usa `/opt/xvpn/data/marketplace` (`server/deploy/xvpn-server.env.example`).
 - **Backup dos blobs**: como o conteúdo nunca muda depois de escrito (só é criado ou apagado), `server/deploy/backup.sh` passou a espelhar `XVPN_MARKETPLACE_DIR` para `$XVPN_BACKUP_DIR/marketplace/` via `rsync -a --delete` (incremental, sem gzip — os assets já costumam ser binários compactados) na mesma rotina diária que já fazia o `.backup` do `xvpn.db`. Mesma limitação de sempre: é uma cópia no mesmo disco da VPS, protege contra bug/exclusão acidental na aplicação, não contra falha física do disco (backup off-site fica fora do escopo desta fase).
 - **API**: na Fase 11 havia CRUD de app/versão/asset em `adminOnly`; a **Fase 16 removeu a publicação manual** — permanece `PUT /marketplace/apps/:id/access` (ACL operacional), `GET /marketplace/apps`, `GET /marketplace/assets/:id/download` e `POST /marketplace/sync` (token de CI / `super_admin`, ver §6.10). Modelo: `App` (com `Slug`/`Source`/`SourcePath`/`ArchivedAt`) → `AppVersion` → `AppAsset`; `AppAccess` só para apps `restricted`.
-- **UI**: tela `/admin/marketplace` para gestão (ACL + download); `/app/marketplace` só consumo. O cliente XVPN pode figurar no catálogo (canal de atualização); `/app/download` (alias legado `/download`) continua sendo a primeira instalação.
+- **UI**: tela `/admin/marketplace` para gestão (ACL + download); `/my/marketplace` só consumo. O cliente XVPN e o `xvpn-chat` (Fase 19.4) figuram no catálogo; `/my/download` é a primeira instalação do cliente VPN. Sem alias `/app` nem `/download` na raiz.
 
 ### 6.9 Contas Unix reais por usuário (SFTP + Samba integrados)
 
@@ -366,9 +373,12 @@ xvpn/
 ├── server/                     # plataforma — NÃO é item de catálogo
 ├── shared/                     # plataforma — NÃO é item de catálogo
 └── apps/
-    └── xvpn-client/            # era client/ (Fase 16.1)
-        ├── marketplace.yaml    # manifesto — sem ele, a pasta é ignorada
-        ├── go.mod              # module github.com/rootkit-lab/xvpn/client
+    ├── xvpn-client/            # era client/ (Fase 16.1)
+    │   ├── marketplace.yaml
+    │   ├── go.mod              # module github.com/rootkit-lab/xvpn/client
+    │   └── ...
+    └── xvpn-chat/              # Fase 19.4 — cliente nativo do protocolo social
+        ├── marketplace.yaml
         └── ...
 ```
 
@@ -382,6 +392,8 @@ xvpn/
 | Manter `.../xvpn/client` | Um leitor pode estranhar a divergência ao abrir o `go.mod` | **Escolhido** — nada fora de `client/` importa o módulo (verificado: zero ocorrências), então o module path não é contrato com ninguém; o cliente é um binário, não uma biblioteca |
 
 Se um dia o cliente virar dependência importável de outro módulo do monorepo, a decisão se reabre — aí o module path passa a ser contrato e vale pagar o rename.
+
+**Mesma divergência no `xvpn-chat` (Fase 19.4):** disco `apps/xvpn-chat/`, module path `github.com/rootkit-lab/xvpn/chat`. O Wails gera bindings em `frontend/bindings/github.com/rootkit-lab/xvpn/chat`; alinhar disco e módulo só reescreveria imports gerados, sem consumidor externo.
 
 **Consequência assumida:** com o cliente dentro de `apps/`, ele passa a ter entrada no catálogo — e o struct `App` deixa de ser documentável como "sempre outro software" (§6.8). A página `/download` continua sendo o caminho de **primeira** instalação (quem chega ali ainda não tem VPN nem, possivelmente, login); o marketplace vira o canal de **atualização**.
 
@@ -431,6 +443,51 @@ Um endpoint idempotente substitui os três passos manuais de hoje.
 O `workflow_dispatch` no segundo é deliberado: quando o catálogo divergir do diretório por qualquer motivo (servidor fora do ar durante um merge, por exemplo), a correção é re-rodar o sync, não editar o banco à mão.
 
 **Pré-requisito já resolvido:** "Allow GitHub Actions to create and approve pull requests" está habilitado no repositório (`default_workflow_permissions: write`, `can_approve_pull_request_reviews: true`) — era o que travava o `release-please`.
+
+### 6.11 XVPN Social e `xvpn-chat`
+
+**Problema:** o painel é só operação (VPN, arquivos, catálogo). Não há um lugar da organização para as pessoas se verem, seguirem e falarem — e a tela de usuários não serve como diretório social (mistura provisionamento com identidade pública).
+
+**O que é:** uma rede **fechada** dos membros da VPN (intranet, não produto público). Três superfícies, um backend:
+
+| Superfície | Onde | Papel |
+|---|---|---|
+| `/social/*` | SPA do painel | perfis, follow, DMs, grupos no browser |
+| `apps/xvpn-chat` | marketplace (Go/Wails3) | o mesmo protocolo no desktop |
+| `xvpn-server` | control-plane | identidade JWT, persistência SQLite, hub WebSocket |
+
+**Não é:** segundo servidor, segundo domínio, porta nova, broker MQTT/Redis, rede indexável na internet, E2E encryption (o perímetro já é a VPN + JWT; mensagens ficam no SQLite).
+
+#### Transporte: WebSocket, sempre
+
+Chat e presença são bidirecionais e de baixa latência. Alternativas rejeitadas:
+
+| Opção | Por quê não |
+|---|---|
+| Polling HTTP | atraso, carga inútil em 19.3+; o painel já sofre com `usePollingData` em listas |
+| SSE | só servidor→cliente; typing/ack/envio exigiria HTTP paralelo |
+| MQTT / NATS | processo e porta a mais no VPS compartilhado com `landpages-ops`; overkill para 1–15 usuários |
+
+Hub **in-process** no `xvpn-server` (um node). Endpoint único `GET /api/ws` (upgrade), autenticado no **primeiro frame** JSON `{"type":"auth","token":"<jwt>"}`. Token na query string é proibido: cai no access log do Nginx.
+
+Nginx: `location /api/ws` com `proxy_http_version 1.1`, `Upgrade` e `Connection` **somente nesse path**. O catch-all atual (`server/deploy/nginx/xvpn.conf`) já usa HTTP/1.1 mas não anuncia Upgrade — e não deve passar a anunciar, senão keep-alive do resto da API quebra. Sem linha de firewall nova (§5).
+
+Eventos: `message.new`, `message.ack`, `typing`, `presence`, `group.updated`. Histórico e CRUD de perfil/grupo/follow continuam REST paginado — o socket não substitui listagem.
+
+#### Dados e privacidade
+
+- `SocialProfile` (display name, bio, avatar) é **opt-in de visibilidade entre membros**. Não inclui `AllowedIP`, chaves WireGuard/SSH, cota, papel de admin.
+- Follow é unidirecional (seguir ≠ amizade).
+- DM: qualquer membro autenticado pode iniciar thread com outro membro (organização pequena, padrão Workspace Chat).
+- Grupo: criador é dono; membros entram por convite do grupo; `admin+` pode dissolver.
+- Audit: `social.message` registra ids de thread/remetente, **nunca o corpo**.
+- Rate limit de conexões WS e de mensagens por usuário.
+
+#### App `xvpn-chat`
+
+Cliente do protocolo acima, não dono dele. JWT só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `vpn.officeempresa.com`. Publicação pelo pipeline da Fase 16 (`marketplace.yaml`, `source: build`, Linux+Windows). Checklist em `ROADMAP.md` Fase 19.3–19.4.
+
+Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes desktop antigos ignoram o socket; o contrato HTTP existente não quebra, mas o campo existe para o chat recusar servidor sem 19.3.
 
 ---
 
@@ -665,3 +722,7 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 **Correções urgentes que precedem o ciclo** (PRs próprias, em andamento): `SetTrustedProxies` no router do servidor (o default do Gin fura os rate limits hoje — ver §6.9) e o `include` do `smb.conf`, que hoje está na primeira linha do `[global]` em produção e faria o `[global]` inteiro colapsar assim que o primeiro share pessoal existisse.
 
 Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.
+
+**Ciclo v0.3 (Fases 17–18) concluído.** SPA em `/app` × `/admin`; conta do membro (perfil, senha, arquivos); tela de papéis. Chrome fixo (sidebar/header/status bar) no viewport.
+
+**Ciclo v0.4 — em curso (`ROADMAP.md` Fase 19):** redesign estilo Google Workspace. Prefixo do membro passa a `/my` **sem** alias `/app` nem redirects antigos (dev/homologação). `/social` (perfis, follow, DM, grupos via WebSocket); `/admin` continua o controle do sistema, com diretório de usuários lista+ficha; kit de UI + paginação em todas as listas; app `apps/xvpn-chat` no marketplace. Decisões em [§6.7](#67-admin-geral-rbac) e [§6.11](#611-xvpn-social-e-xvpn-chat). Ordem: 19.1 → 19.2 → 19.3 → 19.4.

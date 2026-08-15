@@ -67,10 +67,33 @@ func (a *App) countSuperAdmins() (int64, error) {
 }
 
 // handleListUsers lista os usuários cadastrados (sem hash de senha).
-// GET /api/users
+// GET /api/users?page=&per_page=&q=&role=
 func (a *App) handleListUsers(c *gin.Context) {
+	p := parsePage(c)
+	q := a.Store.DB.Model(&store.User{})
+	if p.Q != "" {
+		q = q.Where("username LIKE ?", p.like())
+	}
+	if role := store.Role(c.Query("role")); role.Valid() {
+		q = q.Where("role = ?", role)
+	}
+	if v := c.Query("sftp"); v == "1" || v == "true" {
+		q = q.Where("sftp_enabled = ?", true)
+	} else if v == "0" || v == "false" {
+		q = q.Where("sftp_enabled = ?", false)
+	}
+	if v := c.Query("samba"); v == "1" || v == "true" {
+		q = q.Where("samba_enabled = ?", true)
+	} else if v == "0" || v == "false" {
+		q = q.Where("samba_enabled = ?", false)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
 	var users []store.User
-	if err := a.Store.DB.Order("id").Find(&users).Error; err != nil {
+	if err := p.apply(q.Order("id")).Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -78,7 +101,23 @@ func (a *App) handleListUsers(c *gin.Context) {
 	for _, u := range users {
 		resp = append(resp, toUserResponse(u))
 	}
-	c.JSON(http.StatusOK, resp)
+	writePage(c, resp, total, p)
+}
+
+// handleGetUser devolve um usuário (sem hash). Leitura — viewer+.
+// GET /api/users/:id
+func (a *App) handleGetUser(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	var user store.User
+	if err := a.Store.DB.First(&user, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	c.JSON(http.StatusOK, toUserResponse(user))
 }
 
 type createUserRequest struct {

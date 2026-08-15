@@ -36,6 +36,8 @@ func Open(path string) (*Store, error) {
 		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
 		&PanelSettings{},
+		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
+		&DirectThread{}, &DirectThreadMember{}, &Message{},
 	); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}

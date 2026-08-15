@@ -5,12 +5,15 @@ import { VIEWER_UP_ROLES } from '@/lib/roles'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
+import { SocialShell } from '@/components/layout/social-shell'
 import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
 
 const DashboardPage = lazy(() => import('@/pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
 const UsersPage = lazy(() => import('@/pages/users-page').then((m) => ({ default: m.UsersPage })))
+const UserDetailPage = lazy(() => import('@/pages/user-detail-page').then((m) => ({ default: m.UserDetailPage })))
+const UserCreatePage = lazy(() => import('@/pages/user-create-page').then((m) => ({ default: m.UserCreatePage })))
 const DevicesPage = lazy(() => import('@/pages/devices-page').then((m) => ({ default: m.DevicesPage })))
 const SharesPage = lazy(() => import('@/pages/shares-page').then((m) => ({ default: m.SharesPage })))
 const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ default: m.WaitlistPage })))
@@ -23,6 +26,18 @@ const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ def
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
 const FilesPage = lazy(() => import('@/pages/files-page').then((m) => ({ default: m.FilesPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
+const SocialDirectoryPage = lazy(() =>
+  import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
+)
+const SocialProfilePage = lazy(() =>
+  import('@/pages/social-profile-page').then((m) => ({ default: m.SocialProfilePage })),
+)
+const SocialMessagesPage = lazy(() =>
+  import('@/pages/social-messages-page').then((m) => ({ default: m.SocialMessagesPage })),
+)
+const SocialGroupsPage = lazy(() =>
+  import('@/pages/social-groups-page').then((m) => ({ default: m.SocialGroupsPage })),
+)
 
 export default function App() {
   return (
@@ -32,14 +47,11 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
 
-            {/* Logins com framing distinto (mesmo endpoint de auth). */}
-            <Route path="/app/login" element={<LoginPage variant="user" />} />
+            <Route path="/my/login" element={<LoginPage variant="user" />} />
             <Route path="/admin/login" element={<LoginPage variant="admin" />} />
-            <Route path="/login" element={<Navigate to="/app/login" replace />} />
 
-            {/* Painel do usuário — qualquer papel autenticado. */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/app" element={<UserShell />}>
+              <Route path="/my" element={<UserShell />}>
                 <Route index element={<PortalPage />} />
                 <Route path="files" element={<FilesPage />} />
                 <Route path="download" element={<DownloadPage />} />
@@ -47,13 +59,20 @@ export default function App() {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="account" element={<AccountPage />} />
               </Route>
+              <Route path="/social" element={<SocialShell />}>
+                <Route index element={<SocialDirectoryPage />} />
+                <Route path="u/:username" element={<SocialProfilePage />} />
+                <Route path="messages" element={<SocialMessagesPage />} />
+                <Route path="groups" element={<SocialGroupsPage />} />
+              </Route>
             </Route>
 
-            {/* Administração do sistema — viewer+. */}
             <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
               <Route path="/admin" element={<AdminShell />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="users" element={<UsersPage />} />
+                <Route path="users/new" element={<UserCreatePage />} />
+                <Route path="users/:id" element={<UserDetailPage />} />
                 <Route path="rbac" element={<RbacPage />} />
                 <Route path="devices" element={<DevicesPage />} />
                 <Route path="shares" element={<SharesPage />} />
@@ -64,18 +83,6 @@ export default function App() {
                 <Route path="audit" element={<AuditPage />} />
               </Route>
             </Route>
-
-            {/* Aliases legados (bookmarks / docs antigos). */}
-            <Route path="/portal" element={<Navigate to="/app" replace />} />
-            <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
-            <Route path="/users" element={<Navigate to="/admin/users" replace />} />
-            <Route path="/devices" element={<Navigate to="/admin/devices" replace />} />
-            <Route path="/shares" element={<Navigate to="/admin/shares" replace />} />
-            <Route path="/waitlist" element={<Navigate to="/admin/waitlist" replace />} />
-            <Route path="/settings" element={<Navigate to="/admin/settings" replace />} />
-            <Route path="/audit" element={<Navigate to="/admin/audit" replace />} />
-            <Route path="/download" element={<Navigate to="/app/download" replace />} />
-            <Route path="/marketplace" element={<Navigate to="/app/marketplace" replace />} />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -1,20 +1,19 @@
 import { Link, useLocation } from 'react-router-dom'
-import { ExternalLink, Pencil, Shield, Users } from 'lucide-react'
+import { ExternalLink, Shield, Users } from 'lucide-react'
 import { pageMetaForPath } from '@/lib/page-meta'
 import { useAuth } from '@/lib/auth-context'
-import { ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { AccountMenu, ProductSwitcher } from '@/components/layout/account-menu'
 
 const RELEASES_URL = 'https://github.com/rootkit-lab/xvpn/releases'
 
-/** Header fixo — título da rota + ações contextuais + identidade. */
-export function PanelHeader({ variant }: { variant: 'user' | 'admin' }) {
+/** Header fixo — título da rota + ações da página + menu da conta. */
+export function PanelHeader({ variant }: { variant: 'user' | 'admin' | 'social' }) {
   const { user } = useAuth()
   const location = useLocation()
   const meta = pageMetaForPath(location.pathname)
-  const title = location.pathname === '/app' && user ? `Olá, ${user.username}` : meta.title
+  const title = location.pathname === '/my' && user ? `Olá, ${user.username}` : meta.title
 
   return (
     <header
@@ -43,33 +42,15 @@ export function PanelHeader({ variant }: { variant: 'user' | 'admin' }) {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <HeaderActions pathname={location.pathname} />
-        {user && (
-          <Link
-            to="/app/profile"
-            className="hidden items-center gap-2 rounded-full border border-white/8 bg-background/40 px-3 py-1.5 sm:flex"
-            title="Abrir perfil"
-          >
-            <span className="max-w-28 truncate text-sm font-medium">{user.username}</span>
-            <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
-          </Link>
-        )}
+        <ProductSwitcher variant={variant} />
+        <AccountMenu variant={variant} />
       </div>
     </header>
   )
 }
 
 function HeaderActions({ pathname }: { pathname: string }) {
-  if (pathname === '/app/profile') {
-    return (
-      <Button size="sm" asChild>
-        <Link to="/app/account">
-          <Pencil className="size-4" />
-          Editar minha conta
-        </Link>
-      </Button>
-    )
-  }
-  if (pathname === '/app/download' || pathname === '/admin/download') {
+  if (pathname === '/my/download' || pathname === '/admin/download') {
     return (
       <Button size="sm" variant="outline" asChild>
         <a href={RELEASES_URL} target="_blank" rel="noreferrer">
@@ -89,7 +70,7 @@ function HeaderActions({ pathname }: { pathname: string }) {
       </Button>
     )
   }
-  if (pathname === '/admin/users') {
+  if (pathname === '/admin/users' || pathname.startsWith('/admin/users/')) {
     return (
       <Button size="sm" variant="outline" asChild>
         <Link to="/admin/rbac">

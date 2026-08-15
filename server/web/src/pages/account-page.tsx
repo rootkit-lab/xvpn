@@ -74,7 +74,7 @@ function ChangePasswordCard() {
           Senha do painel
         </CardTitle>
         <CardDescription>
-          Usada em /app/login e /admin/login. Não é senha Samba — o acesso a arquivos autentica pela VPN.
+          Usada em /my/login e /admin/login. Não é senha Samba — o acesso a arquivos autentica pela VPN.
         </CardDescription>
       </CardHeader>
       <CardContent>

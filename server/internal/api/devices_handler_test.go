@@ -120,10 +120,7 @@ func TestHandleListDevices_And_Delete(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("esperado 200, obtido %d", rec.Code)
 	}
-	var devices []deviceResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &devices); err != nil {
-		t.Fatalf("erro decodificando lista de devices: %v", err)
-	}
+	devices := pageItems[deviceResponse](t, decodePage[deviceResponse](t, rec.Body.Bytes()))
 	if len(devices) != 1 {
 		t.Fatalf("esperava 1 device, obtido %d", len(devices))
 	}

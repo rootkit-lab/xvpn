@@ -7,8 +7,8 @@ import { formatBytes, formatDateTime, formatRelativeTime } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
+import { FilterBar } from '@/components/filter-bar'
+import { DataTable, type DataTableColumn } from '@/components/data-table'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,53 +29,77 @@ function isOnline(device: Device): boolean {
 }
 
 export function DevicesPage() {
-  const fetchDevices = useCallback(() => api.listDevices(), [])
-  const { data: devices, loading, reload } = usePollingData(fetchDevices, 10_000)
+  const [page, setPage] = useState(1)
+  const [q, setQ] = useState('')
+  const fetchDevices = useCallback(() => api.listDevices({ page, per_page: 25, q }), [page, q])
+  const { data, loading, reload } = usePollingData(fetchDevices, 10_000)
+
+  const columns: DataTableColumn<Device>[] = [
+    { key: 'name', header: 'Nome', cell: (d) => <span className="font-medium">{d.name}</span> },
+    { key: 'ip', header: 'IP', cell: (d) => <span className="text-muted-foreground">{d.allowed_ip}</span> },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (d) => <Badge variant={isOnline(d) ? 'default' : 'secondary'}>{isOnline(d) ? 'Online' : 'Offline'}</Badge>,
+    },
+    {
+      key: 'hs',
+      header: 'Último handshake',
+      cell: (d) => (
+        <span className="text-muted-foreground">{d.last_handshake ? formatRelativeTime(d.last_handshake) : 'nunca'}</span>
+      ),
+    },
+    {
+      key: 'traffic',
+      header: 'Tráfego',
+      cell: (d) => (
+        <span className="text-muted-foreground">
+          ↓ {formatBytes(d.receive_bytes)} / ↑ {formatBytes(d.transmit_bytes)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Ações',
+      className: 'text-right',
+      cell: (d) => <RevokeDevice device={d} onChanged={reload} />,
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-6">
+      <FilterBar
+        q={q}
+        onQChange={(next) => {
+          setQ(next)
+          setPage(1)
+        }}
+        placeholder="Buscar por nome ou IP"
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Todos os dispositivos</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading || !devices ? (
-            <Skeleton className="h-32 w-full" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>IP</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Último handshake</TableHead>
-                  <TableHead>Tráfego</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {devices.map((device) => (
-                  <DeviceRow key={device.id} device={device} onChanged={reload} />
-                ))}
-                {devices.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">
-                      Nenhum dispositivo registrado ainda.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+          <DataTable
+            columns={columns}
+            rows={data?.items ?? []}
+            rowKey={(d) => d.id}
+            loading={loading || !data}
+            emptyTitle="Nenhum dispositivo registrado ainda."
+            page={data?.page ?? page}
+            perPage={data?.per_page ?? 25}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
     </div>
   )
 }
 
-function DeviceRow({ device, onChanged }: { device: Device; onChanged: () => void }) {
+function RevokeDevice({ device, onChanged }: { device: Device; onChanged: () => void }) {
   const [revoking, setRevoking] = useState(false)
-  const online = isOnline(device)
 
   async function handleRevoke() {
     setRevoking(true)
@@ -91,40 +115,25 @@ function DeviceRow({ device, onChanged }: { device: Device; onChanged: () => voi
   }
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">{device.name}</TableCell>
-      <TableCell className="text-muted-foreground">{device.allowed_ip}</TableCell>
-      <TableCell>
-        <Badge variant={online ? 'default' : 'secondary'}>{online ? 'Online' : 'Offline'}</Badge>
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        {device.last_handshake ? formatRelativeTime(device.last_handshake) : 'nunca'}
-      </TableCell>
-      <TableCell className="text-muted-foreground">
-        ↓ {formatBytes(device.receive_bytes)} / ↑ {formatBytes(device.transmit_bytes)}
-      </TableCell>
-      <TableCell className="text-right">
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="icon" disabled={revoking}>
-              <Trash2 className="size-4 text-destructive" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Revogar dispositivo "{device.name}"?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Registrado em {formatDateTime(device.created_at)}. Revogar remove o peer da interface WireGuard
-                imediatamente — a próxima tentativa de handshake falhará. Essa ação não pode ser desfeita.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleRevoke}>Revogar</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </TableCell>
-    </TableRow>
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="icon" disabled={revoking} onClick={(e) => e.stopPropagation()}>
+          <Trash2 className="size-4 text-destructive" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Revogar dispositivo "{device.name}"?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Registrado em {formatDateTime(device.created_at)}. Revogar remove o peer da interface WireGuard
+            imediatamente — a próxima tentativa de handshake falhará. Essa ação não pode ser desfeita.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction onClick={handleRevoke}>Revogar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

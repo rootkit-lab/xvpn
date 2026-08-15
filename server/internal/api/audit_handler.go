@@ -17,16 +17,23 @@ type auditLogResponse struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// auditLogLimit é o número máximo de entradas devolvidas por requisição.
-// Não há paginação ainda — suficiente para o volume de ações administrativas
-// de um painel de uso interno; revisar se isso crescer.
-const auditLogLimit = 200
-
 // handleListAudit lista as entradas de auditoria mais recentes.
-// GET /api/audit
+// GET /api/audit?page=&per_page=&q=  — q filtra actor/action, nunca o detalhe
+// (pode conter e-mail/ids; não é campo de busca).
 func (a *App) handleListAudit(c *gin.Context) {
+	p := parsePage(c)
+	q := a.Store.DB.Model(&store.AuditLog{})
+	if p.Q != "" {
+		like := p.like()
+		q = q.Where("actor LIKE ? OR action LIKE ?", like, like)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
 	var logs []store.AuditLog
-	if err := a.Store.DB.Order("id desc").Limit(auditLogLimit).Find(&logs).Error; err != nil {
+	if err := p.apply(q.Order("id desc")).Find(&logs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -40,5 +47,5 @@ func (a *App) handleListAudit(c *gin.Context) {
 			CreatedAt: l.CreatedAt,
 		})
 	}
-	c.JSON(http.StatusOK, resp)
+	writePage(c, resp, total, p)
 }

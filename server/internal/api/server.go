@@ -44,6 +44,11 @@ const (
 	enrollRateLimitMax    = 20
 	enrollRateLimitWindow = 10 * time.Minute
 
+	wsConnRateLimitMax    = 30
+	wsConnRateLimitWindow = 1 * time.Minute
+	msgRateLimitMax       = 60
+	msgRateLimitWindow    = 1 * time.Minute
+
 	// POST /api/me/ssh-key só responde dentro do túnel e é idempotente
 	// (mesma chave = no-op), mas trocar de chave a cada requisição faz o
 	// servidor reescrever o authorized_keys e recarregar o sshd. O limite
@@ -112,6 +117,14 @@ type App struct {
 	// provisionador — ver sshKeyRateLimitMax.
 	sshKeyLimiter *ipRateLimiter
 
+	// Hub entrega eventos do social (Fase 19.3) em memória. Um node.
+	Hub *Hub
+
+	// wsLimiter limita tentativas de upgrade por IP; msgLimiter limita
+	// POST de mensagem por usuário (chave "u:<id>").
+	wsLimiter  *ipRateLimiter
+	msgLimiter *ipRateLimiter
+
 	// statusCache* memoizam a última resposta de GET /api/status por
 	// statusCacheTTL — endpoint público e chamado em polling pelo painel
 	// e pelo cliente desktop, sem isso cada requisição batia direto no
@@ -174,6 +187,15 @@ func NewRouter(app *App) *gin.Engine {
 	if app.sshKeyLimiter == nil {
 		app.sshKeyLimiter = newIPRateLimiter(sshKeyRateLimitMax, sshKeyRateLimitWindow)
 	}
+	if app.Hub == nil {
+		app.Hub = newHub()
+	}
+	if app.wsLimiter == nil {
+		app.wsLimiter = newIPRateLimiter(wsConnRateLimitMax, wsConnRateLimitWindow)
+	}
+	if app.msgLimiter == nil {
+		app.msgLimiter = newIPRateLimiter(msgRateLimitMax, msgRateLimitWindow)
+	}
 
 	apiGroup := r.Group("/api")
 	{
@@ -184,6 +206,10 @@ func NewRouter(app *App) *gin.Engine {
 		// waitlist_handler.go e AGENTS.md (qualquer superfície pública
 		// nova precisa de justificativa explícita).
 		apiGroup.POST("/waitlist", rateLimit(app.waitlistLimiter), app.handleJoinWaitlist)
+
+		// WebSocket social (Fase 19.3): upgrade sem JWT no handshake —
+		// o token vai no primeiro frame, nunca na query (access log).
+		apiGroup.GET("/ws", rateLimit(app.wsLimiter), app.handleSocialWS)
 
 		// Identidade por túnel (Fase 14, PLAN.md §6.9): as duas únicas
 		// rotas que autenticam por IP de origem em vez de JWT. Ficam neste
@@ -225,6 +251,20 @@ func NewRouter(app *App) *gin.Engine {
 			// Marketplace: viewer/member "download se ACL permitir").
 			authed.GET("/marketplace/apps", app.handleListMarketplaceApps)
 			authed.GET("/marketplace/assets/:id/download", app.handleDownloadMarketplaceAsset)
+
+			authed.GET("/social/people", app.handleSocialPeople)
+			authed.GET("/social/profile", app.handleSocialMeGet)
+			authed.PATCH("/social/profile", app.handleSocialMePatch)
+			authed.GET("/social/u/:username", app.handleSocialProfileGet)
+			authed.POST("/social/follow/:username", app.handleSocialFollow)
+			authed.DELETE("/social/follow/:username", app.handleSocialUnfollow)
+			authed.GET("/social/groups", app.handleSocialListGroups)
+			authed.POST("/social/groups", app.handleSocialCreateGroup)
+			authed.POST("/social/groups/:id/invite", app.handleSocialInviteGroup)
+			authed.GET("/social/threads", app.handleSocialListThreads)
+			authed.POST("/social/threads", app.handleSocialOpenThread)
+			authed.GET("/social/threads/:kind/:id/messages", app.handleSocialListMessages)
+			authed.POST("/social/threads/:kind/:id/messages", app.handleSocialPostMessage)
 		}
 
 		// viewerUp: leitura das telas de admin (dashboard, listas,
@@ -233,6 +273,7 @@ func NewRouter(app *App) *gin.Engine {
 		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.ViewerUpRoles...))
 		{
 			viewerUp.GET("/users", app.handleListUsers)
+			viewerUp.GET("/users/:id", app.handleGetUser)
 			viewerUp.GET("/devices", app.handleListDevices)
 			viewerUp.GET("/waitlist", app.handleListWaitlist)
 			viewerUp.GET("/audit", app.handleListAudit)

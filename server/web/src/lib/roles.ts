@@ -84,14 +84,16 @@ export function assignableRoles(actor: Role | undefined): Role[] {
 
 /** Home pós-login: member → painel do usuário; viewer+ → administração. */
 export function defaultRouteForRole(role: Role): string {
-  return role === 'member' ? '/app' : '/admin'
+  return role === 'member' ? '/my' : '/admin'
 }
 
 /** Login alinhado ao namespace que o usuário tentou abrir. */
 export function loginPathForLocation(pathname: string): string {
-  return pathname.startsWith('/admin') ? '/admin/login' : '/app/login'
+  if (pathname.startsWith('/admin')) return '/admin/login'
+  if (pathname.startsWith('/social')) return '/my/login'
+  return '/my/login'
 }
 
 export function loginPathForRole(role: Role): string {
-  return role === 'member' ? '/app/login' : '/admin/login'
+  return role === 'member' ? '/my/login' : '/admin/login'
 }

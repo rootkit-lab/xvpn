@@ -15,11 +15,12 @@ import {
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole, ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
+import { isAdminRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
+import { UserPicker } from '@/components/user-picker'
+import { FilterBar } from '@/components/filter-bar'
+import { PaginationBar, EmptyState } from '@/components/pagination'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -61,10 +62,30 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
   const isManage = variant === 'manage' && isAdminRole(caller?.role)
   const fetchApps = useCallback(() => api.listMarketplaceApps(), [])
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const perPage = 25
+
+  const filtered = (apps ?? []).filter((app) => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return true
+    return app.name.toLowerCase().includes(needle) || app.slug.toLowerCase().includes(needle)
+  })
+  const total = filtered.length
+  const slice = filtered.slice((page - 1) * perPage, page * perPage)
 
   return (
     <div className="flex flex-col gap-6">
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <FilterBar
+        q={q}
+        onQChange={(next) => {
+          setQ(next)
+          setPage(1)
+        }}
+        placeholder="Buscar app"
+      />
 
       {loading || !apps ? (
         <Skeleton className="h-32 w-full" />
@@ -112,11 +133,14 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
             </CardHeader>
           </Card>
         )
+      ) : slice.length === 0 ? (
+        <EmptyState title="Nenhum app neste filtro." />
       ) : (
         <div className="flex flex-col gap-4">
-          {apps.map((app) => (
+          {slice.map((app) => (
             <AppCard key={app.id} app={app} isAdmin={isManage} onChanged={reload} />
           ))}
+          <PaginationBar page={page} perPage={perPage} total={total} onPageChange={setPage} />
         </div>
       )}
     </div>
@@ -258,8 +282,8 @@ function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged
       setSelected(new Set(app.access_user_ids ?? []))
       setLoadingUsers(true)
       api
-        .listUsers()
-        .then(setUsers)
+        .listUsers({ per_page: 100 })
+        .then((page) => setUsers(page.items))
         .catch((err) => setError(err instanceof ApiError ? err.message : 'Falha ao carregar usuários'))
         .finally(() => setLoadingUsers(false))
     } else {
@@ -309,26 +333,11 @@ function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged
                 : 'Só os usuários marcados abaixo enxergam e baixam este app (além de admin/super_admin).'}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex max-h-72 flex-col gap-1 overflow-y-auto py-4">
+          <div className="py-4">
             {loadingUsers || !users ? (
               <Skeleton className="h-32 w-full" />
             ) : (
-              <>
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent">
-                    <Checkbox
-                      id={`access-user-${u.id}`}
-                      checked={selected.has(u.id)}
-                      onCheckedChange={() => toggle(u.id)}
-                    />
-                    <Label htmlFor={`access-user-${u.id}`} className="flex-1 cursor-pointer font-normal">
-                      {u.username}
-                    </Label>
-                    <Badge variant={ROLE_BADGE_VARIANT[u.role]}>{ROLE_LABELS[u.role]}</Badge>
-                  </div>
-                ))}
-                {users.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário cadastrado.</p>}
-              </>
+              <UserPicker users={users} selected={selected} onToggle={toggle} />
             )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}

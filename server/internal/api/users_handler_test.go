@@ -40,10 +40,7 @@ func TestHandleCreateUser_And_List(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("esperado 200, obtido %d", rec.Code)
 	}
-	var users []userResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &users); err != nil {
-		t.Fatalf("erro decodificando lista de usuários: %v", err)
-	}
+	users := pageItems[userResponse](t, decodePage[userResponse](t, rec.Body.Bytes()))
 	if len(users) != 2 {
 		t.Fatalf("esperava 2 usuários (admin + novo), obtido %d", len(users))
 	}

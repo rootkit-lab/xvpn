@@ -30,14 +30,14 @@ function isOnline(device: Device): boolean {
 }
 
 const SHORTCUTS = [
-  { to: '/app/files', label: 'Arquivos', description: 'Samba, SFTP e FileBrowser na VPN', icon: FolderOpen },
-  { to: '/app/profile', label: 'Perfil', description: 'Papel, cota e resumo da conta', icon: UserRound },
-  { to: '/app/account', label: 'Editar conta', description: 'Trocar senha e chave SSH', icon: Pencil },
-  { to: '/app/marketplace', label: 'Apps', description: 'Catálogo interno de programas', icon: Store },
+  { to: '/my/files', label: 'Arquivos', description: 'Samba, SFTP e FileBrowser na VPN', icon: FolderOpen },
+  { to: '/my/profile', label: 'Perfil', description: 'Papel, cota e resumo da conta', icon: UserRound },
+  { to: '/my/account', label: 'Editar conta', description: 'Trocar senha e chave SSH', icon: Pencil },
+  { to: '/my/marketplace', label: 'Apps', description: 'Catálogo interno de programas', icon: Store },
 ] as const
 
 // PortalPage é o autosserviço (Fase 10 + Fase 18): dispositivos próprios e
-// atalhos para as páginas da conta. Senha/SSH ficam em /app/account.
+// atalhos para as páginas da conta. Senha/SSH ficam em /my/account.
 export function PortalPage() {
   const fetchDevices = useCallback(() => api.listMyDevices(), [])
   const { data: devices, loading, error, reload } = usePollingData(fetchDevices, 10_000)

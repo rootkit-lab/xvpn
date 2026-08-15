@@ -5,7 +5,7 @@ import { PageFallback } from '@/components/layout/page-fallback'
 
 // ProtectedRoute exige sessão válida e, opcionalmente (allowedRoles),
 // restringe por papel — ver PLAN.md §6.7. Sem allowedRoles, qualquer papel
-// autenticado passa (usado pelo painel do usuário em /app/*).
+// autenticado passa (usado pelo painel do usuário em /my/*).
 export function ProtectedRoute({ allowedRoles }: { allowedRoles?: Role[] }) {
   const { isAuthenticated, user, isLoadingUser } = useAuth()
   const location = useLocation()

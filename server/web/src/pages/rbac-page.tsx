@@ -20,8 +20,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function RbacPage() {
   const { user: caller } = useAuth()
-  const fetchUsers = useCallback(() => api.listUsers(), [])
-  const { data: users, loading, error } = usePollingData(fetchUsers, 30_000)
+  const fetchUsers = useCallback(() => api.listUsers({ per_page: 100 }), [])
+  const { data: page, loading, error } = usePollingData(fetchUsers, 30_000)
+  const users = page?.items
 
   const counts = useMemo(() => {
     const next: Record<Role, number> = { super_admin: 0, admin: 0, viewer: 0, member: 0 }

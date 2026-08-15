@@ -238,6 +238,12 @@ func monitorTray(h *trayHandles) {
 			// abre pasta local; o mount precisa existir antes do clique.
 			go svc.mountFileSharesBestEffort()
 		}
+		if wasConnected && !status.Connected {
+			// Queda do túnel (Disconnect, kill switch, perda de rede):
+			// some com mounts/ícones SMB — não deixar "shared on …" no
+			// gerenciador com a VPN desligada.
+			go svc.unmountFileSharesBestEffort()
+		}
 		wasConnected = status.Connected
 		<-ticker.C
 	}

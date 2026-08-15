@@ -148,6 +148,141 @@ func ensureUserShareLink(host, share string) (string, error) {
 	return link, nil
 }
 
+// unmountServerSMBShares tira do SO tudo que o Connect/opener criou para
+// este servidor: mounts GVFS (guest e legados com user=), symlinks
+// ~/XVPN e pasta-órfã no Desktop no formato smb-share:server=….
+func unmountServerSMBShares(host string) error {
+	var errs []string
+
+	// Desmonta pelo path FUSE e pela URI — cobre guest e user=legado.
+	root := gvfsRoot()
+	if entries, err := os.ReadDir(root); err == nil {
+		prefix := "smb-share:server=" + host
+		for _, e := range entries {
+			name := e.Name()
+			if name != prefix && !strings.HasPrefix(name, prefix+",") {
+				continue
+			}
+			path := filepath.Join(root, name)
+			if out, err := exec.Command("gio", "mount", "-u", "-f", path).CombinedOutput(); err != nil {
+				msg := strings.TrimSpace(string(out))
+				if msg == "" {
+					msg = err.Error()
+				}
+				// Já desmontado / inexistente — ok.
+				if !strings.Contains(strings.ToLower(msg), "not mounted") &&
+					!strings.Contains(strings.ToLower(msg), "não está montado") {
+					errs = append(errs, msg)
+				}
+			}
+		}
+	}
+
+	// URIs explícitas (shared + o que os symlinks apontavam).
+	for _, uri := range smbURIsForHost(host) {
+		_ = exec.Command("gio", "mount", "-u", "-f", uri).Run()
+	}
+
+	removeUserShareLinks()
+	removeDesktopSMBRemnants(host)
+
+	if len(errs) > 0 {
+		return fmt.Errorf("desmontando SMB de %s: %s", host, strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func smbURIsForHost(host string) []string {
+	uris := []string{
+		fmt.Sprintf("smb://%s/shared", host),
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return uris
+	}
+	dir := filepath.Join(home, "XVPN")
+	for _, name := range []string{"Compartilhado", "Meus arquivos"} {
+		link := filepath.Join(dir, name)
+		if target, err := os.Readlink(link); err == nil {
+			base := filepath.Base(target)
+			const mark = ",share="
+			if i := strings.Index(base, mark); i >= 0 {
+				share := base[i+len(mark):]
+				if j := strings.Index(share, ","); j >= 0 {
+					share = share[:j]
+				}
+				uris = append(uris, fmt.Sprintf("smb://%s/%s", host, share))
+			}
+		}
+	}
+	return uris
+}
+
+func removeUserShareLinks() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dir := filepath.Join(home, "XVPN")
+	for _, name := range []string{"Compartilhado", "Meus arquivos"} {
+		_ = os.Remove(filepath.Join(dir, name))
+	}
+	// Remove ~/XVPN se ficou vazio.
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) == 0 {
+		_ = os.Remove(dir)
+	}
+}
+
+// removeDesktopSMBRemnants apaga pastas/ícones no Desktop criados a partir
+// de mounts SMB deste host (legado user=xvpntest e ícones "share on host").
+func removeDesktopSMBRemnants(host string) {
+	desktop := desktopDir()
+	if desktop == "" {
+		return
+	}
+	entries, err := os.ReadDir(desktop)
+	if err != nil {
+		return
+	}
+	prefix := "smb-share:server=" + host
+	suffix := " on " + host
+	for _, e := range entries {
+		name := e.Name()
+		match := strings.HasPrefix(name, prefix) ||
+			strings.HasSuffix(name, suffix) ||
+			name == host
+		if !match {
+			continue
+		}
+		path := filepath.Join(desktop, name)
+		// Só remove dir/symlink — nunca .desktop de apps.
+		fi, err := os.Lstat(path)
+		if err != nil {
+			continue
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			_ = os.Remove(path)
+			continue
+		}
+		if fi.IsDir() {
+			_ = os.RemoveAll(path)
+		}
+	}
+}
+
+func desktopDir() string {
+	if out, err := exec.Command("xdg-user-dir", "DESKTOP").Output(); err == nil {
+		if d := strings.TrimSpace(string(out)); d != "" {
+			return d
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(home, "Desktop")
+}
+
 func openLocalDir(path string) error {
 	// 1) D-Bus FileManager1 — pede ao gerenciador já rodando para focar
 	// a pasta (no Cosmic, lançar outro cosmic-files muitas vezes não

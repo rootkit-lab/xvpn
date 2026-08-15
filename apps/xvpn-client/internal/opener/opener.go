@@ -26,6 +26,13 @@ func EnsureSMBMounted(host, share string) error {
 	return ensureSMBMounted(host, share)
 }
 
+// UnmountServerSMBShares desmonta todos os shares SMB desse host no SO
+// (GVFS no Linux), remove atalhos ~/XVPN e restos de ícones/pastas no
+// Desktop. Chamado no Disconnect e quando a bandeja detecta queda do túnel.
+func UnmountServerSMBShares(host string) error {
+	return unmountServerSMBShares(host)
+}
+
 // OpenPath abre um arquivo ou pasta local no aplicativo/gerenciador de
 // arquivos padrão do SO (ex.: um instalador baixado do marketplace, Fase
 // 12 — ROADMAP.md, ou a própria pasta de Downloads). Reaproveita o mesmo

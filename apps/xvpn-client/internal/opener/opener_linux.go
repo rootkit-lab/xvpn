@@ -186,10 +186,48 @@ func unmountServerSMBShares(host string) error {
 	removeUserShareLinks()
 	removeDesktopSMBRemnants(host)
 
+	// GVFS às vezes demora a retirar a entrada FUSE após -u.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if !hostHasGVFSMounts(host) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+		for _, uri := range smbURIsForHost(host) {
+			_ = exec.Command("gio", "mount", "-u", "-f", uri).Run()
+		}
+		if entries, err := os.ReadDir(gvfsRoot()); err == nil {
+			prefix := "smb-share:server=" + host
+			for _, e := range entries {
+				if e.Name() == prefix || strings.HasPrefix(e.Name(), prefix+",") {
+					_ = exec.Command("gio", "mount", "-u", "-f", filepath.Join(gvfsRoot(), e.Name())).Run()
+				}
+			}
+		}
+	}
+
+	if hostHasGVFSMounts(host) {
+		errs = append(errs, "ainda há mounts GVFS após desmontar")
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("desmontando SMB de %s: %s", host, strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func hostHasGVFSMounts(host string) bool {
+	entries, err := os.ReadDir(gvfsRoot())
+	if err != nil {
+		return false
+	}
+	prefix := "smb-share:server=" + host
+	for _, e := range entries {
+		if e.Name() == prefix || strings.HasPrefix(e.Name(), prefix+",") {
+			return true
+		}
+	}
+	return false
 }
 
 func smbURIsForHost(host string) []string {

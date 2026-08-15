@@ -90,10 +90,15 @@ func (h *Hub) unsubscribe(userID uint, ch chan []byte) {
 func (h *Hub) setStatus(userID uint, status string) string {
 	status = normalizePresence(status)
 	h.mu.Lock()
+	prevVisible := visiblePresence(h.status[userID])
 	h.status[userID] = status
 	h.mu.Unlock()
 	visible := visiblePresence(status)
-	h.broadcastPresence(userID, visible)
+	// invisível deve parecer disconnect: só anuncia se o status visível mudou
+	// (online→offline ao ficar invisível; offline→online ao reaparecer).
+	if visible != prevVisible {
+		h.broadcastPresence(userID, visible)
+	}
 	return visible
 }
 
@@ -102,6 +107,15 @@ func (h *Hub) broadcastPresence(userID uint, status string) {
 		"user_id": userID,
 		"status":  status,
 	}})
+}
+
+// announceJoin avisa os outros que o usuário entrou. Quem está invisível
+// não é anunciado — equivalente a nunca ter conectado.
+func (h *Hub) announceJoin(userID uint) {
+	if h.statusOf(userID) == "offline" {
+		return
+	}
+	h.broadcastPresence(userID, h.statusOf(userID))
 }
 
 func (h *Hub) connectedIDs() []uint {
@@ -119,12 +133,26 @@ func (h *Hub) presenceSnapshot() []map[string]any {
 	defer h.mu.Unlock()
 	out := make([]map[string]any, 0, len(h.clients))
 	for id := range h.clients {
+		vis := visiblePresence(h.status[id])
+		if vis == "offline" {
+			continue
+		}
 		out = append(out, map[string]any{
 			"user_id": id,
-			"status":  visiblePresence(h.status[id]),
+			"status":  vis,
 		})
 	}
 	return out
+}
+
+func (h *Hub) ownStatus(userID uint) string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	s := h.status[userID]
+	if s == "" {
+		return "online"
+	}
+	return s
 }
 
 func (h *Hub) statusOf(userID uint) string {

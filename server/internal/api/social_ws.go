@@ -65,10 +65,10 @@ func (a *App) handleSocialWS(c *gin.Context) {
 	ch := a.Hub.subscribe(claims.UserID)
 	defer a.Hub.unsubscribe(claims.UserID, ch)
 
-	selfStatus := a.Hub.statusOf(claims.UserID)
-	_ = conn.WriteJSON(wsEvent{Type: "presence", Payload: gin.H{"user_id": claims.UserID, "status": selfStatus}})
+	own := a.Hub.ownStatus(claims.UserID)
+	_ = conn.WriteJSON(wsEvent{Type: "presence", Payload: gin.H{"user_id": claims.UserID, "status": own}})
 	_ = conn.WriteJSON(wsEvent{Type: "presence.snapshot", Payload: a.Hub.presenceSnapshot()})
-	a.Hub.broadcastPresence(claims.UserID, selfStatus)
+	a.Hub.announceJoin(claims.UserID)
 
 	done := make(chan struct{})
 	go func() {

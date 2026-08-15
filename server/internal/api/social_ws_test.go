@@ -125,3 +125,71 @@ func TestSocialWS_PresenceStatusBroadcast(t *testing.T) {
 		}
 	}
 }
+
+func TestSocialWS_InvisibleAbsentFromSnapshot(t *testing.T) {
+	app, _ := newTestApp(t)
+	aliceUser := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok-ok", store.RoleMember)
+	router := NewRouter(app)
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-ok-ok")
+
+	srv := httptest.NewServer(router)
+	t.Cleanup(srv.Close)
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/ws"
+
+	alice, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial alice: %v", err)
+	}
+	defer alice.Close()
+	if err := alice.WriteJSON(map[string]string{"type": "auth", "token": aliceTok}); err != nil {
+		t.Fatalf("auth alice: %v", err)
+	}
+	_ = alice.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_, _, _ = alice.ReadMessage()
+	_, _, _ = alice.ReadMessage()
+	if err := alice.WriteJSON(map[string]any{"type": "presence", "payload": map[string]string{"status": "invisible"}}); err != nil {
+		t.Fatalf("invisible: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	bob, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial bob: %v", err)
+	}
+	defer bob.Close()
+	if err := bob.WriteJSON(map[string]string{"type": "auth", "token": bobTok}); err != nil {
+		t.Fatalf("auth bob: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	var snapshot []map[string]any
+	for snapshot == nil {
+		_ = bob.SetReadDeadline(deadline)
+		_, raw, err := bob.ReadMessage()
+		if err != nil {
+			t.Fatalf("bob deveria receber snapshot: %v", err)
+		}
+		var ev wsEvent
+		if json.Unmarshal(raw, &ev) != nil {
+			continue
+		}
+		if ev.Type != "presence.snapshot" {
+			continue
+		}
+		b, _ := json.Marshal(ev.Payload)
+		if err := json.Unmarshal(b, &snapshot); err != nil {
+			t.Fatalf("snapshot json: %v (%s)", err, raw)
+		}
+	}
+	for _, row := range snapshot {
+		id, _ := row["user_id"].(float64)
+		if uint(id) == aliceUser.ID {
+			t.Fatalf("alice invisível vazou no snapshot: %+v", snapshot)
+		}
+		if st, _ := row["status"].(string); st == "offline" {
+			t.Fatalf("snapshot não deve listar offline (invisível disfarçado): %+v", snapshot)
+		}
+	}
+}

@@ -1,11 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { Events } from '@wailsio/runtime'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 import { VPNService } from '../bindings/github.com/rootkit-lab/xvpn/client'
 import type { StatusView } from '../bindings/github.com/rootkit-lab/xvpn/client'
 import { EnrollmentPage } from './pages/enrollment-page'
-import { MainPage } from './pages/main-page'
+import { MainPage, REQUEST_CONNECT_AUTH_EVENT } from './pages/main-page'
 
 // Preferências e diagnóstico são visitados bem menos que a tela principal
 // — code-split via React.lazy pra não pesar o primeiro paint da janela
@@ -29,6 +30,9 @@ function App() {
   const [status, setStatus] = useState<StatusView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<View>('main')
+  // Contador: a bandeja pode pedir auth com a UI em outra tela — voltamos
+  // pra main e o MainPage abre o sheet de credenciais.
+  const [connectAuthNonce, setConnectAuthNonce] = useState(0)
 
   const refresh = useCallback(async () => {
     try {
@@ -45,6 +49,16 @@ function App() {
     const interval = setInterval(refresh, POLL_INTERVAL_MS)
     return () => clearInterval(interval)
   }, [refresh])
+
+  useEffect(() => {
+    const off = Events.On(REQUEST_CONNECT_AUTH_EVENT, () => {
+      setView('main')
+      setConnectAuthNonce((n) => n + 1)
+    })
+    return () => {
+      off()
+    }
+  }, [])
 
   let content: ReactNode
   let key: string = view
@@ -83,6 +97,7 @@ function App() {
         status={status}
         onChange={refresh}
         error={error}
+        connectAuthNonce={connectAuthNonce}
         onOpenSettings={() => setView('settings')}
         onOpenDiagnostics={() => setView('diagnostics')}
         onOpenApps={() => setView('apps')}
@@ -96,10 +111,10 @@ function App() {
         <motion.div
           key={key}
           className="h-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
+          initial={{ opacity: 0, y: 10, filter: 'blur(6px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
         >
           {content}
         </motion.div>

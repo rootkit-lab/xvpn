@@ -25,6 +25,10 @@
   --glow: oklch(0.74 0.13 230);
   --glow-amber: oklch(0.78 0.14 75);
   --glow-red: oklch(0.65 0.2 25);
+  /* Estado "protegido" / túnel ativo — verde watchOS Activity */
+  --glow-safe: oklch(0.78 0.18 150);
+  --safe: oklch(0.72 0.17 150);
+  --safe-foreground: oklch(0.16 0.04 150);
   --corner: color-mix(in oklch, var(--primary) 50%, transparent);
   --font-display: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -47,6 +51,9 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-glow: var(--glow);
+  --color-safe: var(--safe);
+  --color-safe-foreground: var(--safe-foreground);
+  --color-glow-safe: var(--glow-safe);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);
@@ -95,6 +102,58 @@
     );
     box-shadow: inset 0 1px 0 color-mix(in oklch, white 12%, transparent);
     backdrop-filter: blur(12px);
+  }
+
+  .power-safe {
+    background: linear-gradient(
+      160deg,
+      color-mix(in oklch, var(--safe) 92%, white) 0%,
+      var(--safe) 55%,
+      color-mix(in oklch, var(--safe) 80%, black) 100%
+    );
+    color: var(--safe-foreground);
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, white 18%, transparent),
+      0 10px 36px -6px color-mix(in oklch, var(--glow-safe) 75%, transparent),
+      0 0 48px -4px color-mix(in oklch, var(--glow-safe) 55%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
+    animation: power-safe-breathe 2.8s ease-in-out infinite;
+  }
+
+  @keyframes power-safe-breathe {
+    0%,
+    100% {
+      box-shadow:
+        0 0 0 1px color-mix(in oklch, white 18%, transparent),
+        0 10px 36px -6px color-mix(in oklch, var(--glow-safe) 70%, transparent),
+        0 0 40px -4px color-mix(in oklch, var(--glow-safe) 45%, transparent),
+        inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
+    }
+    50% {
+      box-shadow:
+        0 0 0 1px color-mix(in oklch, white 22%, transparent),
+        0 14px 48px -2px color-mix(in oklch, var(--glow-safe) 95%, transparent),
+        0 0 72px 4px color-mix(in oklch, var(--glow-safe) 70%, transparent),
+        inset 0 1px 0 color-mix(in oklch, white 40%, transparent);
+    }
+  }
+
+  .status-safe-dot {
+    background: var(--safe);
+    box-shadow: 0 0 10px var(--glow-safe), 0 0 18px color-mix(in oklch, var(--glow-safe) 50%, transparent);
+    animation: status-safe-pulse 2.2s ease-in-out infinite;
+  }
+
+  @keyframes status-safe-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.75;
+      transform: scale(1.25);
+    }
   }
 
   /* Legado — outras páginas ainda usam */

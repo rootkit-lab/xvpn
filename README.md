@@ -87,4 +87,4 @@ Auditoria rápida do VPS: skill `vps-security-audit` (`.cursor/skills/vps-securi
 
 ## Licença / visibilidade
 
-Repositório **público** (branch protection na `main`). Segredos nunca commitados — ver [`SECURITY.md`](./SECURITY.md). Licença de código ainda não definida.
+Repositório **público** (branch protection na `main`). Licença: [MIT](./LICENSE). Segredos nunca commitados — ver [`SECURITY.md`](./SECURITY.md).

@@ -97,6 +97,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
+		&store.PanelSettings{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}

@@ -95,6 +95,9 @@ func run() error {
 		UserProvisioner: userProvisioner,
 		ServerPublicKey: privateKey.PublicKey().String(),
 	}
+	if err := app.ApplyPanelSettingsOverrides(); err != nil {
+		return fmt.Errorf("carregando overrides de configuração do painel: %w", err)
+	}
 	router := api.NewRouter(app)
 
 	// Reconcile de contas Unix (Fase 13, PLAN.md §6.9): converte o

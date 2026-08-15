@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -21,6 +22,7 @@ type Claims struct {
 
 // TokenManager emite e valida JWTs assinados com HMAC-SHA256.
 type TokenManager struct {
+	mu     sync.Mutex
 	secret []byte
 	ttl    time.Duration
 }
@@ -31,8 +33,19 @@ func NewTokenManager(secret string, ttl time.Duration) *TokenManager {
 	return &TokenManager{secret: []byte(secret), ttl: ttl}
 }
 
+// SetTTL atualiza a validade usada em Issue (Fase 15 — edição via painel).
+// Tokens já emitidos mantêm a expiração original.
+func (t *TokenManager) SetTTL(ttl time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.ttl = ttl
+}
+
 // Issue gera um novo JWT válido por t.ttl para o usuário informado.
 func (t *TokenManager) Issue(userID uint, username string, role store.Role) (string, error) {
+	t.mu.Lock()
+	ttl := t.ttl
+	t.mu.Unlock()
 	now := time.Now()
 	claims := Claims{
 		UserID:   userID,
@@ -40,7 +53,7 @@ func (t *TokenManager) Issue(userID uint, username string, role store.Role) (str
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(t.ttl)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 			Subject:   username,
 		},
 	}

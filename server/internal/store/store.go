@@ -35,6 +35,7 @@ func Open(path string) (*Store, error) {
 	if err := db.AutoMigrate(
 		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
+		&PanelSettings{},
 	); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}

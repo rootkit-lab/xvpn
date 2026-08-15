@@ -23,3 +23,10 @@ func openSMBShare(host, share string) error {
 func ensureSMBMounted(host, share string) error {
 	return nil
 }
+
+func unmountServerSMBShares(host string) error {
+	// Remove mapeamentos UNC deste host (se o Explorer tiver feito net use).
+	_ = exec.Command("cmd", "/c", "net", "use", fmt.Sprintf(`\\%s\*`, host), "/delete", "/y").Run()
+	_ = exec.Command("cmd", "/c", "net", "use", fmt.Sprintf(`\\%s\shared`, host), "/delete", "/y").Run()
+	return nil
+}

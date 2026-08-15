@@ -213,14 +213,24 @@ func (s *VPNService) mountFileSharesBestEffort() {
 	}
 }
 
-// Disconnect desfaz o túnel.
+// Disconnect desfaz o túnel. Antes, remove mounts/atalhos SMB do servidor
+// — senão o Cosmic/Nautilus continua mostrando "shared on 10.66.66.1"
+// com a VPN já desligada (e o FUSE fica órfão).
 func (s *VPNService) Disconnect() error {
+	s.unmountFileSharesBestEffort()
 	client, err := ipc.Dial()
 	if err != nil {
 		return fmt.Errorf("serviço xvpn-client-helper indisponível: %w", err)
 	}
 	defer client.Close()
 	return client.Call(ipc.MethodDisconnect, nil, nil)
+}
+
+// unmountFileSharesBestEffort limpa GVFS/~/XVPN/Desktop deste servidor.
+func (s *VPNService) unmountFileSharesBestEffort() {
+	if err := opener.UnmountServerSMBShares(serverVPNAddress); err != nil {
+		slog.Warn("unmount smb shares failed", "err", err)
+	}
 }
 
 // OpenServerFiles abre o acesso a arquivos do servidor no aplicativo

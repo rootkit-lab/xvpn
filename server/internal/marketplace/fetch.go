@@ -41,11 +41,8 @@ func FetchAndPut(ctx context.Context, store *Store, rawURL, expectedSHA256 strin
 	if err != nil {
 		return PutResult{}, "", fmt.Errorf("url inválida: %w", err)
 	}
-	if parsed.Scheme != "https" {
-		return PutResult{}, "", fmt.Errorf("%w: só https é aceito", ErrSSRFBlocked)
-	}
-	if parsed.Host == "" {
-		return PutResult{}, "", fmt.Errorf("%w: host ausente", ErrSSRFBlocked)
+	if err := assertHTTPSPublicURL(parsed); err != nil {
+		return PutResult{}, "", err
 	}
 
 	client := &http.Client{
@@ -82,10 +79,14 @@ func FetchAndPut(ctx context.Context, store *Store, rawURL, expectedSHA256 strin
 			},
 			DisableKeepAlives: true,
 		},
-		// Desliga redirects: um 302 para http://127.0.0.1 furaria a
-		// checagem do Dial se o redirect fosse seguido cegamente.
+		// GitHub Releases responde 302 → objects.githubusercontent.com.
+		// Seguimos só https; o DialContext continua bloqueando IPs
+		// privados/loopback em cada hop (anti-SSRF).
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
+			if len(via) >= 10 {
+				return errors.New("muitos redirects ao baixar asset")
+			}
+			return assertHTTPSPublicURL(req.URL)
 		},
 	}
 
@@ -122,6 +123,21 @@ func FetchAndPut(ctx context.Context, store *Store, rawURL, expectedSHA256 strin
 		filename = expectedSHA256[:16]
 	}
 	return result, filename, nil
+}
+
+// assertHTTPSPublicURL rejeita schemes não-https e hosts vazios. A
+// resolução DNS + isPublicIP fica no DialContext (cada hop do redirect).
+func assertHTTPSPublicURL(u *url.URL) error {
+	if u == nil {
+		return fmt.Errorf("%w: url ausente", ErrSSRFBlocked)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("%w: só https é aceito", ErrSSRFBlocked)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("%w: host ausente", ErrSSRFBlocked)
+	}
+	return nil
 }
 
 func isPublicIP(ip net.IP) bool {

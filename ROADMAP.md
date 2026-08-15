@@ -570,10 +570,10 @@ Itens que já estavam sinalizados como backlog explícito nas fases anteriores �
 - [x] MTU editável em Preferências/Diagnóstico do cliente (hoje só no enrollment) — [`PLAN.md` §7.2](./PLAN.md#72-funcionalidades-do-cliente) e achado da Fase 1. **Pegou carona no PR da Fase 14**: toca os mesmos arquivos (`internal/helper/helper.go`, `settings-page.tsx`)
 - [x] Edição de Configurações no painel — TTLs de convite/sessão via `PATCH /api/config` (persistidos no DB); rede WireGuard permanece somente leitura (env + restart)
 - [x] Vitest no painel web — dívida assumida na Fase 9 (`use-polling-data` + job `npm test` no CI)
-- [ ] Validação E2E em Windows real + helper como Windows Service — [backlog legado](#backlog-legado-mvp--fora-das-fases-9). **Investigar antes de reservar máquina** (ver abaixo)
+- [~] Validação E2E em Windows real + helper como Windows Service — [backlog legado](#backlog-legado-mvp--fora-das-fases-9). **Suspeita da rota `/32` corrigida no código** (`addHostRouteException` no engine Windows); falta validar em máquina/VM real e o Service do helper
 - [x] `LICENSE` no repositório público — MIT (adiado desde a Fase 0)
 
-**Suspeita a investigar antes do E2E em Windows — rota de exceção ausente.** No Linux, `Connect` instala uma rota `/32` para o IP do servidor via o gateway original antes de trocar a rota padrão (`addHostRouteException`), sem a qual os próprios pacotes do handshake WireGuard entrariam em loop. O engine do Windows **não tem equivalente**: `configureInterface` só adiciona rotas para os `AllowedIPs` (`client/internal/platform/windows/engine_windows.go:249-258`). Com `AllowedIPs = 0.0.0.0/0` isso tende a dar loop de roteamento. **Não foi confirmado em Windows real** — o `wireguard-go` em userspace pode se comportar diferente do kernel do Linux aqui, e o próprio arquivo carrega um aviso de plataforma não testada no topo. Registrado como suspeita a checar em VM antes de reservar hardware, **não** como fato: se procede, é bug de código a corrigir antes do teste; se não, o item segue como estava.
+**Suspeita (rota `/32` no Windows) — mitigada no código, E2E ainda pendente.** No Linux, `Connect` instala uma rota `/32` para o IP do servidor via o gateway original antes de trocar a rota padrão (`addHostRouteException`). O engine do Windows agora tem equivalente (`apps/xvpn-client/internal/platform/windows/hostroute_windows.go`): `route ADD <server>/32` via gateway de `route print -4` antes dos `AllowedIPs`. **Ainda não confirmado em Windows real** — validação em VM/hardware continua no item E2E acima.
 
 ---
 

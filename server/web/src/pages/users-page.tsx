@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Copy, FolderKey, KeyRound, Pencil, Plus, Shield, Ticket, Trash2 } from 'lucide-react'
+import { Copy, FolderKey, KeyRound, Pencil, Plus, Ticket, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { api, ApiError, type DeviceSSHKey, type InviteResponse, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -60,26 +59,11 @@ export function UsersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Usuários</h1>
-          <p className="text-muted-foreground">
-            Contas com acesso à VPN e ao painel.{' '}
-            <Link to="/admin/rbac" className="text-primary underline-offset-4 hover:underline">
-              Ver papéis e permissões
-            </Link>
-          </p>
+      {canCreate && (
+        <div className="flex items-center justify-end">
+          <CreateUserDialog onCreated={reload} />
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/admin/rbac">
-              <Shield className="size-4" />
-              Papéis
-            </Link>
-          </Button>
-          {canCreate && <CreateUserDialog onCreated={reload} />}
-        </div>
-      </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {ALL_ROLES.map((role) => {

@@ -5,7 +5,6 @@ import { FolderOpen, Pencil, Store, Trash2, UserRound } from 'lucide-react'
 import { api, ApiError, type Device } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime, formatRelativeTime } from '@/lib/format'
-import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,22 +39,11 @@ const SHORTCUTS = [
 // PortalPage é o autosserviço (Fase 10 + Fase 18): dispositivos próprios e
 // atalhos para as páginas da conta. Senha/SSH ficam em /app/account.
 export function PortalPage() {
-  const { user } = useAuth()
   const fetchDevices = useCallback(() => api.listMyDevices(), [])
   const { data: devices, loading, error, reload } = usePollingData(fetchDevices, 10_000)
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Meu espaço</p>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {user ? `Olá, ${user.username}` : 'Início'}
-        </h1>
-        <p className="text-muted-foreground">
-          Seus dispositivos VPN. Para adicionar um dispositivo novo, peça um convite a um administrador.
-        </p>
-      </div>
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {SHORTCUTS.map(({ to, label, description, icon: Icon }) => (
           <Link key={to} to={to} className="group">

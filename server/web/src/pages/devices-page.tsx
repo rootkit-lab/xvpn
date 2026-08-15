@@ -34,11 +34,6 @@ export function DevicesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Dispositivos</h1>
-        <p className="text-muted-foreground">Peers registrados na interface WireGuard.</p>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Todos os dispositivos</CardTitle>

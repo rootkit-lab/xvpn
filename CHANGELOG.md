@@ -28,6 +28,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ### Changed
 
+- **Chrome fixo do painel:** sidebar, header (título da rota + ações + identidade) e status bar (API, peers, uptime) travados no viewport em `/app` e `/admin`; só o conteúdo central rola.
 - **Marketplace (Fase 16):** publicação manual pelo painel removida; catálogo vira espelho de `apps/*/marketplace.yaml` via CI. `[shared]` Samba passa a guest (`force user = xvpn-shared`), alinhado aos shares pessoais.
 - **ROADMAP Fases 0–8 fechado**: checklist marcado concluído (incl. instalação real do `.deb` no Linux do usuário); itens Windows/`LICENSE`/assinatura movidos para backlog legado; escopo pós-MVP passa a ser as Fases 9+.
 - **ROADMAP Fase 9 fechada** (qualidade: bugs, TDD/CI, performance): rate limit em `POST /api/auth/login` (10/5min) e `POST /api/devices/enroll` (20/10min) por IP; cache de 2s em `GET /api/status`; polling do painel (`use-polling-data`) não sobrepõe mais requisições em atraso; `Helper.mu` do cliente não fica mais preso durante `engine.Connect`/`Disconnect` (mutex `engineMu` dedicado à chamada do motor); ring buffers do `applog` e do helper (`logbuffer.go`) trocaram o padrão de re-fatiar pela frente (capacidade encolhendo a cada linha) por deslocamento em memória fixa. Vitest do painel React fica adiado (sem infra de teste no frontend ainda) — ver nota no `ROADMAP.md`.

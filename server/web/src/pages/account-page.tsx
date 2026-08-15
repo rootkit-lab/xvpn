@@ -16,14 +16,6 @@ export function AccountPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Meu espaço</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Editar minha conta</h1>
-        <p className="text-muted-foreground">
-          Troque a senha do painel e a chave SSH extra. O nome de usuário e o papel só um administrador altera.
-        </p>
-      </div>
-
       {isLoadingUser || !user ? (
         <Skeleton className="h-48 w-full" />
       ) : (

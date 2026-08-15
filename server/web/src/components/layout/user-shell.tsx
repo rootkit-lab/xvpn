@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Download, FolderOpen, Home, LogOut, Settings2, Store, UserRound, UserCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/lib/auth-context'
-import { isViewerUpRole, ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
+import { isViewerUpRole } from '@/lib/roles'
+import { PanelHeader } from '@/components/layout/panel-header'
+import { PanelStatusBar } from '@/components/layout/panel-status-bar'
 
 const USER_NAV = [
   { to: '/app', label: 'Início', icon: Home, end: true },
@@ -19,7 +20,7 @@ const ACCOUNT_NAV = [
   { to: '/app/account', label: 'Editar conta', icon: UserCog },
 ] as const
 
-/** Shell do painel do usuário — autosserviço, sem chrome de ops. */
+/** Shell do painel do usuário — sidebar, header e statusbar fixos. */
 export function UserShell() {
   const { user, logout } = useAuth()
   const location = useLocation()
@@ -27,7 +28,7 @@ export function UserShell() {
   const showAdminLink = isViewerUpRole(user?.role)
 
   return (
-    <div className="relative flex min-h-svh w-full bg-background">
+    <div className="relative flex h-svh w-full overflow-hidden bg-background">
       <div
         className="pointer-events-none fixed inset-0 opacity-80"
         style={{
@@ -35,15 +36,15 @@ export function UserShell() {
             'radial-gradient(90% 60% at 10% 0%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 55%), radial-gradient(70% 50% at 90% 100%, color-mix(in oklch, var(--primary) 10%, transparent), transparent 50%)',
         }}
       />
-      <aside className="relative z-10 flex w-60 shrink-0 flex-col border-r border-white/8 bg-card/50 backdrop-blur-xl">
-        <div className="flex items-center gap-2.5 px-5 py-5">
+      <aside className="relative z-20 flex h-full w-60 shrink-0 flex-col border-r border-white/8 bg-card/50 backdrop-blur-xl">
+        <div className="flex items-center gap-2.5 px-5 py-4">
           <img src="/logo-192.png" alt="XVPN" className="size-8 rounded-[10px]" />
           <div className="min-w-0">
             <span className="block text-base font-semibold tracking-tight">XVPN</span>
             <span className="text-[11px] text-muted-foreground">Meu espaço</span>
           </div>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3 py-2">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
           {USER_NAV.map(({ to, label, icon: Icon, end }) => (
             <NavLink
               key={to}
@@ -81,17 +82,6 @@ export function UserShell() {
               {label}
             </NavLink>
           ))}
-          {user && (
-            <Link
-              to="/app/profile"
-              className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 hover:bg-white/5"
-            >
-              <span className="truncate text-sm font-medium" title={user.username}>
-                {user.username}
-              </span>
-              <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
-            </Link>
-          )}
           {showAdminLink && (
             <Button variant="ghost" className="w-full justify-start gap-3 rounded-xl" asChild>
               <Link to="/admin">
@@ -113,19 +103,23 @@ export function UserShell() {
           </Button>
         </div>
       </aside>
-      <main className="relative z-10 flex-1 overflow-y-auto p-6 md:p-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <PanelHeader variant="user" />
+        <main className="min-h-0 flex-1 overflow-y-auto p-6 md:p-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+        <PanelStatusBar variant="user" />
+      </div>
     </div>
   )
 }

@@ -19,13 +19,6 @@ export function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Configurações</h1>
-        <p className="text-muted-foreground">
-          Rede WireGuard (somente leitura) e TTLs editáveis de convite/sessão.
-        </p>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>

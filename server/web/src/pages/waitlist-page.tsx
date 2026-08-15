@@ -49,13 +49,6 @@ export function WaitlistPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Lista de espera</h1>
-        <p className="text-muted-foreground">
-          Cadastros recebidos pela landing pública em "/". Provisionar cria o usuário e o convite num só passo.
-        </p>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>

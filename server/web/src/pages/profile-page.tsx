@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { FolderOpen, KeyRound, Laptop, Pencil, Shield } from 'lucide-react'
+import { FolderOpen, KeyRound, Laptop, Shield } from 'lucide-react'
 import { useCallback } from 'react'
 import { api, type Device } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -34,20 +34,6 @@ export function ProfilePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Meu espaço</p>
-          <h1 className="text-2xl font-semibold tracking-tight">Perfil</h1>
-          <p className="text-muted-foreground">Como a conta aparece no XVPN — só leitura. Para senha e chave SSH, use Editar conta.</p>
-        </div>
-        <Button asChild>
-          <Link to="/app/account">
-            <Pencil className="size-4" />
-            Editar minha conta
-          </Link>
-        </Button>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>

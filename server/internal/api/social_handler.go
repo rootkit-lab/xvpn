@@ -31,10 +31,12 @@ type socialGroupResponse struct {
 }
 
 type socialThreadResponse struct {
-	ID         uint   `json:"id"`
-	Kind       string `json:"kind"`
-	Title      string `json:"title"`
-	PeerUserID uint   `json:"peer_user_id,omitempty"`
+	ID         uint       `json:"id"`
+	Kind       string     `json:"kind"`
+	Title      string     `json:"title"`
+	PeerUserID uint       `json:"peer_user_id,omitempty"`
+	LastBody   string     `json:"last_body,omitempty"`
+	LastAt     *time.Time `json:"last_at,omitempty"`
 }
 
 type socialMessageResponse struct {
@@ -334,7 +336,9 @@ func (a *App) handleSocialOpenThread(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	c.JSON(http.StatusOK, socialThreadResponse{ID: threadID, Kind: "dm", Title: peer.Username, PeerUserID: peer.ID})
+	th := socialThreadResponse{ID: threadID, Kind: "dm", Title: peer.Username, PeerUserID: peer.ID}
+	a.attachLastMessage(&th)
+	c.JSON(http.StatusOK, th)
 }
 
 func (a *App) findOrCreateDM(aID, bID uint) (uint, error) {
@@ -390,8 +394,20 @@ func (a *App) handleSocialListThreads(c *gin.Context) {
 			}
 		}
 		items = append(items, socialThreadResponse{ID: m.ThreadID, Kind: "dm", Title: title, PeerUserID: peer})
+		a.attachLastMessage(&items[len(items)-1])
 	}
 	writePage(c, items, total, p)
+}
+
+func (a *App) attachLastMessage(th *socialThreadResponse) {
+	var msg store.Message
+	err := a.Store.DB.Where("thread_kind = ? AND thread_id = ?", th.Kind, th.ID).Order("id desc").First(&msg).Error
+	if err != nil {
+		return
+	}
+	th.LastBody = msg.Body
+	t := msg.CreatedAt
+	th.LastAt = &t
 }
 
 func (a *App) canAccessThread(kind string, threadID, userID uint) bool {

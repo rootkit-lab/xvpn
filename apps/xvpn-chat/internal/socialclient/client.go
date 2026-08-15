@@ -32,6 +32,7 @@ type Client struct {
 	token    string
 	username string
 	role     string
+	userID   uint
 	ws       *websocket.Conn
 }
 
@@ -43,12 +44,13 @@ type Session struct {
 	LoggedIn bool   `json:"loggedIn"`
 	Username string `json:"username"`
 	Role     string `json:"role"`
+	UserID   uint   `json:"userId"`
 }
 
 func (c *Client) Session() Session {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return Session{LoggedIn: c.token != "", Username: c.username, Role: c.role}
+	return Session{LoggedIn: c.token != "", Username: c.username, Role: c.role, UserID: c.userID}
 }
 
 func (c *Client) Logout() {
@@ -62,6 +64,7 @@ func (c *Client) Logout() {
 	c.token = ""
 	c.username = ""
 	c.role = ""
+	c.userID = 0
 }
 
 type loginRequest struct {
@@ -72,6 +75,7 @@ type loginRequest struct {
 type loginResponse struct {
 	Token string `json:"token"`
 	User  struct {
+		ID       uint   `json:"id"`
 		Username string `json:"username"`
 		Role     string `json:"role"`
 	} `json:"user"`
@@ -98,8 +102,9 @@ func (c *Client) Login(ctx context.Context, baseURL, username, password string) 
 	c.token = resp.Token
 	c.username = resp.User.Username
 	c.role = resp.User.Role
+	c.userID = resp.User.ID
 	c.mu.Unlock()
-	return Session{LoggedIn: true, Username: resp.User.Username, Role: resp.User.Role}, nil
+	return Session{LoggedIn: true, Username: resp.User.Username, Role: resp.User.Role, UserID: resp.User.ID}, nil
 }
 
 type ProfilePage struct {
@@ -149,10 +154,12 @@ type Group struct {
 }
 
 type Thread struct {
-	ID         uint   `json:"id"`
-	Kind       string `json:"kind"`
-	Title      string `json:"title"`
-	PeerUserID uint   `json:"peer_user_id,omitempty"`
+	ID         uint       `json:"id"`
+	Kind       string     `json:"kind"`
+	Title      string     `json:"title"`
+	PeerUserID uint       `json:"peer_user_id,omitempty"`
+	LastBody   string     `json:"last_body,omitempty"`
+	LastAt     *time.Time `json:"last_at,omitempty"`
 }
 
 type Message struct {
@@ -270,16 +277,27 @@ func (c *Client) ListenWS(ctx context.Context, onEvent func(WSEvent)) error {
 }
 
 func (c *Client) SendTyping(kind string, threadID uint) error {
+	return c.writeWS(map[string]any{
+		"type":    "typing",
+		"payload": map[string]any{"thread_kind": kind, "thread_id": threadID},
+	})
+}
+
+func (c *Client) SetPresence(status string) error {
+	return c.writeWS(map[string]any{
+		"type":    "presence",
+		"payload": map[string]any{"status": status},
+	})
+}
+
+func (c *Client) writeWS(payload any) error {
 	c.mu.Lock()
 	conn := c.ws
 	c.mu.Unlock()
 	if conn == nil {
 		return errors.New("websocket desconectado")
 	}
-	return conn.WriteJSON(map[string]any{
-		"type":    "typing",
-		"payload": map[string]any{"thread_kind": kind, "thread_id": threadID},
-	})
+	return conn.WriteJSON(payload)
 }
 
 func getPage[P any](ctx context.Context, c *Client, path string, page int, q string) (P, error) {

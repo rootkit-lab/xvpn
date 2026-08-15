@@ -1,6 +1,7 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { api, ApiError, type SocialGroup, type SocialMessage } from '@/lib/api'
+import { openChat } from '@chat/messenger/open-chat'
+import { api, ApiError, type SocialGroup } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { FilterBar } from '@/components/filter-bar'
 import { DataTable, type DataTableColumn } from '@/components/data-table'
@@ -17,16 +18,9 @@ export function SocialGroupsPage() {
   const [description, setDescription] = useState('')
   const [active, setActive] = useState<SocialGroup | null>(null)
   const [invitee, setInvitee] = useState('')
-  const [body, setBody] = useState('')
 
   const fetchGroups = useCallback(() => api.listSocialGroups({ page, per_page: 25, q }), [page, q])
   const { data, loading, reload } = usePollingData(fetchGroups, 15_000)
-
-  const fetchMessages = useCallback(() => {
-    if (!active) return Promise.resolve({ items: [] as SocialMessage[], total: 0, page: 1, per_page: 50 })
-    return api.listSocialMessages('group', active.id, { page: 1, per_page: 50 })
-  }, [active])
-  const { data: history, reload: reloadHistory } = usePollingData(fetchMessages, 8_000)
 
   const columns: DataTableColumn<SocialGroup>[] = [
     { key: 'name', header: 'Grupo', cell: (g) => <span className="font-medium">{g.name}</span> },
@@ -58,18 +52,6 @@ export function SocialGroupsPage() {
       reload()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao convidar')
-    }
-  }
-
-  async function send(e: FormEvent) {
-    e.preventDefault()
-    if (!active) return
-    try {
-      await api.postSocialMessage('group', active.id, body.trim())
-      setBody('')
-      reloadHistory()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Falha ao enviar')
     }
   }
 
@@ -116,26 +98,17 @@ export function SocialGroupsPage() {
             <EmptyState title="Nenhum grupo selecionado." />
           ) : (
             <>
+              {active.description && <p className="text-sm text-muted-foreground">{active.description}</p>}
+              <p className="text-sm text-muted-foreground">{active.member_count} membro(s)</p>
               <form className="flex gap-2" onSubmit={invite}>
                 <Input value={invitee} onChange={(e) => setInvitee(e.target.value)} placeholder="username para convidar" />
                 <Button type="submit" variant="secondary">
                   Convidar
                 </Button>
               </form>
-              <div className="flex max-h-[18rem] flex-col gap-2 overflow-y-auto rounded-lg border border-white/5 p-3">
-                {(history?.items ?? []).map((m) => (
-                  <p key={m.id} className="text-sm">
-                    {m.body}
-                  </p>
-                ))}
-                {(history?.items ?? []).length === 0 && (
-                  <p className="text-sm text-muted-foreground">Ainda não há mensagens neste grupo.</p>
-                )}
-              </div>
-              <form className="flex gap-2" onSubmit={send}>
-                <Input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Mensagem no grupo" />
-                <Button type="submit">Enviar</Button>
-              </form>
+              <Button type="button" onClick={() => openChat({ groupId: active.id, title: active.name })}>
+                Conversar
+              </Button>
             </>
           )}
         </CardContent>

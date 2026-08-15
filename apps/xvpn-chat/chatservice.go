@@ -70,6 +70,10 @@ func (s *ChatService) SendTyping(kind string, threadID uint) error {
 	return s.client.SendTyping(kind, threadID)
 }
 
+func (s *ChatService) SetPresence(status string) error {
+	return s.client.SetPresence(status)
+}
+
 func (s *ChatService) stopWS() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

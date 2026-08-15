@@ -15,6 +15,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(rootDir, "./src"),
+      "@chat": path.resolve(rootDir, "./src"),
     },
   },
   plugins: [react(), tailwindcss(), wails("./bindings")],

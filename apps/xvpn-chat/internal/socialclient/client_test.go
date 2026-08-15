@@ -15,7 +15,7 @@ func TestLoginStoresTokenInMemory(t *testing.T) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"token": "jwt-fake",
-			"user":  map[string]string{"username": "alice", "role": "member"},
+			"user":  map[string]any{"id": 1, "username": "alice", "role": "member"},
 		})
 	}))
 	t.Cleanup(srv.Close)
@@ -48,7 +48,7 @@ func TestWSURLNeverPutsTokenInQuery(t *testing.T) {
 		case "/api/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"token": "jwt-secret",
-				"user":  map[string]string{"username": "alice", "role": "member"},
+				"user":  map[string]any{"id": 1, "username": "alice", "role": "member"},
 			})
 		case "/api/social/people":
 			if r.URL.RawQuery != "" && r.URL.Query().Get("token") != "" {

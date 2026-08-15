@@ -836,11 +836,11 @@ Sem a stack compartilhada (20.1), a UI ICQ (20.2) seria copiada no dock, na pág
 
 Alinhar o chat ao `xvpn-client` e permitir claro/escuro/ICQ sem fork de CSS.
 
-- [ ] Frontend único em `apps/xvpn-chat/frontend`: React + Tailwind + shadcn/ui + **SASS** para temas (tokens de cor, raio, tipografia). Não duplicar o kit em `server/web`.
-- [ ] Adapter `web` × `desktop`: a UI não importa `@wailsio/runtime` nem `ChatService` direto — uma fachada (`chatapi`) com login, REST, WS, presença. Implementação Wails no binário; implementação HTTP/WS no browser.
-- [ ] Temas: `light`, `dark`, `icq` (acento verde-flor). Persistência: `localStorage` na web; preferência em memória (ou config local não-secreta) no desktop. Troca sem reload.
-- [ ] shadcn mínimo do messenger (button, input, scroll-area, avatar, tooltip, dropdown de status) — reusar o padrão do cliente VPN, não inventar outro design system.
-- [ ] Build: `npm run build` do frontend alimenta o `go:embed` do Wails **e** o `ChatDock` / página cheia no painel (20.3). Artefatos `dist/` continuam fora do Git (`PLAN.md` §11.1); só o `placeholder.txt` commitado.
+- [x] Frontend único em `apps/xvpn-chat/frontend`: React + Tailwind + shadcn/ui + **SASS** para temas (tokens de cor, raio, tipografia). Não duplicar o kit em `server/web`.
+- [x] Adapter `web` × `desktop`: a UI não importa `@wailsio/runtime` nem `ChatService` direto — uma fachada (`chatapi`) com login, REST, WS, presença. Implementação Wails no binário; implementação HTTP/WS no browser.
+- [x] Temas: `light`, `dark`, `icq` (acento verde-flor). Persistência: `localStorage` na web; preferência em memória (ou config local não-secreta) no desktop. Troca sem reload.
+- [x] shadcn mínimo do messenger (button, input, scroll-area, avatar, tooltip, dropdown de status) — reusar o padrão do cliente VPN, não inventar outro design system.
+- [x] Build: `npm run build` do frontend alimenta o `go:embed` do Wails **e** o `ChatDock` / página cheia no painel (20.3). Artefatos `dist/` continuam fora do Git (`PLAN.md` §11.1); só o `placeholder.txt` commitado.
 
 **Critério de saída:** o mesmo `App.tsx` sobe no Vite do chat e, com o adapter web, num harness do painel; trocar o tema altera tokens SASS visíveis; `go test` do módulo chat e build do frontend verdes.
 
@@ -848,13 +848,13 @@ Alinhar o chat ao `xvpn-client` e permitir claro/escuro/ICQ sem fork de CSS.
 
 Substituir abas Pessoas/Mensagens/Grupos e a DataTable de threads por um clone contemporâneo do ICQ.
 
-- [ ] **Layout de dois painéis:** lista de contatos (e grupos) à esquerda; conversa + composer à direita. Sem tabela de threads como tela principal.
-- [ ] **Contato:** avatar, display name / nick, preview da última mensagem, horário, bolinha de status (online / ausente / ocupado / invisível / offline). Busca no topo da lista.
-- [ ] **Conversa:** bolhas, dia, typing, scroll para o fim, histórico paginado (REST da 19.3) + eventos ao vivo (`message.new`, `message.ack`). Composer com Enter para enviar.
-- [ ] **Status do usuário logado** editável no chrome do messenger (não no waffle Workspace); publica `presence` no WS.
-- [ ] Grupos na mesma lista do messenger (ícone distinto); abrir usa o thread `group` da 19.3. Criar/convidar no chat pode ser diálogo — a página `/social/groups` continua da rede social (20.3).
-- [ ] “Nova conversa” no messenger escolhe um membro (UserPicker / API people); **não** substitui o diretório do Social.
-- [ ] Acessível: contraste dos temas, foco no composer, lista navegável por teclado.
+- [x] **Layout de dois painéis:** lista de contatos (e grupos) à esquerda; conversa + composer à direita. Sem tabela de threads como tela principal.
+- [x] **Contato:** avatar, display name / nick, preview da última mensagem, horário, bolinha de status (online / ausente / ocupado / invisível / offline). Busca no topo da lista.
+- [x] **Conversa:** bolhas, dia, typing, scroll para o fim, histórico paginado (REST da 19.3) + eventos ao vivo (`message.new`, `message.ack`). Composer com Enter para enviar.
+- [x] **Status do usuário logado** editável no chrome do messenger (não no waffle Workspace); publica `presence` no WS.
+- [x] Grupos na mesma lista do messenger (ícone distinto); abrir usa o thread `group` da 19.3. Criar/convidar no chat pode ser diálogo — a página `/social/groups` continua da rede social (20.3).
+- [x] “Nova conversa” no messenger escolhe um membro (UserPicker / API people); **não** substitui o diretório do Social.
+- [x] Acessível: contraste dos temas, foco no composer, lista navegável por teclado.
 
 **Critério de saída:** dois usuários reconhecem a tela como messenger (contatos + chat), não como admin; DM e grupo funcionam com WS; presença muda a bolinha no outro lado.
 
@@ -862,12 +862,12 @@ Substituir abas Pessoas/Mensagens/Grupos e a DataTable de threads por um clone c
 
 O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/:username`, follow, páginas de grupo). O chat entra de dois jeitos, como no Facebook: **dock em qualquer página autenticada** de `vpn.officeempresa.com`, e **página cheia** em `/social/messages`.
 
-- [ ] **`ChatDock` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. Canto inferior (lista compacta de contatos + janelas de conversa empilhadas). Badge de não lidas. **Não desmontar** na troca de rota — navegar de `/my` para `/admin/users` mantém as conversas abertas.
-- [ ] **Fora do dock:** landing, `/my/login`, `/admin/login`. Sem token na query do WS. 401 → `/my/login` (ou `/admin/login` se o path for admin).
-- [ ] **Página cheia** `/social/messages`: o UI da 20.2 no `main` (expandir o dock / “abrir no messenger”). Sem iframe. A DataTable de threads some.
-- [ ] **Integração Social:** no perfil, “enviar mensagem” **abre o dock** com aquele contato e **não** tira o usuário da página de perfil. Na página de grupo social, “conversar” abre o thread `group` no dock. `/social/groups` continua página de rede (membros, convite, sobre), não vira o messenger.
-- [ ] Responsivo: no mobile web o dock vira tela cheia ao abrir uma conversa; no desktop web, popups + lista.
-- [ ] Testes/lint do `server/web` verdes; nenhum `Upgrade` no catch-all do Nginx.
+- [x] **`ChatDock` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. Canto inferior (lista compacta de contatos + janelas de conversa empilhadas). Badge de não lidas. **Não desmontar** na troca de rota — navegar de `/my` para `/admin/users` mantém as conversas abertas.
+- [x] **Fora do dock:** landing, `/my/login`, `/admin/login`. Sem token na query do WS. 401 → `/my/login` (ou `/admin/login` se o path for admin).
+- [x] **Página cheia** `/social/messages`: o UI da 20.2 no `main` (expandir o dock / “abrir no messenger”). Sem iframe. A DataTable de threads some.
+- [x] **Integração Social:** no perfil, “enviar mensagem” **abre o dock** com aquele contato e **não** tira o usuário da página de perfil. Na página de grupo social, “conversar” abre o thread `group` no dock. `/social/groups` continua página de rede (membros, convite, sobre), não vira o messenger.
+- [x] Responsivo: no mobile web o dock vira tela cheia ao abrir uma conversa; no desktop web, popups + lista.
+- [x] Testes/lint do `server/web` verdes; nenhum `Upgrade` no catch-all do Nginx.
 
 **Critério de saída:** um membro em `/my` (ou `/admin`) conversa pelo dock enquanto usa o painel; o outro pode estar no Social, no dock ou no app desktop; hard refresh em `/social` mostra a rede, não só o chat; `/social/messages` é o messenger cheio.
 
@@ -875,11 +875,11 @@ O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/
 
 O binário da 19.4 deixa de ser o formulário de três abas e passa a ser a casca nativa do mesmo frontend.
 
-- [ ] Janela Wails carrega a UI da 20.2 (adapter desktop). Login JWT só em memória (Fase 12 / 19.4).
-- [ ] Notificação local + som discreto de mensagem nova (quando a janela não está em foco). Sem listener de rede, sem Samba/FileBrowser.
-- [ ] Tema da 20.1 aplicável na janela; tamanho mínimo que caiba lista + conversa.
-- [ ] `marketplace.yaml` / CI `chat-linux` / `release-chat.yml` inalterados em espírito (Linux `.deb` + Windows `.exe`, `source: build`, `visibility: global`).
-- [ ] CI: build/vet/test do módulo + build do frontend; artefatos não commitados.
+- [x] Janela Wails carrega a UI da 20.2 (adapter desktop). Login JWT só em memória (Fase 12 / 19.4).
+- [x] Notificação local + som discreto de mensagem nova (quando a janela não está em foco). Sem listener de rede, sem Samba/FileBrowser.
+- [x] Tema da 20.1 aplicável na janela; tamanho mínimo que caiba lista + conversa.
+- [x] `marketplace.yaml` / CI `chat-linux` / `release-chat.yml` inalterados em espírito (Linux `.deb` + Windows `.exe`, `source: build`, `visibility: global`).
+- [x] CI: build/vet/test do módulo + build do frontend; artefatos não commitados.
 
 **Critério de saída:** o `.deb`/`.exe` do marketplace abre o messenger ICQ; dois desktops (ou desktop + dock no browser) conversam; `PLAN.md` §5 sem linha nova.
 

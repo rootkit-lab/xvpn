@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../../../apps/xvpn-chat/frontend/src";
+@import "../../../apps/xvpn-chat/frontend/src/theme/themes.scss";
 
 @custom-variant dark (&:is(.dark *));
 

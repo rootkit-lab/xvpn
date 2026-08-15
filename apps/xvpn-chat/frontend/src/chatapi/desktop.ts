@@ -1,13 +1,38 @@
 import { Events } from '@wailsio/runtime'
 import { ChatService } from '../../bindings/github.com/rootkit-lab/xvpn/chat'
-import type { ChatAPI, Group, Message, Page, Profile, Session, Thread, WSEvent } from './types'
+import type { ChatAPI, Group, Message, Page, Profile, Thread, WSEvent } from './types'
 
-function asPage<T>(raw: Page<T> | null | undefined): Page<T> {
+type WailsPage<T> = {
+  items?: T[] | null
+  total?: number
+  page?: number
+  per_page?: number
+}
+
+function asPage<T>(raw: WailsPage<T> | null | undefined): Page<T> {
   return {
     items: raw?.items ?? [],
     total: raw?.total ?? 0,
     page: raw?.page ?? 1,
     per_page: raw?.per_page ?? 25,
+  }
+}
+
+function mapThread(th: {
+  id: number
+  kind?: string
+  title?: string
+  peer_user_id?: number | null
+  last_body?: string | null
+  last_at?: string | null
+}): Thread {
+  return {
+    id: th.id,
+    kind: th.kind ?? 'dm',
+    title: th.title ?? '',
+    peer_user_id: th.peer_user_id ?? undefined,
+    last_body: th.last_body ?? undefined,
+    last_at: th.last_at ?? undefined,
   }
 }
 
@@ -43,12 +68,18 @@ export function createDesktopChatAPI(): ChatAPI {
     async listGroups(page) {
       return asPage<Group>(await ChatService.ListGroups(page))
     },
-    openThread: (username) => ChatService.OpenThread(username),
+    async openThread(username) {
+      return mapThread(await ChatService.OpenThread(username))
+    },
     async listMessages(kind, id, page) {
       return asPage<Message>(await ChatService.ListMessages(kind, id, page))
     },
-    postMessage: (kind, id, body) => ChatService.PostMessage(kind, id, body),
-    createGroup: (name, description) => ChatService.CreateGroup(name, description),
+    async postMessage(kind, id, body) {
+      return (await ChatService.PostMessage(kind, id, body)) as Message
+    },
+    async createGroup(name, description) {
+      return (await ChatService.CreateGroup(name, description)) as Group
+    },
     connectEvents(onEvent) {
       void ChatService.StartEvents()
       const off = Events.On('social:event', (ev: { data?: WSEvent }) => {

@@ -140,7 +140,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: server/web/package-lock.json
+          cache-dependency-path: |
+            server/web/package-lock.json
+            apps/xvpn-chat/frontend/package-lock.json
+      - name: Dependências do messenger compartilhado (@chat)
+        working-directory: apps/xvpn-chat/frontend
+        run: npm ci
       - run: npm ci
       - run: npm run lint
       - run: npm test

@@ -1,22 +1,22 @@
 ---
 name: chat-chrome
-description: Invariante do messenger no painel web. Use ao editar ChatDock, ChatSidebar, ChatHost, SystemChrome, PanelStatusBar, ou quando o usuário falar de chat flutuante, FAB, dock, status bar, sidebar, ICQ overlay.
+description: Invariante do messenger no painel web. Use ao editar ChatSidebar, ChatAccountsBar, ChatConversationModal, ChatHost, SystemChrome, PanelStatusBar, ou quando o usuário falar de chat, FAB, dock, status bar, sidebar, modal, contas.
 ---
 
 # Chat no chrome do painel
 
-O chat **não** é um FAB / popup no canto da tela. Isso compete com o Workspace (navy/azul) e foi revertido.
+O chat **não** é um FAB / popup no canto da tela e **não** substitui o nav esquerdo.
 
 | Superfície | Onde |
 |---|---|
 | Gatilho | botão **Chat** na `PanelStatusBar` (badge de não lidas) |
-| Painel | `ChatSidebar` no **aside esquerdo** do `SystemChrome` (substitui o nav; Esc volta) |
+| Contatos | `ChatSidebar` no **aside direito** (só lista; o nav esquerdo permanece) |
+| Conversa | `ChatConversationModal` ao clicar um contato |
+| Contas | `ChatAccountsBar` na **faixa inferior** (só conversas já existentes) |
 | Página cheia | `/social/messages` (`Messenger`) |
 | Desktop | janela Wails (`apps/xvpn-chat`), temas `icq`/`dark`/`light` |
 | Fora | landing, `/my/login`, `/admin/login` |
 
-Tema no chrome web: `inherit` (tokens do painel). Não pinte o dock de verde ICQ sobre o `/my`.
-
-Arquivos: `ChatSidebar.tsx`, `use-chat-panel.ts`, `panel-status-bar.tsx`, `system-chrome.tsx`. Não recrie `ChatDock` flutuante.
+Tema no chrome web: `inherit`. Não pinte o dock de verde ICQ sobre o `/my`.
 
 Catálogo desktop: skill `marketplace-publish` — sem release `xvpn-chat-v*` o Apps não lista o chat.

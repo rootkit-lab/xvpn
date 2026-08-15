@@ -172,10 +172,21 @@ type deviceResponse struct {
 // handleListDevices lista os dispositivos registrados, combinando os dados
 // persistidos (nome, dono) com o estado ao vivo lido do kernel (handshake,
 // tráfego, endpoint atual).
-// GET /api/devices
+// GET /api/devices?page=&per_page=&q=
 func (a *App) handleListDevices(c *gin.Context) {
+	p := parsePage(c)
+	q := a.Store.DB.Model(&store.Device{})
+	if p.Q != "" {
+		like := p.like()
+		q = q.Where("name LIKE ? OR allowed_ip LIKE ?", like, like)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
 	var devices []store.Device
-	if err := a.Store.DB.Order("id").Find(&devices).Error; err != nil {
+	if err := p.apply(q.Order("id")).Find(&devices).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -185,7 +196,7 @@ func (a *App) handleListDevices(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro consultando estado da interface WireGuard"})
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	writePage(c, resp, total, p)
 }
 
 // mergeDevicesWithLiveState combina os registros persistidos com o estado

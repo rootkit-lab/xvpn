@@ -1,0 +1,37 @@
+version: '3'
+
+vars:
+  APP_NAME: xvpn-chat
+  VERSION: '{{.VERSION | default "dev"}}'
+
+tasks:
+  bindings:
+    cmds:
+      - wails3 generate bindings -ts -i -clean=true
+
+  frontend:
+    dir: frontend
+    deps: [bindings]
+    cmds:
+      - npm ci
+      - npm run build
+
+  build:
+    desc: Gera bindings, frontend e o binário (CGO necessário no Linux)
+    deps: [frontend]
+    cmds:
+      - mkdir -p bin
+      - CGO_ENABLED=1 go build -ldflags="-X github.com/rootkit-lab/xvpn/chat/internal/version.Version={{.VERSION}}" -o bin/{{.APP_NAME}} .
+    env:
+      CGO_ENABLED: "1"
+
+  test:
+    cmds:
+      - go test ./internal/...
+
+  package:
+    desc: Empacota .deb via nfpm (Linux)
+    deps: [build]
+    cmds:
+      - mkdir -p dist
+      - XVPN_VERSION={{.VERSION}} nfpm package -f build/linux/nfpm.yaml -p deb -t dist/

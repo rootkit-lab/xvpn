@@ -313,3 +313,65 @@ type WaitlistEntry struct {
 	CreatedAt  time.Time
 	ReviewedAt *time.Time
 }
+
+// SocialProfile é a identidade pública do membro na organização (Fase 19.3).
+// Nunca inclui IP WireGuard, chaves, cota ou papel de admin.
+type SocialProfile struct {
+	ID          uint   `gorm:"primaryKey"`
+	UserID      uint   `gorm:"uniqueIndex;not null"`
+	DisplayName string `gorm:"not null"`
+	Bio         string `gorm:"type:text;default:''"`
+	AvatarURL   string `gorm:"default:''"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+
+	User User `gorm:"foreignKey:UserID"`
+}
+
+// Follow é unidirecional (seguir ≠ amizade).
+type Follow struct {
+	ID          uint `gorm:"primaryKey"`
+	FollowerID  uint `gorm:"uniqueIndex:idx_follow_pair;not null"`
+	FollowingID uint `gorm:"uniqueIndex:idx_follow_pair;not null"`
+	CreatedAt   time.Time
+}
+
+type SocialGroup struct {
+	ID          uint   `gorm:"primaryKey"`
+	Name        string `gorm:"not null"`
+	Description string `gorm:"type:text;default:''"`
+	OwnerUserID uint   `gorm:"not null;index"`
+	CreatedAt   time.Time
+
+	Owner User `gorm:"foreignKey:OwnerUserID"`
+}
+
+type SocialGroupMember struct {
+	ID        uint `gorm:"primaryKey"`
+	GroupID   uint `gorm:"uniqueIndex:idx_group_member;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_group_member;not null"`
+	CreatedAt time.Time
+}
+
+// DirectThread é uma conversa 1:1. Os dois membros ficam em DirectThreadMember.
+type DirectThread struct {
+	ID        uint `gorm:"primaryKey"`
+	CreatedAt time.Time
+}
+
+type DirectThreadMember struct {
+	ID        uint `gorm:"primaryKey"`
+	ThreadID  uint `gorm:"uniqueIndex:idx_thread_member;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_thread_member;not null"`
+	CreatedAt time.Time
+}
+
+// Message.ThreadKind: "dm" | "group". ThreadID aponta para DirectThread ou SocialGroup.
+type Message struct {
+	ID         uint   `gorm:"primaryKey"`
+	ThreadKind string `gorm:"not null;index"`
+	ThreadID   uint   `gorm:"not null;index"`
+	AuthorID   uint   `gorm:"not null;index"`
+	Body       string `gorm:"type:text;not null"`
+	CreatedAt  time.Time
+}

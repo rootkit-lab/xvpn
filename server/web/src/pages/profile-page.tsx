@@ -72,7 +72,7 @@ export function ProfilePage() {
             <ProfileRow label="Cota de disco" value={quota} />
             <ProfileRow label="Chave SSH manual" value={hasSSH ? 'cadastrada' : 'não cadastrada'} />
             <Button variant="outline" size="sm" asChild>
-              <Link to="/app/files">
+              <Link to="/my/files">
                 <FolderOpen className="size-4" />
                 Ver caminhos
               </Link>
@@ -103,7 +103,7 @@ export function ProfilePage() {
                 <span className="text-muted-foreground"> online agora</span>
               </p>
               <Button variant="outline" size="sm" asChild>
-                <Link to="/app">Gerenciar dispositivos</Link>
+                <Link to="/my">Gerenciar dispositivos</Link>
               </Button>
             </div>
           )}

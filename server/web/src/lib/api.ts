@@ -52,8 +52,8 @@ function handleUnauthorized(path: string) {
   clearToken()
   const here = window.location.pathname
   const login =
-    here.startsWith('/admin') || here === '/admin/login' ? '/admin/login' : '/app/login'
-  if (here !== login && here !== '/login') {
+    here.startsWith('/admin') || here === '/admin/login' ? '/admin/login' : '/my/login'
+  if (here !== login) {
     window.location.href = login
   }
 }
@@ -279,6 +279,71 @@ export interface MarketplaceStats {
   top_assets: MarketplaceAssetStat[]
 }
 
+export interface PageParams {
+  page?: number
+  per_page?: number
+  q?: string
+  role?: string
+  status?: string
+  sftp?: string
+  samba?: string
+}
+
+export interface SocialProfile {
+  user_id: number
+  username: string
+  display_name: string
+  bio: string
+  avatar_url: string
+  following: boolean
+  followers: number
+}
+
+export interface SocialGroup {
+  id: number
+  name: string
+  description: string
+  owner_user_id: number
+  member_count: number
+}
+
+export interface SocialThread {
+  id: number
+  kind: 'dm' | 'group'
+  title: string
+  peer_user_id?: number
+}
+
+export interface SocialMessage {
+  id: number
+  thread_kind: string
+  thread_id: number
+  author_id: number
+  body: string
+  created_at: string
+}
+
+export interface PageEnvelope<T> {
+  items: T[]
+  total: number
+  page: number
+  per_page: number
+}
+
+function withQuery(path: string, params?: PageParams): string {
+  if (!params) return path
+  const sp = new URLSearchParams()
+  if (params.page != null) sp.set('page', String(params.page))
+  if (params.per_page != null) sp.set('per_page', String(params.per_page))
+  if (params.q) sp.set('q', params.q)
+  if (params.role) sp.set('role', params.role)
+  if (params.status) sp.set('status', params.status)
+  if (params.sftp) sp.set('sftp', params.sftp)
+  if (params.samba) sp.set('samba', params.samba)
+  const qs = sp.toString()
+  return qs ? `${path}?${qs}` : path
+}
+
 export const api = {
   login: (username: string, password: string) =>
     request<{ token: string; user: User }>('/auth/login', {
@@ -291,7 +356,8 @@ export const api = {
 
   status: () => request<StatusResponse>('/status'),
 
-  listUsers: () => request<User[]>('/users'),
+  listUsers: (params?: PageParams) => request<PageEnvelope<User>>(withQuery('/users', params)),
+  getUser: (id: number) => request<User>(`/users/${id}`),
   createUser: (username: string, password: string, role: Role) =>
     request<User>('/users', {
       method: 'POST',
@@ -327,7 +393,7 @@ export const api = {
   listUserSSHKeys: (id: number) =>
     request<{ device_keys: DeviceSSHKey[] }>(`/users/${id}/ssh-keys`),
 
-  listDevices: () => request<Device[]>('/devices'),
+  listDevices: (params?: PageParams) => request<PageEnvelope<Device>>(withQuery('/devices', params)),
   deleteDevice: (id: number) => request<void>(`/devices/${id}`, { method: 'DELETE' }),
 
   // listMyDevices/deleteMyDevice são o autosserviço da Fase 10 (ver
@@ -351,7 +417,7 @@ export const api = {
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     }),
 
-  listAudit: () => request<AuditLog[]>('/audit'),
+  listAudit: (params?: PageParams) => request<PageEnvelope<AuditLog>>(withQuery('/audit', params)),
 
   getConfig: () => request<ConfigResponse>('/config'),
   updateConfig: (body: { invite_token_ttl_minutes?: number; jwt_token_ttl_minutes?: number }) =>
@@ -365,7 +431,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ name, email, message }),
     }),
-  listWaitlist: () => request<WaitlistEntry[]>('/waitlist'),
+  listWaitlist: (params?: PageParams) => request<PageEnvelope<WaitlistEntry>>(withQuery('/waitlist', params)),
   approveWaitlist: (id: number) => request<WaitlistEntry>(`/waitlist/${id}/approve`, { method: 'POST' }),
   rejectWaitlist: (id: number) => request<WaitlistEntry>(`/waitlist/${id}/reject`, { method: 'POST' }),
   // provisionWaitlist orquestra "aprovar e provisionar": cria o User +
@@ -387,4 +453,41 @@ export const api = {
     }),
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
+
+  listSocialPeople: (params?: PageParams) =>
+    request<PageEnvelope<SocialProfile>>(withQuery('/social/people', params)),
+  getSocialMe: () => request<SocialProfile>('/social/profile'),
+  patchSocialMe: (body: { display_name?: string; bio?: string; avatar_url?: string }) =>
+    request<SocialProfile>('/social/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  getSocialProfile: (username: string) => request<SocialProfile>(`/social/u/${encodeURIComponent(username)}`),
+  followUser: (username: string) =>
+    request<{ ok: boolean }>(`/social/follow/${encodeURIComponent(username)}`, { method: 'POST' }),
+  unfollowUser: (username: string) =>
+    request<{ ok: boolean }>(`/social/follow/${encodeURIComponent(username)}`, { method: 'DELETE' }),
+  listSocialGroups: (params?: PageParams) =>
+    request<PageEnvelope<SocialGroup>>(withQuery('/social/groups', params)),
+  createSocialGroup: (name: string, description: string) =>
+    request<SocialGroup>('/social/groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+  inviteToSocialGroup: (id: number, username: string) =>
+    request<{ ok: boolean }>(`/social/groups/${id}/invite`, {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    }),
+  listSocialThreads: (params?: PageParams) =>
+    request<PageEnvelope<SocialThread>>(withQuery('/social/threads', params)),
+  openSocialThread: (username: string) =>
+    request<SocialThread>('/social/threads', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    }),
+  listSocialMessages: (kind: string, id: number, params?: PageParams) =>
+    request<PageEnvelope<SocialMessage>>(withQuery(`/social/threads/${kind}/${id}/messages`, params)),
+  postSocialMessage: (kind: string, id: number, body: string) =>
+    request<SocialMessage>(`/social/threads/${kind}/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
 }

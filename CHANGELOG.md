@@ -8,6 +8,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/), 
 
 ### Added
 
+- **Fase 19 (ciclo v0.4) — Workspace, social e chat:** chrome `SystemChrome` + menu da conta/waffle; prefixo `/my` sem alias `/app`; kit `DataTable`/`FilterBar`/`Pagination`/`EmptyState`/`UserPicker`; envelope `{items,total,page,per_page}` nas listas (exceto `GET /marketplace/apps`); diretório `/admin/users` lista+ficha+criar; XVPN Social (REST+WebSocket `GET /api/ws`, auth no primeiro frame); app `apps/xvpn-chat` (module `github.com/rootkit-lab/xvpn/chat`) no marketplace.
 - **Fase 18 — conta do membro e papéis no admin:** `PATCH /api/me/password` (autosserviço, senha atual obrigatória, 400 se errada para não derrubar a sessão JWT); páginas `/app/profile`, `/app/account` (senha + chave SSH) e `/app/files` (Samba/SFTP/FileBrowser em `10.66.66.1`); `/admin/rbac` com hierarquia `CanManage` e matriz de permissões; lista de usuários com filtro/contagem por papel e coluna SFTP/Samba.
 - **Fase 14 — acesso a arquivos sincronizado:** `GET /api/me` e `POST /api/me/ssh-key` por IP do túnel (`RemoteIP()` + listener `10.66.66.1:8080`); cliente abre `home-<username>` / `[shared]`; chave SSH por dispositivo auto-registrada.
 - **Fase 16 — marketplace pelo diretório:** `apps/*/marketplace.yaml`, `POST /api/marketplace/sync` (token `XVPN_PUBLISH_TOKEN`, anti-SSRF, archive por slug), painel somente-leitura (ACL + download), workflows `release-client.yml` / `marketplace-sync.yml` e validação de schema no CI.

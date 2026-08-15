@@ -74,10 +74,7 @@ func TestHandleJoinWaitlist_DuplicateEmailDoesNotCreateSecondEntry(t *testing.T)
 	token := loginAndGetToken(t, app, router, "admin", "senha-admin-123")
 	_ = admin
 	rec = doJSON(t, router, http.MethodGet, "/api/waitlist", nil, token)
-	var entries []waitlistResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &entries); err != nil {
-		t.Fatalf("erro decodificando lista: %v", err)
-	}
+	entries := pageItems[waitlistResponse](t, decodePage[waitlistResponse](t, rec.Body.Bytes()))
 	if len(entries) != 1 {
 		t.Fatalf("esperava 1 entrada (sem duplicata), obtido %d", len(entries))
 	}
@@ -183,8 +180,7 @@ func TestHandleProvisionWaitlist_CreatesUserAndInvite(t *testing.T) {
 
 	// O cadastro precisa ter sido marcado como aprovado.
 	rec = doJSON(t, router, http.MethodGet, "/api/waitlist", nil, token)
-	var entries []waitlistResponse
-	_ = json.Unmarshal(rec.Body.Bytes(), &entries)
+	entries := pageItems[waitlistResponse](t, decodePage[waitlistResponse](t, rec.Body.Bytes()))
 	if len(entries) != 1 || entries[0].Status != waitlistStatusApproved {
 		t.Fatalf("esperava cadastro aprovado após provisionar, obtido %+v", entries)
 	}

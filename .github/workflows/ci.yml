@@ -145,3 +145,48 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  chat-linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/xvpn-chat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/xvpn-chat/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/xvpn-chat/frontend/package-lock.json
+      - name: Dependências de build do Wails (GTK/WebKit)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libgtk-3-dev libwebkit2gtk-4.1-dev libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Cache go-task/wails3 CLI
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: chat-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('apps/xvpn-chat/go.mod') }}
+      - name: Instala go-task e wails3 CLI
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.52.0
+          WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+      - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: task build
+        run: task build
+      - run: go vet ./...
+      - name: gofmt
+        run: |
+          fmt_out="$(gofmt -l .)"
+          if [ -n "$fmt_out" ]; then
+            echo "Arquivos fora do padrão gofmt:"
+            echo "$fmt_out"
+            exit 1
+          fi
+      - run: go test ./...

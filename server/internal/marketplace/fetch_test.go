@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -31,6 +32,32 @@ func TestIsPublicIP(t *testing.T) {
 		got := isPublicIP(net.ParseIP(tc.ip))
 		if got != tc.want {
 			t.Errorf("isPublicIP(%s)=%v, want %v", tc.ip, got, tc.want)
+		}
+	}
+}
+
+func TestAssertHTTPSPublicURL(t *testing.T) {
+	cases := []struct {
+		raw     string
+		wantErr bool
+	}{
+		{"https://github.com/a/b", false},
+		{"https://objects.githubusercontent.com/foo", false},
+		{"http://github.com/a/b", true},
+		{"ftp://github.com/a/b", true},
+		{"https:///path", true},
+	}
+	for _, tc := range cases {
+		u, err := url.Parse(tc.raw)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.raw, err)
+		}
+		err = assertHTTPSPublicURL(u)
+		if tc.wantErr && err == nil {
+			t.Errorf("%s: esperava erro", tc.raw)
+		}
+		if !tc.wantErr && err != nil {
+			t.Errorf("%s: %v", tc.raw, err)
 		}
 	}
 }

@@ -487,6 +487,7 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
   const [sftp, setSftp] = useState(false)
   const [samba, setSamba] = useState(false)
   const [sshKey, setSshKey] = useState('')
+  const [quotaMB, setQuotaMB] = useState('0')
   const [deviceKeys, setDeviceKeys] = useState<DeviceSSHKey[]>([])
   const [keysLoading, setKeysLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -498,6 +499,7 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
       setSftp(Boolean(user.sftp_enabled))
       setSamba(Boolean(user.samba_enabled))
       setSshKey(user.ssh_public_key ?? '')
+      setQuotaMB(String(user.disk_quota_mb ?? 0))
       setDeviceKeys([])
       setError(null)
       setKeysLoading(true)
@@ -516,12 +518,18 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
+    const quota = Number(quotaMB)
+    if (!Number.isFinite(quota) || quota < 0 || !Number.isInteger(quota)) {
+      setError('Quota inválida (use um inteiro ≥ 0; 0 = sem limite)')
+      return
+    }
     setSubmitting(true)
     try {
       await api.setFileAccess(user.id, {
         sftp_enabled: sftp,
         samba_enabled: samba,
         ssh_public_key: sshKey,
+        disk_quota_mb: quota,
       })
       toast.success(
         sftp || samba
@@ -578,6 +586,22 @@ function FileAccessDialog({ user, onChanged }: { user: User; onChanged: () => vo
                 <strong>Samba</strong> — share <code>[home-{user.username}]</code> acessível só pela VPN (guest + force user)
               </span>
             </label>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`quota-${user.id}`}>Quota de disco (MiB)</Label>
+              <Input
+                id={`quota-${user.id}`}
+                type="number"
+                min={0}
+                step={1}
+                value={quotaMB}
+                onChange={(e) => setQuotaMB(e.target.value)}
+                disabled={!(sftp || samba)}
+              />
+              <p className="text-xs text-muted-foreground">
+                0 = sem limite. Requer <code>usrquota</code> no filesystem do VPS (ver{' '}
+                <code>server/deploy/quota/README.md</code>).
+              </p>
+            </div>
             <div className="flex flex-col gap-2">
               <Label>Chaves dos dispositivos (automáticas)</Label>
               {keysLoading ? (

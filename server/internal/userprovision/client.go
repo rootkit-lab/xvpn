@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -70,15 +71,16 @@ func newWithExecutor(binaryPath string, e executor) *Client {
 	return &Client{binaryPath: binaryPath, executor: e}
 }
 
-// run é o núcleo comum: monta `sudo -n <binary> <subcmd> <username>`,
+// run é o núcleo comum: monta `sudo -n <binary> <subcmd> <username> [extra…]`,
 // injeta stdin (para enable-sftp), e traduz saídas. sudo -n = não
 // interativo: se o sudoers exigisse senha, falha alto em vez de travar
 // esperando input (não deveria acontecer — o sudoers.d é NOPASSWD).
-func (c *Client) run(ctx context.Context, subcmd, username, stdin string) error {
+func (c *Client) run(ctx context.Context, subcmd, username, stdin string, extraArgs ...string) error {
 	if c.binaryPath == "" {
 		return ErrBinaryMissing
 	}
 	args := []string{"-n", c.binaryPath, subcmd, username}
+	args = append(args, extraArgs...)
 	out, err := c.executor(ctx, "sudo", args, stdin)
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -134,4 +136,9 @@ func (c *Client) DisableSFTP(ctx context.Context, username string) error {
 // DisableSamba remove só o share Samba, mantendo o SFTP. Idempotente.
 func (c *Client) DisableSamba(ctx context.Context, username string) error {
 	return c.run(ctx, "disable-samba", username, "")
+}
+
+// SetQuota aplica quota de disco em MiB (0 = sem limite). Fase 15.
+func (c *Client) SetQuota(ctx context.Context, username string, quotaMB uint64) error {
+	return c.run(ctx, "set-quota", username, "", strconv.FormatUint(quotaMB, 10))
 }

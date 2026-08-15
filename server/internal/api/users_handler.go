@@ -28,6 +28,7 @@ type userResponse struct {
 	SFTPEnabled  bool   `json:"sftp_enabled"`
 	SambaEnabled bool   `json:"samba_enabled"`
 	SSHPublicKey string `json:"ssh_public_key"`
+	DiskQuotaMB  uint64 `json:"disk_quota_mb"`
 }
 
 func toUserResponse(u store.User) userResponse {
@@ -39,6 +40,7 @@ func toUserResponse(u store.User) userResponse {
 		SFTPEnabled:  u.SFTPEnabled,
 		SambaEnabled: u.SambaEnabled,
 		SSHPublicKey: u.SSHPublicKey,
+		DiskQuotaMB:  u.DiskQuotaMB,
 	}
 }
 

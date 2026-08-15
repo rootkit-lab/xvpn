@@ -3,6 +3,7 @@ package provision
 import (
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -141,6 +142,9 @@ func (f *fakeRunner) RemoveFile(path string) error {
 
 func (f *fakeRunner) ReloadSSH() error   { return f.record("ReloadSSH()") }
 func (f *fakeRunner) ReloadSamba() error { return f.record("ReloadSamba()") }
+func (f *fakeRunner) SetUserQuota(username string, blocksKB uint64) error {
+	return f.record("SetUserQuota(" + username + "," + strconv.FormatUint(blocksKB, 10) + ")")
+}
 
 // itoa sem importar strconv só pra manter o fake enxuto.
 func itoa(n int) string {

@@ -315,7 +315,7 @@ O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — u
 
 **Auditoria:** `enable-sftp`/`enable-samba`/`disable` por usuário sempre geram entrada em `AuditLog` (actor = admin que fez a ação, não o binário privilegiado).
 
-**Fora de escopo desta fase:** FTP tradicional; shell interativo; quotas de disco por usuário (backlog); rotação de chave SSH pelo próprio usuário sem passar pelo admin (também backlog).
+**Fora de escopo desta fase:** FTP tradicional; shell interativo. Quotas de disco por usuário e rotação de chave SSH no portal foram entregues na Fase 15.
 
 **Revisão na Fase 14 — chave SSH deixa de ser digitada pelo admin.** O desenho acima assume que o admin cola a chave pública do usuário no painel, e o handler chega a bloquear o toggle de SFTP sem ela. Na prática isso trava o fluxo: o usuário final não sabe gerar nem localizar a própria chave, e o admin vira intermediário de um dado que a máquina do usuário já conhece. A Fase 14 inverte isso reaproveitando a identidade por IP do túnel:
 

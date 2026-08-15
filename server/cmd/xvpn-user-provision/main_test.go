@@ -69,9 +69,10 @@ func (n *noopRunner) ReadDir(dir string) ([]string, error) {
 	}
 	return names, nil
 }
-func (n *noopRunner) RemoveFile(path string) error { delete(n.writes, path); return nil }
-func (n *noopRunner) ReloadSSH() error             { return nil }
-func (n *noopRunner) ReloadSamba() error           { return nil }
+func (n *noopRunner) RemoveFile(path string) error      { delete(n.writes, path); return nil }
+func (n *noopRunner) ReloadSSH() error                  { return nil }
+func (n *noopRunner) ReloadSamba() error                { return nil }
+func (n *noopRunner) SetUserQuota(string, uint64) error { return nil }
 
 func TestRun_InvalidArgCount(t *testing.T) {
 	for _, args := range [][]string{{}, {"create"}, {"create", "alice", "extra"}} {

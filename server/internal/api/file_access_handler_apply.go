@@ -189,6 +189,24 @@ func (a *App) handleSetFileAccess(c *gin.Context) {
 		}
 	}
 
+	// Quota (Fase 15): aplica sempre que o valor mudou e há acesso a
+	// arquivos ligado; ao desligar ambos, zera no SO também.
+	wantQuota := req.DiskQuotaMB
+	if !req.SFTPEnabled && !req.SambaEnabled {
+		wantQuota = 0
+	}
+	if wantQuota != target.DiskQuotaMB {
+		if err := a.UserProvisioner.SetQuota(ctx, username, wantQuota); err != nil {
+			provisionErr(err)
+			return
+		}
+		target.DiskQuotaMB = wantQuota
+		save()
+		if c.Writer.Written() {
+			return
+		}
+	}
+
 	a.respondFileAccess(c, &target)
 }
 
@@ -258,6 +276,7 @@ func (a *App) saveFileAccessFields(target *store.User) error {
 		"sftp_enabled":   target.SFTPEnabled,
 		"samba_enabled":  target.SambaEnabled,
 		"ssh_public_key": target.SSHPublicKey,
+		"disk_quota_mb":  target.DiskQuotaMB,
 	}).Error
 }
 
@@ -279,5 +298,6 @@ func (a *App) respondFileAccess(c *gin.Context, target *store.User) {
 		SFTPEnabled:  target.SFTPEnabled,
 		SambaEnabled: target.SambaEnabled,
 		SSHPublicKey: target.SSHPublicKey,
+		DiskQuotaMB:  target.DiskQuotaMB,
 	})
 }

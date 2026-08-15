@@ -9,6 +9,7 @@
 //	xvpn-user-provision create <username>
 //	xvpn-user-provision enable-sftp <username>   # lê a chave pública SSH do stdin
 //	xvpn-user-provision enable-samba <username>
+//	xvpn-user-provision set-quota <username> <mb>  # 0 = sem limite (Fase 15)
 //	xvpn-user-provision disable <username>
 //
 // O username é validado via regex (ver provision.ValidUsername) ANTES de
@@ -29,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	"github.com/rootkit-lab/xvpn/server/internal/provision"
 )
@@ -52,31 +54,58 @@ func main() {
 // errUsage sinaliza erro de linha de comando (subcomando desconhecido,
 // argumento faltando) — mapeado pra exit code 2, distinto de erros de
 // runtime (exit 1). Separado pra run() ser testável sem os.Exit.
-var errUsage = errors.New("uso: xvpn-user-provision <create|enable-sftp|enable-samba|disable> <username>")
+var errUsage = errors.New("uso: xvpn-user-provision <create|enable-sftp|enable-samba|set-quota|disable|…> <username> [mb]")
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
-	if len(args) != 2 {
+	if len(args) < 2 {
 		return errUsage
 	}
 	cmd, username := args[0], args[1]
 	r := runnerFn()
 	switch cmd {
 	case "create":
+		if len(args) != 2 {
+			return errUsage
+		}
 		return provision.Create(r, username)
 	case "enable-sftp":
+		if len(args) != 2 {
+			return errUsage
+		}
 		key, err := io.ReadAll(stdin)
 		if err != nil {
 			return fmt.Errorf("lendo chave pública do stdin: %w", err)
 		}
 		return provision.EnableSFTP(r, username, string(key))
 	case "enable-samba":
+		if len(args) != 2 {
+			return errUsage
+		}
 		return provision.EnableSamba(r, username)
 	case "disable-sftp":
+		if len(args) != 2 {
+			return errUsage
+		}
 		return provision.DisableSFTP(r, username)
 	case "disable-samba":
+		if len(args) != 2 {
+			return errUsage
+		}
 		return provision.DisableSamba(r, username)
 	case "disable":
+		if len(args) != 2 {
+			return errUsage
+		}
 		return provision.Disable(r, username)
+	case "set-quota":
+		if len(args) != 3 {
+			return errUsage
+		}
+		mb, err := strconv.ParseUint(args[2], 10, 64)
+		if err != nil {
+			return fmt.Errorf("%w: mb inválido", errUsage)
+		}
+		return provision.SetDiskQuotaMB(r, username, mb)
 	default:
 		return errUsage
 	}

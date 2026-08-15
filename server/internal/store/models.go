@@ -90,6 +90,10 @@ type User struct {
 	// para cobrir celular ou máquina sem o cliente XVPN instalado. Ver
 	// renderAuthorizedKeys em internal/api e PLAN.md §6.9.
 	SSHPublicKey string `gorm:"type:text;default:''"`
+	// DiskQuotaMB (Fase 15): limite hard de disco em /home/<user>/files
+	// via setquota (usrquota). 0 = sem limite. Só faz sentido com
+	// SFTP/Samba ligados; o painel aplica via xvpn-user-provision set-quota.
+	DiskQuotaMB uint64 `gorm:"not null;default:0"`
 
 	Devices      []Device      `gorm:"foreignKey:UserID"`
 	InviteTokens []InviteToken `gorm:"foreignKey:UserID"`

@@ -9,7 +9,15 @@ function dayLabel(iso: string): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-export function Conversation({ threadKey, onClose }: { threadKey: string; onClose?: () => void }) {
+export function Conversation({
+  threadKey,
+  onClose,
+  alignEnd,
+}: {
+  threadKey: string
+  onClose?: () => void
+  alignEnd?: boolean
+}) {
   const { messages, typing, send, session, contactByKey, api, activeKey } = useChat()
   const contact = contactByKey(threadKey)
   const list = messages[threadKey] ?? []
@@ -48,31 +56,38 @@ export function Conversation({ threadKey, onClose }: { threadKey: string; onClos
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex items-center justify-between border-b border-border px-3 py-2">
-        <div>
-          <p className="text-sm font-semibold">{contact.title}</p>
+      <header
+        className={cn(
+          'flex items-center gap-2 border-b border-border px-3 py-2',
+          alignEnd ? 'flex-row-reverse' : 'justify-between',
+        )}
+      >
+        <div className={cn('min-w-0 flex-1', alignEnd && 'text-right')}>
+          <p className="truncate text-sm font-semibold">{contact.title}</p>
           {typing[threadKey] && <p className="text-[11px] text-muted-foreground">digitando…</p>}
         </div>
         {onClose && (
-          <ChatButton variant="ghost" aria-label="Fechar conversa" onClick={onClose}>
+          <ChatButton variant="ghost" className="size-8 shrink-0 px-0" aria-label="Fechar conversa" onClick={onClose}>
             ×
           </ChatButton>
         )}
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-background/40 px-3 py-2">
         {list.map((m) => {
           const day = dayLabel(m.created_at)
           const showDay = day !== lastDay
           lastDay = day
-          const mine = m.author_id === session?.userId
+          const mine = Number(m.author_id) === Number(session?.userId)
           return (
             <div key={m.id}>
               {showDay && <p className="my-2 text-center text-[10px] uppercase tracking-wide text-muted-foreground">{day}</p>}
-              <div className={cn('mb-1 flex', mine ? 'justify-end' : 'justify-start')}>
+              <div className={cn('mb-1.5 flex', mine ? 'justify-end' : 'justify-start')}>
                 <p
                   className={cn(
-                    'max-w-[80%] rounded-2xl px-3 py-1.5 text-sm',
-                    mine ? 'rounded-br-md bg-primary text-primary-foreground' : 'rounded-bl-md bg-secondary',
+                    'max-w-[80%] break-words px-3 py-1.5 text-sm leading-snug shadow-sm',
+                    mine
+                      ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground'
+                      : 'rounded-2xl rounded-bl-md border border-white/8 bg-muted text-foreground',
                   )}
                 >
                   {m.body}

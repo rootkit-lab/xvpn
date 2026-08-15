@@ -1,12 +1,13 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useMemo, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Copy, FolderKey, KeyRound, Pencil, Plus, Ticket, Trash2 } from 'lucide-react'
+import { Copy, FolderKey, KeyRound, Pencil, Plus, Shield, Ticket, Trash2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { api, ApiError, type DeviceSSHKey, type InviteResponse, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { canManageRole, isAdminRole, ROLE_BADGE_VARIANT, ROLE_LABELS, type Role } from '@/lib/roles'
+import { canManageRole, isAdminRole, ALL_ROLES, ROLE_BADGE_VARIANT, ROLE_LABELS, type Role } from '@/lib/roles'
 import { CopyField } from '@/components/copy-field'
 import { RoleSelect } from '@/components/role-select'
 import { Button } from '@/components/ui/button'
@@ -43,20 +44,76 @@ export function UsersPage() {
   const fetchUsers = useCallback(() => api.listUsers(), [])
   const { data: users, loading, reload } = usePollingData(fetchUsers, 30_000)
   const canCreate = isAdminRole(caller?.role)
+  const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all')
+
+  const counts = useMemo(() => {
+    const next: Record<Role, number> = { super_admin: 0, admin: 0, viewer: 0, member: 0 }
+    for (const u of users ?? []) next[u.role] += 1
+    return next
+  }, [users])
+
+  const filtered = useMemo(() => {
+    if (!users) return []
+    if (roleFilter === 'all') return users
+    return users.filter((u) => u.role === roleFilter)
+  }, [users, roleFilter])
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Usuários</h1>
-          <p className="text-muted-foreground">Contas com acesso à VPN e ao painel administrativo.</p>
+          <p className="text-muted-foreground">
+            Contas com acesso à VPN e ao painel.{' '}
+            <Link to="/admin/rbac" className="text-primary underline-offset-4 hover:underline">
+              Ver papéis e permissões
+            </Link>
+          </p>
         </div>
-        {canCreate && <CreateUserDialog onCreated={reload} />}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/admin/rbac">
+              <Shield className="size-4" />
+              Papéis
+            </Link>
+          </Button>
+          {canCreate && <CreateUserDialog onCreated={reload} />}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {ALL_ROLES.map((role) => {
+          const active = roleFilter === role
+          return (
+            <button
+              key={role}
+              type="button"
+              onClick={() => setRoleFilter(active ? 'all' : role)}
+              className="text-left"
+            >
+              <Card className={active ? 'border-primary/50 bg-primary/10' : 'hover:border-primary/30'}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center justify-between text-sm font-medium">
+                    <Badge variant={ROLE_BADGE_VARIANT[role]}>{ROLE_LABELS[role]}</Badge>
+                    <span className="font-mono text-xl tabular-nums">{loading || !users ? '—' : counts[role]}</span>
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </button>
+          )
+        })}
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Todos os usuários</CardTitle>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-base">
+            {roleFilter === 'all' ? 'Todos os usuários' : ROLE_LABELS[roleFilter]}
+          </CardTitle>
+          {roleFilter !== 'all' && (
+            <Button variant="ghost" size="sm" onClick={() => setRoleFilter('all')}>
+              Limpar filtro
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {loading || !users ? (
@@ -67,18 +124,19 @@ export function UsersPage() {
                 <TableRow>
                   <TableHead>Usuário</TableHead>
                   <TableHead>Papel</TableHead>
+                  <TableHead>Arquivos</TableHead>
                   <TableHead>Criado em</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((u) => (
+                {filtered.map((u) => (
                   <UserRow key={u.id} user={u} caller={caller} onChanged={reload} />
                 ))}
-                {users.length === 0 && (
+                {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      Nenhum usuário cadastrado ainda.
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      Nenhum usuário neste filtro.
                     </TableCell>
                   </TableRow>
                 )}
@@ -115,6 +173,12 @@ function UserRow({ user, caller, onChanged }: { user: User; caller: User | null;
       <TableCell className="font-medium">{user.username}</TableCell>
       <TableCell>
         <Badge variant={ROLE_BADGE_VARIANT[user.role]}>{ROLE_LABELS[user.role]}</Badge>
+      </TableCell>
+      <TableCell className="text-muted-foreground">
+        <span className="flex flex-wrap gap-1">
+          <Badge variant={user.sftp_enabled ? 'secondary' : 'outline'}>SFTP {user.sftp_enabled ? 'on' : 'off'}</Badge>
+          <Badge variant={user.samba_enabled ? 'secondary' : 'outline'}>SMB {user.samba_enabled ? 'on' : 'off'}</Badge>
+        </span>
       </TableCell>
       <TableCell className="text-muted-foreground">{formatDateTime(user.created_at)}</TableCell>
       <TableCell className="flex justify-end gap-2">

@@ -17,6 +17,32 @@ export const ROLE_LABELS: Record<Role, string> = {
   member: 'Membro',
 }
 
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
+  super_admin: 'Controle total: altera papéis, apaga outros admins e gerencia toda a operação.',
+  admin: 'Gerencia usuários, dispositivos, waitlist e marketplace — sem promover a super admin.',
+  viewer: 'Só leitura no painel de administração (dashboard, listas, auditoria).',
+  member: 'Acesso ao próprio espaço: VPN, arquivos, apps e conta. Sem telas de admin.',
+}
+
+export type RoleCapability = {
+  id: string
+  label: string
+  roles: Role[]
+}
+
+/** Matriz resumida do que cada papel pode no painel — espelha PLAN.md §6.7. */
+export const ROLE_CAPABILITIES: RoleCapability[] = [
+  { id: 'user-space', label: 'Painel do usuário (Meu espaço)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { id: 'own-devices', label: 'Gerenciar próprios dispositivos VPN', roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { id: 'own-account', label: 'Editar a própria conta (senha, chave SSH)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { id: 'marketplace-dl', label: 'Baixar apps do catálogo (se a ACL permitir)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { id: 'admin-read', label: 'Ler dashboard, usuários, dispositivos e auditoria', roles: ['super_admin', 'admin', 'viewer'] },
+  { id: 'admin-write', label: 'Criar usuários, convites e resetar senhas', roles: ['super_admin', 'admin'] },
+  { id: 'file-access', label: 'Ligar SFTP/Samba e cota de disco de outros', roles: ['super_admin', 'admin'] },
+  { id: 'marketplace-acl', label: 'Gerenciar ACL do marketplace', roles: ['super_admin', 'admin'] },
+  { id: 'super', label: 'Promover ou rebaixar super admin', roles: ['super_admin'] },
+]
+
 export const ROLE_BADGE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   super_admin: 'default',
   admin: 'secondary',

@@ -1,17 +1,16 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Trash2 } from 'lucide-react'
+import { FolderOpen, Pencil, Store, Trash2, UserRound } from 'lucide-react'
 import { api, ApiError, type Device } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime, formatRelativeTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ProgressBar } from '@/components/ui/progress-bar'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +30,17 @@ function isOnline(device: Device): boolean {
   return Date.now() - new Date(device.last_handshake).getTime() < HANDSHAKE_RECENT_THRESHOLD_MS
 }
 
-// PortalPage é o autosserviço (Fase 10 + Fase 15): dispositivos próprios e
-// chave SSH manual (escape hatch para máquina sem XVPN).
+const SHORTCUTS = [
+  { to: '/app/files', label: 'Arquivos', description: 'Samba, SFTP e FileBrowser na VPN', icon: FolderOpen },
+  { to: '/app/profile', label: 'Perfil', description: 'Papel, cota e resumo da conta', icon: UserRound },
+  { to: '/app/account', label: 'Editar conta', description: 'Trocar senha e chave SSH', icon: Pencil },
+  { to: '/app/marketplace', label: 'Apps', description: 'Catálogo interno de programas', icon: Store },
+] as const
+
+// PortalPage é o autosserviço (Fase 10 + Fase 18): dispositivos próprios e
+// atalhos para as páginas da conta. Senha/SSH ficam em /app/account.
 export function PortalPage() {
+  const { user } = useAuth()
   const fetchDevices = useCallback(() => api.listMyDevices(), [])
   const { data: devices, loading, error, reload } = usePollingData(fetchDevices, 10_000)
 
@@ -41,10 +48,26 @@ export function PortalPage() {
     <div className="flex flex-col gap-6">
       <div>
         <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground/70">Meu espaço</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Início</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {user ? `Olá, ${user.username}` : 'Início'}
+        </h1>
         <p className="text-muted-foreground">
-          Seus dispositivos VPN e chave SSH. Para adicionar um dispositivo novo, peça um convite a um administrador.
+          Seus dispositivos VPN. Para adicionar um dispositivo novo, peça um convite a um administrador.
         </p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {SHORTCUTS.map(({ to, label, description, icon: Icon }) => (
+          <Link key={to} to={to} className="group">
+            <Card className="h-full transition-colors group-hover:border-primary/40 group-hover:bg-primary/5">
+              <CardHeader className="pb-2">
+                <Icon className="mb-1 size-5 text-muted-foreground group-hover:text-primary" />
+                <CardTitle className="text-base">{label}</CardTitle>
+                <CardDescription>{description}</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        ))}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -84,84 +107,7 @@ export function PortalPage() {
           )}
         </CardContent>
       </Card>
-
-      <ManualSSHKeyCard />
     </div>
-  )
-}
-
-function ManualSSHKeyCard() {
-  const { user, isLoadingUser } = useAuth()
-  const [sshKey, setSshKey] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  useEffect(() => {
-    if (user) setSshKey(user.ssh_public_key ?? '')
-  }, [user])
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    setError(null)
-    setSubmitting(true)
-    try {
-      await api.updateMySSHPublicKey(sshKey)
-      toast.success(
-        user?.sftp_enabled
-          ? 'Chave SSH atualizada e aplicada no SFTP'
-          : 'Chave salva — passa a valer quando o admin ligar o SFTP',
-      )
-    } catch (err) {
-      const msg = err instanceof ApiError ? err.message : 'Falha ao salvar chave'
-      setError(msg)
-      toast.error(msg)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Chave SSH manual (SFTP)</CardTitle>
-        <CardDescription>
-          Escape hatch para celular ou máquina sem o cliente XVPN. As chaves dos seus dispositivos
-          VPN entram sozinhas quando você abre o app conectado. Esta caixa é só a chave extra.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {isLoadingUser || !user ? (
-          <Skeleton className="h-28 w-full" />
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            {!user.sftp_enabled && (
-              <p className="text-xs text-muted-foreground">
-                Seu SFTP ainda não está ligado — a chave fica guardada e o admin ativa o acesso.
-              </p>
-            )}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="portal-ssh-key">Chave pública</Label>
-              <textarea
-                id="portal-ssh-key"
-                className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-sm"
-                placeholder="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... user@host"
-                value={sshKey}
-                onChange={(e) => setSshKey(e.target.value)}
-                spellCheck={false}
-                disabled={submitting}
-              />
-            </div>
-            {submitting && <ProgressBar label="Salvando chave…" />}
-            {error && <p className="text-sm text-destructive">{error}</p>}
-            <div>
-              <Button type="submit" disabled={submitting}>
-                {submitting ? 'Salvando…' : 'Salvar chave'}
-              </Button>
-            </div>
-          </form>
-        )}
-      </CardContent>
-    </Card>
   )
 }
 

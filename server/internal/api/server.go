@@ -212,6 +212,10 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/me/devices", app.handleListMyDevices)
 			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
 			authed.PUT("/me/ssh-public-key", app.handleUpdateMySSHPublicKey)
+			// Troca de senha do próprio usuário (Fase 18). Rate limit
+			// reusa o do login: a senha atual é o mesmo segredo que o
+			// POST /auth/login protege contra força bruta.
+			authed.PATCH("/me/password", rateLimit(app.loginLimiter), app.handleChangeMyPassword)
 
 			// Marketplace (Fase 11, PLAN.md §6.8): catálogo e download são
 			// liberados a qualquer papel autenticado (inclusive member) —

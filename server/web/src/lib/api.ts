@@ -342,6 +342,14 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ ssh_public_key: sshPublicKey }),
     }),
+  // Autosserviço de senha (Fase 18). 204 sem corpo — a senha nova nunca
+  // volta na resposta (diferente do reset administrativo, que devolve a
+  // gerada uma única vez).
+  changeMyPassword: (currentPassword: string, newPassword: string) =>
+    request<void>('/me/password', {
+      method: 'PATCH',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
 
   listAudit: () => request<AuditLog[]>('/audit'),
 

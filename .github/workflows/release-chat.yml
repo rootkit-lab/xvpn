@@ -56,6 +56,8 @@ jobs:
           WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
           go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
       - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Instala nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.3
       - name: Versão da tag
         id: ver
         run: |

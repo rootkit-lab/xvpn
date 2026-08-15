@@ -28,7 +28,7 @@ export function ChatPopouts({ railOpen }: { railOpen: boolean }) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Escape') return
-      const focused = expanded.find((p) => p.key === activeKey) ?? expanded.at(-1)
+      const focused = expanded.find((p) => p.key === activeKey) ?? expanded[expanded.length - 1]
       if (focused) {
         closePopout(focused.key)
         return

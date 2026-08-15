@@ -4,11 +4,13 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Fases **0–8 (MVP)**, **9 (qualidade: bugs/CI/perf)**, **10 (admin geral/RBAC)**, **11 (marketplace de programas)**, **12 (consumo do marketplace no cliente)** e **13 (contas Unix por usuário — SFTP + Samba)** concluídas em produção. Itens opcionais das Fases 11–13 (página móvel `/apps` para Android, quota por usuário, rotação de chave SSH self-service) foram movidos ao [backlog legado](#backlog-legado-mvp--fora-das-fases-9) ou puxados para a Fase 15.
+> **Status:** Ciclo **v0.2 concluído** em código/produção: Fases **0–16** (MVP + RBAC + marketplace + contas Unix + sync VPN↔arquivos + monorepo `apps/` + melhorias da Fase 15). Quotas de disco, portal SSH, TTLs no painel, Vitest e LICENSE já entregues.
 >
-> **Ciclo atual — v0.2:** Fase **14** (acesso a arquivos sincronizado com o usuário da VPN — corrige os dois bugs de "unidade de rede" reportados), Fase **15** (melhorias represadas no backlog) e Fase **16** (monorepo `apps/` + Marketplace alimentado pelo diretório via CI). Decisões em [`PLAN.md` §6.7–6.10 e §14](./PLAN.md#67-admin-geral-rbac).
+> **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Ordem de execução do ciclo:** correções urgentes → **16.1** (mover `client/` → `apps/xvpn-client/`) → **Fase 14** inteira → resto da **16** → **Fase 15**. Ver [justificativa da ordem](#ordem-de-execução-do-ciclo-v02-decidida) — não é a ordem sugerida quando o ciclo abriu.
+> **Próximo foco:** [backlog legado](#backlog-legado-mvp--fora-das-fases-9) (Windows E2E/instalador/Service, release-please, `/apps` Android opcional, quota de *download* do marketplace) ou abrir um ciclo **v0.3** com escopo novo em `PLAN.md`.
+>
+> **Ordem histórica do ciclo v0.2:** correções urgentes → **16.1** → **Fase 14** → resto da **16** → **Fase 15**. Ver [justificativa](#ordem-de-execução-do-ciclo-v02-decidida).
 
 ---
 

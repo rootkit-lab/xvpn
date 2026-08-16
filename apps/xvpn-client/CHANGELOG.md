@@ -2,6 +2,14 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.6](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.5...xvpn-client-v0.1.6) (2026-08-16)
+
+
+### Bug Fixes
+
+* **client:** Chrome usa o DNS do sistema para resolver *.corp ([#96](https://github.com/rootkit-lab/xvpn/issues/96)) ([9c3abd9](https://github.com/rootkit-lab/xvpn/commit/9c3abd908afadef479d98437db7e87d50368333a))
+* **client:** helper grava /etc/hosts e fala com o systemd-resolved ([#98](https://github.com/rootkit-lab/xvpn/issues/98)) ([fd9eeee](https://github.com/rootkit-lab/xvpn/commit/fd9eeeea83193e04bf06e0a6c5698915d8fb79ef))
+
 ## [0.1.5](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.4...xvpn-client-v0.1.5) (2026-08-16)
 
 

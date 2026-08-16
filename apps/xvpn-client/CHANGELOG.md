@@ -2,6 +2,18 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.4](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.3...xvpn-client-v0.1.4) (2026-08-16)
+
+
+### Features
+
+* **server:** DNS intranet e chrome padronizado dos produtos ([#89](https://github.com/rootkit-lab/xvpn/issues/89)) ([9012237](https://github.com/rootkit-lab/xvpn/commit/901223734744cec2c507f66187104764f71f6579))
+
+
+### Bug Fixes
+
+* **client:** coloca usuários locais no grupo xvpn na instalação ([#92](https://github.com/rootkit-lab/xvpn/issues/92)) ([bd354f3](https://github.com/rootkit-lab/xvpn/commit/bd354f3eff38efee23f6b0cab1b9002fcf8e3ae3))
+
 ## [0.1.3](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.2...xvpn-client-v0.1.3) (2026-08-16)
 
 

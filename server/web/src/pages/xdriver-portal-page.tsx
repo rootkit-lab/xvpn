@@ -34,9 +34,10 @@ export function XDriverPortalPage() {
           <p className="hud-label text-muted-foreground/70">Meu Drive</p>
           <h1 className="font-display mt-1 text-2xl font-semibold tracking-tight">XDriver</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Os arquivos moram na VPN. Este site é o portal — o FileBrowser só responde em{' '}
+            Os arquivos moram na VPN. Este site é o portal. O FileBrowser só abre em{' '}
             <code className="font-mono text-xs">{XDRIVER_CORP_ORIGIN.replace('https://', '')}</code> com o túnel
-            ligado.
+            ligado e o DNS do Chrome <em>seguro</em> desligado (senão o nome <code className="font-mono text-xs">.corp</code> não
+            resolve).
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge variant={user.samba_enabled ? 'default' : 'outline'}>

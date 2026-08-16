@@ -1,5 +1,9 @@
 // Package vpngate recusa API do xchat se a VPN não estiver no ar ou se
-// *.corp não resolver para o gateway do túnel (PLAN.md §5 / Fase 23).
+// o gateway da intranet (10.66.66.1:443) não responder (PLAN.md §5 / Fase 23).
+//
+// Não usa o DNS do sistema: systemd-resolved e DoH frequentemente ignoram
+// /etc/hosts e o dnsmasq do túnel, o que gerava "no such host" com a VPN
+// já conectada. HTTP/WS discam 10.66.66.1 e mantêm o SNI *.corp.
 package vpngate
 
 import (
@@ -16,18 +20,21 @@ const (
 	HelperSocket = "/run/xvpn-client/helper.sock"
 	CorpHost     = "xchat.corp.ihuull.com"
 	CorpIP       = "10.66.66.1"
+	CorpPort     = "443"
 )
 
 var (
 	ErrVPNDisconnected = errors.New("xvpn desconectado — conecte a VPN antes de usar o xchat")
-	ErrCorpDNS         = errors.New("DNS de *.corp.ihuull.com não aponta para 10.66.66.1 — a intranet só existe dentro do túnel")
+	ErrCorpUnreachable = errors.New("intranet não alcançável em 10.66.66.1:443 — confirme que o túnel xvpn está no ar")
+	// ErrCorpDNS is kept for callers that still match the old gate error.
+	ErrCorpDNS = ErrCorpUnreachable
 )
 
 type Status struct {
 	Connected bool `json:"connected"`
 }
 
-// Check exige helper conectado (quando o socket existe) e DNS corp = 10.66.66.1.
+// Check exige helper conectado (quando o socket existe) e TCP no gateway corp.
 // Sem helper (CI, testes, web) o gate não bloqueia. XVPN_SKIP_VPNGATE=1 libera sempre.
 func Check() error {
 	if os.Getenv("XVPN_SKIP_VPNGATE") == "1" {
@@ -43,27 +50,20 @@ func Check() error {
 	if !st.Connected {
 		return ErrVPNDisconnected
 	}
-	ip, err := lookupCorp()
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrCorpDNS, err)
-	}
-	if ip != CorpIP {
-		return fmt.Errorf("%w (obteve %s)", ErrCorpDNS, ip)
+	if err := probeGateway(); err != nil {
+		return fmt.Errorf("%w: %v", ErrCorpUnreachable, err)
 	}
 	return nil
 }
 
-func lookupCorp() (string, error) {
+func probeGateway() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", CorpHost)
+	conn, err := DialContext(ctx, "tcp", net.JoinHostPort(CorpIP, CorpPort))
 	if err != nil {
-		return "", err
+		return err
 	}
-	if len(ips) == 0 {
-		return "", errors.New("sem A")
-	}
-	return ips[0].String(), nil
+	return conn.Close()
 }
 
 func helperStatus() (Status, error) {

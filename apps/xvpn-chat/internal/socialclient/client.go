@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/rootkit-lab/xvpn/chat/internal/vpngate"
 )
 
 // DefaultBaseURL é a API do messenger na intranet (só resolve com VPN).
@@ -45,7 +46,7 @@ type Client struct {
 }
 
 func New() *Client {
-	return &Client{httpClient: &http.Client{Timeout: 30 * time.Second}}
+	return &Client{httpClient: vpngate.HTTPClient(30 * time.Second)}
 }
 
 type Session struct {
@@ -402,7 +403,7 @@ func (c *Client) ListenWS(ctx context.Context, onEvent func(WSEvent)) error {
 	}
 	u.Path = "/api/ws"
 	u.RawQuery = ""
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
+	conn, _, err := vpngate.WSDialer().DialContext(ctx, u.String(), nil)
 	if err != nil {
 		return err
 	}

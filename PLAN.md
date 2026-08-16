@@ -182,7 +182,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | Recurso | Hostname | Backend | Observação |
 |---|---|---|---|
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice / health da intranet |
-| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Comunicação do messenger. Desktop recusa se DNS ≠ `10.66.66.1` |
+| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Comunicação do messenger. Desktop prova o túnel (helper + TCP `10.66.66.1:443`) e disca o gateway direto — não depende do DNS do SO |
 | xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Não misturar com xchat |
 | xdriver (arquivos) | `xdriver.corp.ihuull.com` | `127.0.0.1:8080` (`/api/driver/*`) | Drive nativo; `Host` obrigatório. Samba continua `wg0:445`. Sem FileBrowser |
 

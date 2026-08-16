@@ -35,7 +35,7 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
     {
       id: 'xvpn',
       label: 'XVPN',
-      to: '/my',
+      to: '/',
       icon: Shield,
       current: variant === 'user' && !onMarketplace && !onXDriver,
     },

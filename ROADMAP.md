@@ -1088,11 +1088,11 @@ Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header
 
 - [ ] Header global em `shared/ui` (logo ihuull + mark do produto) em marketplace, xvpn, xgroup, xdriver, landing.
 - [ ] Marcas em `shared/ui/brand/` (wordmark + mark). Cada produto com mark próprio.
-- [ ] Portal de produto em `xvpn.ihuull.com` (chrome tipo loja); `/admin` só operação.
+- [x] Portal de produto em `xvpn.ihuull.com` (chrome tipo loja); `/admin` só operação.
 - [ ] `marketplace.yaml`: campo `network: public|vpn` (além de `visibility`). Admin da loja configura isso.
 - [ ] `/admin` seccionado por produto; RBAC com escopo (`products: [...]`). Fonte única — sem admin.* extra.
 - [ ] `xauth.ihuull.com`: login único, cookie `.ihuull.com`, mesmo JWE/`aud`. Sem processo novo. A **depois** de registrar em §5.1.
-- [ ] Landing `xgroup.ihuull.com` (marketing; app continua no corp).
+- [x] Landing `xgroup.ihuull.com` (marketing; app continua no corp).
 - [ ] Testes: matriz RBAC com fixture por papel (não por rota). Sem fatiar o módulo `server` por causa de CI.
 
 **Critério de saída:** um login abre os portais permitidos; header idêntico com logo certo; app `network:vpn` some da loja pública; `/admin` não mistura peers com vitrine; `go test ./internal/api/ -count=1` da matriz cabe em dezenas de segundos.

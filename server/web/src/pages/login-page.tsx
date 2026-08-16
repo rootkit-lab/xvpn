@@ -40,12 +40,12 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
     try {
       const loggedInUser = await login(username, password)
       const from = (location.state as { from?: string } | null)?.from
-      // Member que entrou pelo login de admin não fica no /admin — vai pro /my.
+      // Member que entrou pelo login de admin não fica no /admin — vai pro portal.
       let dest = from ?? defaultRouteForRole(loggedInUser.role)
       if (isStoreLogin) {
         dest = from ?? '/'
       } else if (loggedInUser.role === 'member' && dest.startsWith('/admin')) {
-        dest = '/my'
+        dest = defaultRouteForRole('member')
       } else if (loggedInUser.role !== 'member' && isAdminLogin && !from) {
         dest = '/admin'
       }

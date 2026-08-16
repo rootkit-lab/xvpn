@@ -4,14 +4,20 @@ export const PANEL_ORIGIN = 'https://xvpn.ihuull.com'
 export const MARKETPLACE_ORIGIN = 'https://marketplace.ihuull.com'
 export const XDRIVER_ORIGIN = 'https://xdriver.ihuull.com'
 export const XDRIVER_CORP_ORIGIN = 'https://xdriver.corp.ihuull.com'
+export const XGROUP_ORIGIN = 'https://xgroup.ihuull.com'
+export const XGROUP_CORP_ORIGIN = 'https://xgroup.corp.ihuull.com'
 
-export type ProductKind = 'marketplace' | 'xdriver' | 'xdriver-corp' | 'core'
+export type ProductKind = 'marketplace' | 'xdriver' | 'xdriver-corp' | 'xgroup' | 'xvpn' | 'core'
 
 export function productKind(hostname = window.location.hostname): ProductKind {
   const host = hostname.toLowerCase()
   if (host === 'marketplace.ihuull.com' || host === 'marketplace.localhost') return 'marketplace'
   if (host === 'xdriver.corp.ihuull.com' || host === 'xdriver.corp.localhost') return 'xdriver-corp'
   if (host === 'xdriver.ihuull.com' || host === 'xdriver.localhost') return 'xdriver'
+  if (host === 'xgroup.ihuull.com' || host === 'xgroup.localhost') return 'xgroup'
+  if (host === 'xvpn.ihuull.com' || host === 'xvpn.localhost' || host === 'localhost' || host === '127.0.0.1') {
+    return 'xvpn'
+  }
   return 'core'
 }
 

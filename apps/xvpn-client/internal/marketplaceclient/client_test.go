@@ -75,6 +75,41 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	}
 }
 
+func TestUseAPIBase_OverridesListHost(t *testing.T) {
+	public := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/auth/login" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"token": "jwt-fake",
+				"user":  map[string]string{"username": "alice", "role": "member"},
+			})
+			return
+		}
+		t.Fatalf("listagem não deve ir ao host público: %s", r.URL.Path)
+	}))
+	t.Cleanup(public.Close)
+
+	intranet := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/marketplace/apps" {
+			t.Fatalf("rota inesperada no corp: %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode([]App{{ID: 7, Name: "xchat"}})
+	}))
+	t.Cleanup(intranet.Close)
+
+	c := New()
+	if _, err := c.Login(context.Background(), public.URL, "alice", "senha-123"); err != nil {
+		t.Fatal(err)
+	}
+	c.UseAPIBase(intranet.URL)
+	apps, err := c.ListApps(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(apps) != 1 || apps[0].Name != "xchat" {
+		t.Fatalf("catálogo inesperado: %+v", apps)
+	}
+}
+
 func TestListApps_RequiresLogin(t *testing.T) {
 	c := New()
 	if _, err := c.ListApps(context.Background()); err != ErrNotLoggedIn {

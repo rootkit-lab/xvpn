@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, Shield, Store } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { isViewerUpRole } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, XDRIVER_ORIGIN } from '@/lib/product-host'
+import { MARKETPLACE_ORIGIN, XDRIVER_CORP_ORIGIN } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -51,7 +51,7 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
           {
             id: 'xdriver',
             label: 'XDriver',
-            href: XDRIVER_ORIGIN,
+            href: XDRIVER_CORP_ORIGIN,
             icon: HardDrive,
             current: onXDriver,
           } satisfies LauncherTile,

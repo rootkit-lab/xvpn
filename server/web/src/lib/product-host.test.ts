@@ -19,7 +19,7 @@ describe('productKind', () => {
 
   it('trata o Drive corp como host de produto (login /login)', () => {
     expect(isStoreHost('xdriver.corp.ihuull.com')).toBe(true)
-    expect(isStoreHost('xdriver.ihuull.com')).toBe(true)
+    expect(isStoreHost('xdriver.ihuull.com')).toBe(false)
     expect(isStoreHost('marketplace.ihuull.com')).toBe(true)
     expect(isStoreHost('xvpn.ihuull.com')).toBe(false)
     expect(isStoreHost('xgroup.ihuull.com')).toBe(false)

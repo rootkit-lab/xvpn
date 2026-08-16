@@ -35,6 +35,10 @@ var marketplace = marketplaceclient.New()
 // público do servidor.
 const serverVPNAddress = "10.66.66.1"
 
+// intranetCatalogURL é o host da API dentro do túnel. marketplace.ihuull.com
+// sai pela rota /32 do VPS — o servidor vê IP público e esconde network:vpn.
+const intranetCatalogURL = "https://corp.ihuull.com"
+
 // sharedSambaName é o nome do compartilhamento Samba criado na Fase 5 (ver
 // server/deploy/samba/smb.conf).
 const sharedSambaName = "shared"
@@ -279,6 +283,10 @@ func (s *VPNService) OpenServerFiles(kind string) error {
 		return err
 	case "filebrowser":
 		return opener.OpenURL("https://xdriver.corp.ihuull.com")
+	case "xchat":
+		return opener.OpenURL("https://xchat.corp.ihuull.com")
+	case "xgroup":
+		return opener.OpenURL("https://xgroup.corp.ihuull.com")
 	default:
 		return fmt.Errorf("tipo de acesso a arquivos desconhecido: %q", kind)
 	}
@@ -434,7 +442,16 @@ func (s *VPNService) MarketplaceSessionStatus() MarketplaceSession {
 // expirada ou falha de rede — o frontend trata voltando pra tela de
 // login com a mensagem de erro visível, em vez de tentar distinguir os
 // dois casos por conteúdo da mensagem (ver ROADMAP.md Fase 12).
+func (s *VPNService) preferIntranetCatalog() {
+	if st, err := s.Status(); err == nil && st.Connected {
+		marketplace.UseAPIBase(intranetCatalogURL)
+		return
+	}
+	marketplace.UseAPIBase("")
+}
+
 func (s *VPNService) ListMarketplaceApps() ([]MarketplaceApp, error) {
+	s.preferIntranetCatalog()
 	apps, err := marketplace.ListApps(context.Background())
 	if err != nil {
 		return nil, err
@@ -499,6 +516,7 @@ type MarketplaceDownloadResult struct {
 // algum tempo — o frontend mostra um spinner enquanto aguarda, mesmo
 // padrão usado para Enroll/Connect.
 func (s *VPNService) DownloadMarketplaceAsset(args MarketplaceDownloadArgs) (MarketplaceDownloadResult, error) {
+	s.preferIntranetCatalog()
 	result, err := marketplace.DownloadAsset(context.Background(), args.AssetID, args.Filename, args.SHA256)
 	if err != nil {
 		return MarketplaceDownloadResult{}, err

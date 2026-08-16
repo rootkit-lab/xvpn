@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func TestRole_Valid(t *testing.T) {
 	valid := []Role{RoleSuperAdmin, RoleAdmin, RoleViewer, RoleMember}
@@ -59,5 +62,61 @@ func TestRole_CanManage(t *testing.T) {
 		if got := tt.actor.CanManage(tt.target); got != tt.want {
 			t.Errorf("%s.CanManage(%s) = %v, esperado %v", tt.actor, tt.target, got, tt.want)
 		}
+	}
+}
+
+func TestHasProduct(t *testing.T) {
+	tests := []struct {
+		role    Role
+		stored  []Product
+		want    Product
+		allowed bool
+	}{
+		{RoleSuperAdmin, nil, ProductMarketplace, true},
+		{RoleSuperAdmin, []Product{ProductCore}, ProductMarketplace, true},
+		{RoleAdmin, nil, ProductMarketplace, true},
+		{RoleAdmin, []Product{}, ProductCore, true},
+		{RoleAdmin, []Product{ProductMarketplace}, ProductMarketplace, true},
+		{RoleAdmin, []Product{ProductMarketplace}, ProductCore, false},
+		{RoleAdmin, []Product{ProductCore, ProductXDriver}, ProductXGroup, false},
+		{RoleViewer, nil, ProductMarketplace, false},
+		{RoleMember, []Product{ProductMarketplace}, ProductMarketplace, false},
+	}
+	for _, tt := range tests {
+		if got := HasProduct(tt.role, tt.stored, tt.want); got != tt.allowed {
+			t.Errorf("HasProduct(%s, %v, %s) = %v, esperado %v", tt.role, tt.stored, tt.want, got, tt.allowed)
+		}
+	}
+}
+
+func TestResolveAssignedProducts(t *testing.T) {
+	got, err := ResolveAssignedProducts(RoleSuperAdmin, nil, []Product{ProductMarketplace}, RoleAdmin)
+	if err != nil || len(got) != 1 || got[0] != ProductMarketplace {
+		t.Fatalf("super_admin deveria persistir o pedido, got %v err %v", got, err)
+	}
+
+	got, err = ResolveAssignedProducts(RoleAdmin, nil, nil, RoleAdmin)
+	if err != nil || got != nil {
+		t.Fatalf("admin irrestrito sem pedido deve gravar vazio (irrestrito), got %v err %v", got, err)
+	}
+
+	got, err = ResolveAssignedProducts(RoleAdmin, []Product{ProductMarketplace}, nil, RoleAdmin)
+	if err != nil || len(got) != 1 || got[0] != ProductMarketplace {
+		t.Fatalf("admin restrito sem pedido herda o próprio escopo, got %v err %v", got, err)
+	}
+
+	_, err = ResolveAssignedProducts(RoleAdmin, []Product{ProductMarketplace}, []Product{ProductCore}, RoleAdmin)
+	if !errors.Is(err, ErrProductEscalation) {
+		t.Fatalf("admin da loja não concede core, err=%v", err)
+	}
+
+	got, err = ResolveAssignedProducts(RoleAdmin, []Product{ProductMarketplace}, []Product{"loja"}, RoleAdmin)
+	if !errors.Is(err, ErrInvalidProduct) {
+		t.Fatalf("produto desconhecido deveria falhar, got %v err %v", got, err)
+	}
+
+	got, err = ResolveAssignedProducts(RoleAdmin, []Product{ProductMarketplace}, []Product{ProductMarketplace}, RoleMember)
+	if err != nil || got != nil {
+		t.Fatalf("member ignora products, got %v err %v", got, err)
 	}
 }

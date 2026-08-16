@@ -15,7 +15,7 @@ import {
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole } from '@/lib/roles'
+import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserPicker } from '@/components/user-picker'
@@ -59,7 +59,8 @@ const GITHUB_APPS_BASE = 'https://github.com/rootkit-lab/xvpn/tree/main/'
 
 export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' | 'manage' }) {
   const { user: caller } = useAuth()
-  const isManage = variant === 'manage' && isAdminRole(caller?.role)
+  const isManage =
+    variant === 'manage' && isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'marketplace')
   const fetchApps = useCallback(() => api.listMarketplaceApps(), [])
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
   const [q, setQ] = useState('')

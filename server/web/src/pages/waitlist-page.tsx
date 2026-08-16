@@ -6,7 +6,7 @@ import { api, ApiError, type ProvisionWaitlistResponse, type WaitlistEntry } fro
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole, type Role } from '@/lib/roles'
+import { canWriteAdminProduct, isAdminRole, type Role } from '@/lib/roles'
 import { CopyField } from '@/components/copy-field'
 import { RoleSelect } from '@/components/role-select'
 import { Badge } from '@/components/ui/badge'
@@ -37,7 +37,7 @@ function suggestUsername(name: string): string {
 
 export function WaitlistPage() {
   const { user: caller } = useAuth()
-  const canReview = isAdminRole(caller?.role)
+  const canReview = isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'core')
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')

@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { api, ApiError, type ConfigResponse } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole } from '@/lib/roles'
+import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,7 @@ import { ProgressBar } from '@/components/ui/progress-bar'
 
 export function SettingsPage() {
   const { user: caller } = useAuth()
-  const canEdit = isAdminRole(caller?.role)
+  const canEdit = isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'core')
   const fetchConfig = useCallback(() => api.getConfig(), [])
   const { data: config, loading, error, reload } = usePollingData(fetchConfig, 60_000)
 

@@ -26,6 +26,8 @@ Auth: `Authorization: Bearer <token>` salvo no header, nunca na query do WebSock
 
 CRUD em `/api/users`, convite, reset de senha, file-access, devices — `viewer+` lê, `admin+` escreve. Ver `PLAN.md` §6.7.
 
+`User.products` (`core` \| `marketplace` \| `xgroup` \| `xdriver`): escopo de um `admin`. Lista vazia = irrestrito. `super_admin` ignora. Escritas de produto exigem o id na lista (`PUT /marketplace/apps/:id/access` → `marketplace`; `DELETE /devices/:id` e waitlist/config → `core`; file-access → `xdriver`). IAM (users/roles) não é produto.
+
 ## xchat / xgroup (`/api/social/*`)
 
 Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` (rede). Paths internos permanecem `/api/social/...` e `/social/...` (alias `/xgroup/...`).
@@ -67,7 +69,7 @@ Qualquer outro `Host` → 404. `xdriver.ihuull.com` não serve estas rotas.
 | GET | `/api/marketplace/assets/:id/download` | sessão + ACL |
 | POST | `/api/marketplace/sync` | `XVPN_PUBLISH_TOKEN` |
 
-ACL admin: `PUT /api/marketplace/apps/:id/access` no painel (`xvpn.ihuull.com/admin/marketplace`).
+ACL admin: `PUT /api/marketplace/apps/:id/access` no painel (`xvpn.ihuull.com/admin/marketplace`), só com escopo `marketplace` (ou admin irrestrito / `super_admin`).
 
 ## Hooks (xbot)
 

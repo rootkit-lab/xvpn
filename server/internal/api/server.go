@@ -318,34 +318,40 @@ func NewRouter(app *App) *gin.Engine {
 		adminOnly := apiGroup.Group("")
 		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.AdminRoles...))
 		{
+			// IAM: users/roles — não é produto. Todo admin+ continua
+			// gerenciando contas (CanManage), inclusive um admin só da loja.
 			adminOnly.POST("/users", app.handleCreateUser)
 			adminOnly.PATCH("/users/:id", app.handleUpdateUser)
 			adminOnly.DELETE("/users/:id", app.handleDeleteUser)
 			adminOnly.POST("/users/:id/invite", app.handleCreateInvite)
 			adminOnly.POST("/users/:id/reset-password", app.handleResetPassword)
-			// Acesso a arquivos (Fase 13, PLAN.md §6.9): toggle SFTP/Samba
-			// + chave pública SSH por usuário. adminOnly — ação de escrita
-			// que provisiona conta Unix na VPS.
-			adminOnly.PUT("/users/:id/file-access", app.handleSetFileAccess)
-			// Chaves SSH auto-registradas pelos dispositivos do usuário
-			// (Fase 14), em modo leitura: alimenta o diálogo de acesso a
-			// arquivos do painel. adminOnly pelo mesmo motivo do PUT acima
-			// — é a superfície administrativa de acesso a arquivos, e o
-			// diálogo que consome isso só aparece para quem pode gerenciar
-			// aquele usuário.
-			adminOnly.GET("/users/:id/ssh-keys", app.handleListUserSSHKeys)
 
-			adminOnly.DELETE("/devices/:id", app.handleDeleteDevice)
+			// Core VPN (Fase 33): peers, waitlist, TTLs. Admin sem
+			// products:["core"] não revoga WireGuard.
+			coreWrite := adminOnly.Group("")
+			coreWrite.Use(auth.RequireProduct(store.ProductCore))
+			{
+				coreWrite.DELETE("/devices/:id", app.handleDeleteDevice)
+				coreWrite.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
+				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
+				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
+				coreWrite.PATCH("/config", app.handleUpdateConfig)
+			}
 
-			adminOnly.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
-			adminOnly.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
-			adminOnly.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
+			// XDriver: SFTP/Samba/cota. Fora do escopo xdriver → 403.
+			driverWrite := adminOnly.Group("")
+			driverWrite.Use(auth.RequireProduct(store.ProductXDriver))
+			{
+				driverWrite.PUT("/users/:id/file-access", app.handleSetFileAccess)
+				driverWrite.GET("/users/:id/ssh-keys", app.handleListUserSSHKeys)
+			}
 
-			adminOnly.PATCH("/config", app.handleUpdateConfig)
-
-			// Marketplace (Fase 16): publicação só via POST /sync (CI).
-			// No painel resta só a ACL operacional (quem vê app restrito).
-			adminOnly.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
+			// Marketplace: só a ACL operacional no painel (Fase 16).
+			marketWrite := adminOnly.Group("")
+			marketWrite.Use(auth.RequireProduct(store.ProductMarketplace))
+			{
+				marketWrite.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
+			}
 		}
 
 		// Sync do catálogo a partir de apps/*/marketplace.yaml (Fase 16).

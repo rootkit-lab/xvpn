@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -23,6 +24,9 @@ type userResponse struct {
 	Username  string     `json:"username"`
 	Role      store.Role `json:"role"`
 	CreatedAt time.Time  `json:"created_at"`
+	// Products (Fase 33): escopo de admin. Sempre presente — lista vazia
+	// significa admin irrestrito (ou N/A para viewer/member).
+	Products []store.Product `json:"products"`
 	// Acesso a arquivos (Fase 13, PLAN.md §6.9): sempre presentes na
 	// resposta (default false/"" quando o usuário nunca teve acesso).
 	SFTPEnabled  bool   `json:"sftp_enabled"`
@@ -32,16 +36,33 @@ type userResponse struct {
 }
 
 func toUserResponse(u store.User) userResponse {
+	products := u.Products
+	if products == nil {
+		products = []store.Product{}
+	}
 	return userResponse{
 		ID:           u.ID,
 		Username:     u.Username,
 		Role:         u.Role,
 		CreatedAt:    u.CreatedAt,
+		Products:     products,
 		SFTPEnabled:  u.SFTPEnabled,
 		SambaEnabled: u.SambaEnabled,
 		SSHPublicKey: u.SSHPublicKey,
 		DiskQuotaMB:  u.DiskQuotaMB,
 	}
+}
+
+func callerProducts(c *gin.Context) []store.Product {
+	return auth.ProductsFromContext(c)
+}
+
+func writeProductAssignError(c *gin.Context, err error) {
+	if errors.Is(err, store.ErrInvalidProduct) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "produto inválido (use core, marketplace, xgroup ou xdriver)"})
+		return
+	}
+	c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 }
 
 // callerRole/callerUserID leem a identidade definida por auth.RequireAuth no
@@ -121,9 +142,10 @@ func (a *App) handleGetUser(c *gin.Context) {
 }
 
 type createUserRequest struct {
-	Username string     `json:"username" binding:"required"`
-	Password string     `json:"password" binding:"required,min=8"`
-	Role     store.Role `json:"role"`
+	Username string          `json:"username" binding:"required"`
+	Password string          `json:"password" binding:"required,min=8"`
+	Role     store.Role      `json:"role"`
+	Products []store.Product `json:"products"`
 }
 
 // handleCreateUser cria um novo usuário do painel. O papel (Fase 10, ver
@@ -151,13 +173,19 @@ func (a *App) handleCreateUser(c *gin.Context) {
 		return
 	}
 
+	products, err := store.ResolveAssignedProducts(callerRole(c), callerProducts(c), req.Products, role)
+	if err != nil {
+		writeProductAssignError(c, err)
+		return
+	}
+
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
 
-	user := store.User{Username: req.Username, PasswordHash: hash, Role: role}
+	user := store.User{Username: req.Username, PasswordHash: hash, Role: role, Products: products}
 	if err := a.Store.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "usuário já existe ou dado inválido"})
 		return
@@ -170,8 +198,9 @@ func (a *App) handleCreateUser(c *gin.Context) {
 }
 
 type updateUserRequest struct {
-	Username *string     `json:"username"`
-	Role     *store.Role `json:"role"`
+	Username *string          `json:"username"`
+	Role     *store.Role      `json:"role"`
+	Products *[]store.Product `json:"products"`
 }
 
 // handleUpdateUser edita o username e/ou o papel de um usuário existente —
@@ -199,8 +228,8 @@ func (a *App) handleUpdateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
 		return
 	}
-	if req.Username == nil && req.Role == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "informe username e/ou role para atualizar"})
+	if req.Username == nil && req.Role == nil && req.Products == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "informe username, role e/ou products para atualizar"})
 		return
 	}
 
@@ -274,6 +303,39 @@ func (a *App) handleUpdateUser(c *gin.Context) {
 		updates["role"] = newRole
 	}
 
+	if req.Products != nil || req.Role != nil {
+		if callerUserID(c) == target.ID && req.Products != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "você não pode alterar o próprio escopo de produtos"})
+			return
+		}
+		targetRole := target.Role
+		if req.Role != nil {
+			targetRole = *req.Role
+		}
+		var requested []store.Product
+		if req.Products != nil {
+			requested = *req.Products
+		} else if targetRole == store.RoleAdmin {
+			requested = target.Products
+		}
+		products, err := store.ResolveAssignedProducts(role, callerProducts(c), requested, targetRole)
+		if err != nil {
+			writeProductAssignError(c, err)
+			return
+		}
+		if products == nil {
+			products = []store.Product{}
+		}
+		// Updates via map bypassa serializer:json — gravamos o JSON
+		// explícito na coluna texto.
+		raw, err := json.Marshal(products)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+			return
+		}
+		updates["products"] = string(raw)
+	}
+
 	if err := a.Store.DB.Model(&store.User{}).Where("id = ?", target.ID).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "não foi possível atualizar (username já em uso?)"})
 		return
@@ -287,6 +349,8 @@ func (a *App) handleUpdateUser(c *gin.Context) {
 	if req.Role != nil {
 		detail += " new_role=" + string(*req.Role)
 		_ = a.Store.LogAudit(actorString(actor), "user.role_changed", detail)
+	} else if req.Products != nil {
+		_ = a.Store.LogAudit(actorString(actor), "user.products_changed", detail)
 	} else {
 		_ = a.Store.LogAudit(actorString(actor), "user.update", detail)
 	}

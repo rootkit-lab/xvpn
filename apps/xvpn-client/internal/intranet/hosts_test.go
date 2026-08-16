@@ -57,4 +57,7 @@ func TestApplyEntries_CustomRecords(t *testing.T) {
 	if !strings.Contains(string(got), "lab.corp.ihuull.com") || !strings.Contains(string(got), "10.66.66.9") {
 		t.Fatalf("entrada custom ausente: %q", got)
 	}
+	if !strings.Contains(string(got), "xchat.corp.ihuull.com") {
+		t.Fatalf("oficiais têm que continuar no bloco: %q", got)
+	}
 }

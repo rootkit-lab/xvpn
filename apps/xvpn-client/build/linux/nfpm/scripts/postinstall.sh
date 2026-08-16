@@ -54,6 +54,8 @@ fi
 
 echo "XVPN: grupo 'xvpn' atualizado. Saia da sessão e entre de novo (ou newgrp xvpn)"
 echo "     antes de abrir o cliente — senão a GUI não alcança o helper."
+echo "XVPN: Chrome/Chromium passam a usar o DNS do sistema (*.corp via túnel)."
+echo "     Feche o Chrome por completo depois de instalar."
 
 # --- systemd ---
 if command -v systemctl >/dev/null 2>&1; then

@@ -30,6 +30,17 @@ contents:
     dst: "/usr/lib/systemd/system/xvpn-client-helper.service"
     file_info:
       mode: 0644
+  # Chrome/Chromium DoH pergunta à Cloudflare, que devolve NXDOMAIN para
+  # *.corp de propósito (sem A público). Desligar o cliente DNS embutido
+  # faz o browser usar systemd-resolved — aí o split-horizon da xvpn0 vale.
+  - src: "./deploy/chromium/ihuull-corp-dns.json"
+    dst: "/etc/opt/chrome/policies/managed/ihuull-corp-dns.json"
+    file_info:
+      mode: 0644
+  - src: "./deploy/chromium/ihuull-corp-dns.json"
+    dst: "/etc/chromium/policies/managed/ihuull-corp-dns.json"
+    file_info:
+      mode: 0644
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

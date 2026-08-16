@@ -213,7 +213,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 Não é o app desktop quem “inventa” o IP do `*.corp`. A zona vive no **dnsmasq da `wg0`**. Três camadas, nesta ordem:
 
 1. **Autoridade** — `/admin/dns` persiste A records (`corp.ihuull.com` / um rótulo `*.corp.ihuull.com` → IPv4 em `10.66.66.0/24`) e forwarders. Apply grava `/etc/dnsmasq.d/xvpn-corp.conf` + `xvpn-records.hosts` e dá `systemctl reload dnsmasq`. Bind fixo `10.66.66.1`. Sem A público (Cloudflare).
-2. **Cliente** — no connect: `resolvectl dns xvpn0 10.66.66.1`, `domain ~corp.ihuull.com` **sem** `~.` / `default-route yes` (isso sequestrava o DNS público e derrubava Cursor/apt se o dnsmasq não encaminhasse). `dnsovertls no`. Helper grava `/etc/hosts` (Chrome DoH ignora o resolvedor do SO).
+2. **Cliente** — no connect: `resolvectl dns xvpn0 10.66.66.1`, `domain ~corp.ihuull.com` **sem** `~.` / `default-route yes` (isso sequestrava o DNS público e derrubava Cursor/apt se o dnsmasq não encaminhasse). `dnsovertls no`. Helper grava `/etc/hosts`. O `.deb` instala política Chrome/Chromium `BuiltInDnsClientEnabled=false` — o DoH do Chrome pergunta à Cloudflare, que **deve** devolver NXDOMAIN para `*.corp` (sem A público; RFC1918 na Cloudflare também é filtrado).
 3. **Defesa em profundidade** — xchat ainda disca `10.66.66.1` com SNI `*.corp` se o DNS do processo falhar.
 
 Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também não — é fallback para o browser.

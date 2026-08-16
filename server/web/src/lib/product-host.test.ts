@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { headerProduct, isStoreHost, productKind, safeReturnURL, ssoLoginURL } from './product-host'
+import {
+  headerProduct,
+  isAuthPath,
+  isStoreHost,
+  productKind,
+  safeReturnURL,
+  ssoContinueURL,
+  ssoLoginURL,
+} from './product-host'
 
 describe('productKind', () => {
   it('reconhece a loja, o portal XVPN, o Drive, o marketing xgroup e o xauth', () => {
@@ -59,5 +67,25 @@ describe('ssoLoginURL', () => {
     expect(url).toContain('xauth')
     expect(url).toContain('return=')
     expect(ssoLoginURL('https://evil.example/')).not.toContain('evil.example')
+  })
+
+  it('não devolve tela de login como return (quebra o loop xauth)', () => {
+    const url = ssoLoginURL('https://xvpn.ihuull.com/my/login')
+    expect(url).toContain('return=')
+    expect(decodeURIComponent(new URL(url).searchParams.get('return') ?? '')).toBe('https://xvpn.ihuull.com/')
+  })
+})
+
+describe('ssoContinueURL', () => {
+  it('ignora return de login e manda member ao portal', () => {
+    expect(ssoContinueURL('member', 'https://xvpn.ihuull.com/my/login')).toBe('https://xvpn.ihuull.com/')
+    expect(ssoContinueURL('admin', 'https://xvpn.ihuull.com/admin')).toBe('https://xvpn.ihuull.com/admin')
+  })
+
+  it('reconhece paths de autenticação', () => {
+    expect(isAuthPath('/login')).toBe(true)
+    expect(isAuthPath('/my/login')).toBe(true)
+    expect(isAuthPath('/admin/login')).toBe(true)
+    expect(isAuthPath('/admin')).toBe(false)
   })
 })

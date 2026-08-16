@@ -17,9 +17,13 @@ ExecStart=/usr/local/bin/xvpn-client --helper
 # CAP_NET_ADMIN é suficiente para criar/configurar a interface WireGuard
 # (netlink) e ajustar rotas — não precisa rodar como root, mesmo padrão do
 # server/deploy/systemd/xvpn-server.service (ver .cursor/rules/infra-deploy.mdc).
-AmbientCapabilities=CAP_NET_ADMIN
-CapabilityBoundingSet=CAP_NET_ADMIN
+# DAC_OVERRIDE só para o bloco xvpn em /etc/hosts (Chrome DoH ignora
+# resolvectl). Sem isso ProtectSystem=strict + user do serviço falham
+# em silêncio e *.corp dá NXDOMAIN no browser.
+AmbientCapabilities=CAP_NET_ADMIN CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_DAC_OVERRIDE
 NoNewPrivileges=true
+ReadWritePaths=/etc/hosts
 
 Restart=on-failure
 RestartSec=3

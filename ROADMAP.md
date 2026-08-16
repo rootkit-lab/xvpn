@@ -1111,7 +1111,7 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 - [x] Persistência `DNSSettings` / `DNSRecord`; seed dos oficiais (`corp`, `xchat`, `xgroup`, `xdriver`).
 - [x] `xvpn-user-provision dns-apply` (JSON stdin) grava `/etc/dnsmasq.d/` com bind só `10.66.66.1` e `dnsmasq --test` antes do reload.
 - [x] Enrollment e `GET /api/me` devolvem `intranet_hosts` para o helper.
-- [x] Client Linux: `resolvectl` com `~corp.ihuull.com` + `~.`, `dnsovertls no`, `dnssec no`; `/etc/hosts` com a lista do servidor.
+- [x] Client Linux: `resolvectl` com `~corp.ihuull.com` **sem** `~.` / `default-route yes` (isso sequestrava o DNS público e derrubava Cursor/apt); `dnsovertls no`, `dnssec no`; helper grava `/etc/hosts` (Chrome DoH) com `CAP_DAC_OVERRIDE` + `ReadWritePaths`.
 - [x] xchat continua discando o gateway se o DNS do processo falhar (já em 0.1.3).
 
 **Critério de saída:** `dig @10.66.66.1 xchat.corp.ihuull.com` de um peer → `10.66.66.1`; `resolvectl query` no Linux com túnel no ar resolve sem linha manual em `/etc/hosts`; admin cria `lab.corp.ihuull.com` no painel, aplica, e o nome passa a resolver.

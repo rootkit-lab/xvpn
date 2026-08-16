@@ -347,3 +347,12 @@ func TestCheckConnection_ReconnectDoesNotBlockUnrelatedIPCCalls(t *testing.T) {
 		t.Fatal("checkConnection não terminou depois do engine liberar")
 	}
 }
+
+func TestIntranetDNS_DefaultsToGateway(t *testing.T) {
+	if got := intranetDNS(nil); len(got) != 1 || got[0] != "10.66.66.1" {
+		t.Fatalf("sem DNS do servidor deveria cair no gateway, obtido %v", got)
+	}
+	if got := intranetDNS([]string{"10.66.66.1"}); len(got) != 1 || got[0] != "10.66.66.1" {
+		t.Fatalf("deveria preservar o DNS do servidor, obtido %v", got)
+	}
+}

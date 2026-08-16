@@ -1,9 +1,9 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { PANEL_ORIGIN, productKind, safeReturnURL } from '@/lib/product-host'
+import { PANEL_ORIGIN, productKind, safeReturnURL, ssoContinueURL } from '@/lib/product-host'
 import { ApiError } from '@/lib/api'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
@@ -26,10 +26,18 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
   const isSSO = variant === 'sso' || productKind() === 'xauth'
   const returnTo = safeReturnURL(new URLSearchParams(location.search).get('return'))
 
+  useEffect(() => {
+    if (!isAuthenticated || isLoadingUser || !isSSO) return
+    window.location.replace(ssoContinueURL(user?.role ?? 'member', returnTo))
+  }, [isAuthenticated, isLoadingUser, isSSO, user?.role, returnTo])
+
   if (isAuthenticated && isLoadingUser) {
     return <PageFallback />
   }
   if (isAuthenticated) {
+    if (isSSO) {
+      return <PageFallback />
+    }
     const from = (location.state as { from?: string } | null)?.from
     const redirectTo = from ?? defaultRouteForRole(user?.role ?? 'member')
     return <Navigate to={redirectTo} replace />
@@ -41,17 +49,13 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
     setSubmitting(true)
     try {
       const loggedInUser = await login(username, password)
-      if (isSSO && returnTo) {
-        window.location.replace(returnTo)
+      if (isSSO) {
+        window.location.replace(ssoContinueURL(loggedInUser.role, returnTo))
         return
       }
       const from = (location.state as { from?: string } | null)?.from
       // Member que entrou pelo login de admin não fica no /admin — vai pro portal.
       let dest = from ?? defaultRouteForRole(loggedInUser.role)
-      if (isSSO) {
-        window.location.replace(PANEL_ORIGIN + (loggedInUser.role === 'member' ? '/' : '/admin'))
-        return
-      }
       if (isStoreLogin) {
         dest = from ?? '/'
       } else if (loggedInUser.role === 'member' && dest.startsWith('/admin')) {

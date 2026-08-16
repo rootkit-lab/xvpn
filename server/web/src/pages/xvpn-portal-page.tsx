@@ -43,8 +43,9 @@ const SHORTCUTS = [
 export function XvpnProductPortal() {
   const { user, isAuthenticated } = useAuth()
   const fetchStatus = useCallback(() => api.status(), [])
-  const { data: status, error } = usePollingData(fetchStatus, 10_000)
+  const { data: status, error, loading } = usePollingData(fetchStatus, 10_000)
   const online = Boolean(status) && !error
+  const checking = loading && !status && !error
   const showAdmin = isViewerUpRole(user?.role)
 
   return (
@@ -82,18 +83,25 @@ export function XvpnProductPortal() {
 
         <section className="watch-complication flex items-start gap-3 rounded-[18px] p-4">
           <span
-            className={cn('mt-1.5 size-2 shrink-0 rounded-full', online ? 'status-safe-dot' : 'bg-destructive')}
+            className={cn(
+              'mt-1.5 size-2 shrink-0 rounded-full',
+              checking ? 'bg-muted-foreground/50' : online ? 'status-safe-dot' : 'bg-destructive',
+            )}
             aria-hidden
           />
           <div className="min-w-0">
-            <p className="font-display text-sm font-semibold">{online ? 'VPN no ar' : 'API offline'}</p>
+            <p className="font-display text-sm font-semibold">
+              {checking ? 'Consultando…' : online ? 'VPN no ar' : 'API offline'}
+            </p>
             {status ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 {status.connected_peers} de {status.total_peers} peers com handshake recente · api v
                 {status.api_version}
               </p>
             ) : (
-              <p className="mt-1 text-sm text-muted-foreground">Consultando o control-plane…</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {error ? 'Não foi possível falar com o control-plane.' : 'Consultando o control-plane…'}
+              </p>
             )}
           </div>
         </section>

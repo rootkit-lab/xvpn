@@ -9,6 +9,8 @@ export const XDRIVER_CORP_ORIGIN = 'https://xdriver.corp.ihuull.com'
 export const XGROUP_ORIGIN = 'https://xgroup.ihuull.com'
 export const XGROUP_CORP_ORIGIN = 'https://xgroup.corp.ihuull.com'
 export const XCHAT_CORP_ORIGIN = 'https://xchat.corp.ihuull.com'
+export const XCHAT_ORIGIN = 'https://xchat.ihuull.com'
+export const CORP_ORIGIN = 'https://corp.ihuull.com'
 export const XAUTH_ORIGIN = 'https://xauth.ihuull.com'
 
 export type ProductKind =
@@ -16,6 +18,10 @@ export type ProductKind =
   | 'xdriver'
   | 'xdriver-corp'
   | 'xgroup'
+  | 'xgroup-corp'
+  | 'xchat'
+  | 'xchat-corp'
+  | 'corp'
   | 'xvpn'
   | 'xauth'
   | 'core'
@@ -29,6 +35,8 @@ const SAFE_RETURN_HOSTS = new Set([
   'xgroup.ihuull.com',
   'xgroup.corp.ihuull.com',
   'xchat.ihuull.com',
+  'xchat.corp.ihuull.com',
+  'corp.ihuull.com',
   'www.ihuull.com',
   'ihuull.com',
   'xauth.localhost',
@@ -38,6 +46,9 @@ const SAFE_RETURN_HOSTS = new Set([
   'xdriver.corp.localhost',
   'xgroup.localhost',
   'xgroup.corp.localhost',
+  'xchat.localhost',
+  'xchat.corp.localhost',
+  'corp.localhost',
   'localhost',
   '127.0.0.1',
 ])
@@ -48,7 +59,11 @@ export function productKind(hostname = window.location.hostname): ProductKind {
   if (host === 'marketplace.ihuull.com' || host === 'marketplace.localhost') return 'marketplace'
   if (host === 'xdriver.corp.ihuull.com' || host === 'xdriver.corp.localhost') return 'xdriver-corp'
   if (host === 'xdriver.ihuull.com' || host === 'xdriver.localhost') return 'xdriver'
+  if (host === 'xgroup.corp.ihuull.com' || host === 'xgroup.corp.localhost') return 'xgroup-corp'
   if (host === 'xgroup.ihuull.com' || host === 'xgroup.localhost') return 'xgroup'
+  if (host === 'xchat.corp.ihuull.com' || host === 'xchat.corp.localhost') return 'xchat-corp'
+  if (host === 'xchat.ihuull.com' || host === 'xchat.localhost') return 'xchat'
+  if (host === 'corp.ihuull.com' || host === 'corp.localhost') return 'corp'
   if (host === 'xvpn.ihuull.com' || host === 'xvpn.localhost' || host === 'localhost' || host === '127.0.0.1') {
     return 'xvpn'
   }
@@ -64,6 +79,9 @@ export function headerProduct(
   if (kind === 'xauth') return 'ihuull'
   if (kind === 'marketplace') return 'marketplace'
   if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'
+  if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
+  if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
+  if (kind === 'corp') return 'xvpn'
   const host = hostname.toLowerCase()
   if (
     host === 'ihuull.com' ||
@@ -82,6 +100,18 @@ export function headerProduct(
 export function isStoreHost(hostname = window.location.hostname): boolean {
   const kind = productKind(hostname)
   return kind === 'marketplace' || kind === 'xdriver-corp'
+}
+
+/** Hosts de produto com login em /login (não /my/login nem /admin). */
+export function isProductAppHost(hostname = window.location.hostname): boolean {
+  const kind = productKind(hostname)
+  return (
+    kind === 'marketplace' ||
+    kind === 'xdriver-corp' ||
+    kind === 'xchat-corp' ||
+    kind === 'xgroup-corp' ||
+    kind === 'corp'
+  )
 }
 
 export function storeLoginPath(): string {
@@ -104,7 +134,16 @@ export function safeReturnURL(raw: string | null | undefined): string | null {
   try {
     const u = new URL(raw, 'https://xauth.ihuull.com')
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    const host = u.hostname.toLowerCase()
+    // Alias legado — vpn.ihuull.com nunca foi produto (PLAN.md §5.1).
+    if (host === 'vpn.ihuull.com' || host === 'vpn.localhost') {
+      u.hostname = host.endsWith('.localhost') ? 'xvpn.localhost' : 'xvpn.ihuull.com'
+    }
     if (!SAFE_RETURN_HOSTS.has(u.hostname.toLowerCase())) return null
+    const kind = productKind(u.hostname)
+    if (kind !== 'xvpn' && u.pathname.startsWith('/admin')) {
+      return `${PANEL_ORIGIN}/admin`
+    }
     return u.toString()
   } catch {
     return null

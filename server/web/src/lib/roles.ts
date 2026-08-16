@@ -1,7 +1,7 @@
 // Espelha server/internal/store/models.go (Role, roleRank, CanManage) —
 // mantenha os dois em sincronia manualmente, já que o frontend não importa
 // tipos Go diretamente. Ver PLAN.md §6.7 pela tabela de papéis da Fase 10.
-import { isStoreHost, productKind, storeLoginPath } from '@/lib/product-host'
+import { isProductAppHost, productKind, storeLoginPath } from '@/lib/product-host'
 
 export type Role = 'super_admin' | 'admin' | 'viewer' | 'member'
 
@@ -104,16 +104,16 @@ export function assignableRoles(actor: Role | undefined): Role[] {
   return ALL_ROLES.filter((r) => canManageRole(actor, r))
 }
 
-/** Home pós-login: loja/portal XVPN → `/`; member em host de marca → `/my`; viewer+ → administração. */
+/** Home pós-login: app de produto → `/`; portal XVPN → `/` ou `/admin`; marca → `/my` ou painel. */
 export function defaultRouteForRole(role: Role): string {
-  if (isStoreHost()) return '/'
+  if (isProductAppHost()) return '/'
   if (productKind() === 'xvpn') return role === 'member' ? '/' : '/admin'
   return role === 'member' ? '/my' : '/admin'
 }
 
 /** Login alinhado ao namespace que o usuário tentou abrir. */
 export function loginPathForLocation(pathname: string): string {
-  if (isStoreHost()) return storeLoginPath()
+  if (isProductAppHost()) return storeLoginPath()
   if (pathname.startsWith('/admin')) return '/admin/login'
   if (pathname.startsWith('/social')) return '/my/login'
   return '/my/login'

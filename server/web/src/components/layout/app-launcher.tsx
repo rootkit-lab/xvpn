@@ -6,8 +6,9 @@ import { isViewerUpRole } from '@/lib/roles'
 import {
   MARKETPLACE_ORIGIN,
   PANEL_ORIGIN,
+  XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
-  isStoreHost,
+  XGROUP_CORP_ORIGIN,
   productKind,
 } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
@@ -38,14 +39,18 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
   const showAdmin = isViewerUpRole(user?.role)
   const xdriverOn = Boolean(user?.samba_enabled || user?.sftp_enabled)
   const kind = productKind()
-  const store = isStoreHost()
+  const onPanel = kind === 'xvpn'
   const onMarketplace = kind === 'marketplace' || location.pathname.endsWith('/marketplace')
   const onXDriver =
     kind === 'xdriver' || kind === 'xdriver-corp' || location.pathname === '/my/files' || location.pathname.startsWith('/admin/shares')
-  const onMessages = location.pathname.includes('/messages')
-  const onSocial = variant === 'social' || location.pathname.startsWith('/social') || location.pathname.startsWith('/xgroup')
+  const onMessages = kind === 'xchat-corp' || location.pathname.includes('/messages')
+  const onSocial =
+    kind === 'xgroup-corp' ||
+    variant === 'social' ||
+    location.pathname.startsWith('/social') ||
+    location.pathname.startsWith('/xgroup')
 
-  const panel = (path: string) => (store ? { href: `${PANEL_ORIGIN}${path}` } : { to: path })
+  const panel = (path: string) => (onPanel ? { to: path } : { href: `${PANEL_ORIGIN}${path}` })
 
   const installed: LauncherTile[] = [
     {
@@ -58,14 +63,16 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
     {
       id: 'xgroup',
       label: PRODUCT_META.xgroup.label,
-      ...panel('/social'),
+      ...(kind === 'xgroup-corp' || onPanel ? { to: '/social' } : { href: `${XGROUP_CORP_ORIGIN}/social` }),
       icon: MessageCircle,
       current: onSocial && !onMessages,
     },
     {
       id: 'xchat',
       label: PRODUCT_META.xchat.label,
-      ...panel('/social/messages'),
+      ...(kind === 'xchat-corp' || onPanel
+        ? { to: '/social/messages' }
+        : { href: `${XCHAT_CORP_ORIGIN}/social/messages` }),
       icon: MessagesSquare,
       current: onMessages,
     },

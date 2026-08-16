@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import { IconButton } from '@xvpn/ui/react/icon-button'
 import { useChatSettings } from '@chat/messenger/ChatSettings'
+import { PANEL_ORIGIN, productKind } from '@/lib/product-host'
 
 export type AppSettingsKind = 'user' | 'admin' | 'social' | 'marketplace' | 'xdriver'
 
@@ -14,8 +15,19 @@ export function AppSettingsButton({ kind }: { kind: AppSettingsKind }) {
 function LinkedAppSettingsButton({ kind }: { kind: Exclude<AppSettingsKind, 'social'> }) {
   const navigate = useNavigate()
   const to = kind === 'admin' ? '/admin/settings' : kind === 'user' ? '/my/account' : '/settings'
+  const offPanel = productKind() !== 'xvpn' && (kind === 'admin' || kind === 'user')
   return (
-    <IconButton label="Configurações" filled onClick={() => navigate(to)}>
+    <IconButton
+      label="Configurações"
+      filled
+      onClick={() => {
+        if (offPanel) {
+          window.location.assign(`${PANEL_ORIGIN}${to}`)
+          return
+        }
+        navigate(to)
+      }}
+    >
       <Settings className="size-4" strokeWidth={2} />
     </IconButton>
   )

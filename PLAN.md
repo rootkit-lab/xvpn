@@ -181,10 +181,10 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 
 | Recurso | Hostname | Backend | Observação |
 |---|---|---|---|
-| Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice / health da intranet |
-| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Comunicação do messenger. DNS canônico: dnsmasq `10.66.66.1:53` (`/admin/dns`). Client aplica split-horizon + `/etc/hosts`. Dial direto ao gateway é defesa em profundidade |
-| xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Não misturar com xchat |
-| xdriver (arquivos) | `xdriver.corp.ihuull.com` | `127.0.0.1:8080` (`/api/driver/*`) | Drive nativo; `Host` obrigatório. Samba continua `wg0:445`. Sem FileBrowser |
+| Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice da intranet. **Sem `/admin`.** `/admin` → `xvpn.ihuull.com/admin` |
+| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Messenger em `/` e `/social/messages`. **Sem `/admin`.** DNS canônico: dnsmasq `10.66.66.1:53`. Client: split-horizon + `/etc/hosts` |
+| xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Feed/grupos. Mensagens → `xchat.corp`. **Sem `/admin`.** |
+| xdriver (arquivos) | `xdriver.corp.ihuull.com` | `127.0.0.1:8080` (`/api/driver/*`) | Drive nativo; `Host` obrigatório. **Sem `/admin`.** Samba continua `wg0:445` |
 
 ### 5.3 Portas, binds e disco
 
@@ -585,7 +585,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 
 **SSO: `xauth.ihuull.com` (mesmo processo).** Login central emite o JWE já existente (`aud` por app, issuer `https://xauth.ihuull.com`; `https://xvpn.ihuull.com` ainda é aceito na leitura). Cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax) cobre os públicos e também `*.corp.ihuull.com`. Portais sem permissão recebem 403, não um segundo cadastro. Enroll WireGuard **continua** em `xvpn.ihuull.com`. Desktop: token só em memória, sem cookie. Sem processo/porta novos.
 
-**`/admin` permanece fonte única** em `xvpn.ihuull.com`. Não nascer `admin.marketplace` etc. A UI é que se parte: Core (VPN/users/devices), Marketplace, XGroup, XDriver, IAM. Papéis ganham *escopo de produto* (`admin` + `products: ["marketplace"]`) — um admin da loja não mexe em peers WireGuard. `super_admin` vê tudo.
+**`/admin` permanece fonte única** em `xvpn.ihuull.com`. A SPA **não** monta `AdminShell` em `xchat.corp`, `xgroup.corp`, `corp`, marketplace, xdriver nem nas landings. `/admin` nesses hosts redireciona ao painel. Alias legado `vpn.ihuull.com` vira `xvpn.ihuull.com` no return do SSO. Não nascer `admin.marketplace` etc. A UI é que se parte: Core (VPN/users/devices), Marketplace, XGroup, XDriver, IAM. Papéis ganham *escopo de produto* (`admin` + `products: ["marketplace"]`) — um admin da loja não mexe em peers WireGuard. `super_admin` vê tudo.
 
 **Mapa de hosts (o que está certo / o que falta):**
 

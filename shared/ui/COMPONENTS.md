@@ -2,7 +2,7 @@
 
 Fonte da verdade visual: [`scss/_color-system.scss`](./scss/_color-system.scss).  
 Efeitos (vidro, glow, Power): [`scss/_utilities.scss`](./scss/_utilities.scss).  
-Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12.
+Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marca: [`brand/ihuull-mark.png`](./brand/ihuull-mark.png) + [`brand/ihuull-wordmark.png`](./brand/ihuull-wordmark.png) — header global (Fase 33).
 
 **Não** copie tokens nem reimplemente estas classes num app. Importe daqui.
 

@@ -112,6 +112,14 @@ type Config struct {
 	// internal/userprovision) nunca chama o binário de verdade nos
 	// testes.
 	UserProvisionBinaryPath string
+
+	// DriverSharedDir é o share [shared] do Samba (/srv/xvpn/shared).
+	// XDriver nativo lê/grava daqui — sem FileBrowser.
+	DriverSharedDir string
+
+	// DriverHomeRoot é o prefixo das pastas pessoais (/home). O path
+	// real é <root>/<username>/files.
+	DriverHomeRoot string
 }
 
 func getEnv(key, fallback string) string {
@@ -155,6 +163,8 @@ func Load() (*Config, error) {
 		MongoURI:                os.Getenv("XVPN_MONGO_URI"),
 		XbotToken:               os.Getenv("XVPN_XBOT_TOKEN"),
 		UserProvisionBinaryPath: getEnv("XVPN_USER_PROVISION_BIN", "/opt/xvpn/bin/xvpn-user-provision"),
+		DriverSharedDir:         getEnv("XVPN_DRIVER_SHARED_DIR", "/srv/xvpn/shared"),
+		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
 	}
 
 	var err error

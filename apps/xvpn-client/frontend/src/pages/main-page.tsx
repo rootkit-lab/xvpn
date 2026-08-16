@@ -369,8 +369,8 @@ export function MainPage({
               />
               <AppSlot
                 onClick={() => openFiles('filebrowser')}
-                title="Navegador web"
-                label="Browser"
+                title="XDriver na VPN"
+                label="XDriver"
                 icon={<Globe className="h-5 w-5" />}
               />
             </div>

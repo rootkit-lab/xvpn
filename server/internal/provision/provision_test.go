@@ -145,6 +145,9 @@ func (f *fakeRunner) ReloadSamba() error { return f.record("ReloadSamba()") }
 func (f *fakeRunner) SetUserQuota(username string, blocksKB uint64) error {
 	return f.record("SetUserQuota(" + username + "," + strconv.FormatUint(blocksKB, 10) + ")")
 }
+func (f *fakeRunner) GrantXvpnACL(path string) error {
+	return f.record("GrantXvpnACL(" + path + ")")
+}
 
 // itoa sem importar strconv só pra manter o fake enxuto.
 func itoa(n int) string {
@@ -532,6 +535,7 @@ func TestCreate_NewUserCreatesAccountAndDirs(t *testing.T) {
 		"MkdirAll(/home/alice/files,-rwx------)",
 		"Chown(/home/alice/files,1005,1005)",
 		"Chmod(/home/alice/files,-rwx------)",
+		"GrantXvpnACL(/home/alice/files)",
 		"MkdirAll(/home/alice/.ssh,-rwxr-xr-x)",
 		"Chown(/home/alice/.ssh,0,0)",
 		"Chmod(/home/alice/.ssh,-rwxr-xr-x)",

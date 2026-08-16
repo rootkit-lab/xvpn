@@ -7,7 +7,7 @@ Estas regras têm prioridade sobre qualquer conveniência de implementação. Ve
 
 - O VPS `206.189.224.72` é um servidor de **produção real**, não um ambiente descartável. Trate qualquer comando executado nele com o mesmo cuidado que teria num servidor de cliente.
 - A chave privada WireGuard de um cliente **nunca** deve ser gerada no servidor nem transmitida pela rede. Ela é gerada localmente pelo helper privilegiado do cliente; o servidor só recebe e armazena a chave pública.
-- Samba e FileBrowser devem escutar **exclusivamente** na interface `wg0` (IP `10.66.66.1`) ou `lo`. Nunca faça bind em `0.0.0.0` para esses serviços, mesmo temporariamente para debug — isso os expõe à internet pública através do `eth0`.
+- Samba deve escutar **exclusivamente** na interface `wg0` (IP `10.66.66.1`) ou `lo`. XDriver web só em `xdriver.corp.ihuull.com` (Nginx `10.66.66.1:443`). Nunca faça bind em `0.0.0.0` para esses serviços, mesmo temporariamente para debug — isso os expõe à internet pública através do `eth0`.
 - Não use a sub-rede `10.10.0.0/16` nem `10.136.0.0/16` para nada relacionado à VPN — já estão em uso por outras interfaces do servidor (ver `PLAN.md` §1). A sub-rede da VPN é `10.66.66.0/24`.
 - O Nginx do servidor é compartilhado com outra aplicação (`landpages-ops`, domínio `ldpops.appapisip.com`). Antes de adicionar um novo *server block*, porta interna ou serviço de rede, confira a tabela de registro em `PLAN.md` §5 para não colidir, e atualize essa tabela. Hostnames `*.corp.ihuull.com` escutam só em `10.66.66.1:443` — nunca crie A público para `corp`.
 - DNS interno (dnsmasq) só em `10.66.66.1:53`. Mongo só em `127.0.0.1:27017`. Nenhum dos dois no ufw público.

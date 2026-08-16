@@ -73,15 +73,15 @@ export function FilesPage() {
         <Card>
           <CardHeader>
             <Globe className="mb-1 size-6 text-muted-foreground" />
-            <CardTitle className="text-base">FileBrowser</CardTitle>
-            <CardDescription>Interface web dos mesmos diretórios, só dentro do túnel (HTTP, sem TLS interno).</CardDescription>
+            <CardTitle className="text-base">XDriver</CardTitle>
+            <CardDescription>Drive na intranet — só com o túnel ligado.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <CopyField label="URL" value={FILEBROWSER_URL} />
             <Button variant="outline" size="sm" asChild>
               <a href={FILEBROWSER_URL} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" />
-                Abrir FileBrowser
+                Abrir XDriver
               </a>
             </Button>
           </CardContent>

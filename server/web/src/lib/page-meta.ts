@@ -138,9 +138,13 @@ const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
   },
   {
+    prefix: '/xgroup/explore',
+    meta: { kicker: 'xgroup', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
+  },
+  {
     prefix: '/xgroup',
     exact: true,
-    meta: { kicker: 'xgroup', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+    meta: { kicker: 'xgroup', title: 'Início', description: 'O que está acontecendo na VPN.' },
   },
   {
     prefix: '/social/messages',
@@ -155,9 +159,13 @@ const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
   },
   {
+    prefix: '/social/explore',
+    meta: { kicker: 'xgroup', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
+  },
+  {
     prefix: '/social',
     exact: true,
-    meta: { kicker: 'xgroup', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+    meta: { kicker: 'xgroup', title: 'Início', description: 'O que está acontecendo na VPN.' },
   },
 ]
 

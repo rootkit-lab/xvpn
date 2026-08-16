@@ -27,6 +27,7 @@ const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ defau
 const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
+const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
 )
@@ -42,10 +43,11 @@ const SocialGroupsPage = lazy(() =>
 const PlayStoreLayout = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreLayout })))
 const PlayStoreHome = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreHome })))
 const PlayStoreDetail = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreDetail })))
-const XDriverLayout = lazy(() => import('@/pages/xdriver-portal-page').then((m) => ({ default: m.XDriverLayout })))
-const XDriverPortalPage = lazy(() =>
-  import('@/pages/xdriver-portal-page').then((m) => ({ default: m.XDriverPortalPage })),
+const XDriverLayout = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverLayout })))
+const XDriverPublicLanding = lazy(() =>
+  import('@/pages/xdriver-portal-page').then((m) => ({ default: m.XDriverPublicLanding })),
 )
+const XDriverAppPage = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverAppPage })))
 
 function MarketplaceApp() {
   return (
@@ -62,13 +64,22 @@ function MarketplaceApp() {
   )
 }
 
-function XDriverApp() {
+function XDriverPublicApp() {
+  return (
+    <Routes>
+      <Route path="/" element={<XDriverPublicLanding />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function XDriverCorpApp() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage variant="store" />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<XDriverLayout />}>
-          <Route index element={<XDriverPortalPage />} />
+          <Route index element={<XDriverAppPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -95,13 +106,15 @@ function CoreApp() {
             <Route path="account" element={<AccountPage />} />
           </Route>
           <Route path="/social" element={<SocialShell />}>
-            <Route index element={<SocialDirectoryPage />} />
+            <Route index element={<SocialFeedPage />} />
+            <Route path="explore" element={<SocialDirectoryPage />} />
             <Route path="u/:username" element={<SocialProfilePage />} />
             <Route path="messages" element={<SocialMessagesPage />} />
             <Route path="groups" element={<SocialGroupsPage />} />
           </Route>
           <Route path="/xgroup" element={<SocialShell />}>
-            <Route index element={<SocialDirectoryPage />} />
+            <Route index element={<SocialFeedPage />} />
+            <Route path="explore" element={<SocialDirectoryPage />} />
             <Route path="u/:username" element={<SocialProfilePage />} />
             <Route path="messages" element={<SocialMessagesPage />} />
             <Route path="groups" element={<SocialGroupsPage />} />
@@ -138,7 +151,15 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Suspense fallback={<PageFallback />}>
-          {kind === 'marketplace' ? <MarketplaceApp /> : kind === 'xdriver' ? <XDriverApp /> : <CoreApp />}
+          {kind === 'marketplace' ? (
+            <MarketplaceApp />
+          ) : kind === 'xdriver-corp' ? (
+            <XDriverCorpApp />
+          ) : kind === 'xdriver' ? (
+            <XDriverPublicApp />
+          ) : (
+            <CoreApp />
+          )}
         </Suspense>
       </AuthProvider>
     </BrowserRouter>

@@ -12,9 +12,19 @@ App novo **só nasce** se não couber num slug já existente:
 | xvpn | Core, enroll, JWT/JWE, catálogo, “está conectado?” | — |
 | xchat | Messenger | Segundo chat no painel |
 | xgroup | Rede social (`/social`, `/xgroup`) | Misturar com xchat |
-| xdriver | Arquivos (Samba + FileBrowser) | Fork do FileBrowser; expor na internet |
+| xdriver | Arquivos (Samba + Drive nativo em `xdriver.corp`) | FileBrowser; expor arquivos na internet |
 
-Reuso obrigatório: identidade JWE (`aud` = slug), skill `desktop-app-ui`, gate VPN (`vpngate` / IPC do helper), `marketplace.yaml` único, blobs content-addressed, chrome de chat só via skill `chat-chrome`.
+Reuso obrigatório: identidade JWE (`aud` = slug), skill `desktop-app-ui`, gate VPN (`vpngate` / IPC do helper), `marketplace.yaml` único, blobs content-addressed, chrome de chat só via skill `chat-chrome`. Header global + logo do produto (`shared/ui/brand`). **Não** nascer segundo binário Go — API no `xvpn-server` (`PLAN.md` §6.13).
+
+Todo app tem **três peças** (client só se precisar):
+
+| Peça | Obrigatório | Onde |
+|---|---|---|
+| server | sim | handlers no monólito, prefixo `/api/<slug>/` ou paths já documentados |
+| portal | sim | landing pública `<slug>.ihuull.com` e/ou app `<slug>.corp.ihuull.com` |
+| client | não | `apps/<slug>/` Wails; um `marketplace.yaml`; `network: vpn` se exigir túnel |
+
+`visibility` (ACL: global/restricted) ≠ `network` (public/vpn). Registrar hostname em `PLAN.md` §5 **antes** do Nginx.
 
 ## Checklist (nesta ordem)
 

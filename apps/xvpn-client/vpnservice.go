@@ -236,7 +236,7 @@ func (s *VPNService) unmountFileSharesBestEffort() {
 // OpenServerFiles abre o acesso a arquivos do servidor no aplicativo
 // padrão do SO. kind é "smb-home" (o compartilhamento pessoal desta
 // pessoa), "smb-shared" (o compartilhamento comum da Fase 5) ou
-// "filebrowser" (interface web).
+// "filebrowser" (XDriver web em xdriver.corp).
 //
 // Confere o estado real da conexão com o helper antes de abrir, em vez de
 // confiar no que a UI tinha em mãos: um clique num status de 2 segundos

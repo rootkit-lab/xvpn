@@ -275,6 +275,20 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/social/stories", app.handleSocialCreateStory)
 			authed.POST("/social/stories/:id/view", app.handleSocialViewStory)
 			authed.POST("/social/acks", app.handleSocialAck)
+			authed.GET("/social/feed", app.handleSocialFeed)
+			authed.POST("/social/posts", app.handleSocialCreatePost)
+			authed.GET("/social/u/:username/posts", app.handleSocialUserPosts)
+			authed.DELETE("/social/posts/:id", app.handleSocialDeletePost)
+
+			driver := authed.Group("/driver")
+			driver.Use(app.RequireDriverHost())
+			{
+				driver.GET("/ls", app.handleDriverList)
+				driver.POST("/mkdir", app.handleDriverMkdir)
+				driver.POST("/upload", app.handleDriverUpload)
+				driver.GET("/download", app.handleDriverDownload)
+				driver.DELETE("/rm", app.handleDriverDelete)
+			}
 		}
 
 		// viewerUp: leitura das telas de admin (dashboard, listas,

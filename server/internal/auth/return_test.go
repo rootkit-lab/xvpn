@@ -36,4 +36,31 @@ func TestTrustedHandoffOrigin(t *testing.T) {
 	if !TrustedHandoffOrigin("http://localhost:5173") {
 		t.Fatal("http localhost é o dev")
 	}
+	if TrustedHandoffOrigin("null") {
+		t.Fatal("Origin null")
+	}
+}
+
+func TestHandoffAllowed(t *testing.T) {
+	if !HandoffAllowed("https://xauth.ihuull.com", "", "", "xvpn.ihuull.com") {
+		t.Fatal("Origin xauth")
+	}
+	if HandoffAllowed("https://evil.example", "", "cross-site", "xvpn.ihuull.com") {
+		t.Fatal("Origin estranha")
+	}
+	if !HandoffAllowed("", "", "same-site", "xvpn.ihuull.com") {
+		t.Fatal("POST same-site sem Origin (Referrer-Policy do xauth)")
+	}
+	if !HandoffAllowed("", "", "same-origin", "xvpn.ihuull.com") {
+		t.Fatal("same-origin")
+	}
+	if HandoffAllowed("", "", "cross-site", "xvpn.ihuull.com") {
+		t.Fatal("cross-site sem Origin")
+	}
+	if HandoffAllowed("", "", "", "xvpn.ihuull.com") {
+		t.Fatal("sem Origin nem Sec-Fetch-Site")
+	}
+	if HandoffAllowed("", "", "same-site", "evil.example") {
+		t.Fatal("same-site em host estranho")
+	}
 }

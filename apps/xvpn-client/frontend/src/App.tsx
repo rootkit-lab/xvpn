@@ -79,7 +79,21 @@ function App() {
           O serviço <code className="rounded bg-secondary px-1 py-0.5">xvpn-client-helper</code>{' '}
           não está acessível.
         </p>
-        <p className="mt-1">Verifique se ele está instalado e rodando e tente novamente.</p>
+        <p className="mt-3 max-w-sm text-left">
+          Se você acabou de instalar, o grupo <code className="rounded bg-secondary px-1 py-0.5">xvpn</code>{' '}
+          só vale depois de sair da sessão e entrar de novo.
+        </p>
+        <ol className="mt-3 max-w-sm list-decimal space-y-1 pl-5 text-left">
+          <li>
+            No terminal:{' '}
+            <code className="rounded bg-secondary px-1 py-0.5">sudo usermod -aG xvpn $USER</code>
+          </li>
+          <li>
+            Confira o serviço:{' '}
+            <code className="rounded bg-secondary px-1 py-0.5">systemctl status xvpn-client-helper</code>
+          </li>
+          <li>Saia da sessão (logout) e abra o XVPN de novo.</li>
+        </ol>
       </CenteredMessage>
     )
   } else if (!status.enrolled) {

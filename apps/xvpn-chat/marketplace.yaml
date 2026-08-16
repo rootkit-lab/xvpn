@@ -3,6 +3,7 @@ slug: xchat
 name: xchat
 description: Messenger da intranet ihuull (xchat.corp.ihuull.com) — exige xvpn conectado
 visibility: global
+network: vpn
 source: build
 channel: stable
 assets:

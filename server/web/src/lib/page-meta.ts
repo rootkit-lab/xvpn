@@ -94,7 +94,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Marketplace',
       title: 'Catálogo e ACL',
-      description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL operacional.',
+      description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL, network e download.',
     },
   },
   {

@@ -2,6 +2,13 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.5](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.4...xvpn-client-v0.1.5) (2026-08-16)
+
+
+### Bug Fixes
+
+* split-horizon DNS no túnel e loop SSO no xauth ([#93](https://github.com/rootkit-lab/xvpn/issues/93)) ([5113c43](https://github.com/rootkit-lab/xvpn/commit/5113c43c499a4ee1b067d2852cb2551d5c30e35b))
+
 ## [0.1.4](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.3...xvpn-client-v0.1.4) (2026-08-16)
 
 

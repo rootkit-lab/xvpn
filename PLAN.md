@@ -2,7 +2,7 @@
 
 > Rede privada própria (estilo "VPN pessoal com exit node"), painel web de administração e cliente desktop (Windows/Linux) construído em Go + Wails3 + React/Tailwind/shadcn, hospedado no seu VPS Ubuntu.
 >
-> **Estado atual (v0.7+):** portal/enroll em `https://xvpn.ihuull.com` (`/admin` só operação); landing `www.ihuull.com` / `ihuu.com`; Marketplace em `marketplace.ihuull.com` (UI tipo Play Store); landing XDriver em `xdriver.ihuull.com` (conecte a VPN); Drive nativo só em `xdriver.corp.ihuull.com`. Marketing xgroup em `xgroup.ihuull.com` (código + Nginx de referência; **A ainda não criado**). Apps desktop na intranet `*.corp.ihuull.com` (xchat, xgroup, xdriver). Auth **só JWE** (sem JWT HMAC). Mongo em `127.0.0.1:27017` quando `XVPN_MONGO_URI` está set; senão SQLite (testes/CI). `ldpops.appapisip.com` não muda. Runbook DNS: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md). API: [`docs/api.md`](./docs/api.md).
+> **Estado atual (v0.7+):** portal/enroll em `https://xvpn.ihuull.com` (`/admin` só operação); landing `www.ihuull.com` / `ihuu.com`; Marketplace em `marketplace.ihuull.com` (UI tipo Play Store); landing XDriver em `xdriver.ihuull.com` (conecte a VPN); Drive nativo só em `xdriver.corp.ihuull.com`. Marketing xgroup em `xgroup.ihuull.com` (landing; sem API/WS). Apps desktop na intranet `*.corp.ihuull.com` (xchat, xgroup, xdriver). Auth **só JWE** (sem JWT HMAC). Mongo em `127.0.0.1:27017` quando `XVPN_MONGO_URI` está set; senão SQLite (testes/CI). `ldpops.appapisip.com` não muda. Runbook DNS: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md). API: [`docs/api.md`](./docs/api.md).
 
 ---
 
@@ -21,7 +21,7 @@ Antes de desenhar qualquer arquitetura, inspecionei o servidor para não propor 
 | SSH | `PermitRootLogin yes`; `PasswordAuthentication` **conflitante** entre `50-cloud-init.conf` (yes) e `60-cloudimg-settings.conf` (no) | Como o OpenSSH usa o *primeiro* valor encontrado e `50-*` é lido antes de `60-*`, na prática **login por senha pode ainda estar habilitado**, mesmo você achando que só a chave funciona. Vamos fechar isso explicitamente (ver §9). |
 | Nginx / Docker / Samba / Go / Node | Nenhum instalado ainda | Ambiente limpo — vamos instalar tudo do zero, com controle total sobre versões. |
 | **Outra aplicação em preparação** | `/opt/landpages-ops/landpages-ops-web` (binário Go, usuário de sistema dedicado `landpages-ops`), vai usar **Nginx** e domínio próprio `ldpops.appapisip.com` | **Decisão de arquitetura:** o Nginx será um **reverse proxy compartilhado** no servidor, com um *server block* por aplicação/domínio. O XVPN não pode assumir que é o único serviço HTTP da máquina. |
-| **Domínios confirmados (DNS já verificado)** | Públicos: `xvpn.ihuull.com`, `marketplace.ihuull.com`, `xdriver.ihuull.com` (landing VPN, sem arquivos), `www.ihuull.com` / `ihuull.com`, `ihuu.com` / `www.ihuu.com`, `xchat.ihuull.com` (marketing). `xgroup.ihuull.com` registrado em §5.1 — **A ainda não criado**. Intranet: `*.corp.ihuull.com` só no dnsmasq (`10.66.66.1`). `ldpops.appapisip.com` → landpages-ops. A públicos → `206.189.224.72`. | Server blocks Nginx + Certbot nos hostnames ihuull. Sem A público para `corp`. Arquivos só em `xdriver.corp` (API nativa, sem FileBrowser). |
+| **Domínios confirmados (DNS já verificado)** | Públicos: `xvpn.ihuull.com`, `marketplace.ihuull.com`, `xdriver.ihuull.com` (landing VPN, sem arquivos), `www.ihuull.com` / `ihuull.com`, `ihuu.com` / `www.ihuu.com`, `xchat.ihuull.com` (marketing). `xgroup.ihuull.com` (landing marketing). Intranet: `*.corp.ihuull.com` só no dnsmasq (`10.66.66.1`). `ldpops.appapisip.com` → landpages-ops. A públicos → `206.189.224.72`. | Server blocks Nginx + Certbot nos hostnames ihuull. Sem A público para `corp`. Arquivos só em `xdriver.corp` (API nativa, sem FileBrowser). |
 
 Essa última linha muda uma decisão importante: eu ia sugerir **Caddy** (TLS automático, config mais simples) para o painel — mas como já vai existir Nginx no servidor para outra app, **vamos padronizar tudo em Nginx + Certbot**, para não ter dois reverse proxies brigando pelas portas 80/443. É a decisão tecnicamente mais correta dado o contexto real do servidor, mesmo custando um pouco mais de configuração manual de TLS.
 
@@ -169,7 +169,7 @@ Fonte da verdade de portas, hostnames e bind. Qualquer serviço novo no VPS **en
 | Marketplace (Play Store) | `marketplace.ihuull.com` | **DNS only**. Mesmo backend `127.0.0.1:8080`. UI própria (catálogo + detalhe + instalar). JWE — download nunca anônimo. `/my/marketplace` redireciona para cá. ACL admin continua em `/admin/marketplace` no painel |
 | XDriver (landing pública) | `xdriver.ihuull.com` | **DNS only**. Landing “conecte a VPN”. **Não** serve arquivos. Drive real: `xdriver.corp.ihuull.com` só na VPN. `/my/files` redireciona para cá |
 | Marketing xchat | `xchat.ihuull.com` | Landing “conecte a VPN / abra o app”. **Não** é o WebSocket nem a API do messenger |
-| Marketing xgroup | `xgroup.ihuull.com` | Landing “conecte a VPN / abra o app”. **Não** é API/WS do social. App continua em `xgroup.corp` / `/social`. Nginx: `server/deploy/nginx/xgroup.conf`. **Ainda sem A** — criar o A (DNS only) só quando for ligar o server block |
+| Marketing xgroup | `xgroup.ihuull.com` | Landing “conecte a VPN / abra o app”. **Não** é API/WS do social. App continua em `xgroup.corp` / `/social`. Nginx: `server/deploy/nginx/xgroup.conf`. A DNS only + cert HTTP-01 |
 | SSO | `xauth.ihuull.com` | **DNS only**. A → `206.189.224.72`. Backend `127.0.0.1:8080`. Login único; cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax). Sem WS. Nginx: `server/deploy/nginx/xauth.conf`. Enroll continua em `xvpn.ihuull.com` |
 | landpages-ops | `ldpops.appapisip.com` | **Não muda.** Outra app Go no mesmo Nginx |
 
@@ -583,7 +583,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 | xvpn | `xvpn.ihuull.com` | — | `xvpn-client` | Portal de produto (chrome tipo loja) + enroll; `/admin` só operação |
 | marketplace | `marketplace.ihuull.com` | — | — | Loja ok. `network: public\|vpn` no manifesto (além de `visibility: global\|restricted`) |
 | xchat | `xchat.ihuull.com` (marketing) | `xchat.corp` | `xvpn-chat` | Correto |
-| xgroup | `xgroup.ihuull.com` (marketing) | `xgroup.corp` + `/social` no painel | — | Landing no código; **A ainda não criado**. App web; desktop só se o messenger não bastar |
+| xgroup | `xgroup.ihuull.com` (marketing) | `xgroup.corp` + `/social` no painel | — | Landing pública. App web; desktop só se o messenger não bastar |
 | xdriver | `xdriver.ihuull.com` (landing VPN) | `xdriver.corp` | atalho no client | Correto. Sem FileBrowser |
 | xauth | `xauth.ihuull.com` | — | — | Login único no mesmo `xvpn-server`. Cookie `.ihuull.com` |
 | ihuu.com | parking AWS | — | — | Não usar no Nginx |
@@ -832,7 +832,7 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 | XDriver | `https://xdriver.ihuull.com` (landing) · Drive em `https://xdriver.corp.ihuull.com` |
 | Landing | `www.ihuull.com` / `ihuull.com` / `ihuu.com` |
 | Marketing messenger | `xchat.ihuull.com` (sem API/WS) |
-| Marketing xgroup | `xgroup.ihuull.com` (sem API/WS; **A ainda não criado**) |
+| Marketing xgroup | `xgroup.ihuull.com` (sem API/WS) |
 | Intranet | `xchat.corp` / `xgroup.corp` / `xdriver.corp` → `10.66.66.1` (só VPN) |
 | Auth | **só JWE** (`dir` + `A256GCM`); issuer `xauth.ihuull.com` (lê também o issuer legado `xvpn.ihuull.com`) |
 | Crescimento | Monólito modular (§6.13). Sem fatiar o binário. `/admin` único |

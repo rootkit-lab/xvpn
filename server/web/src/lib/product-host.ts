@@ -111,11 +111,33 @@ export function safeReturnURL(raw: string | null | undefined): string | null {
   }
 }
 
+/** Login pages não podem ser return do SSO — senão xauth ↔ /my/login entra em loop. */
+export function isAuthPath(pathname: string): boolean {
+  const p = pathname.replace(/\/+$/, '') || '/'
+  return p === '/login' || p.endsWith('/login')
+}
+
+/** Destino depois do cookie no xauth: return seguro, nunca outra tela de login. */
+export function ssoContinueURL(role: string, returnTo?: string | null): string {
+  const safe = safeReturnURL(returnTo)
+  if (safe) {
+    try {
+      const u = new URL(safe)
+      if (!isAuthPath(u.pathname)) return safe
+    } catch {
+      // cai no default
+    }
+  }
+  return `${PANEL_ORIGIN}${role === 'member' ? '/' : '/admin'}`
+}
+
 export function ssoLoginURL(returnTo?: string): string {
   const dest = new URL('/login', xauthOrigin())
   const fallback =
     returnTo ?? (typeof window === 'undefined' ? PANEL_ORIGIN : window.location.href)
   const safe = safeReturnURL(fallback)
-  if (safe) dest.searchParams.set('return', safe)
+  if (!safe) return dest.toString()
+  const u = new URL(safe)
+  dest.searchParams.set('return', isAuthPath(u.pathname) ? `${u.origin}/` : safe)
   return dest.toString()
 }

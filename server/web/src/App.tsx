@@ -1,8 +1,8 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, XDRIVER_CORP_ORIGIN, productKind } from '@/lib/product-host'
+import { MARKETPLACE_ORIGIN, PANEL_ORIGIN, XDRIVER_CORP_ORIGIN, productKind } from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
@@ -63,9 +63,18 @@ function XAuthApp() {
     <Routes>
       <Route path="/" element={<LoginPage variant="sso" />} />
       <Route path="/login" element={<LoginPage variant="sso" />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<XAuthLeave />} />
     </Routes>
   )
+}
+
+/** /admin no xauth não existe — mandar ao painel, nunca de volta ao /login (loop). */
+function XAuthLeave() {
+  useEffect(() => {
+    const path = window.location.pathname
+    window.location.replace(path.startsWith('/admin') ? `${PANEL_ORIGIN}/admin` : `${PANEL_ORIGIN}/`)
+  }, [])
+  return <PageFallback />
 }
 
 function MarketplaceApp() {

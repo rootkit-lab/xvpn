@@ -293,12 +293,11 @@ func configureInterface(cfg tunnel.Config) error {
 		_ = runNetsh("interface", "ipv4", "add", "route", dst.String(), "interface="+ifaceName, "metric=1")
 	}
 
-	if len(cfg.DNS) > 0 {
-		_ = runNetsh("interface", "ip", "set", "dns", "name="+ifaceName, "static", cfg.DNS[0])
-		for _, extra := range cfg.DNS[1:] {
-			_ = runNetsh("interface", "ip", "add", "dns", "name="+ifaceName, extra)
-		}
-	}
+	// Não setar DNS no adaptador: com AllowedIPs=0.0.0.0/0 o Windows
+	// passa a usar 10.66.66.1 para *todo* nome (mesmo bug do
+	// default-route=yes no Linux) e derruba Cursor/apt se o dnsmasq não
+	// encaminhar. *.corp fica no /etc/hosts (helper). DNS público segue
+	// no adaptador físico.
 	return nil
 }
 

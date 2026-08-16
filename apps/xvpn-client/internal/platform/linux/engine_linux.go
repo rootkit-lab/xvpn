@@ -437,30 +437,34 @@ func removeRoute(route *netlink.Route) error {
 	return netlink.RouteDel(route)
 }
 
-// applyDNS usa systemd-resolved (presente na maioria das distros
-// modernas, incluindo a imagem-base do Ubuntu) para rotear todas as
-// consultas DNS pela xvpn0 enquanto o túnel estiver ativo — o mesmo
-// mecanismo que o `wg-quick` usa. Se resolvectl não existir, é um no-op:
-// o túnel funciona, só sem DNS automático (limitação conhecida da Fase 4;
-// revisitar num hardening futuro, ex. fallback para reescrever
-// /etc/resolv.conf).
+// applyDNS aponta só a zona corp para o dnsmasq da wg0. Não usa ~. nem
+// default-route=yes: isso sequestrava o DNS público (Cursor, apt, etc.)
+// e, se o dnsmasq não encaminhasse, a máquina ficava sem internet.
 func applyDNS(dns []string) error {
 	if _, err := exec.LookPath("resolvectl"); err != nil {
 		return fmt.Errorf("resolvectl não encontrado")
 	}
-	args := append([]string{"dns", ifaceName}, dns...)
-	if err := exec.Command("resolvectl", args...).Run(); err != nil {
+	dnsArgs, domainArgs, defaultRouteArgs := splitHorizonResolvectlArgs(ifaceName, dns)
+	if err := exec.Command("resolvectl", dnsArgs...).Run(); err != nil {
 		return fmt.Errorf("resolvectl dns: %w", err)
 	}
-	// ~corp = split-horizon da intranet; ~. = resto pelo mesmo resolvedor
-	// (full-tunnel). DoT/DNSSEC no SO quebram consulta a 10.66.66.1:53.
-	if err := exec.Command("resolvectl", "domain", ifaceName, "~corp.ihuull.com", "~.").Run(); err != nil {
+	if err := exec.Command("resolvectl", domainArgs...).Run(); err != nil {
 		return fmt.Errorf("resolvectl domain: %w", err)
 	}
 	_ = exec.Command("resolvectl", "dnsovertls", ifaceName, "no").Run()
 	_ = exec.Command("resolvectl", "dnssec", ifaceName, "no").Run()
-	_ = exec.Command("resolvectl", "default-route", ifaceName, "yes").Run()
+	_ = exec.Command("resolvectl", defaultRouteArgs...).Run()
 	return nil
+}
+
+// splitHorizonResolvectlArgs é o contrato do DNS do túnel: só a zona corp
+// vai para 10.66.66.1. `~.` / default-route=yes sequestram o resolvedor
+// público e derrubam Cursor/apt quando o dnsmasq não encaminha.
+func splitHorizonResolvectlArgs(iface string, dns []string) (dnsArgs, domainArgs, defaultRouteArgs []string) {
+	dnsArgs = append([]string{"dns", iface}, dns...)
+	domainArgs = []string{"domain", iface, "~corp.ihuull.com"}
+	defaultRouteArgs = []string{"default-route", iface, "no"}
+	return
 }
 
 func revertDNS() {

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
@@ -567,5 +568,43 @@ func TestHandleDownloadMarketplaceAsset_NetworkFilter(t *testing.T) {
 		"marketplace.ihuull.com", "10.66.66.4:9", nil)
 	if okVPN.Code != http.StatusOK {
 		t.Fatalf("download com peer na VPN: %d %s", okVPN.Code, okVPN.Body.String())
+	}
+}
+
+func TestHandleMarketplace_PublicHostWithLivePeer(t *testing.T) {
+	app, wg := newTestApp(t)
+	router := NewRouter(app)
+	member := createTestUserWithRole(t, app, "member", "senha-member-ok", store.RoleMember)
+	tok := loginAndGetToken(t, app, router, "member", "senha-member-ok")
+	vpnID, _, assetID, content := seedVpnAndPublicApps(t, app)
+
+	if err := app.Store.DB.Create(&store.Device{
+		UserID: member.ID, Name: "note", PublicKey: testPublicKey, AllowedIP: "10.66.66.2/32",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	wg.setHandshake(testPublicKey, time.Now())
+
+	listed := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", nil))
+	if _, ok := listed[vpnID]; !ok {
+		t.Fatal("loja pública deve listar network:vpn quando o usuário tem peer com handshake")
+	}
+
+	path := "/api/marketplace/assets/" + strconv.FormatUint(uint64(assetID), 10) + "/download"
+	got := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", nil)
+	if got.Code != http.StatusOK {
+		t.Fatalf("download na loja pública com túnel no ar: %d %s", got.Code, got.Body.String())
+	}
+	if !bytes.Equal(got.Body.Bytes(), content) {
+		t.Fatal("conteúdo do download diverge")
+	}
+
+	wg.setHandshake(testPublicKey, time.Now().Add(-10*time.Minute))
+	stale := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", nil)
+	if stale.Code != http.StatusForbidden {
+		t.Fatalf("handshake velho não deve liberar download: %d", stale.Code)
 	}
 }

@@ -7,6 +7,7 @@ import { initials, StatusDot } from '@chat/messenger/StatusDot'
 import { ChatButton, ChatInput } from '@chat/messenger/ui'
 import { ChatIconButton } from '@chat/messenger/chrome'
 import { audioConstraints, useChatSettings } from '@chat/messenger/ChatSettings'
+import { audioFileFromChunks, clipboardLooksLikeImage, filesFromClipboard, pickRecorderMime } from '@chat/messenger/media'
 
 function ReceiptTicks({
   delivered,
@@ -49,13 +50,42 @@ export function Conversation({
   const [dragOver, setDragOver] = useState(false)
   const [recording, setRecording] = useState(false)
   const bottom = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
+  const takeFilesRef = useRef<(files: FileList | File[] | null) => Promise<void>>(async () => {})
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: 'end' })
   }, [list.length, threadKey])
+
+  useEffect(() => {
+    takeFilesRef.current = async (files) => {
+      if (!files) return
+      for (const f of Array.from(files)) {
+        await sendFile(f, threadKey)
+      }
+    }
+  }, [sendFile, threadKey])
+
+  useEffect(() => {
+    async function onPaste(e: ClipboardEvent) {
+      const root = rootRef.current
+      if (!root) return
+      const target = e.target as Node | null
+      const active = document.activeElement
+      const inside = Boolean((target && root.contains(target)) || (active && root.contains(active)))
+      if (!inside) return
+      const text = e.clipboardData?.getData('text/plain')?.trim() ?? ''
+      if (text && !clipboardLooksLikeImage(e)) return
+      e.preventDefault()
+      const files = await filesFromClipboard(e)
+      if (files.length) await takeFilesRef.current(files)
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [])
 
   if (!contact) {
     return (
@@ -87,10 +117,7 @@ export function Conversation({
   }
 
   async function takeFiles(files: FileList | File[] | null) {
-    if (!files) return
-    for (const f of Array.from(files)) {
-      await sendFile(f, threadKey)
-    }
+    await takeFilesRef.current(files)
   }
 
   function onDrop(e: DragEvent) {
@@ -106,16 +133,15 @@ export function Conversation({
       return
     }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints(settings.micId) })
-    const rec = new MediaRecorder(stream)
+    const mime = pickRecorderMime()
+    const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream)
     chunks.current = []
     rec.ondataavailable = (ev) => {
       if (ev.data.size) chunks.current.push(ev.data)
     }
     rec.onstop = () => {
       stream.getTracks().forEach((t) => t.stop())
-      const blob = new Blob(chunks.current, { type: rec.mimeType || 'audio/webm' })
-      const file = new File([blob], 'audio.webm', { type: blob.type })
-      void sendFile(file, threadKey)
+      void sendFile(audioFileFromChunks(chunks.current, rec.mimeType), threadKey)
     }
     recorder.current = rec
     rec.start()
@@ -129,6 +155,7 @@ export function Conversation({
 
   return (
     <div
+      ref={rootRef}
       className="relative flex h-full min-h-0 flex-col"
       onDragOver={(e) => {
         e.preventDefault()
@@ -136,16 +163,6 @@ export function Conversation({
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
-      onPaste={(e) => {
-        const files = Array.from(e.clipboardData.items)
-          .filter((i) => i.kind === 'file')
-          .map((i) => i.getAsFile())
-          .filter((f): f is File => Boolean(f))
-        if (files.length) {
-          e.preventDefault()
-          void takeFiles(files)
-        }
-      }}
     >
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[18px] border-2 border-dashed border-[var(--safe)] bg-black/40 font-display text-sm text-[var(--safe)]">

@@ -72,8 +72,8 @@ func (a *App) handleSocialUploadAttachment(c *gin.Context) {
 	}
 	defer src.Close()
 
-	mime := fh.Header.Get("Content-Type")
-	if mime == "" || mime == "application/octet-stream" {
+	mime := normalizeSocialMIME(fh.Header.Get("Content-Type"))
+	if mime == "" {
 		mime = sniffSocialMIME(fh.Filename)
 	}
 	kind, ok := allowedSocialMIME[mime]
@@ -142,7 +142,11 @@ func (a *App) handleSocialDownloadAttachment(c *gin.Context) {
 		return
 	}
 	c.Header("X-Content-Type-Options", "nosniff")
-	c.FileAttachment(abs, att.Filename)
+	if att.Mime != "" {
+		c.Header("Content-Type", att.Mime)
+	}
+	c.Header("Content-Disposition", `inline; filename="`+sanitizeFilename(att.Filename)+`"`)
+	c.File(abs)
 }
 
 func (a *App) canAccessAttachment(attachmentID, userID uint) bool {
@@ -295,6 +299,17 @@ func (a *App) storyItem(st store.Story, viewerID uint, usernameHint string) stor
 		}
 	}
 	return item
+}
+
+func normalizeSocialMIME(mime string) string {
+	base := strings.ToLower(strings.TrimSpace(strings.Split(mime, ";")[0]))
+	if base == "" || base == "application/octet-stream" {
+		return ""
+	}
+	if base == "audio/x-m4a" {
+		return "audio/mp4"
+	}
+	return base
 }
 
 func sniffSocialMIME(name string) string {

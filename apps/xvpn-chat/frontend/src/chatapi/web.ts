@@ -8,6 +8,24 @@ function token(): string | null {
 
 export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
   let ws: WebSocket | null = null
+  let wsReady = false
+  const outbound: string[] = []
+
+  function enqueue(raw: string) {
+    if (ws && ws.readyState === WebSocket.OPEN && wsReady) {
+      ws.send(raw)
+      return
+    }
+    outbound.push(raw)
+  }
+
+  function flushOutbound() {
+    if (!ws || ws.readyState !== WebSocket.OPEN || !wsReady) return
+    while (outbound.length) {
+      const raw = outbound.shift()
+      if (raw) ws.send(raw)
+    }
+  }
 
   async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers)
@@ -115,8 +133,18 @@ export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const socket = new WebSocket(`${proto}//${window.location.host}/api/ws`)
       ws = socket
+      wsReady = false
       socket.addEventListener('open', () => {
+        if (socket.readyState !== WebSocket.OPEN) return
         socket.send(JSON.stringify({ type: 'auth', token: t }))
+        wsReady = true
+        flushOutbound()
+      })
+      socket.addEventListener('close', () => {
+        if (ws === socket) {
+          ws = null
+          wsReady = false
+        }
       })
       socket.addEventListener('message', (e) => {
         try {
@@ -126,18 +154,19 @@ export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
         }
       })
       return () => {
+        wsReady = false
         if (ws === socket) ws = null
         socket.close()
       }
     },
     sendTyping(kind, threadId) {
-      ws?.send(JSON.stringify({ type: 'typing', payload: { thread_kind: kind, thread_id: threadId } }))
+      enqueue(JSON.stringify({ type: 'typing', payload: { thread_kind: kind, thread_id: threadId } }))
     },
     setPresence(status) {
-      ws?.send(JSON.stringify({ type: 'presence', payload: { status } }))
+      enqueue(JSON.stringify({ type: 'presence', payload: { status } }))
     },
     sendSignal(type, payload) {
-      ws?.send(JSON.stringify({ type, payload }))
+      enqueue(JSON.stringify({ type, payload }))
     },
   }
 }

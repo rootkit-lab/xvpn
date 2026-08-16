@@ -76,6 +76,9 @@ func TestSocialAttachment_UploadAndACL(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("bob deveria baixar o anexo, obtido %d: %s", rec.Code, rec.Body.String())
 	}
+	if ct := rec.Header().Get("Content-Type"); ct != "image/png" {
+		t.Fatalf("Content-Type deveria ser image/png, obtido %q", ct)
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/social/attachments/"+strconv.FormatUint(uint64(attID), 10), nil)
 	req.Header.Set("Authorization", "Bearer "+eveTok)

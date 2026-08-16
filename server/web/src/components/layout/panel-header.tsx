@@ -2,9 +2,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { Shield, Users } from 'lucide-react'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { pageMetaForPath } from '@/lib/page-meta'
+import { headerProduct } from '@/lib/product-host'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { AccountMenu, ProductSwitcher } from '@/components/layout/account-menu'
+import { AppSettingsButton } from '@/components/layout/app-settings-button'
 
 /** Header fixo — marca ihuull + produto + título da rota + menu da conta. */
 export function PanelHeader({ variant }: { variant: 'user' | 'admin' | 'social' }) {
@@ -12,8 +14,9 @@ export function PanelHeader({ variant }: { variant: 'user' | 'admin' | 'social' 
   const location = useLocation()
   const meta = pageMetaForPath(location.pathname)
   const title = location.pathname === '/my' && user ? `Olá, ${user.username}` : meta.title
-  const product = variant === 'social' ? 'xgroup' : 'xvpn'
-  const productHref = variant === 'social' ? '/social' : variant === 'admin' ? '/admin' : '/my'
+  const product = headerProduct()
+  const productHref =
+    product === 'xchat' ? '/social/messages' : variant === 'social' ? '/social' : variant === 'admin' ? '/admin' : '/my'
 
   return (
     <ProductHeader
@@ -21,11 +24,14 @@ export function PanelHeader({ variant }: { variant: 'user' | 'admin' | 'social' 
       href="/"
       productHref={productHref}
       trailing={
-        <>
-          <HeaderActions pathname={location.pathname} />
-          <ProductSwitcher variant={variant} />
-          <AccountMenu variant={variant} />
-        </>
+        user ? (
+          <>
+            <HeaderActions pathname={location.pathname} />
+            <AppSettingsButton kind={variant} />
+            <ProductSwitcher variant={variant} />
+            <AccountMenu variant={variant} />
+          </>
+        ) : null
       }
     >
       <div className="min-w-0">

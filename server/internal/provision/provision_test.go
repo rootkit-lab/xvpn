@@ -140,8 +140,9 @@ func (f *fakeRunner) RemoveFile(path string) error {
 	return nil
 }
 
-func (f *fakeRunner) ReloadSSH() error   { return f.record("ReloadSSH()") }
-func (f *fakeRunner) ReloadSamba() error { return f.record("ReloadSamba()") }
+func (f *fakeRunner) ReloadSSH() error     { return f.record("ReloadSSH()") }
+func (f *fakeRunner) ReloadSamba() error   { return f.record("ReloadSamba()") }
+func (f *fakeRunner) ReloadDnsmasq() error { return f.record("ReloadDnsmasq()") }
 func (f *fakeRunner) SetUserQuota(username string, blocksKB uint64) error {
 	return f.record("SetUserQuota(" + username + "," + strconv.FormatUint(blocksKB, 10) + ")")
 }

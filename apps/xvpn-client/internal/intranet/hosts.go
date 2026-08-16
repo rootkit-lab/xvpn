@@ -24,12 +24,51 @@ var Names = []string{
 	"xdriver.corp.ihuull.com",
 }
 
+type HostEntry struct {
+	Hostname string `json:"hostname"`
+	IPv4     string `json:"ipv4"`
+}
+
 func block() string {
-	return MarkerBegin + "\n" + ServerIP + " " + strings.Join(Names, " ") + "\n" + MarkerEnd + "\n"
+	return blockEntries(nil)
+}
+
+func blockEntries(entries []HostEntry) string {
+	if len(entries) == 0 {
+		return MarkerBegin + "\n" + ServerIP + " " + strings.Join(Names, " ") + "\n" + MarkerEnd + "\n"
+	}
+	var b strings.Builder
+	b.WriteString(MarkerBegin + "\n")
+	grouped := map[string][]string{}
+	var order []string
+	for _, e := range entries {
+		h := strings.TrimSpace(e.Hostname)
+		ip := strings.TrimSpace(e.IPv4)
+		if h == "" || ip == "" {
+			continue
+		}
+		if _, ok := grouped[ip]; !ok {
+			order = append(order, ip)
+		}
+		grouped[ip] = append(grouped[ip], h)
+	}
+	if len(order) == 0 {
+		return MarkerBegin + "\n" + ServerIP + " " + strings.Join(Names, " ") + "\n" + MarkerEnd + "\n"
+	}
+	for _, ip := range order {
+		b.WriteString(ip + " " + strings.Join(grouped[ip], " ") + "\n")
+	}
+	b.WriteString(MarkerEnd + "\n")
+	return b.String()
 }
 
 // Apply insere ou substitui o bloco xvpn no arquivo hosts.
 func Apply(path string) error {
+	return ApplyEntries(path, nil)
+}
+
+// ApplyEntries grava os A publicados pelo /admin/dns (fallback: Names).
+func ApplyEntries(path string, entries []HostEntry) error {
 	raw, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("lendo %s: %w", path, err)
@@ -38,7 +77,7 @@ func Apply(path string) error {
 	if body != "" && !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
-	return os.WriteFile(path, []byte(body+block()), 0644)
+	return os.WriteFile(path, []byte(body+blockEntries(entries)), 0644)
 }
 
 // Revert remove o bloco xvpn do arquivo hosts. Sem bloco, é no-op.

@@ -157,7 +157,7 @@ export function Conversation({
   return (
     <div
       ref={rootRef}
-      className="relative flex h-full min-h-0 flex-col"
+      className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
       onDragOver={(e) => {
         e.preventDefault()
         setDragOver(true)
@@ -244,7 +244,7 @@ export function Conversation({
           )}
         </div>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-2">
         {list.map((m) => {
           const day = dayLabel(m.created_at)
           const showDay = day !== lastDay
@@ -261,7 +261,7 @@ export function Conversation({
               <div className={cn('mb-1.5 flex', mine ? 'justify-end' : 'justify-start')}>
                 <div
                   className={cn(
-                    'max-w-[80%] break-words px-3 py-1.5 text-sm leading-snug',
+                    'min-w-0 max-w-[min(36rem,85%)] overflow-hidden break-words [overflow-wrap:anywhere] px-3 py-1.5 text-sm leading-snug',
                     mine
                       ? 'rounded-[18px] rounded-br-md bg-[var(--safe)] text-[var(--safe-foreground)] shadow-[0_0_18px_-6px_var(--glow-safe)]'
                       : 'watch-complication rounded-[18px] rounded-bl-md text-foreground',
@@ -287,7 +287,7 @@ export function Conversation({
         })}
         <div ref={bottom} />
       </div>
-      <form className="flex items-center gap-1.5 p-2.5" onSubmit={onSubmit}>
+      <form className="flex min-w-0 items-center gap-1.5 p-2.5" onSubmit={onSubmit}>
         <input
           ref={fileRef}
           type="file"
@@ -305,6 +305,7 @@ export function Conversation({
           <Mic className={cn('h-4 w-4', recording && 'text-destructive')} strokeWidth={2} />
         </ChatIconButton>
         <ChatInput
+          className="min-w-0 flex-1"
           value={body}
           onChange={(e) => {
             setBody(e.target.value)

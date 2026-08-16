@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ChatPopouts } from '@chat/messenger/ChatPopouts'
 import { ChatSidebar } from '@chat/messenger/ChatSidebar'
 import { cn } from '@/lib/utils'
+import { headerProduct } from '@/lib/product-host'
 import { PanelHeader } from '@/components/layout/panel-header'
 import { PanelStatusBar } from '@/components/layout/panel-status-bar'
 import { useChatPanel } from '@/components/layout/use-chat-panel'
@@ -27,7 +28,8 @@ export function SystemChrome({
   const location = useLocation()
   const { open: chatOpen, hidden, session } = useChatPanel()
   const showPopouts = Boolean(session?.loggedIn && !hidden)
-  const product = variant === 'social' ? 'xgroup' : 'xvpn'
+  const product = headerProduct()
+  const fillMain = /\/(social|xgroup)\/messages/.test(location.pathname)
 
   return (
     <div
@@ -53,10 +55,19 @@ export function SystemChrome({
         </aside>
         <div className="relative z-10 flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
-            <main className={cn('min-h-0 flex-1 overflow-y-auto', variant === 'admin' ? 'p-8' : 'p-6 md:p-8', mainClassName)}>
+            <main
+              className={cn(
+                'min-h-0 min-w-0 flex-1',
+                fillMain
+                  ? 'flex flex-col overflow-hidden p-0'
+                  : cn('overflow-y-auto', variant === 'admin' ? 'p-8' : 'p-6 md:p-8'),
+                mainClassName,
+              )}
+            >
               <AnimatePresence mode="wait">
                 <motion.div
                   key={location.pathname}
+                  className={cn(fillMain && 'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden')}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}

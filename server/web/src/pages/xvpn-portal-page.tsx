@@ -1,11 +1,15 @@
 import { useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Download, ExternalLink, HardDrive, Laptop, LogOut, Shield, Store, UserRound } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Download, ExternalLink, HardDrive, Laptop, Store, UserRound } from 'lucide-react'
+import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { isViewerUpRole } from '@/lib/roles'
 import { MARKETPLACE_ORIGIN, XCHAT_CORP_ORIGIN, XDRIVER_CORP_ORIGIN, XGROUP_CORP_ORIGIN } from '@/lib/product-host'
+import { AccountMenu } from '@/components/layout/account-menu'
+import { AppLauncher } from '@/components/layout/app-launcher'
+import { AppSettingsButton } from '@/components/layout/app-settings-button'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -18,72 +22,53 @@ const SHORTCUTS = [
   },
   {
     href: XDRIVER_CORP_ORIGIN,
-    label: 'XDriver',
+    label: 'XDRIVER',
     description: 'Arquivos só com a VPN ligada',
     icon: HardDrive,
   },
   {
     href: XCHAT_CORP_ORIGIN,
-    label: 'xchat',
+    label: 'XCHAT',
     description: 'Messenger — só na VPN',
     icon: Laptop,
   },
   {
     href: XGROUP_CORP_ORIGIN,
-    label: 'xgroup',
+    label: 'XGROUP',
     description: 'Rede social — só na VPN',
     icon: UserRound,
   },
 ] as const
 
 export function XvpnProductPortal() {
-  const { user, isAuthenticated, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user, isAuthenticated } = useAuth()
   const fetchStatus = useCallback(() => api.status(), [])
   const { data: status, error } = usePollingData(fetchStatus, 10_000)
   const online = Boolean(status) && !error
   const showAdmin = isViewerUpRole(user?.role)
 
   return (
-    <div className="watch-face relative flex min-h-svh flex-col overflow-hidden">
+    <div data-product="xvpn" className="watch-face relative flex min-h-svh flex-col overflow-hidden">
       <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
 
-      <header className="chrome-bar relative z-20 flex items-center gap-3 px-4 py-3 md:px-6">
-        <Link to="/" className="flex min-w-0 items-center gap-2.5">
-          <span className="icon-well flex size-10 items-center justify-center rounded-[12px]">
-            <Shield className="size-5" />
-          </span>
-          <span className="min-w-0">
-            <span className="font-display block text-[15px] font-semibold tracking-tight">XVPN</span>
-            <span className="hud-label text-muted-foreground/70">sua rede</span>
-          </span>
-        </Link>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          {isAuthenticated && user ? (
+      <ProductHeader
+        product="xvpn"
+        href="/"
+        productHref="/"
+        trailing={
+          isAuthenticated && user ? (
             <>
-              <span className="hidden max-w-32 truncate text-sm text-muted-foreground sm:inline">
-                {user.username}
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                title="Sair"
-                onClick={() => {
-                  logout()
-                  navigate('/my/login', { replace: true })
-                }}
-              >
-                <LogOut className="size-4" />
-              </Button>
+              <AppSettingsButton kind="user" />
+              <AppLauncher variant="user" />
+              <AccountMenu variant="user" />
             </>
           ) : (
             <Button variant="ghost" className="rounded-full" asChild>
               <Link to="/my/login">Entrar</Link>
             </Button>
-          )}
-        </div>
-      </header>
+          )
+        }
+      />
 
       <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-10 md:px-8">
         <section className="flex flex-col gap-3">

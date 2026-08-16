@@ -130,6 +130,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-waitlist", http.MethodGet, "/api/waitlist", nil, "viewerUp"},
 	{"list-audit", http.MethodGet, "/api/audit", nil, "viewerUp"},
 	{"get-config", http.MethodGet, "/api/config", nil, "viewerUp"},
+	{"get-dns", http.MethodGet, "/api/dns", nil, "viewerUp"},
 	{"marketplace-stats", http.MethodGet, "/api/marketplace/stats", nil, "viewerUp"},
 
 	{"create-user", http.MethodPost, "/api/users", createUserRequest{Username: "gerado-pelo-teste", Password: "senha-valida-123", Role: store.RoleMember}, "adminOnly"},
@@ -143,6 +144,9 @@ var rbacRouteCases = []rbacRouteCase{
 	{"reject-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/reject", nil, "adminOnly"},
 	{"provision-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/provision", provisionWaitlistRequest{Username: "gerado-pelo-teste-2"}, "adminOnly"},
 	{"update-config", http.MethodPatch, "/api/config", updateConfigRequest{InviteTokenTTLMinutes: intPtr(30)}, "adminOnly"},
+	{"update-dns", http.MethodPatch, "/api/dns", updateDNSSettingsRequest{CacheSize: intPtr(200)}, "adminOnly"},
+	{"create-dns-record", http.MethodPost, "/api/dns/records", upsertDNSRecordRequest{Hostname: "lab.corp.ihuull.com", IPv4: "10.66.66.9"}, "adminOnly"},
+	{"apply-dns", http.MethodPost, "/api/dns/apply", nil, "adminOnly"},
 
 	{"list-marketplace-apps", http.MethodGet, "/api/marketplace/apps", nil, "any"},
 	{"download-marketplace-asset", http.MethodGet, "/api/marketplace/assets/{marketAsset}/download", nil, "any"},

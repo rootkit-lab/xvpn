@@ -55,4 +55,21 @@ Dentro do túnel: `dig +short xchat.corp.ihuull.com @10.66.66.1` → `10.66.66.1
 
 ## 5. DNS no peer
 
-O enrollment devolve `dns: ["10.66.66.1"]`. Dispositivos já enrolled: o helper aplica esse DNS no connect se o estado estiver vazio (default da Fase 23).
+O enrollment devolve `dns: ["10.66.66.1"]` e `intranet_hosts`. O helper:
+
+- `resolvectl dns xvpn0 10.66.66.1` + `domain ~corp.ihuull.com ~.` + `dnsovertls no`
+- grava o bloco `# xvpn-intranet` em `/etc/hosts` (Chrome DoH)
+
+## 6. Painel `/admin/dns`
+
+Fonte da verdade da zona. Depois do deploy do `xvpn-server` + `xvpn-user-provision` com o subcomando `dns-apply`:
+
+1. Abra `https://xvpn.ihuull.com/admin/dns`
+2. Confira bind `10.66.66.1:53` e a consulta de `corp.ihuull.com`
+3. Ajuste forwarders se precisar (só IPv4 públicos)
+4. Crie A extras (`app.corp.ihuull.com` → `10.66.66.x`)
+5. **Aplicar no dnsmasq** — grava `/etc/dnsmasq.d/xvpn-corp.conf` e `xvpn-records.hosts`
+
+Sem apply, o snippet estático deste runbook continua valendo. Depois do primeiro apply, o painel passa a ser a fonte.
+
+Não abra 53 no ufw público.

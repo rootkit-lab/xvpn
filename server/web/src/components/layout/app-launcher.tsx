@@ -1,8 +1,15 @@
 import { Link, useLocation } from 'react-router-dom'
-import { HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, Shield, Store } from 'lucide-react'
+import { HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, MessagesSquare, Shield, Store } from 'lucide-react'
+import { PRODUCT_META } from '@xvpn/ui/react/products'
 import { useAuth } from '@/lib/auth-context'
 import { isViewerUpRole } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, XDRIVER_CORP_ORIGIN } from '@/lib/product-host'
+import {
+  MARKETPLACE_ORIGIN,
+  PANEL_ORIGIN,
+  XDRIVER_CORP_ORIGIN,
+  isStoreHost,
+  productKind,
+} from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,6 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
+export type LauncherVariant = 'user' | 'admin' | 'social' | 'marketplace' | 'xdriver'
+
 type LauncherTile = {
   id: string
   label: string
@@ -22,36 +31,52 @@ type LauncherTile = {
   current: boolean
 }
 
-/** Waffle de apps — grade 3 colunas, só o que está instalado/ativo. */
-export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' }) {
+/** Waffle de apps — sempre visível com sessão. Nomes = PRODUCT_META. */
+export function AppLauncher({ variant }: { variant: LauncherVariant }) {
   const { user } = useAuth()
   const location = useLocation()
   const showAdmin = isViewerUpRole(user?.role)
   const xdriverOn = Boolean(user?.samba_enabled || user?.sftp_enabled)
-  const onMarketplace = location.pathname.endsWith('/marketplace')
-  const onXDriver = location.pathname === '/my/files' || location.pathname.startsWith('/admin/shares')
+  const kind = productKind()
+  const store = isStoreHost()
+  const onMarketplace = kind === 'marketplace' || location.pathname.endsWith('/marketplace')
+  const onXDriver =
+    kind === 'xdriver' || kind === 'xdriver-corp' || location.pathname === '/my/files' || location.pathname.startsWith('/admin/shares')
+  const onMessages = location.pathname.includes('/messages')
+  const onSocial = variant === 'social' || location.pathname.startsWith('/social') || location.pathname.startsWith('/xgroup')
+
+  const panel = (path: string) => (store ? { href: `${PANEL_ORIGIN}${path}` } : { to: path })
 
   const installed: LauncherTile[] = [
     {
       id: 'xvpn',
-      label: 'XVPN',
-      to: '/',
+      label: PRODUCT_META.xvpn.label,
+      ...panel('/'),
       icon: Shield,
-      current: variant === 'user' && !onMarketplace && !onXDriver,
+      current: kind === 'xvpn' && variant === 'user' && !onMarketplace && !onXDriver,
     },
     {
-      id: 'social',
-      label: 'Social',
-      to: '/social',
+      id: 'xgroup',
+      label: PRODUCT_META.xgroup.label,
+      ...panel('/social'),
       icon: MessageCircle,
-      current: variant === 'social',
+      current: onSocial && !onMessages,
+    },
+    {
+      id: 'xchat',
+      label: PRODUCT_META.xchat.label,
+      ...panel('/social/messages'),
+      icon: MessagesSquare,
+      current: onMessages,
     },
     ...(xdriverOn
       ? [
           {
             id: 'xdriver',
-            label: 'XDriver',
-            href: XDRIVER_CORP_ORIGIN,
+            label: PRODUCT_META.xdriver.label,
+            ...(kind === 'xdriver' || kind === 'xdriver-corp'
+              ? { to: '/' }
+              : { href: XDRIVER_CORP_ORIGIN }),
             icon: HardDrive,
             current: onXDriver,
           } satisfies LauncherTile,
@@ -62,8 +87,12 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
   const catalog: LauncherTile[] = [
     {
       id: 'marketplace',
-      label: 'Marketplace',
-      href: variant === 'admin' ? '/admin/marketplace' : MARKETPLACE_ORIGIN,
+      label: PRODUCT_META.marketplace.label,
+      ...(variant === 'admin'
+        ? { to: '/admin/marketplace' }
+        : kind === 'marketplace'
+          ? { to: '/' }
+          : { href: MARKETPLACE_ORIGIN }),
       icon: Store,
       current: onMarketplace,
     },
@@ -72,7 +101,7 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
           {
             id: 'admin',
             label: 'Admin',
-            to: '/admin',
+            ...panel('/admin'),
             icon: LayoutDashboard,
             current: variant === 'admin' && !onMarketplace && !onXDriver,
           } satisfies LauncherTile,

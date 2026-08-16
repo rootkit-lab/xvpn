@@ -38,6 +38,9 @@ type enrollResponse struct {
 	// resolver *.corp.ihuull.com. Sem isso o full-tunnel usa o resolver
 	// doméstico e a intranet não existe.
 	DNS []string `json:"dns"`
+	// IntranetHosts alimenta o /etc/hosts do helper (Chrome DoH ignora
+	// o systemd-resolved). Fonte: /admin/dns.
+	IntranetHosts []dnsHostJSON `json:"intranet_hosts"`
 }
 
 // handleDeviceEnroll é o único endpoint de escrita que não exige JWT — o
@@ -158,6 +161,7 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 		PersistentKeepalive: 25,
 		APIVersion:          APIVersion,
 		DNS:                 []string{"10.66.66.1"},
+		IntranetHosts:       a.enabledIntranetHosts(),
 	})
 }
 

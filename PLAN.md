@@ -182,7 +182,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | Recurso | Hostname | Backend | Observação |
 |---|---|---|---|
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice / health da intranet |
-| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Comunicação do messenger. Desktop prova o túnel (helper + TCP `10.66.66.1:443`) e disca o gateway direto — não depende do DNS do SO |
+| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Comunicação do messenger. DNS canônico: dnsmasq `10.66.66.1:53` (`/admin/dns`). Client aplica split-horizon + `/etc/hosts`. Dial direto ao gateway é defesa em profundidade |
 | xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Não misturar com xchat |
 | xdriver (arquivos) | `xdriver.corp.ihuull.com` | `127.0.0.1:8080` (`/api/driver/*`) | Drive nativo; `Host` obrigatório. Samba continua `wg0:445`. Sem FileBrowser |
 
@@ -204,11 +204,21 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | Mídia do chat | Disco `/opt/xvpn/data/social/` · `POST /api/social/attachments` | Location Nginx `40m`. WebRTC P2P; sem TURN/porta |
 | SFTP por usuário | `22/tcp` (`Match User`) | Sem porta nova. `internal-sftp` + chroot. §6.9 |
 | SSH | `22/tcp` | Hardening §9 |
-| DNS interno | `10.66.66.1:53` (dnsmasq/CoreDNS) | **Só `wg0`.** Nunca `:53` em `eth0`/`0.0.0.0`. Forward `8.8.8.8` para o resto. Zona: `corp.ihuull.com` e `*.corp.ihuull.com` → `10.66.66.1` |
+| DNS interno | `10.66.66.1:53` (dnsmasq) | **Só `wg0`.** Nunca `:53` em `eth0`/`0.0.0.0`. Fonte da verdade: `/admin/dns` (A em `10.66.66.0/24`). Forwarders públicos. Catch-all `*.corp` → `10.66.66.1`. Apply via `xvpn-user-provision dns-apply` |
 | MongoDB | `127.0.0.1:27017` | Auth + user `xvpn`. **Sem** porta no ufw. Substitui SQLite (`/opt/xvpn/data/xvpn.db`) na Fase 28 |
 | ufw público | `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp` | Padrão-nega. Sem 27017, sem 53, sem 445 na `eth0` |
 
-> Quem for configurar o `landpages-ops` (ou um app novo do marketplace) checa esta tabela **e** o runbook Cloudflare antes de escolher porta ou hostname. App de intranet novo: skill `new-intranet-app`.
+### 5.4 DNS da intranet (forma correta)
+
+Não é o app desktop quem “inventa” o IP do `*.corp`. A zona vive no **dnsmasq da `wg0`**. Três camadas, nesta ordem:
+
+1. **Autoridade** — `/admin/dns` persiste A records (`corp.ihuull.com` / um rótulo `*.corp.ihuull.com` → IPv4 em `10.66.66.0/24`) e forwarders. Apply grava `/etc/dnsmasq.d/xvpn-corp.conf` + `xvpn-records.hosts` e dá `systemctl reload dnsmasq`. Bind fixo `10.66.66.1`. Sem A público (Cloudflare).
+2. **Cliente** — no connect: `resolvectl dns xvpn0 10.66.66.1`, `domain ~corp.ihuull.com ~.`, `dnsovertls no` (DoT no SO quebrava a consulta ao dnsmasq). Helper grava `/etc/hosts` com a lista publicada (Chrome DoH ignora o resolvedor do SO).
+3. **Defesa em profundidade** — xchat ainda disca `10.66.66.1` com SNI `*.corp` se o DNS do processo falhar.
+
+Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também não — é fallback para o browser.
+
+> Quem for configurar o `landpages-ops` (ou um app novo do marketplace) checa esta tabela **e** o runbook Cloudflare antes de escolher porta ou hostname. App de intranet novo: skill `new-intranet-app`. Registro corp novo: `/admin/dns` + apply.
 
 ---
 
@@ -234,9 +244,11 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | `GET /api/devices` | Lista peers com estatísticas ao vivo (via `wgctrl`: último handshake, bytes rx/tx, endpoint atual) |
 | `DELETE /api/devices/:id` | Revoga um dispositivo (remove peer da interface imediatamente) |
 | `GET /api/status` | Saúde do servidor, uso de CPU/rede, nº de peers conectados |
+| `GET /api/dns` | Estado do dnsmasq intranet + records (viewer+) |
+| `PATCH /api/dns` / `POST /api/dns/records` / `POST /api/dns/apply` | Admin+ com escopo `core`. Apply recarrega dnsmasq via provisioner |
 
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
-Páginas: **Login**, **Dashboard** (peers ativos, throughput agregado), **Usuários** (CRUD + gerar convite/QR code), **Dispositivos** (status, revogar), **Compartilhamentos** (gerenciar pastas Samba/XDriver e permissões), **Configurações** (rede, DNS, firewall), **Auditoria** (log de conexões/ações administrativas).
+Páginas: **Login**, **Dashboard** (peers ativos, throughput agregado), **Usuários** (CRUD + gerar convite/QR code), **Dispositivos** (status, revogar), **Compartilhamentos** (gerenciar pastas Samba/XDriver e permissões), **Gerais** (rede WG só leitura, TTLs), **DNS intranet** (zona `corp`, forwarders, apply), **Auditoria**.
 
 **Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS) — inclusive a landing `/`. Preto profundo, `watch-face`, cards `watch-complication`, `icon-well`, `field-glass`, Outfit, acento `--safe` / `power-safe`. Não há paleta navy/Workspace nem marketing paralela. Ver [§6.12](#612-design-system-e-color-system).
 
@@ -369,7 +381,7 @@ O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — u
 
 **Provisionamento privilegiado — binário fixo, não sudoers genérico:** dar ao `xvpn-server` (hoje só `CAP_NET_ADMIN`) permissão irrestrita de `sudo useradd`/`passwd` seria uma porta de injeção de argumento (sudoers com wildcard casa string, não valida semântica). Em vez disso:
 
-- Binário Go dedicado e mínimo, `/opt/xvpn/bin/xvpn-user-provision`, com subcomandos fechados (`create <username>`, `enable-sftp <username>`, `enable-samba <username>`, `disable <username>`, `disable-sftp <username>`, `disable-samba <username>`) — os `disable-*` granulares existem porque os toggles SFTP/Samba do painel são independentes, e `disable` (ambos) é atalho pra "desliga tudo". Valida o username via regex (`^[a-z][a-z0-9_-]{2,31}$`, mesmo padrão de nome de usuário Unix) **antes** de qualquer chamada de sistema, nunca repassa string livre para `os/exec`/shell. A chave pública SSH em `enable-sftp` é lida do stdin (não de argumento) pra não vazar em `ps`/`/proc`.
+- Binário Go dedicado e mínimo, `/opt/xvpn/bin/xvpn-user-provision`, com subcomandos fechados (`create <username>`, `enable-sftp <username>`, `enable-samba <username>`, `disable <username>`, `disable-sftp <username>`, `disable-samba <username>`, `dns-apply`) — os `disable-*` granulares existem porque os toggles SFTP/Samba do painel são independentes, e `disable` (ambos) é atalho pra "desliga tudo". `dns-apply` lê JSON no stdin e só escreve dnsmasq com bind `10.66.66.1`. Valida o username via regex (`^[a-z][a-z0-9_-]{2,31}$`) **antes** de qualquer chamada de sistema, nunca repassa string livre para `os/exec`/shell. A chave pública SSH em `enable-sftp` é lida do stdin (não de argumento) pra não vazar em `ps`/`/proc`.
 - `/etc/sudoers.d/xvpn-user-provision`: `xvpn ALL=(root) NOPASSWD: /opt/xvpn/bin/xvpn-user-provision` — caminho exato, **sem wildcard de argumento**. O binário decide internamente o que é seguro fazer.
 - `xvpn-server` chama esse binário via `os/exec` (nunca via `sh -c` com concatenação de string) quando o admin liga um toggle.
 
@@ -594,7 +606,20 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 2. **portal** — hostname público (landing) e/ou `*.corp` (app). Sem A público para `corp`.
 3. **client** — opcional (Wails). Se existir, um `marketplace.yaml`, gate VPN se o app for `network: vpn`.
 
-Logo: marca ihuull (`shared/ui/brand/ihuull-mark.png` + wordmark) no header global; cada produto tem mark próprio derivado da mesma fita (azul xvpn, magenta xgroup, laranja xdriver, ciano marketplace). Header compartilhado em `shared/ui` — não copiar chrome por SPA.
+Logo: marca ihuull (`shared/ui/brand/ihuull-mark.png` + wordmark) no header global; cada produto tem mark próprio derivado da mesma fita (azul xvpn, verde xchat, magenta xgroup, laranja xdriver, ciano marketplace). Header compartilhado em `shared/ui` — não copiar chrome por SPA.
+
+**Nomenclatura de produto (obrigatória na UI).** Slug de código (`ProductId`, `marketplace.yaml` `slug`, JWE `aud`, pasta) é **sempre minúsculo**. O lockup do header e o `name` do catálogo usam a caixa do produto:
+
+| Slug | Lockup (label / kicker) | Vitrine (`productDisplayName`) | Onde |
+|---|---|---|---|
+| `xvpn` | XVPN / Client | XVPN Client | portal, `xvpn-client` |
+| `xchat` | XCHAT / Client | XCHAT Client | messenger web + desktop |
+| `xgroup` | XGROUP / Social | XGROUP Social | `/social`, `xgroup.corp` |
+| `xdriver` | XDRIVER / Drive | XDRIVER Drive | `xdriver.corp` |
+| `marketplace` | Marketplace / Store | Marketplace Store | `marketplace.ihuull.com` |
+| `ihuull` | ihuull / plataforma | ihuull | landing da marca |
+
+Fonte: `shared/ui/react/products.ts`. Header autenticado: waffle de apps **sempre** + ícone Settings (prefs **deste** app) + pílula da conta (username + papel). Conta (perfil/senha) fica no menu da pílula, não no Settings. Scrollbar canônica em `shared/ui/scss/_utilities.scss` (`ihuull-scrollbar`) — não reinventar por SPA.
 
 **Marketplace — apps públicos vs VPN:** `visibility` (quem, ACL) ≠ `network` (onde). `network: vpn` só lista/baixa de dentro do túnel ou de `*.corp`. `network: public` aparece na loja pública com JWE (nunca anônimo).
 

@@ -1,4 +1,5 @@
 import { useCallback, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, ApiError, type ConfigResponse } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -43,6 +44,20 @@ export function SettingsPage() {
             </dl>
           )}
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">DNS da intranet</CardTitle>
+          <CardDescription>
+            A zona <code>*.corp.ihuull.com</code> não se edita aqui. Use{' '}
+            <Link to="/admin/dns" className="underline underline-offset-4">
+              /admin/dns
+            </Link>{' '}
+            (forwarders, registros A, apply no dnsmasq). Bind fixo em{' '}
+            <code>10.66.66.1:53</code>.
+          </CardDescription>
+        </CardHeader>
       </Card>
 
       <Card>

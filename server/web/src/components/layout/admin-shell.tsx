@@ -5,6 +5,7 @@ import {
   Laptop,
   HardDrive,
   Settings,
+  Globe,
   ScrollText,
   ListChecks,
   Store,
@@ -36,6 +37,7 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
       { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES, product: 'core' },
+      { to: '/admin/dns', label: 'DNS intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'core' },
     ],
   },
   {
@@ -46,13 +48,13 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
   },
   {
     id: 'xgroup',
-    label: 'XGroup',
+    label: 'XGROUP',
     product: 'xgroup',
     items: [{ to: '/admin/xgroup', label: 'Rede social', icon: AtSign, roles: VIEWER_UP_ROLES, product: 'xgroup' }],
   },
   {
     id: 'xdriver',
-    label: 'XDriver',
+    label: 'XDRIVER',
     product: 'xdriver',
     items: [{ to: '/admin/shares', label: 'Shares e Drive', icon: HardDrive, roles: VIEWER_UP_ROLES, product: 'xdriver' }],
   },

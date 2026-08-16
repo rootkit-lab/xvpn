@@ -96,7 +96,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
                 : isAdminLogin
                   ? 'acesso seguro · painel do sistema'
                   : isStoreLogin
-                    ? 'marketplace · xdriver'
+                    ? 'Marketplace · XDRIVER'
                     : 'dispositivos · marketplace'}
             </CardDescription>
           </CardHeader>

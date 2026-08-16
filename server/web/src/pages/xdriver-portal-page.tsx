@@ -9,7 +9,7 @@ export function XDriverPublicLanding() {
       <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
       <ProductHeader product="xdriver" href="/" productHref="/" />
       <main className="relative z-10 mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-6 px-6 py-16">
-        <p className="hud-label text-muted-foreground/70">XDriver</p>
+        <p className="hud-label text-muted-foreground/70">Drive</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">Seus arquivos ficam na VPN</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
           O Drive abre só em <code className="font-mono text-xs">xdriver.corp.ihuull.com</code>, dentro do túnel.
@@ -25,7 +25,7 @@ export function XDriverPublicLanding() {
         <Button size="lg" className="rounded-full self-start" asChild>
           <a href={XDRIVER_CORP_ORIGIN}>
             <ExternalLink className="size-4" />
-            Abrir XDriver (só com VPN)
+            Abrir XDRIVER (só com VPN)
           </a>
         </Button>
       </main>

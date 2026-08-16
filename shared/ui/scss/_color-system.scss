@@ -42,6 +42,7 @@ $dark: (
   // Não substituem --primary/--safe; só --product no chrome e no mark.
   // xvpn = mesmo hue do --primary (230). Magenta/laranja/ciano não existiam no map.
   product-xvpn: oklch(0.72 0.14 230),
+  product-xchat: oklch(0.72 0.17 150),
   product-xgroup: oklch(0.72 0.18 330),
   product-xdriver: oklch(0.78 0.16 55),
   product-marketplace: oklch(0.78 0.13 210),
@@ -78,6 +79,7 @@ $light: (
   status-dnd: oklch(0.58 0.2 25),
   status-offline: oklch(0.7 0.02 260),
   product-xvpn: oklch(0.55 0.16 230),
+  product-xchat: oklch(0.55 0.16 150),
   product-xgroup: oklch(0.55 0.18 330),
   product-xdriver: oklch(0.62 0.16 55),
   product-marketplace: oklch(0.58 0.13 210),
@@ -116,6 +118,7 @@ $icq: (
   status-offline: oklch(0.5 0.02 145),
   // Identidade de produto não vira ICQ — mesmos hues da fita.
   product-xvpn: oklch(0.72 0.14 230),
+  product-xchat: oklch(0.72 0.17 150),
   product-xgroup: oklch(0.72 0.18 330),
   product-xdriver: oklch(0.78 0.16 55),
   product-marketplace: oklch(0.78 0.13 210),

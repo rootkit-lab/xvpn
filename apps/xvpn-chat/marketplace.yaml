@@ -1,6 +1,6 @@
 # Manifesto do catálogo (Fase 19.4).
 slug: xchat
-name: xchat
+name: XCHAT Client
 description: Messenger da intranet ihuull (xchat.corp.ihuull.com) — exige xvpn conectado
 visibility: global
 network: vpn

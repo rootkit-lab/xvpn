@@ -31,6 +31,7 @@ type Runner interface {
 	RemoveFile(path string) error
 	ReloadSSH() error
 	ReloadSamba() error
+	ReloadDnsmasq() error
 	// SetUserQuota aplica quota de disco (ext4 usrquota) em KB soft=0
 	// hard=blocksKB. blocksKB=0 remove a quota do usuário.
 	SetUserQuota(username string, blocksKB uint64) error
@@ -194,6 +195,18 @@ func (osRunner) ReloadSSH() error {
 	}
 	if err := exec.Command("systemctl", "reload", "ssh").Run(); err != nil {
 		return fmt.Errorf("recarregando ssh: %w", err)
+	}
+	return nil
+}
+
+func (osRunner) ReloadDnsmasq() error {
+	if out, err := exec.Command("dnsmasq", "--test").CombinedOutput(); err != nil {
+		return fmt.Errorf("dnsmasq --test rejeitou a config: %w: %s", err, string(out))
+	}
+	if err := exec.Command("systemctl", "reload", "dnsmasq").Run(); err != nil {
+		if err2 := exec.Command("systemctl", "restart", "dnsmasq").Run(); err2 != nil {
+			return fmt.Errorf("recarregando dnsmasq: %w", err2)
+		}
 	}
 	return nil
 }

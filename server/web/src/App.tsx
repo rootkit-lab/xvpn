@@ -23,6 +23,7 @@ const SharesPage = lazy(() => import('@/pages/shares-page').then((m) => ({ defau
 const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ default: m.WaitlistPage })))
 const MarketplacePage = lazy(() => import('@/pages/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
+const DNSPage = lazy(() => import('@/pages/dns-page').then((m) => ({ default: m.DNSPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
 const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
 const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
@@ -45,6 +46,9 @@ const SocialGroupsPage = lazy(() =>
 const PlayStoreLayout = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreLayout })))
 const PlayStoreHome = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreHome })))
 const PlayStoreDetail = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreDetail })))
+const ProductSettingsPage = lazy(() =>
+  import('@/pages/product-settings-page').then((m) => ({ default: m.ProductSettingsPage })),
+)
 const XDriverLayout = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverLayout })))
 const XDriverAppPage = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverAppPage })))
 const XvpnProductPortal = lazy(() =>
@@ -72,6 +76,7 @@ function MarketplaceApp() {
         <Route element={<PlayStoreLayout />}>
           <Route index element={<PlayStoreHome />} />
           <Route path="app/:slug" element={<PlayStoreDetail />} />
+          <Route path="settings" element={<ProductSettingsPage product="marketplace" />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -90,6 +95,7 @@ function XDriverCorpApp() {
       <Route element={<ProtectedRoute />}>
         <Route element={<XDriverLayout />}>
           <Route index element={<XDriverAppPage />} />
+          <Route path="settings" element={<ProductSettingsPage product="xdriver" />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -156,6 +162,7 @@ function PanelApp({ home }: { home: 'landing' | 'portal' }) {
             <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
             <Route path="xgroup" element={<XGroupAdminPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="dns" element={<DNSPage />} />
             <Route path="audit" element={<AuditPage />} />
           </Route>
         </Route>

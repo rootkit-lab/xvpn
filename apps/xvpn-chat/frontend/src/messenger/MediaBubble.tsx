@@ -111,7 +111,7 @@ function AudioPlayer({ src }: { src: string }) {
   }
 
   return (
-    <div className="flex w-52 items-center gap-2">
+    <div className="flex w-full max-w-52 min-w-0 items-center gap-2">
       <audio ref={ref} src={src} preload="metadata" onError={() => setErr(true)} />
       <button
         type="button"

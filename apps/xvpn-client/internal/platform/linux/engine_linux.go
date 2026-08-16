@@ -452,9 +452,14 @@ func applyDNS(dns []string) error {
 	if err := exec.Command("resolvectl", args...).Run(); err != nil {
 		return fmt.Errorf("resolvectl dns: %w", err)
 	}
-	if err := exec.Command("resolvectl", "domain", ifaceName, "~.").Run(); err != nil {
+	// ~corp = split-horizon da intranet; ~. = resto pelo mesmo resolvedor
+	// (full-tunnel). DoT/DNSSEC no SO quebram consulta a 10.66.66.1:53.
+	if err := exec.Command("resolvectl", "domain", ifaceName, "~corp.ihuull.com", "~.").Run(); err != nil {
 		return fmt.Errorf("resolvectl domain: %w", err)
 	}
+	_ = exec.Command("resolvectl", "dnsovertls", ifaceName, "no").Run()
+	_ = exec.Command("resolvectl", "dnssec", ifaceName, "no").Run()
+	_ = exec.Command("resolvectl", "default-route", ifaceName, "yes").Run()
 	return nil
 }
 

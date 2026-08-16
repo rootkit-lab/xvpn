@@ -53,7 +53,7 @@ export function UsersPage() {
             : null}
         </span>
       ),
-    }
+    },
     {
       key: 'files',
       header: 'Arquivos',

@@ -61,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken()
     setUser(null)
     setIsAuthenticated(false)
+    setIsLoadingUser(false)
   }, [])
 
   const refreshUser = useCallback(async () => {

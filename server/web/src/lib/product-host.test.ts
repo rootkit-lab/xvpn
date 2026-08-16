@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   headerProduct,
   isAuthPath,
+  isLoggedOutParam,
   isStoreHost,
   productKind,
   safeReturnURL,
   ssoContinueURL,
   ssoLoginURL,
+  ssoLogoutURL,
 } from './product-host'
 
 describe('productKind', () => {
@@ -87,5 +89,16 @@ describe('ssoContinueURL', () => {
     expect(isAuthPath('/my/login')).toBe(true)
     expect(isAuthPath('/admin/login')).toBe(true)
     expect(isAuthPath('/admin')).toBe(false)
+  })
+})
+
+describe('ssoLogoutURL', () => {
+  it('marca logged_out para o xauth não auto-continuar', () => {
+    const url = ssoLogoutURL('https://marketplace.ihuull.com/')
+    expect(url).toContain('xauth')
+    expect(url).toContain('logged_out=1')
+    expect(decodeURIComponent(new URL(url).searchParams.get('return') ?? '')).toBe('https://marketplace.ihuull.com/')
+    expect(isLoggedOutParam('?logged_out=1&return=https://marketplace.ihuull.com/')).toBe(true)
+    expect(isLoggedOutParam('?return=https://marketplace.ihuull.com/')).toBe(false)
   })
 })

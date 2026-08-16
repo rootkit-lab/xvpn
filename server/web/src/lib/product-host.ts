@@ -141,3 +141,14 @@ export function ssoLoginURL(returnTo?: string): string {
   dest.searchParams.set('return', isAuthPath(u.pathname) ? `${u.origin}/` : safe)
   return dest.toString()
 }
+
+/** Depois do logout: xauth mostra o form, nunca auto-continua com cookie velho. */
+export function ssoLogoutURL(returnTo?: string): string {
+  const dest = new URL(ssoLoginURL(returnTo ?? (typeof window === 'undefined' ? PANEL_ORIGIN : `${window.location.origin}/`)))
+  dest.searchParams.set('logged_out', '1')
+  return dest.toString()
+}
+
+export function isLoggedOutParam(search: string): boolean {
+  return new URLSearchParams(search).get('logged_out') === '1'
+}

@@ -107,7 +107,8 @@ func (a *App) ensureXbotUser() (store.User, error) {
 
 func (a *App) ensureSystemGroup(ownerID uint, name string) (store.SocialGroup, error) {
 	var g store.SocialGroup
-	err := a.Store.DB.Where("name = ?", name).First(&g).Error
+	// Só o grupo do xbot. Um membro que criar "Sistema" não captura o hook.
+	err := a.Store.DB.Where("name = ? AND owner_user_id = ?", name, ownerID).First(&g).Error
 	if err == nil {
 		return g, nil
 	}

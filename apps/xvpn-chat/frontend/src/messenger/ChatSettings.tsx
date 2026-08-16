@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Bell, Mic, Shield, Volume2, X } from 'lucide-react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Bell, Mic, Shield, Video, Volume2, X } from 'lucide-react'
 import { ChatButton, ChatRoot } from '@chat/messenger/ui'
+import { videoConstraints } from '@chat/messenger/media'
 import { cn } from '@chat/lib/utils'
 
 const KEY = 'xvpn-chat-settings'
@@ -12,6 +13,7 @@ export type ChatSettings = {
   soundCall: boolean
   volume: number
   micId: string
+  cameraId: string
   readReceipts: boolean
   sendTyping: boolean
   sharePresence: boolean
@@ -24,6 +26,7 @@ const DEFAULTS: ChatSettings = {
   soundCall: true,
   volume: 0.7,
   micId: '',
+  cameraId: '',
   readReceipts: true,
   sendTyping: true,
   sharePresence: true,
@@ -105,16 +108,20 @@ function Toggle({
 export function ChatSettingsPanel({ theme }: { theme: string }) {
   const { settings, patch, open, setOpen } = useChatSettings()
   const [mics, setMics] = useState<MediaDeviceInfo[]>([])
+  const [cams, setCams] = useState<MediaDeviceInfo[]>([])
   const [perm, setPerm] = useState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   const [tab, setTab] = useState<'notify' | 'audio' | 'privacy'>('notify')
 
+  const refreshDevices = useCallback(async () => {
+    const devs = await navigator.mediaDevices.enumerateDevices()
+    setMics(devs.filter((d) => d.kind === 'audioinput'))
+    setCams(devs.filter((d) => d.kind === 'videoinput'))
+  }, [])
+
   useEffect(() => {
     if (!open) return
-    void navigator.mediaDevices
-      ?.enumerateDevices()
-      .then((devs) => setMics(devs.filter((d) => d.kind === 'audioinput')))
-      .catch(() => setMics([]))
-  }, [open])
+    void refreshDevices().catch(() => {})
+  }, [open, refreshDevices])
 
   if (!open) return null
 
@@ -194,7 +201,7 @@ export function ChatSettingsPanel({ theme }: { theme: string }) {
         )}
 
         {tab === 'audio' && (
-          <div>
+          <div className="max-h-[28rem] overflow-y-auto pr-1">
             <label className="mb-1 flex items-center gap-1.5 font-display text-[10px] uppercase tracking-[0.14em] text-muted-foreground/75">
               <Mic className="size-3" />
               Microfone
@@ -211,23 +218,25 @@ export function ChatSettingsPanel({ theme }: { theme: string }) {
                 </option>
               ))}
             </select>
-            <ChatButton
-              variant="outline"
-              className="mt-2 w-full"
-              onClick={() => {
-                void navigator.mediaDevices
-                  .getUserMedia({ audio: true })
-                  .then((s) => {
-                    s.getTracks().forEach((t) => t.stop())
-                    return navigator.mediaDevices.enumerateDevices()
-                  })
-                  .then((devs) => setMics(devs.filter((d) => d.kind === 'audioinput')))
-                  .catch(() => {})
-              }}
+            <MicLoopback micId={settings.micId} volume={settings.volume} onReady={() => void refreshDevices()} />
+            <label className="mb-1 mt-4 flex items-center gap-1.5 font-display text-[10px] uppercase tracking-[0.14em] text-muted-foreground/75">
+              <Video className="size-3" />
+              Câmera
+            </label>
+            <select
+              className="h-10 w-full rounded-[14px] border-0 bg-foreground/[0.06] px-3 text-sm"
+              value={settings.cameraId}
+              onChange={(e) => patch({ cameraId: e.target.value })}
             >
-              Liberar microfone e listar aparelhos
-            </ChatButton>
-            <label className="mt-3 block font-display text-[10px] uppercase tracking-[0.14em] text-muted-foreground/75">
+              <option value="">Padrão do sistema</option>
+              {cams.map((d) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Câmera ${d.deviceId.slice(0, 6)}`}
+                </option>
+              ))}
+            </select>
+            <CameraPreview cameraId={settings.cameraId} onReady={() => void refreshDevices()} />
+            <label className="mt-4 block font-display text-[10px] uppercase tracking-[0.14em] text-muted-foreground/75">
               Volume dos sons
             </label>
             <input
@@ -268,6 +277,142 @@ export function ChatSettingsPanel({ theme }: { theme: string }) {
   )
 }
 
+function MicLoopback({
+  micId,
+  volume,
+  onReady,
+}: {
+  micId: string
+  volume: number
+  onReady: () => void
+}) {
+  const [on, setOn] = useState(false)
+  const [level, setLevel] = useState(0)
+  const [err, setErr] = useState<string | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const raf = useRef(0)
+
+  function stop() {
+    cancelAnimationFrame(raf.current)
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    if (audioRef.current) {
+      audioRef.current.srcObject = null
+      audioRef.current = null
+    }
+    setOn(false)
+    setLevel(0)
+  }
+
+  useEffect(() => () => stop(), [])
+
+  async function start() {
+    setErr(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints(micId) })
+      streamRef.current = stream
+      const audio = new Audio()
+      audio.srcObject = stream
+      audio.volume = volume
+      await audio.play()
+      audioRef.current = audio
+      const ctx = new AudioContext()
+      const src = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 256
+      src.connect(analyser)
+      const data = new Uint8Array(analyser.frequencyBinCount)
+      const tick = () => {
+        analyser.getByteTimeDomainData(data)
+        let sum = 0
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128
+          sum += v * v
+        }
+        setLevel(Math.min(1, Math.sqrt(sum / data.length) * 4))
+        raf.current = requestAnimationFrame(tick)
+      }
+      tick()
+      setOn(true)
+      onReady()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Sem permissão do microfone')
+      stop()
+    }
+  }
+
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume
+  }, [volume])
+
+  return (
+    <div className="mt-3">
+      <ChatButton variant={on ? 'safe' : 'outline'} className="w-full" onClick={() => (on ? stop() : void start())}>
+        {on ? 'Parar teste do microfone' : 'Testar: falar e ouvir o retorno'}
+      </ChatButton>
+      <p className="mt-1 text-[11px] text-muted-foreground">Use fone de ouvido para evitar eco.</p>
+      {on && (
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+          <div className="h-full bg-[var(--safe)]" style={{ width: `${Math.round(level * 100)}%` }} />
+        </div>
+      )}
+      {err && <p className="mt-1 text-xs text-destructive">{err}</p>}
+    </div>
+  )
+}
+
+function CameraPreview({ cameraId, onReady }: { cameraId: string; onReady: () => void }) {
+  const [on, setOn] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+
+  function stop() {
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+    setOn(false)
+  }
+
+  useEffect(() => () => stop(), [])
+
+  async function start() {
+    setErr(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints(cameraId) })
+      streamRef.current = stream
+      setOn(true)
+      onReady()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Sem permissão da câmera')
+      stop()
+    }
+  }
+
+  useEffect(() => {
+    if (!on || !videoRef.current || !streamRef.current) return
+    videoRef.current.srcObject = streamRef.current
+    void videoRef.current.play().catch(() => {})
+  }, [on])
+
+  return (
+    <div className="mt-3">
+      <ChatButton variant={on ? 'safe' : 'outline'} className="w-full" onClick={() => (on ? stop() : void start())}>
+        {on ? 'Parar prévia da câmera' : 'Testar câmera'}
+      </ChatButton>
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className={cn('mt-2 h-36 w-full rounded-[14px] bg-black object-cover', !on && 'hidden')}
+      />
+      {err && <p className="mt-1 text-xs text-destructive">{err}</p>}
+    </div>
+  )
+}
+
 export function audioConstraints(micId: string): MediaTrackConstraints {
-  return micId ? { deviceId: { exact: micId } } : { echoCancellation: true }
+  return micId ? { deviceId: { exact: micId }, echoCancellation: true } : { echoCancellation: true, noiseSuppression: true }
 }

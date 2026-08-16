@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useChat } from '@chat/messenger/ChatProvider'
 import { audioConstraints, useChatSettings } from '@chat/messenger/ChatSettings'
 import { ChatIconButton } from '@chat/messenger/chrome'
+import { videoConstraints } from '@chat/messenger/media'
 import { startRingtone } from '@chat/messenger/sound'
 
 type OfferPayload = {
@@ -18,6 +19,12 @@ const ICE: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 }
 
+function attachStream(el: HTMLMediaElement | null, stream: MediaStream | null) {
+  if (!el) return
+  if (el.srcObject !== stream) el.srcObject = stream
+  if (stream) void el.play().catch(() => {})
+}
+
 export function CallOverlay() {
   const { api, session, callEvent, outgoingCall, clearOutgoing, contacts } = useChat()
   const { settings } = useChatSettings()
@@ -26,13 +33,17 @@ export function CallOverlay() {
   const [muted, setMuted] = useState(false)
   const [camOff, setCamOff] = useState(false)
   const [peerId, setPeerId] = useState<number | null>(null)
-  const [callId, setCallId] = useState('')
+  const [mediaError, setMediaError] = useState<string | null>(null)
+  const [mediaTick, setMediaTick] = useState(0)
   const pc = useRef<RTCPeerConnection | null>(null)
   const localStream = useRef<MediaStream | null>(null)
+  const remoteStream = useRef<MediaStream | null>(null)
   const localVid = useRef<HTMLVideoElement>(null)
   const remoteVid = useRef<HTMLVideoElement>(null)
   const remoteAud = useRef<HTMLAudioElement>(null)
   const incomingSdp = useRef<RTCSessionDescriptionInit | null>(null)
+  const peerIdRef = useRef<number | null>(null)
+  const callIdRef = useRef('')
 
   const peerName =
     contacts.find((c) => c.kind === 'dm' && c.peerUserId === peerId)?.title ?? (peerId ? `#${peerId}` : '')
@@ -41,54 +52,82 @@ export function CallOverlay() {
     api.sendSignal(type, payload)
   }
 
+  function bindRemote(stream: MediaStream) {
+    remoteStream.current = stream
+    attachStream(remoteVid.current, stream)
+    attachStream(remoteAud.current, stream)
+  }
+
   async function ensurePC(withVideo: boolean) {
     if (pc.current) return pc.current
     const conn = new RTCPeerConnection(ICE)
     pc.current = conn
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: audioConstraints(settings.micId),
-      video: withVideo,
+      video: withVideo ? videoConstraints(settings.cameraId) : false,
     })
     localStream.current = stream
     stream.getTracks().forEach((t) => conn.addTrack(t, stream))
-    if (localVid.current) localVid.current.srcObject = stream
+    attachStream(localVid.current, stream)
+    setMediaTick((n) => n + 1)
     conn.ontrack = (ev) => {
       const [remote] = ev.streams
-      if (remoteVid.current) remoteVid.current.srcObject = remote
-      if (remoteAud.current) remoteAud.current.srcObject = remote
+      if (remote) bindRemote(remote)
     }
     conn.onicecandidate = (ev) => {
-      if (ev.candidate && peerId) {
-        signal('call.ice', { to: peerId, call_id: callId, candidate: ev.candidate.toJSON() })
+      const to = peerIdRef.current
+      const id = callIdRef.current
+      if (ev.candidate && to && id) {
+        signal('call.ice', { to, call_id: id, candidate: ev.candidate.toJSON() })
       }
     }
     return conn
   }
 
   function hangup(notify = true) {
-    if (notify && peerId && callId) signal('call.hangup', { to: peerId, call_id: callId })
+    if (notify && peerIdRef.current && callIdRef.current) {
+      signal('call.hangup', { to: peerIdRef.current, call_id: callIdRef.current })
+    }
     localStream.current?.getTracks().forEach((t) => t.stop())
     localStream.current = null
+    remoteStream.current = null
     pc.current?.close()
     pc.current = null
+    incomingSdp.current = null
     setPhase('idle')
     setPeerId(null)
-    setCallId('')
+    peerIdRef.current = null
+    callIdRef.current = ''
+    setMediaError(null)
+    setMuted(false)
+    setCamOff(false)
     clearOutgoing()
   }
 
   useEffect(() => {
+    attachStream(localVid.current, localStream.current)
+    attachStream(remoteVid.current, remoteStream.current)
+    attachStream(remoteAud.current, remoteStream.current)
+  }, [phase, video, mediaTick])
+
+  useEffect(() => {
     if (!outgoingCall || !session) return
     const { to, video: v, callId: id } = outgoingCall
+    peerIdRef.current = to
+    callIdRef.current = id
     setPeerId(to)
-    setCallId(id)
     setVideo(v)
     setPhase('ringing')
+    setMediaError(null)
     void (async () => {
-      const conn = await ensurePC(v)
-      const offer = await conn.createOffer()
-      await conn.setLocalDescription(offer)
-      signal('call.offer', { to, call_id: id, kind: v ? 'video' : 'audio', sdp: offer })
+      try {
+        const conn = await ensurePC(v)
+        const offer = await conn.createOffer()
+        await conn.setLocalDescription(offer)
+        signal('call.offer', { to, call_id: id, kind: v ? 'video' : 'audio', sdp: offer })
+      } catch (e) {
+        setMediaError(e instanceof Error ? e.message : 'Não foi possível abrir microfone/câmera')
+      }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outgoingCall?.callId])
@@ -97,8 +136,9 @@ export function CallOverlay() {
     if (!callEvent?.payload || typeof callEvent.payload !== 'object') return
     const p = callEvent.payload as OfferPayload
     if (callEvent.type === 'call.offer' && p.from && p.call_id && p.sdp) {
+      peerIdRef.current = p.from
+      callIdRef.current = p.call_id
       setPeerId(p.from)
-      setCallId(p.call_id)
       setVideo(p.kind === 'video')
       setPhase('incoming')
       incomingSdp.current = p.sdp
@@ -122,84 +162,91 @@ export function CallOverlay() {
   }, [phase, settings.soundCall, settings.volume])
 
   async function accept() {
-    if (!peerId || !incomingSdp.current) return
-    const conn = await ensurePC(video)
-    await conn.setRemoteDescription(incomingSdp.current)
-    const answer = await conn.createAnswer()
-    await conn.setLocalDescription(answer)
-    signal('call.answer', { to: peerId, call_id: callId, sdp: answer })
-    setPhase('active')
+    if (!peerIdRef.current || !incomingSdp.current) return
+    try {
+      const conn = await ensurePC(video)
+      await conn.setRemoteDescription(incomingSdp.current)
+      const answer = await conn.createAnswer()
+      await conn.setLocalDescription(answer)
+      signal('call.answer', { to: peerIdRef.current, call_id: callIdRef.current, sdp: answer })
+      setPhase('active')
+    } catch (e) {
+      setMediaError(e instanceof Error ? e.message : 'Não foi possível atender')
+    }
   }
 
-  if (phase === 'idle') return <audio ref={remoteAud} autoPlay className="hidden" />
-
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
-      <div className="relative w-full max-w-sm rounded-[22px] p-5 watch-complication">
-        {video && (
-          <div className="relative mb-4 overflow-hidden rounded-[18px] bg-black">
-            <video ref={remoteVid} autoPlay playsInline className="h-56 w-full object-cover" />
-            <video
-              ref={localVid}
-              autoPlay
-              muted
-              playsInline
-              className="absolute bottom-2 right-2 h-20 w-16 rounded-[10px] object-cover"
-            />
-          </div>
-        )}
-        {!video && <audio ref={remoteAud} autoPlay className="hidden" />}
-        <p className="text-center font-display text-[11px] uppercase tracking-[0.14em] text-muted-foreground/75">
-          {phase === 'incoming' ? 'Chamada recebida' : phase === 'ringing' ? 'Chamando…' : video ? 'Vídeo' : 'Áudio'}
-        </p>
-        <p className="mt-1 text-center font-display text-xl font-semibold">{peerName}</p>
-        <div className="mt-5 flex justify-center gap-3">
-          {phase === 'incoming' ? (
-            <>
-              <ChatIconButton label="Recusar" filled onClick={() => hangup(true)}>
-                <PhoneOff className="h-4 w-4 text-destructive" />
-              </ChatIconButton>
-              <ChatIconButton label="Atender" filled onClick={() => void accept()}>
-                <Phone className="h-4 w-4 text-[var(--safe)]" />
-              </ChatIconButton>
-            </>
-          ) : (
-            <>
-              <ChatIconButton
-                label={muted ? 'Ativar microfone' : 'Mudo'}
-                filled
-                onClick={() => {
-                  const next = !muted
-                  setMuted(next)
-                  localStream.current?.getAudioTracks().forEach((t) => {
-                    t.enabled = !next
-                  })
-                }}
-              >
-                {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </ChatIconButton>
-              {video && (
-                <ChatIconButton
-                  label="Câmera"
-                  filled
-                  onClick={() => {
-                    const next = !camOff
-                    setCamOff(next)
-                    localStream.current?.getVideoTracks().forEach((t) => {
-                      t.enabled = !next
-                    })
-                  }}
-                >
-                  {camOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
-                </ChatIconButton>
+    <>
+      <audio ref={remoteAud} autoPlay playsInline className="hidden" />
+      {phase !== 'idle' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="relative w-full max-w-sm rounded-[22px] p-5 watch-complication">
+            {video && (
+              <div className="relative mb-4 overflow-hidden rounded-[18px] bg-black">
+                <video ref={remoteVid} autoPlay playsInline className="h-56 w-full bg-black object-cover" />
+                <video
+                  ref={localVid}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="absolute bottom-2 right-2 z-10 h-20 w-16 rounded-[10px] bg-black object-cover ring-1 ring-white/20"
+                />
+              </div>
+            )}
+            <p className="text-center font-display text-[11px] uppercase tracking-[0.14em] text-muted-foreground/75">
+              {phase === 'incoming' ? 'Chamada recebida' : phase === 'ringing' ? 'Chamando…' : video ? 'Vídeo' : 'Áudio'}
+            </p>
+            <p className="mt-1 text-center font-display text-xl font-semibold">{peerName}</p>
+            {mediaError && <p className="mt-2 text-center text-xs text-destructive">{mediaError}</p>}
+            <div className="mt-5 flex justify-center gap-3">
+              {phase === 'incoming' ? (
+                <>
+                  <ChatIconButton label="Recusar" filled onClick={() => hangup(true)}>
+                    <PhoneOff className="h-4 w-4 text-destructive" />
+                  </ChatIconButton>
+                  <ChatIconButton label="Atender" filled onClick={() => void accept()}>
+                    <Phone className="h-4 w-4 text-[var(--safe)]" />
+                  </ChatIconButton>
+                </>
+              ) : (
+                <>
+                  <ChatIconButton
+                    label={muted ? 'Ativar microfone' : 'Mudo'}
+                    filled
+                    onClick={() => {
+                      const next = !muted
+                      setMuted(next)
+                      localStream.current?.getAudioTracks().forEach((t) => {
+                        t.enabled = !next
+                      })
+                    }}
+                  >
+                    {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  </ChatIconButton>
+                  {video && (
+                    <ChatIconButton
+                      label="Câmera"
+                      filled
+                      onClick={() => {
+                        const next = !camOff
+                        setCamOff(next)
+                        localStream.current?.getVideoTracks().forEach((t) => {
+                          t.enabled = !next
+                        })
+                      }}
+                    >
+                      {camOff ? <VideoOff className="h-4 w-4" /> : <Video className="h-4 w-4" />}
+                    </ChatIconButton>
+                  )}
+                  <ChatIconButton label="Encerrar" filled onClick={() => hangup(true)}>
+                    <PhoneOff className="h-4 w-4 text-destructive" />
+                  </ChatIconButton>
+                </>
               )}
-              <ChatIconButton label="Encerrar" filled onClick={() => hangup(true)}>
-                <PhoneOff className="h-4 w-4 text-destructive" />
-              </ChatIconButton>
-            </>
-          )}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </>
   )
 }

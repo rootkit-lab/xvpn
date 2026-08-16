@@ -898,12 +898,13 @@ Messenger da Fase 20 ganha o que o WhatsApp/Telegram têm de básico: arquivo, �
 - [x] `POST /api/social/attachments` (multipart, 32 MiB, allowlist MIME) + `GET` com ACL do thread.
 - [x] Location Nginx isolada `40m` (não no catch-all de 1m).
 - [x] UI: clipe, drag-and-drop na conversa, Ctrl+V de imagem/arquivo; bolha imagem/arquivo.
-- [ ] Deploy: `XVPN_SOCIAL_MEDIA_DIR=/opt/xvpn/data/social` no `.env` + `nginx -t` + reload da location nova.
+- [x] Deploy: `XVPN_SOCIAL_MEDIA_DIR=/opt/xvpn/data/social` no `.env` + `nginx -t` + reload da location nova.
 
 ### 21.2 Áudio
 
 - [x] Gravação no composer (`MediaRecorder`) → mesmo pipeline de anexo (`audio/webm`).
 - [x] Player inline na bolha.
+- [x] Blob com MIME correto no download (inline + `Content-Type` do banco); player próprio no lugar do `<audio controls>` que mostrava "Error".
 
 ### 21.3 Grupos no messenger
 
@@ -913,19 +914,21 @@ Messenger da Fase 20 ganha o que o WhatsApp/Telegram têm de básico: arquivo, �
 ### 21.4 Stories (status estilo WhatsApp)
 
 - [x] Modelo `Story` (24h) + `StoryView`; `GET/POST /api/social/stories`.
-- [x] Rail de anéis no topo da lista (anel `--safe` se não visto); viewer tela cheia, toque avança.
+- [x] Rail de anéis no topo da lista (anel `--safe` se não visto); composer e viewer em modal (Esc fecha, prévia de texto/foto).
 
 ### 21.5 Chamadas 1:1 (WhatsApp/Telegram)
 
 - [x] Sinalização WS (`call.offer|answer|ice|hangup|reject`) — relay no hub, sem persistir SDP.
 - [x] Overlay atender/recusar, mudo, câmera, encerrar. STUN público; P2P (melhor na VPN).
 - [x] Botões telefone/vídeo no header da DM. Sem chamada de grupo (exigiria SFU/TURN).
+- [x] Preview local após o `<video>` montar; ICE com peer/call em ref; câmera escolhida no settings.
 
 ### 21.6 Recibos, notificações e settings
 
 - [x] `MessageReceipt` (entregue/lido por membro) + `POST /api/social/acks` + WS `message.ack` / `message.receipt`.
 - [x] Ticks na bolha: 1 = enviado, 2 cinza = entregue, 2 `--safe` = lido (desliga com privacidade).
-- [x] Settings (gear): notificações + sons (entrada/saída/chamada, volume), microfone, privacidade (leitura, digitando, presença).
+- [x] Settings (gear): notificações + sons (entrada/saída/chamada, volume), microfone, câmera, privacidade (leitura, digitando, presença).
+- [x] Teste de microfone (falar e ouvir o retorno) e prévia da câmera no settings.
 - [x] Som ao receber/enviar e toque na chamada; `Notification` do sistema quando a janela não está em foco.
 
 **Critério de saída:** dois membros trocam foto (colar ou arrastar), áudio, story 24h e uma chamada 1:1; grupo criado no messenger recebe as mensagens; ticks de entregue/lido; `PLAN.md` §5 sem porta nova.

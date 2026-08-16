@@ -1,5 +1,6 @@
 import { Events } from '@wailsio/runtime'
 import { ChatService } from '../../bindings/github.com/rootkit-lab/xvpn/chat'
+import { coerceToArrayBuffer } from '@chat/messenger/media'
 import type { Attachment, ChatAPI, Group, Message, Page, Profile, StoryAuthor, StoryItem, Thread, WSEvent } from './types'
 
 type Envelope = {
@@ -25,13 +26,6 @@ function bytesToBase64(bytes: Uint8Array): string {
     bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
   return btoa(bin)
-}
-
-function base64ToArrayBuffer(b64: string): ArrayBuffer {
-  const bin = atob(b64)
-  const out = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
-  return out.buffer
 }
 
 function mapThread(th: {
@@ -112,8 +106,7 @@ export function createDesktopChatAPI(): ChatAPI {
     },
     async fetchAttachment(id) {
       const raw = await ChatService.DownloadAttachment(id)
-      if (typeof raw !== 'string' || !raw) return new Blob()
-      return new Blob([base64ToArrayBuffer(raw)])
+      return new Blob([coerceToArrayBuffer(raw)])
     },
     async listStories() {
       return ((await ChatService.ListStories()) ?? []) as StoryAuthor[]

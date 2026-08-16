@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { ImagePlus, Plus, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useChat } from '@chat/messenger/ChatProvider'
 import { initials } from '@chat/messenger/StatusDot'
@@ -7,11 +7,9 @@ import { cn } from '@chat/lib/utils'
 import type { StoryAuthor, StoryItem } from '@chat/chatapi/types'
 
 export function StoriesRail() {
-  const { stories, session, publishStory } = useChat()
+  const { stories, session } = useChat()
   const [composer, setComposer] = useState(false)
   const [viewer, setViewer] = useState<StoryAuthor | null>(null)
-  const [text, setText] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
 
   return (
     <div className="shrink-0 border-b border-white/8 px-2 py-2">
@@ -49,51 +47,110 @@ export function StoriesRail() {
           </button>
         ))}
       </div>
-      {composer && (
-        <div className="mt-2 rounded-[16px] p-2 watch-complication">
-          <ChatInput
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Escreva um status…"
-            className="h-9"
-          />
-          <div className="mt-2 flex gap-1.5">
-            <ChatButton className="h-8 px-3 text-xs" variant="outline" onClick={() => fileRef.current?.click()}>
-              Foto
-            </ChatButton>
-            <ChatButton
-              variant="safe"
-              className="h-8 px-3 text-xs"
-              onClick={async () => {
-                if (!text.trim()) return
-                await publishStory(text.trim())
-                setText('')
-                setComposer(false)
-              }}
-            >
-              Publicar
-            </ChatButton>
-            <ChatButton variant="ghost" className="h-8 px-3 text-xs" onClick={() => setComposer(false)}>
-              Cancelar
-            </ChatButton>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={async (e) => {
-              const f = e.target.files?.[0]
-              e.target.value = ''
-              if (!f) return
-              await publishStory(text, f)
-              setText('')
-              setComposer(false)
-            }}
-          />
-        </div>
-      )}
+      {composer && <StoryComposer onClose={() => setComposer(false)} />}
       {viewer && <StoryViewer author={viewer} onClose={() => setViewer(null)} />}
+    </div>
+  )
+}
+
+function StoryComposer({ onClose }: { onClose: () => void }) {
+  const { publishStory } = useChat()
+  const [text, setText] = useState('')
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  useEffect(() => {
+    if (!photo) {
+      setPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(photo)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [photo])
+
+  async function publish() {
+    if (!text.trim() && !photo) {
+      setErr('Escreva um texto ou escolha uma foto.')
+      return
+    }
+    setBusy(true)
+    setErr(null)
+    try {
+      await publishStory(text.trim(), photo ?? undefined)
+      onClose()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/75 p-4" onClick={onClose}>
+      <div
+        className="relative w-full max-w-sm rounded-[22px] p-5 watch-complication"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg font-semibold">Novo status</h2>
+          <button
+            type="button"
+            className="inline-flex size-8 items-center justify-center rounded-[10px] text-muted-foreground hover:bg-white/10 hover:text-foreground"
+            aria-label="Fechar"
+            onClick={onClose}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="mb-3 flex min-h-[12rem] items-center justify-center overflow-hidden rounded-[18px] bg-black/40">
+          {preview ? (
+            <img src={preview} alt="" className="max-h-64 w-full object-contain" />
+          ) : (
+            <p className="px-4 text-center font-display text-xl font-semibold">
+              {text.trim() || 'O que você está pensando?'}
+            </p>
+          )}
+        </div>
+        <ChatInput
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Escreva um status…"
+          aria-label="Texto do status"
+        />
+        {err && <p className="mt-2 text-sm text-destructive">{err}</p>}
+        <div className="mt-3 flex gap-1.5">
+          <ChatButton variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
+            <ImagePlus className="size-4" />
+            Foto
+          </ChatButton>
+          <ChatButton variant="safe" className="flex-1" disabled={busy} onClick={() => void publish()}>
+            {busy ? 'Publicando…' : 'Publicar'}
+          </ChatButton>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) setPhoto(f)
+          }}
+        />
+      </div>
     </div>
   )
 }
@@ -104,6 +161,14 @@ function StoryViewer({ author, onClose }: { author: StoryAuthor; onClose: () => 
   const [url, setUrl] = useState<string | null>(null)
   const item: StoryItem | undefined = author.items[idx]
   const attachmentId = item?.attachment_id
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   useEffect(() => {
     if (!attachmentId) {
@@ -128,8 +193,13 @@ function StoryViewer({ author, onClose }: { author: StoryAuthor; onClose: () => 
     else setIdx((i) => i + 1)
   }
 
+  function prev() {
+    if (idx === 0) return
+    setIdx((i) => i - 1)
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/80 p-4" onClick={onClose}>
       <div
         className="relative w-full max-w-sm overflow-hidden rounded-[22px] bg-black watch-complication"
         onClick={(e) => e.stopPropagation()}
@@ -139,17 +209,24 @@ function StoryViewer({ author, onClose }: { author: StoryAuthor; onClose: () => 
             <span key={s.id} className={cn('h-0.5 flex-1 rounded-full', i <= idx ? 'bg-[var(--safe)]' : 'bg-white/20')} />
           ))}
         </div>
-        <button type="button" className="absolute right-3 top-4 text-sm text-white/70" onClick={onClose}>
-          Fechar
+        <button
+          type="button"
+          className="absolute right-3 top-4 z-10 inline-flex size-8 items-center justify-center rounded-full bg-black/40 text-white/80"
+          aria-label="Fechar status"
+          onClick={onClose}
+        >
+          <X className="size-4" />
         </button>
-        <button type="button" className="flex min-h-[22rem] w-full flex-col items-center justify-center p-6" onClick={next}>
+        <div className="relative flex min-h-[22rem] w-full items-center justify-center p-6">
+          <button type="button" className="absolute inset-y-0 left-0 w-1/3" aria-label="Anterior" onClick={prev} />
+          <button type="button" className="absolute inset-y-0 right-0 w-2/3" aria-label="Próximo" onClick={next} />
           {item.kind === 'image' && url ? (
-            <img src={url} alt="" className="max-h-[22rem] w-full object-contain" />
+            <img src={url} alt="" className="pointer-events-none max-h-[22rem] w-full object-contain" />
           ) : (
-            <p className="font-display text-xl font-semibold text-white">{item.body}</p>
+            <p className="pointer-events-none font-display text-xl font-semibold text-white">{item.body}</p>
           )}
-          <p className="mt-4 font-display text-[11px] text-white/50">{author.username}</p>
-        </button>
+        </div>
+        <p className="pb-4 text-center font-display text-[11px] text-white/50">{author.username}</p>
       </div>
     </div>
   )

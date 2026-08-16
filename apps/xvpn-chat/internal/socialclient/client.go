@@ -12,6 +12,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ type Client struct {
 	role     string
 	userID   uint
 	ws       *websocket.Conn
+	pending  []any
 }
 
 func New() *Client {
@@ -61,6 +63,7 @@ func (c *Client) Logout() {
 		_ = c.ws.Close()
 		c.ws = nil
 	}
+	c.pending = nil
 	c.baseURL = ""
 	c.token = ""
 	c.username = ""
@@ -279,14 +282,21 @@ func (c *Client) UploadAttachment(ctx context.Context, filename, mime string, da
 	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
-	part, err := w.CreateFormFile("file", filename)
+	hdr := make(textproto.MIMEHeader)
+	hdr.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+	if mime != "" {
+		hdr.Set("Content-Type", mime)
+	}
+	part, err := w.CreatePart(hdr)
 	if err != nil {
 		return Attachment{}, err
 	}
 	if _, err := part.Write(data); err != nil {
 		return Attachment{}, err
 	}
-	_ = w.Close()
+	if err := w.Close(); err != nil {
+		return Attachment{}, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimSuffix(base, "/")+"/api/social/attachments", &buf)
 	if err != nil {
 		return Attachment{}, err
@@ -313,7 +323,6 @@ func (c *Client) UploadAttachment(ctx context.Context, filename, mime string, da
 	if err := json.Unmarshal(raw, &att); err != nil {
 		return Attachment{}, err
 	}
-	_ = mime
 	return att, nil
 }
 
@@ -391,9 +400,6 @@ func (c *Client) ListenWS(ctx context.Context, onEvent func(WSEvent)) error {
 	if err != nil {
 		return err
 	}
-	c.mu.Lock()
-	c.ws = conn
-	c.mu.Unlock()
 	defer func() {
 		c.mu.Lock()
 		if c.ws == conn {
@@ -405,6 +411,16 @@ func (c *Client) ListenWS(ctx context.Context, onEvent func(WSEvent)) error {
 
 	if err := conn.WriteJSON(map[string]string{"type": "auth", "token": token}); err != nil {
 		return err
+	}
+	c.mu.Lock()
+	c.ws = conn
+	queued := c.pending
+	c.pending = nil
+	c.mu.Unlock()
+	for _, payload := range queued {
+		if err := conn.WriteJSON(payload); err != nil {
+			return err
+		}
 	}
 	for {
 		select {
@@ -442,10 +458,12 @@ func (c *Client) SetPresence(status string) error {
 func (c *Client) writeWS(payload any) error {
 	c.mu.Lock()
 	conn := c.ws
-	c.mu.Unlock()
 	if conn == nil {
-		return errors.New("websocket desconectado")
+		c.pending = append(c.pending, payload)
+		c.mu.Unlock()
+		return nil
 	}
+	c.mu.Unlock()
 	return conn.WriteJSON(payload)
 }
 

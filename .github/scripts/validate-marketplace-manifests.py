@@ -2,6 +2,7 @@
 """Valida apps/*/marketplace.yaml contra o schema mínimo da Fase 16."""
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -39,9 +40,9 @@ def main() -> None:
             if key not in data:
                 fail(f"{path}: campo obrigatório ausente: {key}")
         slug = data["slug"]
-        folder = path.parent.name
-        if slug != folder:
-            fail(f"{path}: slug {slug!r} deve coincidir com a pasta {folder!r}")
+        if not re.fullmatch(r"[a-z0-9-]{2,20}", str(slug)):
+            fail(f"{path}: slug {slug!r} inválido (use [a-z0-9-]{{2,20}})")
+        # Disco pode diferir do slug (Fase 26: pasta apps/xvpn-chat, slug xchat).
         if data["visibility"] not in VISIBILITY:
             fail(f"{path}: visibility inválida")
         if data["source"] not in SOURCES:

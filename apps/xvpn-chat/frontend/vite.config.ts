@@ -17,7 +17,12 @@ export default defineConfig({
       "@": path.resolve(rootDir, "./src"),
       "@chat": path.resolve(rootDir, "./src"),
       "@xvpn/ui": path.resolve(rootDir, "../../../shared/ui"),
+      react: path.resolve(rootDir, "node_modules/react"),
+      "react/jsx-runtime": path.resolve(rootDir, "node_modules/react/jsx-runtime"),
+      "react/jsx-dev-runtime": path.resolve(rootDir, "node_modules/react/jsx-dev-runtime"),
+      "react-dom": path.resolve(rootDir, "node_modules/react-dom"),
     },
+    dedupe: ["react", "react-dom"],
   },
   plugins: [react(), tailwindcss(), wails("./bindings")],
 });

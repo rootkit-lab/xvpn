@@ -435,7 +435,7 @@ Se um dia o cliente virar dependência importável de outro módulo do monorepo,
 
 #### 6.10.2 O manifesto é a fonte da verdade
 
-Cada app publicável declara `apps/<slug>/marketplace.yaml`. O `slug` é o nome da pasta e é a **chave de identidade** do app no catálogo (`App.Slug`, unique) — renomear a pasta é, para todos os efeitos, arquivar um app e criar outro.
+Cada app publicável declara `apps/<pasta>/marketplace.yaml`. O campo `slug` é a **chave de identidade** no catálogo (`App.Slug`, unique). A pasta no disco pode diferir (ex.: `apps/xvpn-chat` + slug `xchat`) — o sync usa o slug, não o nome da pasta. Trocar o slug arquiva o app antigo e cria outro.
 
 Dois modos de origem, porque as duas situações reais são diferentes:
 

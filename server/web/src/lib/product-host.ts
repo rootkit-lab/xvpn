@@ -181,6 +181,31 @@ export function ssoLoginURL(returnTo?: string): string {
   return dest.toString()
 }
 
+/** Leva o JWE ao host de destino via POST (cookie Domain=.ihuull.com lá). */
+export function ssoHandoff(role: string, returnTo: string | null | undefined, token: string | null): void {
+  const dest = ssoContinueURL(role, returnTo)
+  if (!token || typeof document === 'undefined') {
+    window.location.replace(dest)
+    return
+  }
+  const destURL = new URL(dest)
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = `${destURL.origin}/api/auth/session`
+  form.style.display = 'none'
+  const add = (name: string, value: string) => {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = name
+    input.value = value
+    form.appendChild(input)
+  }
+  add('token', token)
+  add('return', dest)
+  document.body.appendChild(form)
+  form.submit()
+}
+
 /** Depois do logout: xauth mostra o form, nunca auto-continua com cookie velho. */
 export function ssoLogoutURL(returnTo?: string): string {
   const dest = new URL(ssoLoginURL(returnTo ?? (typeof window === 'undefined' ? PANEL_ORIGIN : `${window.location.origin}/`)))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
@@ -161,6 +162,54 @@ func TestHandleMe_AcceptsSessionCookie(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /auth/me com cookie: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUser(t, app, "handoff", "senha-forte-123")
+	router := NewRouter(app)
+	loginRec := doJSONHost(t, router, http.MethodPost, "/api/auth/login",
+		loginRequest{Username: "handoff", Password: "senha-forte-123"}, "", "xauth.ihuull.com")
+	var token string
+	for _, ck := range loginRec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName {
+			token = ck.Value
+		}
+	}
+	if token == "" {
+		t.Fatal("login xauth sem token")
+	}
+
+	form := "token=" + token + "&return=https%3A%2F%2Fxvpn.ihuull.com%2Fadmin"
+	req := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(form))
+	req.Host = "xvpn.ihuull.com"
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("handoff: %d %s", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); loc != "https://xvpn.ihuull.com/admin" {
+		t.Fatalf("Location=%q", loc)
+	}
+	var got *http.Cookie
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName {
+			got = ck
+		}
+	}
+	if got == nil || got.Value != token {
+		t.Fatalf("cookie no destino: %+v", rec.Result().Cookies())
+	}
+
+	bad := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader("token=nao-e-jwe&return=https://evil.example/"))
+	bad.Host = "xvpn.ihuull.com"
+	bad.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	badRec := httptest.NewRecorder()
+	router.ServeHTTP(badRec, bad)
+	if badRec.Code != http.StatusUnauthorized {
+		t.Fatalf("token lixo deveria ser 401, got %d", badRec.Code)
 	}
 }
 

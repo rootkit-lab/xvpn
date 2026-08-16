@@ -53,6 +53,22 @@ func TestSetSessionCookie_OnlyOnXAuth(t *testing.T) {
 	}
 }
 
+func TestSetSessionCookieOnHost_Panel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/auth/session", nil)
+	c.Request.Host = "xvpn.ihuull.com"
+	SetSessionCookieOnHost(c, "jwe-token", time.Hour)
+	cks := rec.Result().Cookies()
+	if len(cks) != 1 || cks[0].Name != SessionCookieName || cks[0].Value != "jwe-token" {
+		t.Fatalf("handoff no painel: %+v", cks)
+	}
+	if !cookieCoversIhuull(cks[0].Domain) || !cks[0].HttpOnly {
+		t.Fatalf("atributos: %+v", cks[0])
+	}
+}
+
 func TestTokenFromRequest_BearerWinsOverCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

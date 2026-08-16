@@ -75,16 +75,31 @@ func sessionCookie(token string, maxAge int, host string) *http.Cookie {
 	return ck
 }
 
+func cookieMaxAge(ttl time.Duration) int {
+	maxAge := int(ttl.Seconds())
+	if maxAge < 1 {
+		return 1
+	}
+	return maxAge
+}
+
 // SetSessionCookie grava o JWE só quando o login veio do xauth.
 func SetSessionCookie(c *gin.Context, token string, ttl time.Duration) {
 	if !IsXAuthHost(c.Request.Host) {
 		return
 	}
-	maxAge := int(ttl.Seconds())
-	if maxAge < 1 {
-		maxAge = 1
+	http.SetCookie(c.Writer, sessionCookie(token, cookieMaxAge(ttl), c.Request.Host))
+}
+
+// SetSessionCookieOnHost grava o JWE em qualquer host ihuull — handoff
+// SSO (POST /api/auth/session no destino). Login normal continua só no
+// xauth para o desktop não receber Set-Cookie no enroll em xvpn.
+func SetSessionCookieOnHost(c *gin.Context, token string, ttl time.Duration) {
+	host := c.Request.Host
+	if !isIhuullHost(host) && !isLocalDevHost(host) {
+		return
 	}
-	http.SetCookie(c.Writer, sessionCookie(token, maxAge, c.Request.Host))
+	http.SetCookie(c.Writer, sessionCookie(token, cookieMaxAge(ttl), host))
 }
 
 // ClearSessionCookie apaga o cookie no host atual e, se for ihuull, no

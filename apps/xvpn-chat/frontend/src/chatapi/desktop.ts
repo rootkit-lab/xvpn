@@ -27,11 +27,11 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin)
 }
 
-function base64ToBytes(b64: string): Uint8Array {
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
   const bin = atob(b64)
   const out = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
-  return out
+  return out.buffer
 }
 
 function mapThread(th: {
@@ -112,8 +112,8 @@ export function createDesktopChatAPI(): ChatAPI {
     },
     async fetchAttachment(id) {
       const raw = await ChatService.DownloadAttachment(id)
-      const bytes = typeof raw === 'string' && raw ? base64ToBytes(raw) : new Uint8Array()
-      return new Blob([bytes])
+      if (typeof raw !== 'string' || !raw) return new Blob()
+      return new Blob([base64ToArrayBuffer(raw)])
     },
     async listStories() {
       return ((await ChatService.ListStories()) ?? []) as StoryAuthor[]

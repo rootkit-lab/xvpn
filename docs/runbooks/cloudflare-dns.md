@@ -25,6 +25,7 @@ Manter **DNS only** (nuvem cinza) em tudo que for API, WebSocket ou VPN. Cloudfl
 | A | `marketplace` | `206.189.224.72` | **DNS only** | loja (Play Store). Download autenticado — laranja quebra? não, mas DNS only por consistência com API |
 | A | `xdriver` | `206.189.224.72` | **DNS only** | **portal** Drive (atalhos). **Não** é o FileBrowser |
 | A | `xchat` | `206.189.224.72` | DNS only | **só landing** “conecte a VPN / abra o app” — **não** é o WS |
+| A | `xgroup` | `206.189.224.72` | DNS only | **ainda sem A.** Landing marketing; app em `xgroup.corp`. Criar só quando for ligar `server/deploy/nginx/xgroup.conf` |
 | TXT | `corp` | `intranet-only` | — | Impede que `corp.ihuull.com` herde um A do wildcard. **Nenhum A** neste nome |
 | TXT | `_dmarc` / SPF | (se houver e-mail) | — | opcional |
 

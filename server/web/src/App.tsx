@@ -49,6 +49,12 @@ const XDriverPublicLanding = lazy(() =>
   import('@/pages/xdriver-portal-page').then((m) => ({ default: m.XDriverPublicLanding })),
 )
 const XDriverAppPage = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverAppPage })))
+const XvpnProductPortal = lazy(() =>
+  import('@/pages/xvpn-portal-page').then((m) => ({ default: m.XvpnProductPortal })),
+)
+const XGroupPublicLanding = lazy(() =>
+  import('@/pages/xgroup-landing-page').then((m) => ({ default: m.XGroupPublicLanding })),
+)
 
 function MarketplaceApp() {
   return (
@@ -88,18 +94,28 @@ function XDriverCorpApp() {
   )
 }
 
-function CoreApp() {
+function XGroupPublicApp() {
+  return (
+    <Routes>
+      <Route path="/" element={<XGroupPublicLanding />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function PanelApp({ home }: { home: 'landing' | 'portal' }) {
   return (
     <ChatHost>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={home === 'portal' ? <XvpnProductPortal /> : <LandingPage />} />
 
         <Route path="/my/login" element={<LoginPage variant="user" />} />
         <Route path="/admin/login" element={<LoginPage variant="admin" />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/my" element={<UserShell />}>
-            <Route index element={<PortalPage />} />
+            <Route index element={home === 'portal' ? <Navigate to="/" replace /> : <PortalPage />} />
+            <Route path="devices" element={<PortalPage />} />
             <Route path="files" element={<HostRedirect to={XDRIVER_ORIGIN} />} />
             <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
             <Route path="marketplace" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
@@ -159,8 +175,10 @@ export default function App() {
             <XDriverCorpApp />
           ) : kind === 'xdriver' ? (
             <XDriverPublicApp />
+          ) : kind === 'xgroup' ? (
+            <XGroupPublicApp />
           ) : (
-            <CoreApp />
+            <PanelApp home={kind === 'xvpn' ? 'portal' : 'landing'} />
           )}
         </Suspense>
       </AuthProvider>

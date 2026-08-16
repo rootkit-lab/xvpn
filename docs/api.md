@@ -2,7 +2,7 @@
 
 Issuer SSO: `https://xvpn.ihuull.com`. Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
 
-Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Painel/enroll: `https://xvpn.ihuull.com`. Loja: `https://marketplace.ihuull.com`. Landing de arquivos: `https://xdriver.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN).
+Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` operação). Loja: `https://marketplace.ihuull.com`. Landing de arquivos: `https://xdriver.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN). Marketing xgroup: `https://xgroup.ihuull.com` (sem API/WS; A ainda não criado). App: `https://xgroup.corp.ihuull.com`.
 
 Auth: `Authorization: Bearer <token>` salvo no header, nunca na query do WebSocket.
 

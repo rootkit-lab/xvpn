@@ -104,7 +104,7 @@ export function ProfilePage() {
                 <span className="text-muted-foreground"> online agora</span>
               </p>
               <Button variant="outline" size="sm" asChild>
-                <Link to="/my">Gerenciar dispositivos</Link>
+                <Link to="/my/devices">Gerenciar dispositivos</Link>
               </Button>
             </div>
           )}

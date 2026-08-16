@@ -38,12 +38,20 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/my/devices',
+    meta: {
+      kicker: 'xvpn',
+      title: 'Dispositivos',
+      description: 'Seus dispositivos VPN. Para adicionar um novo, peça um convite a um administrador.',
+    },
+  },
+  {
     prefix: '/my',
     exact: true,
     meta: {
       kicker: 'xvpn',
       title: 'Início',
-      description: 'Seus dispositivos VPN. Para adicionar um novo, peça um convite a um administrador.',
+      description: 'Portal do produto — status da VPN, download do cliente e atalhos.',
     },
   },
 ]

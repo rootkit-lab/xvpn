@@ -13,7 +13,7 @@ description: |
   Cliente desktop da VPN privada XVPN.
   Instala a GUI e o helper privilegiado (systemd) que gerencia o túnel WireGuard.
 vendor: "rootkit-lab"
-homepage: "https://vpn.officeempresa.com"
+homepage: "https://xvpn.ihuull.com"
 license: "MIT"
 release: "1"
 

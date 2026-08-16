@@ -12,6 +12,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(rootDir, './src'),
       '@chat': path.resolve(rootDir, '../../apps/xvpn-chat/frontend/src'),
+      '@xvpn/ui': path.resolve(rootDir, '../../shared/ui'),
       react: path.resolve(rootDir, './node_modules/react'),
       'react-dom': path.resolve(rootDir, './node_modules/react-dom'),
     },

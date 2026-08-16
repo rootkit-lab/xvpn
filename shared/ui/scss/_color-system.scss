@@ -1,0 +1,123 @@
+// Color system ihuull — fonte única. Não copie estes valores para
+// index.css de app. Temas do messenger (dark/light/icq) reutilizam os maps.
+
+@use "sass:map";
+
+$font-display: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+$font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+$radius: 1rem;
+
+// Default de produto (xvpn, xchat, xgroup, painel web).
+$dark: (
+  background: oklch(0.11 0.012 260),
+  foreground: oklch(0.98 0.005 260),
+  card: oklch(0.18 0.014 260),
+  card-foreground: oklch(0.98 0.005 260),
+  popover: oklch(0.18 0.014 260),
+  popover-foreground: oklch(0.98 0.005 260),
+  primary: oklch(0.72 0.14 230),
+  primary-foreground: oklch(0.16 0.02 230),
+  secondary: oklch(0.22 0.016 260),
+  secondary-foreground: oklch(0.96 0.005 260),
+  muted: oklch(0.2 0.012 260),
+  muted-foreground: oklch(0.7 0.02 260),
+  accent: oklch(0.72 0.14 230),
+  accent-foreground: oklch(0.16 0.02 230),
+  destructive: oklch(0.65 0.2 25),
+  destructive-foreground: oklch(0.98 0.01 255),
+  border: oklch(1 0 0 / 8%),
+  input: oklch(1 0 0 / 12%),
+  ring: oklch(0.72 0.14 230),
+  glow: oklch(0.74 0.13 230),
+  glow-amber: oklch(0.78 0.14 75),
+  glow-red: oklch(0.65 0.2 25),
+  glow-safe: oklch(0.78 0.18 150),
+  safe: oklch(0.72 0.17 150),
+  safe-foreground: oklch(0.16 0.04 150),
+  status-online: oklch(0.72 0.17 150),
+  status-away: oklch(0.8 0.16 85),
+  status-dnd: oklch(0.65 0.2 25),
+  status-offline: oklch(0.55 0.02 260),
+);
+
+$light: (
+  background: oklch(0.97 0.01 90),
+  foreground: oklch(0.22 0.03 260),
+  card: oklch(1 0 0),
+  card-foreground: oklch(0.22 0.03 260),
+  popover: oklch(1 0 0),
+  popover-foreground: oklch(0.22 0.03 260),
+  primary: oklch(0.55 0.16 230),
+  primary-foreground: oklch(0.99 0.01 230),
+  secondary: oklch(0.94 0.02 260),
+  secondary-foreground: oklch(0.25 0.03 260),
+  muted: oklch(0.93 0.015 260),
+  muted-foreground: oklch(0.45 0.02 260),
+  accent: oklch(0.55 0.16 230),
+  accent-foreground: oklch(0.99 0.01 230),
+  destructive: oklch(0.55 0.2 25),
+  destructive-foreground: oklch(0.98 0.01 255),
+  border: oklch(0.22 0.03 260 / 12%),
+  input: oklch(0.22 0.03 260 / 10%),
+  ring: oklch(0.55 0.16 230),
+  glow: oklch(0.55 0.16 230),
+  glow-amber: oklch(0.72 0.16 85),
+  glow-red: oklch(0.55 0.2 25),
+  glow-safe: oklch(0.62 0.16 150),
+  safe: oklch(0.55 0.16 150),
+  safe-foreground: oklch(0.98 0.01 150),
+  status-online: oklch(0.55 0.16 150),
+  status-away: oklch(0.72 0.16 85),
+  status-dnd: oklch(0.58 0.2 25),
+  status-offline: oklch(0.7 0.02 260),
+);
+
+// Opcional no messenger — nunca identidade de produto.
+$icq: (
+  background: oklch(0.18 0.03 145),
+  foreground: oklch(0.97 0.02 135),
+  card: oklch(0.24 0.04 145),
+  card-foreground: oklch(0.97 0.02 135),
+  popover: oklch(0.24 0.04 145),
+  popover-foreground: oklch(0.97 0.02 135),
+  primary: oklch(0.78 0.2 135),
+  primary-foreground: oklch(0.18 0.04 135),
+  secondary: oklch(0.3 0.04 145),
+  secondary-foreground: oklch(0.96 0.02 135),
+  muted: oklch(0.26 0.03 145),
+  muted-foreground: oklch(0.78 0.04 135),
+  accent: oklch(0.78 0.2 135),
+  accent-foreground: oklch(0.18 0.04 135),
+  destructive: oklch(0.65 0.2 25),
+  destructive-foreground: oklch(0.97 0.02 135),
+  border: oklch(0.78 0.2 135 / 22%),
+  input: oklch(0.78 0.2 135 / 16%),
+  ring: oklch(0.78 0.2 135),
+  glow: oklch(0.82 0.22 135),
+  glow-amber: oklch(0.82 0.16 85),
+  glow-red: oklch(0.65 0.2 25),
+  glow-safe: oklch(0.82 0.22 135),
+  safe: oklch(0.78 0.2 135),
+  safe-foreground: oklch(0.18 0.04 135),
+  status-online: oklch(0.82 0.22 135),
+  status-away: oklch(0.82 0.16 85),
+  status-dnd: oklch(0.65 0.2 25),
+  status-offline: oklch(0.5 0.02 145),
+);
+
+@mixin apply-palette($palette) {
+  @each $name, $value in $palette {
+    --#{$name}: #{$value};
+  }
+}
+
+@mixin apply-dark {
+  @include apply-palette($dark);
+}
+
+@mixin fonts-and-radius {
+  --radius: #{$radius};
+  --font-display: #{$font-display};
+  --font-mono: #{$font-mono};
+  --corner: color-mix(in oklch, var(--primary) 50%, transparent);
+}

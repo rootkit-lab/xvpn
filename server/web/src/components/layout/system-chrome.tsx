@@ -29,22 +29,13 @@ export function SystemChrome({
   const showPopouts = Boolean(session?.loggedIn && !hidden)
 
   return (
-    <div className={cn('relative flex h-svh w-full overflow-hidden bg-background', className)}>
-      {variant === 'admin' ? (
-        <div className="dot-grid pointer-events-none fixed inset-0 opacity-60" />
-      ) : (
-        <div
-          className="pointer-events-none fixed inset-0 opacity-80"
-          style={{
-            background:
-              'radial-gradient(90% 60% at 10% 0%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 55%), radial-gradient(70% 50% at 90% 100%, color-mix(in oklch, var(--primary) 10%, transparent), transparent 50%)',
-          }}
-        />
-      )}
+    <div className={cn('watch-face relative flex h-svh w-full overflow-hidden', className)}>
+      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
       <aside
         className={cn(
-          'relative z-20 flex h-full w-60 shrink-0 flex-col border-r backdrop-blur-xl',
-          variant === 'admin' ? 'cyber-frame w-64 border-white/5 bg-card/70 backdrop-blur' : 'border-white/8 bg-card/50',
+          'relative z-20 flex h-full w-60 shrink-0 flex-col border-r border-white/8',
+          variant === 'admin' ? 'w-64' : '',
+          'watch-complication',
           asideClassName,
         )}
       >
@@ -59,7 +50,7 @@ export function SystemChrome({
             )}
           />
           <div className="min-w-0">
-            <span className={cn('block font-semibold tracking-tight', variant === 'admin' ? 'text-lg' : 'text-base')}>
+            <span className={cn('font-display block font-semibold tracking-tight', variant === 'admin' ? 'text-lg' : 'text-base')}>
               XVPN
             </span>
             {variant === 'admin' ? (

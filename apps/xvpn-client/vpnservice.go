@@ -278,7 +278,7 @@ func (s *VPNService) OpenServerFiles(kind string) error {
 		}
 		return err
 	case "filebrowser":
-		return opener.OpenURL(fmt.Sprintf("http://%s:8081", serverVPNAddress))
+		return opener.OpenURL("https://xdriver.corp.ihuull.com")
 	default:
 		return fmt.Errorf("tipo de acesso a arquivos desconhecido: %q", kind)
 	}

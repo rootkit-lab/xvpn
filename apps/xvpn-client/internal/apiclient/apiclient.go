@@ -41,7 +41,7 @@ const TunnelBaseURL = "http://10.66.66.1:8080"
 const tunnelTimeout = 5 * time.Second
 
 // Client fala com um único xvpn-server, identificado por BaseURL (ex.:
-// "https://vpn.officeempresa.com").
+// "https://xvpn.ihuull.com").
 type Client struct {
 	BaseURL string
 	http    *http.Client
@@ -87,6 +87,7 @@ type EnrollResult struct {
 	// cliente saber quem ele é já no enrollment, sem esperar a primeira
 	// conexão para perguntar em GET /api/me.
 	Username string
+	DNS      []string
 }
 
 type enrollRequest struct {
@@ -96,13 +97,14 @@ type enrollRequest struct {
 }
 
 type enrollResponse struct {
-	AssignedIP          string `json:"assigned_ip"`
-	ServerPublicKey     string `json:"server_public_key"`
-	Endpoint            string `json:"endpoint"`
-	AllowedIPs          string `json:"allowed_ips"`
-	PersistentKeepalive int    `json:"persistent_keepalive"`
-	APIVersion          int    `json:"api_version"`
-	Username            string `json:"username"`
+	AssignedIP          string   `json:"assigned_ip"`
+	ServerPublicKey     string   `json:"server_public_key"`
+	Endpoint            string   `json:"endpoint"`
+	AllowedIPs          string   `json:"allowed_ips"`
+	PersistentKeepalive int      `json:"persistent_keepalive"`
+	APIVersion          int      `json:"api_version"`
+	Username            string   `json:"username"`
+	DNS                 []string `json:"dns"`
 }
 
 // Enroll gera um par de chaves WireGuard localmente (a privada nunca deixa
@@ -145,6 +147,7 @@ func (c *Client) Enroll(ctx context.Context, inviteToken, deviceName string) (*E
 		PersistentKeepalive: time.Duration(resp.PersistentKeepalive) * time.Second,
 		APIVersion:          resp.APIVersion,
 		Username:            resp.Username,
+		DNS:                 resp.DNS,
 	}, nil
 }
 

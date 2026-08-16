@@ -24,7 +24,7 @@ export function SharesPage() {
           <div>
             <CardTitle className="text-base">Só acessível com a VPN conectada</CardTitle>
             <CardDescription>
-              Samba e FileBrowser escutam exclusivamente na interface WireGuard — nunca no IP público. A autenticação do
+              xdriver (Samba + FileBrowser) escuta exclusivamente na interface WireGuard — nunca no IP público. A autenticação do
               Samba é a própria VPN (<code className="font-mono text-xs">guest ok</code> +{' '}
               <code className="font-mono text-xs">force user</code>); o cliente desktop abre os shares sem pedir senha.
             </CardDescription>
@@ -77,17 +77,17 @@ export function SharesPage() {
           <Card className="sm:col-span-2">
             <CardHeader>
               <Globe className="mb-1 size-6 text-muted-foreground" />
-              <CardTitle className="text-base">Interface web (FileBrowser)</CardTitle>
+              <CardTitle className="text-base">xdriver (FileBrowser)</CardTitle>
               <CardDescription>Upload/download rápido pelo navegador, sem montar unidade de rede.</CardDescription>
             </CardHeader>
             <CardContent className="text-sm">
               <a
-                href={`http://${host}:8081`}
+                href="https://xdriver.corp.ihuull.com"
                 target="_blank"
                 rel="noreferrer"
                 className="font-mono text-primary underline underline-offset-2"
               >
-                {`http://${host}:8081`}
+                https://xdriver.corp.ihuull.com
               </a>
             </CardContent>
           </Card>

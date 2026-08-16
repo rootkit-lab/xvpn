@@ -18,7 +18,18 @@ git config core.hooksPath   # deve imprimir ".githooks"
 
 ## Fluxo de trabalho — GitHub Flow (obrigatório, inclusive solo)
 
-Este projeto segue [GitHub Flow](https://docs.github.com/pt/get-started/using-github/github-flow): `main` é sempre estável e **protegida** — nenhum commit chega lá exceto via merge de Pull Request. Não é uma sugestão informal: há dois níveis de aplicação técnica disso:
+Este projeto segue [GitHub Flow](https://docs.github.com/pt/get-started/using-github/github-flow): `main` é sempre estável e **protegida** — nenhum commit chega lá exceto via merge de Pull Request. Não é uma sugestão informal.
+
+Há **dois pares de hook** distintos — não misture:
+
+| Camada | Onde | O que protege | Quem dispara |
+|---|---|---|---|
+| Cursor | [`.cursor/hooks.json`](./.cursor/hooks.json) | Agente de IA: bloqueia shell destrutivo e formata Go/TS após edição | Só ações do agente dentro do Cursor |
+| Git | [`.githooks/pre-commit`](./.githooks/pre-commit) | Qualquer `git commit`: `main`/`master` (exceto merge), segredos óbvios, artefatos de build | Humano, agente, CI local — depois de `git config core.hooksPath .githooks` |
+
+O hook do Cursor **não** substitui o pre-commit. Um clone novo sem `core.hooksPath` commita em `main` localmente até o GitHub recusar o push.
+
+Aplicação do GitHub Flow:
 
 1. **Localmente**: `.githooks/pre-commit` bloqueia qualquer `git commit` feito diretamente nas branches `main`/`master` (a única exceção é um merge em andamento, detectado via `MERGE_HEAD`).
 2. **No GitHub**: a branch `main` tem *branch protection* configurada — exige Pull Request antes de qualquer mudança chegar nela, não aceita `push` direto nem `force-push`, e só permite squash merge (histórico linear, um commit por PR).

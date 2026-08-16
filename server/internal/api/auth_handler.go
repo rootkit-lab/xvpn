@@ -14,6 +14,7 @@ import (
 type loginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
+	Audience string `json:"aud"`
 }
 
 type loginResponse struct {
@@ -45,13 +46,18 @@ func (a *App) handleLogin(c *gin.Context) {
 		return
 	}
 
+	if user.Role == store.RoleBot || user.Username == "xbot" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "credenciais inválidas"})
+		return
+	}
+
 	ok, err := auth.VerifyPassword(user.PasswordHash, req.Password)
 	if err != nil || !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "credenciais inválidas"})
 		return
 	}
 
-	token, err := a.Tokens.Issue(user.ID, user.Username, user.Role)
+	token, err := a.Tokens.IssueFor(user.ID, user.Username, user.Role, auth.NormalizeAudience(req.Audience))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return

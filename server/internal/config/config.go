@@ -20,7 +20,7 @@ type Config struct {
 	// interface; ver PLAN.md §5). Existe por roteamento, não por segurança:
 	// o cliente instala uma rota /32 para o IP público do VPS antes de
 	// trocar a rota padrão (senão o próprio handshake WireGuard entraria em
-	// loop), e como vpn.officeempresa.com resolve para esse mesmo IP, o
+	// loop), e como xvpn.ihuull.com resolve para esse mesmo IP, o
 	// HTTPS do painel nunca trafega dentro do túnel. Sem este listener, um
 	// peer não teria como falar com a API tendo um 10.66.66.x como IP de
 	// origem, e as rotas de identidade por túnel (GET /api/me,
@@ -88,6 +88,14 @@ type Config struct {
 	// Em produção: /opt/xvpn/data/social (dentro de ReadWritePaths).
 	SocialMediaDir string
 
+	// MongoURI, se definido, torna o Mongo a fonte da verdade (Fase 28).
+	// Bind só 127.0.0.1:27017 em produção. Vazio = SQLite (testes/CI).
+	MongoURI string
+
+	// XbotToken autentica POST /api/hooks/chat/broadcast (Fase 27).
+	// Comparado em tempo constante. Vazio = rota de hook não é registrada.
+	XbotToken string
+
 	// PublishToken autentica POST /api/marketplace/sync (Fase 16 —
 	// PLAN.md §6.10.3). Comparado em tempo constante. Vazio = a rota de
 	// sync nem é registrada (servidor que não publica não expõe a
@@ -144,6 +152,8 @@ func Load() (*Config, error) {
 		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
 		SocialMediaDir:          getEnv("XVPN_SOCIAL_MEDIA_DIR", "social-media-data"),
 		PublishToken:            os.Getenv("XVPN_PUBLISH_TOKEN"),
+		MongoURI:                os.Getenv("XVPN_MONGO_URI"),
+		XbotToken:               os.Getenv("XVPN_XBOT_TOKEN"),
 		UserProvisionBinaryPath: getEnv("XVPN_USER_PROVISION_BIN", "/opt/xvpn/bin/xvpn-user-provision"),
 	}
 

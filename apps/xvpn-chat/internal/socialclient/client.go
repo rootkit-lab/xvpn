@@ -22,7 +22,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const DefaultBaseURL = "https://vpn.officeempresa.com"
+// DefaultBaseURL é a API do messenger na intranet (só resolve com VPN).
+// Login/enroll do painel público fica em https://xvpn.ihuull.com.
+const DefaultBaseURL = "https://xchat.corp.ihuull.com"
+
+// PublicIssuerURL é o issuer JWE / painel (Fase 24/27).
+const PublicIssuerURL = "https://xvpn.ihuull.com"
 
 var ErrNotLoggedIn = errors.New("sessão expirada ou inexistente — faça login novamente")
 
@@ -74,6 +79,7 @@ func (c *Client) Logout() {
 type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Aud      string `json:"aud"`
 }
 
 type loginResponse struct {
@@ -94,7 +100,7 @@ func (c *Client) Login(ctx context.Context, baseURL, username, password string) 
 		return Session{}, errors.New("usuário e senha são obrigatórios")
 	}
 	var resp loginResponse
-	req := loginRequest{Username: username, Password: password}
+	req := loginRequest{Username: username, Password: password, Aud: "xchat"}
 	if err := doJSON(ctx, c.httpClient, http.MethodPost, baseURL, "/api/auth/login", "", req, &resp); err != nil {
 		return Session{}, err
 	}

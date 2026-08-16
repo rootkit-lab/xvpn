@@ -17,7 +17,10 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@xvpn/ui/*": ["../../../shared/ui/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"]
     },
 
     /* Linting */
@@ -27,5 +30,5 @@
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "bindings"],
+  "include": ["src", "bindings", "../../../shared/ui"],
 }

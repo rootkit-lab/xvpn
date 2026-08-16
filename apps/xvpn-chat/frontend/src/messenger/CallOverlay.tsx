@@ -5,6 +5,7 @@ import { audioConstraints, useChatSettings } from '@chat/messenger/ChatSettings'
 import { ChatIconButton } from '@chat/messenger/chrome'
 import { videoConstraints } from '@chat/messenger/media'
 import { startRingtone } from '@chat/messenger/sound'
+import { hasRTCPeerConnection, openCallInBrowser } from '@chat/messenger/webrtc'
 
 type OfferPayload = {
   from?: number
@@ -59,6 +60,9 @@ export function CallOverlay() {
   }
 
   async function ensurePC(withVideo: boolean) {
+    if (!hasRTCPeerConnection()) {
+      throw new Error('WebRTC indisponível neste WebView — abra a chamada no navegador')
+    }
     if (pc.current) return pc.current
     const conn = new RTCPeerConnection(ICE)
     pc.current = conn
@@ -198,6 +202,16 @@ export function CallOverlay() {
             </p>
             <p className="mt-1 text-center font-display text-xl font-semibold">{peerName}</p>
             {mediaError && <p className="mt-2 text-center text-xs text-destructive">{mediaError}</p>}
+            {!hasRTCPeerConnection() && (
+              <div className="mt-3 space-y-2 text-center">
+                <p className="text-xs text-muted-foreground">
+                  Este app (WebKit) não tem WebRTC. A chamada abre no Chromium, na VPN.
+                </p>
+                <ChatIconButton label="Abrir chamada no navegador" filled onClick={openCallInBrowser}>
+                  <Phone className="h-4 w-4 text-[var(--safe)]" />
+                </ChatIconButton>
+              </div>
+            )}
             <div className="mt-5 flex justify-center gap-3">
               {phase === 'incoming' ? (
                 <>

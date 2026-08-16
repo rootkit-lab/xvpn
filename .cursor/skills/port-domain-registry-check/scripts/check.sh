@@ -20,4 +20,10 @@ echo "===== Estado real no servidor ($HOST) ====="
 ssh -o ConnectTimeout=10 "$HOST" "ss -tulnp 2>/dev/null || ss -tuln"
 
 echo
-echo "Compare manualmente: toda porta pública em uso no servidor deve ter uma linha correspondente na tabela acima. Toda porta documentada como 'interna' (127.0.0.1) ou 'somente VPN' (10.66.66.1) não deve aparecer vinculada a 0.0.0.0 ou ao IP público na saída do ss."
+echo "===== Lembretes (PLAN.md §5 / runbook Cloudflare) ====="
+echo "- Público: 22, 80, 443, 51820/udp. Sem 53, 445, 27017, 8080, 8081 na eth0."
+echo "- Intranet: *.corp só resolve em 10.66.66.1:53 (dnsmasq no wg0). Sem A público para corp."
+echo "- Mongo: só 127.0.0.1:27017. DNS interno: só 10.66.66.1:53."
+echo
+echo "Compare: porta pública no ss ⇔ linha na tabela. Bind documentado como 127.0.0.1 ou 10.66.66.1 não pode aparecer em 0.0.0.0 nem no IP público."
+echo "Runbook: docs/runbooks/cloudflare-dns.md"

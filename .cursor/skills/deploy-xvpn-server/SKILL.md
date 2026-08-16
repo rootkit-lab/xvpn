@@ -18,6 +18,6 @@ O script: baseline read-only → `npm ci` (chat frontend + `server/web`) → `np
 ## Regras
 
 - Nginx/Samba/ufw **não** mudam neste deploy (WS já está em `/api/ws`).
-- Health mínimo: `systemctl is-active`, `GET /api/status` 200 (local e `https://vpn.officeempresa.com`), `GET /api/ws?token=` → 400, Samba só `10.66.66.1:445` / `127.0.0.1:445`, handshake WireGuard intacto.
+- Health mínimo: `systemctl is-active`, `GET /api/status` 200 (local e `https://xvpn.ihuull.com`), `GET /api/ws?token=` → 400, Samba só `10.66.66.1:445` / `127.0.0.1:445`, handshake WireGuard intacto. `27017` e `:53` não podem aparecer em `0.0.0.0`.
 - Não use senhas de transcripts antigos para testar login.
 - Se o serviço não subir, restaure o `.bak-*` mais recente e `systemctl restart xvpn-server`.

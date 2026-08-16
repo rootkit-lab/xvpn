@@ -75,9 +75,9 @@ function LoginForm({
   return (
     <form className="relative z-10 w-full max-w-sm rounded-[22px] p-5 watch-complication" onSubmit={submit}>
       <img src="/logo-192.png" alt="" className="mx-auto mb-3 size-12 rounded-full" />
-      <h1 className="mb-1 text-center font-display text-lg font-semibold tracking-tight">XVPN Chat</h1>
+      <h1 className="mb-1 text-center font-display text-lg font-semibold tracking-tight">xchat</h1>
       <p className="mb-4 text-center font-display text-xs text-muted-foreground">
-        Mesma conta do painel. Só vpn.officeempresa.com.
+        Conecte o xvpn. A API é xchat.corp.ihuull.com (intranet).
       </p>
       <label className="mb-1 block font-display text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75" htmlFor="user">
         Usuário

@@ -28,7 +28,7 @@ export function ProductSwitcher({ variant }: { variant: 'user' | 'admin' | 'soci
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Produtos</DropdownMenuLabel>
         <DropdownMenuItem asChild>
-          <Link to="/my">{current === 'user' ? '✓ ' : ''}Meu espaço</Link>
+          <Link to="/my">{current === 'user' ? '✓ ' : ''}xvpn</Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to="/social">{current === 'social' ? '✓ ' : ''}Social</Link>

@@ -1,220 +1,23 @@
 @import "tailwindcss";
+@import "../../../shared/ui/scss/index.scss";
+@import "../../../shared/ui/css/tailwind-bridge.css";
+@source "../../../shared/ui";
 @source "../../../apps/xvpn-chat/frontend/src";
-@import "../../../apps/xvpn-chat/frontend/src/theme/themes.scss";
 
 @custom-variant dark (&:is(.dark *));
-
-/* Painel sempre escuro por design — identidade "cyber" azul néon sobre
-   navy, inspirada no mockup cyber:vpn (com azul em vez de verde).
-   Mantém a paleta navy/azul/ciano pré-existente; adiciona a camada
-   cyber (corner brackets, dot-grid, HUD markers, arestas vivas).
-   Espelhado em apps/xvpn-client/frontend/src/index.css — manter os dois em
-   sincronia ao mudar tokens aqui. */
-:root {
-  --background: oklch(0.15 0.022 255);
-  --foreground: oklch(0.97 0.01 255);
-  --card: oklch(0.20 0.03 255);
-  --card-foreground: oklch(0.97 0.01 255);
-  --popover: oklch(0.20 0.03 255);
-  --popover-foreground: oklch(0.97 0.01 255);
-  --primary: oklch(0.63 0.20 250);
-  --primary-foreground: oklch(0.14 0.02 250);
-  --secondary: oklch(0.26 0.04 255);
-  --secondary-foreground: oklch(0.97 0.01 255);
-  --muted: oklch(0.23 0.03 255);
-  --muted-foreground: oklch(0.66 0.03 255);
-  --accent: oklch(0.78 0.15 210);
-  --accent-foreground: oklch(0.14 0.03 210);
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.98 0.01 255);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.63 0.20 250);
-  --radius: 0.375rem;
-  --glow: oklch(0.68 0.19 250);
-  /* --corner: cor dos cantos cyber (L-brackets). Primary tintado, baixa
-     opacidade pra ser marcador técnico sutil, não borda completa. */
-  --corner: color-mix(in oklch, var(--primary) 60%, transparent);
-  /* --font-mono: stack monoespaçada pra labels técnicos/HUD (IPs, stats,
-     protocolos, contadores). Cai pro monoespaçado do sistema se as
-     fontes específicas não existirem. */
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-.dark {
-  --background: oklch(0.15 0.022 255);
-  --foreground: oklch(0.97 0.01 255);
-  --card: oklch(0.20 0.03 255);
-  --card-foreground: oklch(0.97 0.01 255);
-  --popover: oklch(0.20 0.03 255);
-  --popover-foreground: oklch(0.97 0.01 255);
-  --primary: oklch(0.63 0.20 250);
-  --primary-foreground: oklch(0.14 0.02 250);
-  --secondary: oklch(0.26 0.04 255);
-  --secondary-foreground: oklch(0.97 0.01 255);
-  --muted: oklch(0.23 0.03 255);
-  --muted-foreground: oklch(0.66 0.03 255);
-  --accent: oklch(0.78 0.15 210);
-  --accent-foreground: oklch(0.14 0.03 210);
-  --destructive: oklch(0.65 0.22 25);
-  --destructive-foreground: oklch(0.98 0.01 255);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.63 0.20 250);
-  --glow: oklch(0.68 0.19 250);
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-glow: var(--glow);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 6px);
-  --font-mono: var(--font-mono);
-}
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-display);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
-}
-
-@layer utilities {
-  /* Halo radial usado atrás de heros/botões de destaque — a mesma
-     assinatura visual em todas as telas "de destaque" (landing, botão
-     de conectar do cliente). */
-  .glow-blob {
-    background: radial-gradient(closest-side, var(--glow) 0%, transparent 70%);
-    filter: blur(40px);
-    opacity: 0.35;
-  }
-  .glow-ring {
-    box-shadow: 0 0 0 1px color-mix(in oklch, var(--glow) 40%, transparent),
-      0 0 40px -8px var(--glow);
-  }
-  .text-glow {
-    text-shadow: 0 0 24px color-mix(in oklch, var(--glow) 60%, transparent);
-  }
-
-  /* dot-grid: grid de pontos sutil atrás do conteúdo — assinatura
-     "técnica" do fundo das telas logadas. Pontos em foreground baixo
-     pra não competir com o conteúdo. */
-  .dot-grid {
-    background-image: radial-gradient(
-      color-mix(in oklch, var(--foreground) 10%, transparent) 1px,
-      transparent 1px
-    );
-    background-size: 22px 22px;
-    background-position: -1px -1px;
-  }
-
-  /* cyber-frame: cantos em L (┌ ┐ └ ┘) nos quatro cantos do elemento.
-     Marcador técnico sutil (não borda completa) — desenhado com 8
-     camadas de background num único ::before, sem DOM extra. Aplicado
-     por padrão no Card (ver components/ui/card.tsx), então todas as
-     telas que usam Card ganham o visual cyber automaticamente. */
-  .cyber-frame {
-    position: relative;
-  }
-  .cyber-frame::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background:
-      linear-gradient(var(--corner), var(--corner)) top left / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) top left / 1px 12px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) top right / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) top right / 1px 12px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom left / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom left / 1px 12px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom right / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom right / 1px 12px no-repeat;
-  }
-
-  /* cyber-diamond: losango "Secured" girado 45° com glow — usado em
-     indicadores de status seguro/conectado (login, dashboard, cliente
-     main). */
-  .cyber-diamond {
-    transform: rotate(45deg);
-    box-shadow:
-      0 0 0 1px color-mix(in oklch, var(--glow) 50%, transparent),
-      0 0 24px -4px var(--glow);
-  }
-
-  /* hud-label: rótulo monoespaçado em caixa alta, letter-spacing largo —
-     pra seções "técnicas" (protocolos, stats, contadores). */
-  .hud-label {
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: 0.6875rem;
-    line-height: 1;
-  }
-
-  /* scanline: linha horizontal fina com glow — separador "HUD" entre
-     seções. */
-  .scanline {
-    height: 1px;
-    background: linear-gradient(
-      to right,
-      transparent,
-      color-mix(in oklch, var(--glow) 50%, transparent),
-      transparent
-    );
-  }
-}
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in oklch, var(--glow) 45%, transparent), 0 0 32px 4px color-mix(in oklch, var(--glow) 35%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 14px color-mix(in oklch, var(--glow) 0%, transparent), 0 0 56px 12px color-mix(in oklch, var(--glow) 55%, transparent);
-  }
-}
-
-@keyframes drift {
-  0% {
-    transform: translate(0, 0);
-  }
-  50% {
-    transform: translate(2%, -3%);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2.6s ease-in-out infinite;
-}
-
-.animate-drift {
-  animation: drift 14s ease-in-out infinite;
 }

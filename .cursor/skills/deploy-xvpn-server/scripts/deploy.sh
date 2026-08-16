@@ -36,6 +36,6 @@ wg show wg0 | head -16
 rm -f "$BIN_LOCAL"
 
 echo "=== público ==="
-curl -sf -o /dev/null -w "public_api=%{http_code}\n" https://vpn.officeempresa.com/api/status
-curl -s https://vpn.officeempresa.com/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1
+curl -sf -o /dev/null -w "public_api=%{http_code}\n" https://xvpn.ihuull.com/api/status
+curl -s https://xvpn.ihuull.com/ 2>/dev/null | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js' | head -1 || true
 echo "deploy ok"

@@ -4,52 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-// Store encapsula a conexão GORM e expõe operações de alto nível usadas
-// pelos handlers HTTP, para não misturar SQL/GORM diretamente com lógica de
-// negócio (ver go-backend.mdc).
+// Store encapsula a conexão GORM (SQLite ou cache em memória quando o
+// Mongo é a fonte da verdade — Fase 28) e expõe operações de alto nível.
 type Store struct {
-	DB *gorm.DB
-}
-
-// Open conecta ao SQLite em path e roda as migrações automáticas.
-func Open(path string) (*Store, error) {
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("abrindo banco %q: %w", path, err)
-	}
-
-	// Fase 10 (RBAC): detecta *antes* do AutoMigrate se a coluna `role`
-	// ainda não existe, para saber se este boot é a migração inicial de um
-	// banco pré-Fase-10 — nesse caso é preciso promover quem já existia
-	// (ver backfillInitialRoles). Numa instalação nova ou já migrada, a
-	// coluna já existe e o backfill vira no-op (sem usuários para migrar).
-	needsRoleBackfill := !db.Migrator().HasColumn(&User{}, "role")
-
-	if err := db.AutoMigrate(
-		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
-		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
-		&PanelSettings{},
-		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
-		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
-		&SocialAttachment{}, &Story{}, &StoryView{},
-	); err != nil {
-		return nil, fmt.Errorf("migrando schema: %w", err)
-	}
-
-	if needsRoleBackfill {
-		if err := backfillInitialRoles(db); err != nil {
-			return nil, fmt.Errorf("migrando papéis (Fase 10): %w", err)
-		}
-	}
-
-	return &Store{DB: db}, nil
+	DB    *gorm.DB
+	mongo *mongoSync
 }
 
 // backfillInitialRoles roda uma única vez, no boot em que a coluna `role` é

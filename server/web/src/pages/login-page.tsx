@@ -55,7 +55,8 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
   }
 
   return (
-    <div className="dot-grid relative flex min-h-svh items-center justify-center overflow-hidden bg-background p-4">
+    <div className="watch-face relative flex min-h-svh items-center justify-center overflow-hidden p-4">
+      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="glow-blob pointer-events-none absolute top-1/2 left-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2" />
       <motion.div
         initial={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -63,7 +64,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
         transition={{ duration: 0.4, ease: 'easeOut' }}
         className="relative z-10 w-full max-w-sm"
       >
-        <Card className="cyber-frame border-white/5 bg-card/80 backdrop-blur">
+        <Card>
           <CardHeader className="items-center text-center">
             <div className="relative mb-2 flex size-16 items-center justify-center">
               <div className="cyber-diamond absolute inset-0 m-auto size-12 bg-primary/10" />
@@ -73,8 +74,8 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
                 <UserRound className="relative size-7 text-primary drop-shadow-[0_0_10px_var(--color-glow)]" />
               )}
             </div>
-            <CardTitle className="text-xl tracking-tight">
-              {isAdminLogin ? 'XVPN — Administração' : 'XVPN — Meu espaço'}
+            <CardTitle className="font-display text-xl tracking-tight">
+              {isAdminLogin ? 'xvpn — Administração' : 'xvpn'}
             </CardTitle>
             <CardDescription className="hud-label text-muted-foreground/80">
               {isAdminLogin
@@ -117,7 +118,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
                   {error}
                 </p>
               )}
-              <Button type="submit" disabled={submitting} className="mt-2 rounded-md font-mono tracking-wide">
+              <Button type="submit" disabled={submitting} className="mt-2 rounded-[10px] font-display tracking-wide">
                 {submitting ? 'Autenticando…' : 'Entrar →'}
               </Button>
             </form>

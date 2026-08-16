@@ -13,6 +13,9 @@ const (
 	RoleAdmin      Role = "admin"
 	RoleViewer     Role = "viewer"
 	RoleMember     Role = "member"
+	// RoleBot é o usuário de sistema xbot (Fase 27): sem login no painel,
+	// sem peer WireGuard. Não entra em AdminRoles/ViewerUpRoles.
+	RoleBot Role = "xbot"
 )
 
 // roleRank ordena papéis para checagens de "quem pode gerenciar quem"

@@ -4,13 +4,13 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2** (Fases 0–16), **v0.3** (Fases 17–18 + chrome fixo) e **v0.4** (Fase 19) concluídos em código/produção.
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–29) em código. **Fase 30** (design system) em andamento. Hostname canônico: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Próximo / em curso (v0.6):** [Fase 21 — mídia, stories e chamadas](#fase-21--mídia-stories-e-chamadas-v06). Fase 20 (messenger) concluída em código. Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
+> **Aplicar no VPS:** runbooks Cloudflare (A já apontam), intranet-dnsmasq, certs `*.corp`, Nginx ihuull, Mongo — **não** ligar `XVPN_MONGO_URI` no mesmo instante que o binário JWE.
 >
-> **Ordem desta fase:** **21.1** anexos → **21.2** áudio → **21.3** grupos no messenger → **21.4** stories → **21.5** chamadas 1:1 → **21.6** recibos, som e settings.
+> Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
 
 ---
 
@@ -937,6 +937,118 @@ Messenger da Fase 20 ganha o que o WhatsApp/Telegram têm de básico: arquivo, �
 
 ---
 
+## Fase 22 — DNS e registry (v0.7)
+
+Documentação e registro. Sem código de app, sem mudança no VPS.
+
+- [x] Reescrever [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops): público (`xvpn` / landings) vs intranet (`*.corp`), Mongo `127.0.0.1:27017`, DNS `10.66.66.1:53`.
+- [x] Runbook Cloudflare [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md) — o que criar, o que **não** criar, proxy cinza, DNS-01 para `*.corp`.
+- [x] Skill `port-domain-registry-check` atualizada (corp, Mongo, dnsmasq).
+- [x] `AGENTS.md` + `security-networking.mdc` com invariantes de domínio ihuull / corp.
+- [x] `CONTRIBUTING.md`: par hooks Cursor (`.cursor/hooks.json`) vs `.githooks/pre-commit`.
+
+**Critério de saída:** um agente novo não cria A público para `corp` e não reserva porta sem olhar §5.
+
+---
+
+## Fase 23 — Intranet (dnsmasq, Nginx `*.corp`, gate VPN)
+
+- [x] dnsmasq (ou CoreDNS) em `10.66.66.1:53` — zona `corp.ihuull.com` / `*.corp.ihuull.com` → `10.66.66.1`; forward `8.8.8.8`; **nunca** `:53` em `eth0`. Conf + runbook no repo (`server/deploy/dnsmasq`, `docs/runbooks/intranet-dnsmasq.md`).
+- [x] Nginx `*.corp.ihuull.com`: `listen 10.66.66.1:443 ssl` + `allow 10.66.66.0/24; deny all;` (`server/deploy/nginx/corp.conf`).
+- [x] Certificado `*.corp.ihuull.com` via DNS-01 (Certbot + Cloudflare) — procedimento no runbook.
+- [x] Enrollment empurra `DNS = 10.66.66.1` no peer; helper aplica o default em devices já enrolled.
+- [x] Gate nos apps desktop: recusam API se o helper do xvpn disser `disconnected` ou se `*.corp` não resolver para `10.66.66.1`.
+
+**Critério de saída:** `dig xchat.corp.ihuull.com` fora da VPN falha; dentro do túnel responde `10.66.66.1`.
+
+---
+
+## Fase 24 — Cutover de hostname
+
+- [x] Server blocks `xvpn.ihuull.com`, `www.ihuull.com` / `ihuull.com`, `ihuu.com` / `www.ihuu.com`.
+- [x] Sem alias `vpn.officeempresa.com` no produto (Nginx, docs, defaults).
+- [x] Certbot HTTP-01 nos hostnames públicos — procedimento no runbook Cloudflare.
+- [x] `DefaultBaseURL` do chat aponta para `xchat.corp.ihuull.com`; issuer/painel `xvpn.ihuull.com`.
+- [x] Health do deploy: `https://xvpn.ihuull.com/api/status`.
+
+**Critério de saída:** login em `xvpn.ihuull.com`; nenhum hostname officeempresa no código/docs vivos.
+
+---
+
+## Fase 25 — Chamadas (WebRTC no Linux)
+
+Wails3 permanece. O buraco é o WebKitGTK sem `RTCPeerConnection`.
+
+- [x] Feature-detect `RTCPeerConnection` no overlay de chamada.
+- [x] Se faltar: botão “Abrir chamada no navegador” → `https://xchat.corp.ihuull.com` (Chromium do SO, na VPN).
+- [x] Sem TURN/porta nova. Sem trocar Wails por Electron/Tauri.
+
+**Critério de saída:** no Linux sem WebRTC o usuário não vê crash — vê o fallback; no Windows (WebView2) a chamada in-app continua.
+
+---
+
+## Fase 26 — Marca e rotas (xchat / xgroup / xdriver)
+
+- [x] Marketplace / UI: `xvpn-chat` → **xchat** (disco `apps/xvpn-chat` permanece; slug e hostname mudam).
+- [x] `/social` permanece path interno; produto e hostname = **xgroup** (alias `/xgroup`).
+- [x] Shares / FileBrowser = **xdriver** (hostname + UI; Samba/FB no sítio — sem fork).
+- [x] xvpn continua o core/launcher e inicia a sessão dos outros apps.
+
+**Critério de saída:** catálogo e chrome falam xchat/xgroup/xdriver; FileBrowser não foi forkado.
+
+---
+
+## Fase 27 — JWE SSO + xbot
+
+- [x] Token JWE (payload cifrado) no lugar do JWT só assinado. Issuer `https://xvpn.ihuull.com`, `aud` por app (`xchat`, `xgroup`, `xdriver`).
+- [x] TTL curto + refresh. Desktop: token só em memória. JWT HMAC é rejeitado (`Parse` exige JWE compacto de 5 partes).
+- [x] Usuário de sistema `xbot` (role próprio, sem login no painel, sem peer WG).
+- [x] `POST /api/hooks/chat/broadcast` com token de serviço (`XBOT_TOKEN`).
+- [x] Workflow de notify no GitHub Actions (secret `XBOT_TOKEN`) — nunca JWT de humano.
+
+**Critério de saída:** um app pede token com `aud` certo; xbot manda mensagem de sistema no merge.
+
+---
+
+## Fase 28 — Mongo no VPS
+
+- [x] `mongod` bind `127.0.0.1:27017`, auth + user `xvpn`, sem porta no ufw — conf + runbook no repo.
+- [x] Store Go: `XVPN_MONGO_URI` torna Mongo a fonte da verdade (cache GORM em memória); sem URI = SQLite (testes/CI).
+- [x] Script one-shot `sqlite → mongo` (`server/cmd/xvpn-migrate-mongo`). Blobs continuam no disco.
+- [x] `backup.sh` usa `mongodump` quando a URI está set.
+- [x] FileBrowser Quantum (SQLite próprio) **fora** desta migração.
+
+**Critério de saída:** server sobe contra Mongo local; backup diário é dump; 27017 não aparece no `ss` público.
+
+---
+
+## Fase 29 — Docs API + skill de app novo
+
+- [x] `docs/api.md` (rotas Gin: auth, devices, social/xchat, marketplace, hooks).
+- [x] Skill `new-intranet-app` (slug, `*.corp`, JWE `aud`, bind `wg0`, sem porta pública, `marketplace.yaml` único).
+- [x] Skill `xbot-notify` + `deploy-xvpn-server` com health em `xvpn.ihuull.com`.
+- [x] Fases 22–29 marcadas; invariantes de reuso (não duplicar chat/social/arquivos).
+
+**Critério de saída do ciclo:** login em `xvpn.ihuull.com`, apps desktop só com túnel, `*.corp` inacessível sem VPN, Mongo sem porta pública, xbot notifica no merge.
+
+---
+
+## Fase 30 — Design system (painel = xvpn = xchat)
+
+O painel web deixa a paleta navy/Workspace e passa a **importar** o mesmo color system SASS dos apps desktop. Componentes documentados em `shared/ui/COMPONENTS.md` — não copiar tokens nem `watch-complication` de um app para o outro.
+
+- [x] `PLAN.md` §6.3 + [§6.12](./PLAN.md#612-design-system-e-color-system): fonte única `shared/ui`, SASS, regras de reuso.
+- [x] Color system SASS (`_color-system.scss` maps dark/light/icq) + utilities `watch-*` + `tailwind-bridge.css`.
+- [x] Três Vite importam `@xvpn/ui` (`server/web`, `xvpn-client`, `xvpn-chat`). Sem `:root` oklch duplicado.
+- [x] Primitivos `ShellFace` / `IconButton` / `Complication` / `StatusDot`; `WatchShell` e `ChatShell` reexportam.
+- [x] Painel: `SystemChrome` + login + `Card` usam `watch-face` / `watch-complication` / Outfit.
+- [x] Catálogo `shared/ui/COMPONENTS.md` + skill `desktop-app-ui` (painel incluso).
+- [x] `frontend-react.mdc` e `new-intranet-app` apontam para `shared/ui`.
+
+**Critério de saída:** mudar um token em `_color-system.scss` altera os três frontends; `rg 'oklch\\(0\\.15 0\\.022 255\\)'` (navy antigo) vazio nos CSS de app.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -946,6 +1058,8 @@ Messenger da Fase 20 ganha o que o WhatsApp/Telegram têm de básico: arquivo, �
 - **Parte V (19):** v0.4 — 19.1 → 19.2 → 19.3 → 19.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v04-decidida)).
 - **Parte VI (20):** v0.5 — 20.1 → 20.2 → 20.3 → 20.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v05-decidida)).
 - **Parte VII (21):** v0.6 — 21.1 → 21.2 → 21.3 → 21.4 → 21.5 → 21.6 (mídia desbloqueia áudio/stories; chamadas e recibos por último).
+- **Parte VIII (22–29):** v0.7+ — DNS/registry → intranet → cutover → chamadas → marca → JWE/xbot → Mongo → docs. Não misturar JWE+Mongo+domínio no mesmo deploy.
+- **Parte IX (30):** design system SASS em `shared/ui` — painel = xvpn = xchat.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

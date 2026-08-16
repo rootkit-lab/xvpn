@@ -63,7 +63,12 @@ def main() -> None:
         channel = data.get("channel", "stable")
         version = data.get("version")
         if source == "build":
-            version = versions.get(f"apps/{slug}") or versions.get(slug) or version
+            version = (
+                versions.get(f"apps/{slug}")
+                or versions.get(f"apps/{path.parent.name}")
+                or versions.get(slug)
+                or version
+            )
             if not version:
                 print(f"AVISO: sem versão para {slug} — pulando", file=sys.stderr)
                 continue

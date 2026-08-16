@@ -4,10 +4,10 @@ platform: "linux"
 version: ${XVPN_VERSION}
 section: "net"
 priority: "optional"
-maintainer: "rootkit-lab <noreply@officeempresa.com>"
-description: Cliente desktop de chat da organização XVPN.
+maintainer: "rootkit-lab <noreply@ihuull.com>"
+description: Messenger xchat da intranet ihuull (exige xvpn conectado).
 vendor: "rootkit-lab"
-homepage: "https://vpn.officeempresa.com"
+homepage: "https://xchat.ihuull.com"
 license: "MIT"
 
 contents:

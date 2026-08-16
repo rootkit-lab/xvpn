@@ -34,7 +34,7 @@ func main() {
 			Handler: application.AssetFileServerFS(assets),
 		},
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: "com.officeempresa.xvpn-chat",
+			UniqueID: "com.ihuull.xchat",
 		},
 	})
 	wailsApp = app

@@ -30,7 +30,7 @@ function isOnline(device: Device): boolean {
 }
 
 const SHORTCUTS = [
-  { to: '/my/files', label: 'Arquivos', description: 'Samba, SFTP e FileBrowser na VPN', icon: FolderOpen },
+  { to: '/my/files', label: 'xdriver', description: 'Samba, SFTP e FileBrowser na VPN (xdriver.corp)', icon: FolderOpen },
   { to: '/my/profile', label: 'Perfil', description: 'Papel, cota e resumo da conta', icon: UserRound },
   { to: '/my/account', label: 'Editar conta', description: 'Trocar senha e chave SSH', icon: Pencil },
   { to: '/my/marketplace', label: 'Apps', description: 'Catálogo interno de programas', icon: Store },

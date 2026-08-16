@@ -7,6 +7,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/chat/internal/socialclient"
 	"github.com/rootkit-lab/xvpn/chat/internal/version"
+	"github.com/rootkit-lab/xvpn/chat/internal/vpngate"
 )
 
 // ChatService é a ponte Wails entre a GUI e o protocolo social (Fase 19.3).
@@ -27,6 +28,9 @@ func (s *ChatService) Version() string {
 }
 
 func (s *ChatService) Login(username, password string) (socialclient.Session, error) {
+	if err := vpngate.Check(); err != nil {
+		return socialclient.Session{}, err
+	}
 	return s.client.Login(context.Background(), socialclient.DefaultBaseURL, username, password)
 }
 

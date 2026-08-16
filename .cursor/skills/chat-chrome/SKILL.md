@@ -16,7 +16,7 @@ O chat **não** é um FAB / popup no canto da tela, **não** é um modal com bac
 | Desktop | janela Wails (`apps/xvpn-chat`) — visual do `xvpn-client` (skill `desktop-app-ui`); temas `dark` (default) / `light` / `icq` |
 | Fora | landing, `/my/login`, `/admin/login` |
 
-Tema no chrome web: `inherit`. Não pinte o rail de verde ICQ nem de `watch-face` preto sobre o `/my`. Escape fecha a janela focada e depois o rail.
+Tema no chrome web: `inherit` (herda o `:root` do design system — já é preto profundo, não navy). Não pinte o rail de verde ICQ. Escape fecha a janela focada e depois o rail.
 
 Mídia/chamadas (Fase 21): clipe + drag/Ctrl+V + áudio no composer; stories no topo da lista (composer/viewer em **modal**); chamada 1:1 no header da DM. Overlay de chamada vive no `ChatProvider` (uma instância). Settings: sons, teste de mic (loopback), prévia de câmera, privacidade. Ticks enviado/entregue/lido nas bolhas. Sem TURN/porta nova.
 

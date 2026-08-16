@@ -491,6 +491,10 @@ export function ChatProvider({
   )
 
   const startCall = useCallback((to: number, video: boolean) => {
+    if (typeof globalThis.RTCPeerConnection !== 'function') {
+      window.open('https://xchat.corp.ihuull.com/social/messages', '_blank', 'noopener,noreferrer')
+      return
+    }
     setOutgoingCall({ to, video, callId: `c-${Date.now()}-${to}` })
   }, [])
 

@@ -1,6 +1,8 @@
 # XVPN — Plano Técnico Completo
 
 > Rede privada própria (estilo "VPN pessoal com exit node"), painel web de administração e cliente desktop (Windows/Linux) construído em Go + Wails3 + React/Tailwind/shadcn, hospedado no seu VPS Ubuntu.
+>
+> **Estado atual (v0.7+):** painel/enroll em `https://xvpn.ihuull.com`; landing `www.ihuull.com` / `ihuu.com`; apps desktop na intranet `*.corp.ihuull.com` (xchat, xgroup, xdriver). Auth **só JWE** (sem JWT HMAC). Mongo em `127.0.0.1:27017` quando `XVPN_MONGO_URI` está set; senão SQLite (testes/CI). `ldpops.appapisip.com` não muda. Runbook DNS: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md). API: [`docs/api.md`](./docs/api.md).
 
 ---
 
@@ -19,7 +21,7 @@ Antes de desenhar qualquer arquitetura, inspecionei o servidor para não propor 
 | SSH | `PermitRootLogin yes`; `PasswordAuthentication` **conflitante** entre `50-cloud-init.conf` (yes) e `60-cloudimg-settings.conf` (no) | Como o OpenSSH usa o *primeiro* valor encontrado e `50-*` é lido antes de `60-*`, na prática **login por senha pode ainda estar habilitado**, mesmo você achando que só a chave funciona. Vamos fechar isso explicitamente (ver §9). |
 | Nginx / Docker / Samba / Go / Node | Nenhum instalado ainda | Ambiente limpo — vamos instalar tudo do zero, com controle total sobre versões. |
 | **Outra aplicação em preparação** | `/opt/landpages-ops/landpages-ops-web` (binário Go, usuário de sistema dedicado `landpages-ops`), vai usar **Nginx** e domínio próprio `ldpops.appapisip.com` | **Decisão de arquitetura:** o Nginx será um **reverse proxy compartilhado** no servidor, com um *server block* por aplicação/domínio. O XVPN não pode assumir que é o único serviço HTTP da máquina. |
-| **Domínios confirmados (DNS já verificado)** | `vpn.officeempresa.com` → XVPN (painel/API); `ldpops.appapisip.com` → landpages-ops. Ambos resolvendo para `206.189.224.72` (confirmado via `dig`) | Já podemos configurar os *server blocks* do Nginx e emitir certificados Let's Encrypt para os dois, sem esperar propagação de DNS. |
+| **Domínios confirmados (DNS já verificado)** | Públicos: `xvpn.ihuull.com`, `www.ihuull.com` / `ihuull.com`, `ihuu.com` / `www.ihuu.com`, `xchat.ihuull.com` (marketing). Intranet: `*.corp.ihuull.com` só no dnsmasq (`10.66.66.1`). `ldpops.appapisip.com` → landpages-ops. A públicos → `206.189.224.72`. | Server blocks Nginx + Certbot nos hostnames ihuull. Sem A público para `corp`. |
 
 Essa última linha muda uma decisão importante: eu ia sugerir **Caddy** (TLS automático, config mais simples) para o painel — mas como já vai existir Nginx no servidor para outra app, **vamos padronizar tudo em Nginx + Certbot**, para não ter dois reverse proxies brigando pelas portas 80/443. É a decisão tecnicamente mais correta dado o contexto real do servidor, mesmo custando um pouco mais de configuração manual de TLS.
 
@@ -97,8 +99,8 @@ Isso resolve o maior problema de UX de VPNs "amadoras": o usuário não digita s
 ### 3.3 Reverse proxy e TLS: Nginx (não Caddy)
 
 Como definido em §1, o Nginx será compartilhado entre o XVPN e o `landpages-ops`. Cada aplicação recebe:
-- Seu próprio *server block* (`/etc/nginx/sites-available/xvpn.conf` para `vpn.officeempresa.com`, e um equivalente para `ldpops.appapisip.com`);
-- Seu próprio certificado (via **Certbot**, plugin nginx, renovação automática por timer systemd) — como os dois domínios já resolvem para `206.189.224.72`, os certificados já podem ser emitidos (`certbot --nginx -d vpn.officeempresa.com` e `-d ldpops.appapisip.com`), sem esperar propagação de DNS;
+- Seu próprio *server block* (`/etc/nginx/sites-available/xvpn.conf` para `xvpn.ihuull.com`, landing em `ihuull-landing.conf`, intranet em `xvpn-corp.conf`; `ldpops.appapisip.com` é do landpages-ops);
+- Seu próprio certificado (via **Certbot**: HTTP-01 nos hostnames públicos, DNS-01 para `*.corp.ihuull.com`);
 - Seu próprio backend em `127.0.0.1:<porta>` — **nunca exposto diretamente na internet**, só via proxy.
 
 ### 3.4 Compartilhamento de arquivos: Samba + FileBrowser, ambos **restritos à VPN**
@@ -111,7 +113,7 @@ Como definido em §1, o Nginx será compartilhado entre o XVPN e o `landpages-op
 **Decisão crítica de segurança:** diferente do painel de administração (que **precisa** ser público, senão você não consegue nem se cadastrar/enrolar um dispositivo antes de ter VPN), o compartilhamento de arquivos **não tem esse problema de ovo-e-galinha** — então ele fica **inacessível pela internet pública**, só respondendo na interface `wg0` (IP `10.66.66.1`):
 
 - Samba: `smb.conf` com `bind interfaces only = yes` + `interfaces = 10.66.66.1/24 127.0.0.1/8` — mesmo que o firewall falhe, o serviço fisicamente não aceita conexão vinda do `eth0`. Especificado por IP/CIDR, não pelo nome da interface (`wg0`): o Samba detecta interfaces automaticamente supondo broadcast/netmask convencionais, e `wg0` é ponto-a-ponto (sem broadcast) — com `interfaces = wg0 lo` o `smbd` sobe normal mas só fica escutando em `127.0.0.1`, achado ao validar a Fase 5 via túnel real (ver `ROADMAP.md`).
-- FileBrowser: processo escuta em `10.66.66.1:8081`, **não** cadastrado no Nginx público, sem domínio/certificado público. Acesso via `http://10.66.66.1:8081` só funciona com o túnel ativo. Implementado com o fork ativamente mantido **FileBrowser Quantum** (`gtsteffaniak/filebrowser`) — o projeto original (`filebrowser/filebrowser`) foi arquivado em 2026-09-01, sem mais correções de segurança (ver `ROADMAP.md` Fase 5).
+- FileBrowser / **xdriver**: processo escuta em `10.66.66.1:8081`, **não** no Nginx público. Hostname de intranet `https://xdriver.corp.ihuull.com` (cert `*.corp`, só `wg0`). Implementado com o fork ativamente mantido **FileBrowser Quantum** (`gtsteffaniak/filebrowser`) — o projeto original (`filebrowser/filebrowser`) foi arquivado em 2026-09-01, sem mais correções de segurança (ver `ROADMAP.md` Fase 5). Sem fork do FileBrowser.
 
 Isso é defesa em profundidade: mesmo um erro de firewall não expõe seus arquivos ao mundo.
 
@@ -152,27 +154,58 @@ graph TB
 
 ## 5. Alocação de rede, portas e domínios (registro para não colidir com `landpages-ops`)
 
+Fonte da verdade de portas, hostnames e bind. Qualquer serviço novo no VPS **entra nesta tabela antes** de ser configurado. Runbook Cloudflare (o que criar / o que **não** criar): [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md). Skill: `port-domain-registry-check`.
+
+**Dois planos de DNS, de propósito.** Hostnames públicos resolvem para `206.189.224.72` e saem da VPN (rota `/32` do cliente — §6.9). Comunicação de app no desktop resolve para `10.66.66.1` via DNS interno (`*.corp.ihuull.com`). Sem isso, HTTPS/WSS do chat “pelo domínio público” nunca entra no túnel.
+
+`ldpops.appapisip.com` **não muda**. Hostnames de produto são só ihuull / ihuu / `*.corp`.
+
+### 5.1 Hostnames públicos (internet)
+
 | Recurso | Valor | Observação |
 |---|---|---|
-| Domínio XVPN (painel/API) | `vpn.officeempresa.com` | DNS já apontado para `206.189.224.72` (confirmado via `dig`) |
-| Domínio landpages-ops | `ldpops.appapisip.com` | DNS já apontado para `206.189.224.72` (confirmado via `dig`) |
-| Sub-rede WireGuard | `10.66.66.0/24` | Servidor = `10.66.66.1`; clientes a partir de `10.66.66.2` |
-| ~~`10.10.0.0/24`~~ | **Evitar** | Já roteada no `eth0` pela infra atual |
-| ~~`10.136.0.0/16`~~ | **Evitar** | Já usada pelo `eth1` (VPC DigitalOcean) |
-| Porta WireGuard | `51820/udp` | Público, é o único ponto de entrada da VPN |
-| Painel/API XVPN | `127.0.0.1:8080` (interno) → `https://vpn.officeempresa.com` (via Nginx) | Nunca exposto direto |
-| API XVPN — listener do túnel (Fase 14) | `10.66.66.1:8080` | **Mesma porta, outra interface.** Bind só em `wg0`, nunca em `0.0.0.0`/`eth0`; sem entrada no Nginx e sem domínio. Existe porque o HTTPS do painel **não** passa dentro do túnel (a rota `/32` de exceção do cliente o desvia — ver §6.9), então é o único caminho pelo qual um peer chega à API com um `10.66.66.x` como IP de origem. Só as rotas `GET /api/me` e `POST /api/me/ssh-key` respondem aqui, atrás de um middleware que exige `RemoteIP()` na sub-rede da VPN |
-| `landpages-ops-web` | Porta a definir por aquele projeto (ex. `127.0.0.1:3000`) → `https://ldpops.appapisip.com` (via Nginx) | **Não usar `8080`/`51820`/`8081` nem `10.66.66.0/24`** para evitar colisão |
-| Samba (SMB) | `445/tcp` | Bind **somente** em `wg0` (`10.66.66.1`) — nunca no `eth0`. NetBIOS/`139` (`nmbd`) desabilitado de propósito: clientes modernos resolvem por IP direto via SMB2/3, dispensando essa superfície extra (ver Fase 5 do `ROADMAP.md`) |
-| FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
-| Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via API em `127.0.0.1:8080` → `https://vpn.officeempresa.com` (JWT) | **Sem porta/domínio novo.** Não confundir com Samba/FileBrowser (só `wg0`). Download autenticado; nunca anônimo na internet pública. |
-| WebSocket social/chat (Fase 19) | `wss://vpn.officeempresa.com/api/ws` → mesmo `127.0.0.1:8080` | **Sem porta/domínio novo.** `location /api/ws` no Nginx com `Upgrade`/`Connection` só nesse path (não no catch-all). Auth no primeiro frame, nunca token na query string. O app `xvpn-chat` é cliente desse endpoint — não abre listener próprio. |
-| Mídia do chat (Fase 21) | Disco `/opt/xvpn/data/social/` · `POST /api/social/attachments` (JWT, 32 MiB) | **Sem porta/domínio novo.** Location Nginx isolada (`client_max_body_size 40m`). Chamadas WebRTC são P2P (sinalização no WS existente); sem TURN/porta extra. |
-| SFTP por usuário (Fase 13) | `22/tcp` (reaproveitada, `Match User` no `sshd_config`) | **Sem porta nova.** Só `internal-sftp` + chroot em `/home/<username>`; sem shell. Ver §6.9. |
-| SSH | `22/tcp` | Mantém, mas hardening (§9) |
-| DNS interno (opcional, fase futura) | `10.66.66.1:53` | Evita vazamento de DNS quando full-tunnel ativo |
+| Landing ihuull | `www.ihuull.com`, `ihuull.com` | A → `206.189.224.72`. Proxy Cloudflare: DNS only (ou laranja só se for HTML estático, sem API/WS) |
+| Landing curta | `www.ihuu.com`, `ihuu.com` | Mesmo root Nginx da landing. Sem este A o hostname não existe |
+| Painel / enroll / JWE / marketplace | `xvpn.ihuull.com` | **DNS only** (laranja quebra WS longo). Backend `127.0.0.1:8080` |
+| Marketing xchat | `xchat.ihuull.com` | Landing “conecte a VPN / abra o app”. **Não** é o WebSocket nem a API do messenger |
+| landpages-ops | `ldpops.appapisip.com` | **Não muda.** Outra app Go no mesmo Nginx |
 
-> Ação recomendada: manter este bloco como a "fonte da verdade" de portas usadas no servidor, e pedir para quem for configurar o `landpages-ops` checar aqui antes de escolher porta/subdomínio.
+**Não criar** A/AAAA públicos para `corp.ihuull.com`, `*.corp.ihuull.com`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`. Wildcard `*.ihuull.com` casa `corp.ihuull.com` (um rótulo) — se o wildcard A existir, crie `corp` **sem** A (TXT `intranet-only`) para o nome não resolver fora do túnel. Wildcard **não** cobre `xchat.corp.ihuull.com` (dois rótulos).
+
+### 5.2 Hostnames de intranet (`*.corp` — só com VPN)
+
+Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1:443 ssl` + `allow 10.66.66.0/24; deny all;`. Cert `*.corp.ihuull.com` via **DNS-01** (não precisa de A público).
+
+| Recurso | Hostname | Backend | Observação |
+|---|---|---|---|
+| Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice / health da intranet |
+| xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Comunicação do messenger. Desktop recusa se DNS ≠ `10.66.66.1` |
+| xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Não misturar com xchat |
+| xdriver (arquivos) | `xdriver.corp.ihuull.com` | `10.66.66.1:8081` (FileBrowser) | SSO na frente; **não** fork do FileBrowser. Samba continua `wg0:445` |
+
+### 5.3 Portas, binds e disco
+
+| Recurso | Valor | Observação |
+|---|---|---|
+| Sub-rede WireGuard | `10.66.66.0/24` | Servidor = `10.66.66.1`; clientes a partir de `10.66.66.2` |
+| ~~`10.10.0.0/24`~~ | **Evitar** | Já roteada no `eth0` |
+| ~~`10.136.0.0/16`~~ | **Evitar** | Já usada pelo `eth1` (VPC DigitalOcean) |
+| Porta WireGuard | `51820/udp` | Público — único ponto de entrada da VPN |
+| Painel/API (loopback) | `127.0.0.1:8080` → `https://xvpn.ihuull.com` | Nunca exposto direto |
+| API no túnel (Fase 14) | `10.66.66.1:8080` | Mesma porta, outra interface. Bind só `wg0`. Só `/api/me` e `/api/me/ssh-key` com `RemoteIP()` na subnet |
+| `landpages-ops-web` | ex. `127.0.0.1:3000` → `https://ldpops.appapisip.com` | **Não usar** `8080`/`8081`/`51820`/`27017`/`53` nem `10.66.66.0/24` |
+| Samba (SMB) | `10.66.66.1:445` | Bind **somente** `wg0`. `nmbd`/139 desabilitado |
+| FileBrowser / xdriver | `10.66.66.1:8081` | Bind somente `wg0` — nunca público |
+| Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via `127.0.0.1:8080` | Sem porta nova. JWE. Nunca anônimo na internet |
+| WebSocket xchat | `wss://xchat.corp.ihuull.com/api/ws` → `127.0.0.1:8080` | Upgrade **só** neste path. Auth no primeiro frame. App desktop não abre listener |
+| Mídia do chat | Disco `/opt/xvpn/data/social/` · `POST /api/social/attachments` | Location Nginx `40m`. WebRTC P2P; sem TURN/porta |
+| SFTP por usuário | `22/tcp` (`Match User`) | Sem porta nova. `internal-sftp` + chroot. §6.9 |
+| SSH | `22/tcp` | Hardening §9 |
+| DNS interno | `10.66.66.1:53` (dnsmasq/CoreDNS) | **Só `wg0`.** Nunca `:53` em `eth0`/`0.0.0.0`. Forward `8.8.8.8` para o resto. Zona: `corp.ihuull.com` e `*.corp.ihuull.com` → `10.66.66.1` |
+| MongoDB | `127.0.0.1:27017` | Auth + user `xvpn`. **Sem** porta no ufw. Substitui SQLite (`/opt/xvpn/data/xvpn.db`) na Fase 28. FileBrowser Quantum (SQLite próprio) **não** entra nesta migração |
+| ufw público | `22/tcp`, `80/tcp`, `443/tcp`, `51820/udp` | Padrão-nega. Sem 27017, sem 53, sem 445 na `eth0` |
+
+> Quem for configurar o `landpages-ops` (ou um app novo do marketplace) checa esta tabela **e** o runbook Cloudflare antes de escolher porta ou hostname. App de intranet novo: skill `new-intranet-app`.
 
 ---
 
@@ -180,8 +213,8 @@ graph TB
 
 ### 6.1 Control-plane (Go)
 - Framework HTTP: **Gin** (`v1.10.1`, fixado deliberadamente — a `v1.12.x` exige Go ≥1.25 e traz um grafo de dependências bem mais pesado por causa de suporte a HTTP/3, desnecessário para uma API administrativa pequena).
-- ORM/DB: **GORM + SQLite** (`mattn/go-sqlite3`, via cgo; arquivo único em `/opt/xvpn/data/xvpn.db`), suficiente e sem overhead operacional para 1–15 usuários. Migração para Postgres é trivial via GORM se um dia escalar.
-- Autenticação do painel: JWT (`golang-jwt/jwt/v5`, HMAC-SHA256) + senha com hash Argon2id (parâmetros OWASP 2024: 64 MB, t=3, p=2).
+- ORM/DB: **MongoDB** em produção (`127.0.0.1:27017`, user `xvpn`, `XVPN_MONGO_URI`) com cache GORM em memória para os handlers; **SQLite** permanece em testes/CI quando a URI está vazia. Blobs de arquivo continuam no disco. FileBrowser Quantum (SQLite próprio) fora desta migração. Backup: `mongodump` (`server/deploy/backup.sh`).
+- Autenticação: **só JWE** (`go-jose`, `dir` + `A256GCM`) com issuer `https://xvpn.ihuull.com` e `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado. Senha: Argon2id (OWASP 2024: 64 MB, t=3, p=2). Desktop: token só em memória. xbot usa `XVPN_XBOT_TOKEN`, nunca JWE de humano.
 - Integração WireGuard: **`golang.zx2c4.com/wireguard/wgctrl`** cuida só da parte "WireGuard" (chave privada, porta, peers) — ela **não** cria a interface de rede nem atribui IP. Para isso (equivalente a `ip link add wg0 type wireguard` + `ip addr add`), o control-plane usa `github.com/vishvananda/netlink` diretamente, mantendo o princípio de "nunca faça shell-out" (`go-backend.mdc`) também nessa parte. `EnsureInterface` é idempotente: cria a interface só se ela ainda não existir (ex.: primeira vez) e sempre reconfigura chave/porta/endereço, sem depender de estado prévio. Peers são adicionados/removidos **dinamicamente em memória**, sem reiniciar a interface nem escrever/reler arquivos `.conf`. No boot do serviço, `ReconcilePeers` sincroniza o conjunto de peers do kernel com o que está no banco (`ReplacePeers: true`), garantindo consistência mesmo após um restart do serviço. O pacote `wireguard-tools` (comando `wg`, usado só para operação manual/depuração via as skills do Cursor) precisa ser instalado à parte — o módulo de kernel por si só não traz o CLI.
 - Capacidades: o binário roda como usuário de sistema dedicado `xvpn` (mesmo padrão do `landpages-ops`), mas com `AmbientCapabilities=CAP_NET_ADMIN` no `systemd` — **não precisa rodar como root completo** para manipular a interface WireGuard. A unit usa `ProtectSystem=true` + `PrivateTmp`; após a Fase 13, `NoNewPrivileges=false` e `ProtectHome=false` são **obrigatórios** para o caminho `sudo → xvpn-user-provision` (`ProtectSystem=strict` quebra o lock do `useradd` em `/etc/.pwd.lock`) — ver `SECURITY.md` e `server/deploy/systemd/xvpn-server.service`.
 - NAT/roteamento: `sysctl net.ipv4.ip_forward=1` (persistente via `/etc/sysctl.d/`); MASQUERADE de `10.66.66.0/24` saindo por `eth0` implementado via a seção `*nat`/`POSTROUTING` nativa do `/etc/ufw/before.rules` (evita duas ferramentas de firewall concorrentes). **Importante**: a chain `FORWARD` do `ufw` é `deny` por padrão — além do NAT, é preciso uma regra explícita `ufw route allow in on wg0 out on eth0` (least-privilege: só libera encaminhamento partindo de `wg0`, não um `DEFAULT_FORWARD_POLICY=ACCEPT` genérico) para o tráfego não ser descartado antes de chegar ao NAT.
@@ -202,13 +235,15 @@ graph TB
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
 Páginas: **Login**, **Dashboard** (peers ativos, throughput agregado), **Usuários** (CRUD + gerar convite/QR code), **Dispositivos** (status, revogar), **Compartilhamentos** (gerenciar pastas Samba/FileBrowser e permissões), **Configurações** (rede, DNS, firewall), **Auditoria** (log de conexões/ações administrativas).
 
+**Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS). Preto profundo, `watch-face`, cards `watch-complication`, Outfit, acento `--safe`. Não há paleta navy/Workspace paralela. Ver [§6.12](#612-design-system-e-color-system).
+
 Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.FS`. Resultado: **um único binário** `xvpn-server` sobe API + painel + lógica WireGuard. Simplifica deploy/systemd a um único serviço.
 
 **Implementado na Fase 3** (ver `ROADMAP.md` para o checklist e achados completos): `go:embed` não aceita `..` no caminho do diretório embutido, então o Vite builda direto dentro da árvore do pacote Go que faz o embed (`server/internal/webui/dist/`, não `server/web/dist/`) — ver `server/internal/webui/webui.go` e `server/web/vite.config.ts`. Dois endpoints de leitura foram adicionados além do previsto originalmente na Fase 2, só para alimentar as telas do painel: `GET /api/config` (config de rede não sensível) e `GET /api/audit` (últimas entradas de auditoria).
 
 ### 6.4 Compartilhamento de arquivos
 - Samba: pacote `samba`, config em `/etc/samba/smb.conf`, um share por usuário/propósito (ex.: `[shared]`, `[home-<usuario>]`), autenticação própria do Samba (`smbpasswd`) — **pode ser sincronizada pelo painel** (ao criar usuário no XVPN, opcionalmente cria também o usuário Samba).
-- FileBrowser: binário único, roda como serviço `systemd` separado (`xvpn-filebrowser.service`), banco próprio (SQLite dele), autenticação própria (ou, em fase futura, SSO simples via o mesmo JWT do painel).
+- FileBrowser / **xdriver**: binário único, `xvpn-filebrowser.service`, bind `10.66.66.1:8081`, hostname `xdriver.corp.ihuull.com`. SQLite próprio do FileBrowser **fora** da migração Mongo. SSO JWE na frente do proxy, sem fork do FileBrowser.
 
 ### 6.5 Hardening do servidor (checklist)
 - [x] Corrigir ambiguidade de `PasswordAuthentication` (`/etc/ssh/sshd_config.d/00-xvpn-hardening.conf` — ver §9 para o porquê do nome `00-`, não `99-`).
@@ -216,11 +251,11 @@ Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.
 - [x] Instalar `fail2ban` para SSH.
 - [x] `unattended-upgrades` para patches de segurança automáticos (já vinha habilitado por padrão na imagem).
 - [x] Samba/FileBrowser **nunca** nas regras do `ufw` para `eth0` — só respondem em `wg0` por design do próprio serviço (defesa em profundidade, não depender só do firewall). *(aplicado na Fase 5: `ufw allow in on wg0 to any port 445/8081`, bind exclusivo em `10.66.66.1`/`127.0.0.1`, validado via túnel real e via IP público, ver `ROADMAP.md` Fase 5)*
-- [x] Backup do `xvpn.db` (cron simples com `sqlite3 .backup` para `/opt/xvpn/backups/`, rotação 7 dias) — implementado na Fase 2 (`server/deploy/backup.sh` + `server/deploy/xvpn-backup.cron`, diário às 03:15).
+- [x] Backup: `mongodump` quando `XVPN_MONGO_URI` está set; senão `sqlite3 .backup`. Rotação 7 dias (`server/deploy/backup.sh`).
 
 ### 6.6 Landing pública e lista de espera (feature adicional, fora das 9 fases originais)
 
-Adicionado depois da Fase 6, a pedido do usuário: `vpn.officeempresa.com/` deixa de ser o dashboard (que passa a viver em `/dashboard`, atrás de login) e passa a ser uma **landing page pública** explicando o produto, com um formulário de "lista de espera" (nome + e-mail + mensagem opcional).
+Landing pública em `www.ihuull.com` / `ihuull.com` / `ihuu.com` (e marketing `xchat.ihuull.com`). O painel autenticado vive em `xvpn.ihuull.com` (`/my`, `/admin`). Formulário de lista de espera (nome + e-mail + mensagem opcional) no mesmo binário.
 
 **Decisão de design — aprovação não provisiona acesso automaticamente**: `POST /api/waitlist` (único endpoint de escrita da API **sem autenticação**) só grava um `WaitlistEntry` com status `pending`. Uma tela nova no painel (`/waitlist`, autenticada) lista os cadastros e permite marcá-los como `approved`/`rejected` — mas isso é só um sinalizador de "pode liberar". Aprovar **não** cria `User`/`InviteToken` automaticamente: o admin ainda cria o usuário e gera o convite manualmente na tela Usuários já existente (Fase 2/3), usando nome/e-mail do cadastro como referência. Justificativa: evita criar um segundo caminho de provisionamento de acesso (com sua própria superfície de bugs/segurança) só para essa conveniência — o único caminho que cria acesso real (`POST /api/users` → `POST /api/users/:id/invite`) continua sendo o mesmo já testado desde a Fase 2, sem mudanças. Mesmo padrão de decisão já usado para usuários Samba (§6.4/`ROADMAP.md` Fase 5): privilegiar manter operações sensíveis manuais em vez de automatizar via um caminho novo e menos escrutinado.
 
@@ -245,20 +280,20 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - Bootstrap do primeiro usuário continua sendo `super_admin`.
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
 
-**Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19, estilo Google Workspace:**
+**Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19 (layout) + Fase 30 (visual ihuull):**
 
 Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` só tem conteúdo da página. O header carrega o **menu da conta logada** (avatar → perfil social, conta, sair) e o seletor de produto (waffle).
 
 | | Meu espaço | XVPN Social | Administração |
 |---|---|---|---|
 | Prefixo | `/my/*` | `/social/*` | `/admin/*` |
-| Login | `/my/login` | mesmo JWT; entra autenticado | `/admin/login` |
+| Login | `/my/login` | mesmo JWE; entra autenticado | `/admin/login` |
 | Shell | `UserShell` / MyShell | `SocialShell` | `AdminShell` |
 | Destino pós-login | `member` → `/my` | atalho no waffle | `viewer+` → `/admin` |
 | Conteúdo | dispositivos, arquivos, downloads, apps, conta (senha/SSH) | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | dashboard, **diretório de usuários** (lista + ficha), papéis, devices, waitlist, marketplace ACL, settings, audit |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
-Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/FileBrowser em `10.66.66.1` — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username`, não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
+Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/xdriver — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username` (produto **xgroup**), não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
 
 Página admin de papéis: `/admin/rbac`. Usuários: lista paginada `/admin/users` + ficha `/admin/users/:id` (abas), não tabela com cinco ícones por linha.
 
@@ -266,7 +301,7 @@ Sem alias e sem rota antiga: `/app`, `/portal`, `/dashboard`, `/login`, `/downlo
 
 Listas (users, devices, waitlist, audit, social) são **paginadas no servidor** (`page`/`per_page`/`q`, default 25, máx. 100) e renderizadas pelo kit compartilhado (`DataTable` / `Pagination`). Ver `ROADMAP.md` Fase 19.1–19.2.
 
-Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat).
+Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat). Design system: [§6.12](#612-design-system-e-color-system).
 
 ### 6.8 Marketplace de software
 
@@ -276,8 +311,8 @@ Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat).
 
 | Tema | Escolha | Por quê |
 |---|---|---|
-| Superfície de rede | Mesmo `xvpn-server` + Nginx (`vpn.officeempresa.com`); blobs em `/opt/xvpn/data/marketplace/` | Sem porta/domínio novo (§5); não misturar com Samba/FileBrowser |
-| Autenticação do download | JWT (usuário do painel) obrigatório | Evita dump público de binários; rate limit + audit |
+| Superfície de rede | Mesmo `xvpn-server` + Nginx (`xvpn.ihuull.com`); blobs em `/opt/xvpn/data/marketplace/` | Sem porta/domínio novo (§5); não misturar com Samba/xdriver |
+| Autenticação do download | JWE (usuário do painel) obrigatório | Evita dump público de binários; rate limit + audit |
 | Modelo | `App` → `AppVersion` → `AppAsset` (platform, arch, sha256, size, path) | Versionamento claro; um app, N builds |
 | ACL | Global (todos `member`+) ou lista de user IDs | Suficiente para 1–15 usuários sem inventar IdP |
 | Cliente XVPN vs catálogo | `/download` = só o cliente XVPN (GitHub Releases); marketplace = **outros** programas | Não sobrecarregar a página de instalação do produto |
@@ -357,7 +392,7 @@ O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — u
 Duas consequências de desenho seguem daí:
 
 1. **Um único `gin.Engine` basta.** Um middleware que exige `RemoteIP()` dentro de `10.66.66.0/24` já rejeita, por construção, tudo que vem pelo Nginx (que conecta de `127.0.0.1`). Manter uma segunda árvore de rotas só para o listener do túnel adicionaria superfície de erro — uma rota registrada na árvore errada falha silenciosamente — sem adicionar garantia.
-2. **O listener em `10.66.66.1:8080` continua necessário, mas por roteamento, não por segurança.** O cliente instala uma rota `/32` para o IP público do VPS via o gateway original antes de trocar a rota padrão (`addHostRouteException`, `client/internal/platform/linux/engine_linux.go:391`), senão o próprio handshake WireGuard entraria em loop. Como `vpn.officeempresa.com` resolve para **esse mesmo IP**, o HTTPS do painel cai nessa exceção e nunca trafega dentro do túnel — o Nginx sempre veria o IP público doméstico do usuário, jamais um `10.66.66.x`. Nenhum header conserta isso; é topologia de rotas. Registrado aqui porque é contraintuitivo e convida a uma "simplificação" que tornaria a rota inalcançável.
+2. **O listener em `10.66.66.1:8080` continua necessário, mas por roteamento, não por segurança.** O cliente instala uma rota `/32` para o IP público do VPS via o gateway original antes de trocar a rota padrão (`addHostRouteException`, `client/internal/platform/linux/engine_linux.go:391`), senão o próprio handshake WireGuard entraria em loop. Como `xvpn.ihuull.com` resolve para **esse mesmo IP**, o HTTPS do painel cai nessa exceção e nunca trafega dentro do túnel — o Nginx sempre veria o IP público doméstico do usuário, jamais um `10.66.66.x`. Por isso a comunicação dos apps desktop usa `*.corp.ihuull.com` (DNS interno → `10.66.66.1`). Nenhum header conserta o painel público; é topologia de rotas. Registrado aqui porque é contraintuitivo e convida a uma "simplificação" que tornaria a rota inalcançável.
 
 > A correção do `SetTrustedProxies` em si é tratada à parte: o mesmo default do Gin já fura hoje os rate limits de login/enroll/waitlist, que contam por `c.ClientIP()` (`server/internal/api/ratelimit.go:74`). É bug presente, não hipótese desta fase.
 
@@ -400,7 +435,7 @@ Se um dia o cliente virar dependência importável de outro módulo do monorepo,
 
 #### 6.10.2 O manifesto é a fonte da verdade
 
-Cada app publicável declara `apps/<slug>/marketplace.yaml`. O `slug` é o nome da pasta e é a **chave de identidade** do app no catálogo (`App.Slug`, unique) — renomear a pasta é, para todos os efeitos, arquivar um app e criar outro.
+Cada app publicável declara `apps/<pasta>/marketplace.yaml`. O campo `slug` é a **chave de identidade** no catálogo (`App.Slug`, unique). A pasta no disco pode diferir (ex.: `apps/xvpn-chat` + slug `xchat`) — o sync usa o slug, não o nome da pasta. Trocar o slug arquiva o app antigo e cria outro.
 
 Dois modos de origem, porque as duas situações reais são diferentes:
 
@@ -458,9 +493,9 @@ O `workflow_dispatch` do `marketplace-sync.yml` é deliberado: quando o catálog
 | `ChatSidebar` + `ChatPopouts` | `SystemChrome` em `/my`, `/admin`, `/social` | botão Chat na status bar; contatos RTL no aside direito; conversas em janelas no rodapé (Facebook), sem overlay |
 | `/social/messages` | SPA do painel | página cheia do mesmo messenger |
 | `apps/xvpn-chat` | marketplace (Go/Wails3) | o **mesmo** frontend React na janela desktop |
-| `xvpn-server` | control-plane | identidade JWT, persistência SQLite, hub WebSocket |
+| `xvpn-server` | control-plane | identidade JWE, persistência Mongo (SQLite em testes), hub WebSocket |
 
-**Não é:** segundo servidor, segundo domínio, porta nova, broker MQTT/Redis, rede indexável na internet, E2E encryption (o perímetro já é a VPN + JWT; mensagens ficam no SQLite).
+**Não é:** segundo servidor, porta pública nova, broker MQTT/Redis, rede indexável na internet, E2E encryption (o perímetro é a VPN + JWE; mensagens ficam no Mongo/SQLite). API/WS do messenger: `xchat.corp.ihuull.com`. Rede social: `xgroup.corp.ihuull.com`. Marketing público: `xchat.ihuull.com` (sem API/WS).
 
 #### Transporte: WebSocket, sempre
 
@@ -472,7 +507,7 @@ Chat e presença são bidirecionais e de baixa latência. Alternativas rejeitada
 | SSE | só servidor→cliente; typing/ack/envio exigiria HTTP paralelo |
 | MQTT / NATS | processo e porta a mais no VPS compartilhado com `landpages-ops`; overkill para 1–15 usuários |
 
-Hub **in-process** no `xvpn-server` (um node). Endpoint único `GET /api/ws` (upgrade), autenticado no **primeiro frame** JSON `{"type":"auth","token":"<jwt>"}`. Token na query string é proibido: cai no access log do Nginx.
+Hub **in-process** no `xvpn-server` (um node). Endpoint único `GET /api/ws` (upgrade), autenticado no **primeiro frame** JSON `{"type":"auth","token":"<jwe>"}`. Token na query string é proibido: cai no access log do Nginx.
 
 Nginx: `location /api/ws` com `proxy_http_version 1.1`, `Upgrade` e `Connection` **somente nesse path**. O catch-all atual (`server/deploy/nginx/xvpn.conf`) já usa HTTP/1.1 mas não anuncia Upgrade — e não deve passar a anunciar, senão keep-alive do resto da API quebra. Sem linha de firewall nova (§5).
 
@@ -491,13 +526,42 @@ Eventos: `message.new`, `message.ack`, `message.receipt`, `typing`, `presence`, 
 
 #### App `xvpn-chat`
 
-Cliente do protocolo acima, não dono dele. JWT só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `vpn.officeempresa.com`. Publicação pelo pipeline da Fase 16 (`marketplace.yaml`, `source: build`, Linux+Windows). Esqueleto no marketplace: `ROADMAP.md` Fase 19.4. Produto (web + desktop): Fase 20.
+Cliente do protocolo acima, não dono dele. JWE só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `xchat.corp.ihuull.com` (exige túnel). Publicação pelo pipeline da Fase 16 (`marketplace.yaml` slug `xchat`, `source: build`, Linux+Windows). Esqueleto no marketplace: `ROADMAP.md` Fase 19.4. Produto (web + desktop): Fase 20.
 
 **Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **rail direito de contatos** + **janelas de conversa no rodapé** (estilo Facebook, sem modal), acionados pela status bar do `SystemChrome` (todas as rotas autenticadas; tema `inherit`) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
 
-**Visual:** a janela desktop segue o design system do `xvpn-client` (preto profundo, cards `watch-complication`, acento `--safe` neon, Outfit — skill `desktop-app-ui`). Temas `dark` (default) / `light` / `icq` (opcional). No painel, rail + popouts usam `inherit` (não pintar ICQ nem `watch-face` sobre o `/my`). Layout messenger = lista de contatos + conversa + status colorido. Não é clone do protocolo AOL e não é a DataTable Workspace da 19.3. `/social` não é substituído pelo chat.
+**Visual:** janela desktop e painel autenticado usam o mesmo color system (`shared/ui`). Temas do messenger: `dark` (default) / `light` / `icq` (opcional). Rail + popouts no painel: `inherit` (herda o `:root` ihuull — já é `watch-face`, não navy). Layout messenger = lista de contatos + conversa + status colorido. `/social` não é substituído pelo chat.
 
 Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes desktop antigos ignoram o socket; o contrato HTTP existente não quebra, mas o campo existe para o chat recusar servidor sem 19.3.
+
+### 6.12 Design system e color system
+
+**Problema:** o painel nasceu navy/azul Workspace; o `xvpn-client` e o `xvpn-chat` usam preto profundo + `--safe`. Tokens e `watch-complication` foram copiados. Qualquer tela nova destandardiza.
+
+**Decisão:** um design system em **SASS** em `shared/ui/`. Os três Vite **importam** — não copiam. Alias `@xvpn/ui` no TypeScript; CSS usa caminho relativo (`shared/ui/scss/…`) porque o resolver do Tailwind v4 não honra alias Vite.
+
+| Peça | Caminho | Papel |
+|---|---|---|
+| Color system | `shared/ui/scss/_color-system.scss` | Maps `dark` / `light` / `icq` (oklch). Única fonte de hex/oklch |
+| `:root` | `shared/ui/scss/_root.scss` | Aplica `$dark` no documento |
+| Utilities | `shared/ui/scss/_utilities.scss` | `watch-face`, `watch-complication`, HUD |
+| Temas chat | `shared/ui/scss/_themes.scss` | `.xvpn-chat-root[data-chat-theme]` |
+| Tailwind v4 | `shared/ui/css/tailwind-bridge.css` | `@theme inline` → `bg-background` etc. |
+| Primitivos | `shared/ui/react/` | `ShellFace`, `IconButton`, `Complication`, `StatusDot` |
+| Catálogo | `shared/ui/COMPONENTS.md` | O que reusar / o que não copiar |
+
+**Regras (não negociáveis):**
+
+1. Cor nova ou mudança de token → só `_color-system.scss`. Proibido segundo `:root` com oklch no app.
+2. Shell autenticado = `watch-face` + `watch-vignette` (`ShellFace` ou `SystemChrome`).
+3. Card = `watch-complication` + `rounded-[18px]`–`[22px]`. Botão de ícone = `IconButton` (`rounded-[10px]` filled).
+4. Tipo: Outfit (`--font-display`). Labels técnicas: `hud-label`.
+5. `--safe` = ativo / online / “meu”. Não inventar outro verde.
+6. ICQ e `light` são **opções** do messenger, nunca identidade do painel ou de app novo.
+7. shadcn (Button, Input, Dialog, DataTable) continua **por app** (React 18 vs 19). Estilo deles segue os tokens. Não publicar um segundo kit de card.
+8. Landing pública (`/`) pode ser mais marketing; `/my`, `/admin`, `/social` e logins **seguem** o sistema.
+
+Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta para `shared/ui`, não “copiar CSS do client”.
 
 ---
 
@@ -514,7 +578,7 @@ Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes de
 - Fluxo de enrollment: usuário insere um "código de convite" (gerado no painel web) → app gera par de chaves localmente → registra no servidor → recebe config → conecta.
 - Kill switch (opcional, ativável): bloqueia todo tráfego fora do túnel se a VPN cair inesperadamente (via `nftables` no Linux / Windows Filtering Platform no Windows).
 - Reconexão automática com backoff exponencial.
-- Atalho para abrir o compartilhamento de arquivos (botão "Abrir arquivos do servidor" → monta/abre `\\10.66.66.1\shared` no Windows ou `smb://10.66.66.1/shared` no Linux; e/ou abre `http://10.66.66.1:8081` do FileBrowser no navegador padrão).
+- Atalho para abrir o compartilhamento de arquivos (botão "Abrir arquivos do servidor" → monta/abre `\\10.66.66.1\shared` no Windows ou `smb://10.66.66.1/shared` no Linux; e/ou abre `https://xdriver.corp.ihuull.com` no navegador padrão).
 - Auto-start no boot do SO (opcional, configurável).
 - **MTU configurável** em Configurações/Diagnóstico (padrão automático, com override manual). Achado na validação manual da Fase 1 (`ROADMAP.md`): usuários atrás de outra VPN, CGNAT restritivo ou certas redes móveis têm um MTU efetivo menor que o padrão do WireGuard (1420), o que causa um "black hole" de PMTU — handshake e pacotes pequenos (ping) funcionam, mas tráfego HTTP/TLS trava silenciosamente. Sem essa opção, o usuário não teria como contornar o problema sozinho.
 
@@ -616,7 +680,9 @@ xvpn/
 │   ├── frontend/           # React+Tailwind+shadcn (UI da GUI Wails)
 │   ├── build/              # scripts NSIS, .deb, AppImage
 │   └── go.mod
-├── shared/                 # tipos/DTOs Go compartilhados entre server e client
+├── shared/
+│   ├── *.go             # tipos/DTOs Go (server ↔ client)
+│   └── ui/              # design system SASS + primitivos React (§6.12)
 └── docs/
 ```
 
@@ -719,22 +785,20 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **Fase 13 (contas Unix reais por usuário) concluída (2026-08-14).** Binário privilegiado `xvpn-user-provision` chamado via `sudo` com caminho exato no `sudoers.d`; `/home/<username>` (chroot, root:root) + `files/` do usuário servindo SFTP e Samba ao mesmo diretório; toggles `SFTPEnabled`/`SambaEnabled` + chave pública SSH no model `User`, com reconciliação idempotente no boot; Samba per-user via `guest ok = yes` + `force user`, com a VPN como barreira de autenticação e o isolamento cross-user documentado como limitação aceita (§6.9 e `SECURITY.md`). Ver `ROADMAP.md` Fase 13.
 
-**Ciclo v0.2 — aberto (`ROADMAP.md` Fases 14–16):**
+**Ciclos v0.2–v0.6 concluídos** (`ROADMAP.md` Fases 14–21): arquivos por IP do túnel, marketplace via `apps/`, split `/my`×`/admin`, social + messenger, mídia/chamadas. Detalhe histórico nas fases do ROADMAP.
 
-**Ordem de execução decidida:** correções urgentes → **16.1** (mover `client/` → `apps/xvpn-client/`) → **Fase 14** inteira → resto da **16** → **Fase 15**. As duas primeiras frentes editam praticamente os mesmos arquivos do cliente, então o rename entra antes de a Fase 14 escrever código novo; e a urgência da 14 é menor do que parecia (produção tem 1 usuário, 1 device, zero shares pessoais e os dois toggles desligados). Justificativa completa em `ROADMAP.md`, Parte III.
+**Ciclo v0.7+ (`ROADMAP.md` Fases 22–29) — estado atual da plataforma ihuull:**
 
-| Fase | Foco |
+| Item | Valor canônico |
 |---|---|
-| **14** | Acesso a arquivos sincronizado com o usuário da VPN — `GET /api/me` por IP do túnel (via `RemoteIP()`, ver §6.9), shares `home-<username>` no cliente, correção do `include` do `smb.conf` nos dois lados (repo e produção) |
-| **15** | Melhorias represadas: quotas de disco, rotação de chave SSH no portal, MTU em preferências (pega carona no PR da 14), Vitest, Windows E2E, `LICENSE` |
-| **16** | Monorepo `apps/` + Marketplace alimentado pelo diretório via CI — decisões em [§6.10](#610-monorepo-apps-e-marketplace-alimentado-pelo-diretório), checklist em `ROADMAP.md` Fase 16 |
+| Painel / enroll / JWE | `https://xvpn.ihuull.com` |
+| Landing | `www.ihuull.com` / `ihuull.com` / `ihuu.com` |
+| Marketing messenger | `xchat.ihuull.com` (sem API/WS) |
+| Intranet | `xchat.corp` / `xgroup.corp` / `xdriver.corp` → `10.66.66.1` (só VPN) |
+| Auth | **só JWE** (`dir` + `A256GCM`); JWT HMAC rejeitado |
+| Persistência | Mongo `127.0.0.1:27017` se `XVPN_MONGO_URI`; senão SQLite (testes/CI) |
+| landpages-ops | `ldpops.appapisip.com` — não muda |
 
-**Correções urgentes que precedem o ciclo** (PRs próprias, em andamento): `SetTrustedProxies` no router do servidor (o default do Gin fura os rate limits hoje — ver §6.9) e o `include` do `smb.conf`, que hoje está na primeira linha do `[global]` em produção e faria o `[global]` inteiro colapsar assim que o primeiro share pessoal existisse.
+**Fase 30 — design system:** `shared/ui` (SASS) é a fonte de tokens; painel web, xvpn e xchat importam o mesmo color system. Catálogo em `shared/ui/COMPONENTS.md`.
 
-Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CONTRIBUTING.md`). Backlog legado (Windows real, primeira tag `0.0.0→…`) permanece no `ROADMAP.md`.
-
-**Ciclo v0.3 (Fases 17–18) concluído.** SPA em `/app` × `/admin`; conta do membro (perfil, senha, arquivos); tela de papéis. Chrome fixo (sidebar/header/status bar) no viewport.
-
-**Ciclo v0.4 concluído (`ROADMAP.md` Fase 19):** redesign estilo Google Workspace. Prefixo do membro `/my` sem alias `/app`. `/social` (perfis, follow, DM, grupos via WebSocket); `/admin` com diretório lista+ficha; kit de UI + paginação; esqueleto `apps/xvpn-chat` no marketplace. Decisões em [§6.7](#67-admin-geral-rbac) e [§6.11](#611-xvpn-social-e-xvpn-chat).
-
-**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual alinhado ao `xvpn-client`, temas SASS. `/social` permanece rede social; o chat integra nela (rail de contatos + janelas no rodapé) em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.
+Aplicar no VPS pelos runbooks (Cloudflare, dnsmasq, Mongo) **sem** ligar Mongo no mesmo instante que o binário JWE. Fluxo: branch → PR → squash (`CONTRIBUTING.md`). Backlog (Windows real, `LICENSE`) permanece no `ROADMAP.md`.

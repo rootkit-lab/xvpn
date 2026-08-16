@@ -1,0 +1,11 @@
+@use "color-system" as colors;
+
+:root {
+  @include colors.apply-dark;
+  @include colors.fonts-and-radius;
+}
+
+.dark {
+  @include colors.apply-dark;
+  @include colors.fonts-and-radius;
+}

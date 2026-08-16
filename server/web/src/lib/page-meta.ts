@@ -8,7 +8,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/my/profile',
     meta: {
-      kicker: 'Meu espaço',
+      kicker: 'xvpn',
       title: 'Perfil',
       description: 'Como a conta aparece no XVPN — só leitura. Senha e chave SSH ficam em Editar conta.',
     },
@@ -16,7 +16,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/my/account',
     meta: {
-      kicker: 'Meu espaço',
+      kicker: 'xvpn',
       title: 'Editar minha conta',
       description: 'Troque a senha do painel e a chave SSH extra. Nome e papel só um administrador altera.',
     },
@@ -24,15 +24,15 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/my/files',
     meta: {
-      kicker: 'Meu espaço',
-      title: 'Arquivos',
-      description: 'Samba, SFTP e FileBrowser só respondem dentro da VPN.',
+      kicker: 'xvpn',
+      title: 'xdriver',
+      description: 'Samba, SFTP e FileBrowser (xdriver.corp.ihuull.com) só respondem dentro da VPN.',
     },
   },
   {
     prefix: '/my/download',
     meta: {
-      kicker: 'Meu espaço',
+      kicker: 'xvpn',
       title: 'Downloads',
       description: 'Cliente desktop do XVPN — .deb, AppImage e instalador Windows.',
     },
@@ -40,7 +40,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/my/marketplace',
     meta: {
-      kicker: 'Meu espaço',
+      kicker: 'xvpn',
       title: 'Apps',
       description: 'Programas liberados para a sua conta. Confira o SHA-256 antes de instalar.',
     },
@@ -49,7 +49,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     prefix: '/my',
     exact: true,
     meta: {
-      kicker: 'Meu espaço',
+      kicker: 'xvpn',
       title: 'Início',
       description: 'Seus dispositivos VPN. Para adicionar um novo, peça um convite a um administrador.',
     },
@@ -85,8 +85,8 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     prefix: '/admin/shares',
     meta: {
       kicker: 'Administração',
-      title: 'Compartilhamentos',
-      description: 'Diretórios do VPS acessíveis só pela VPN.',
+      title: 'xdriver',
+      description: 'Shares Samba + FileBrowser (xdriver.corp) — só na VPN.',
     },
   },
   {
@@ -142,21 +142,38 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
 
 const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
+    prefix: '/xgroup/messages',
+    meta: { kicker: 'xchat', title: 'Mensagens', description: 'Messenger (xchat). A rede social é o xgroup.' },
+  },
+  {
+    prefix: '/xgroup/groups',
+    meta: { kicker: 'xgroup', title: 'Grupos', description: 'Espaços do xgroup. O xchat abre no dock, sem sair desta página.' },
+  },
+  {
+    prefix: '/xgroup/u',
+    meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
+  },
+  {
+    prefix: '/xgroup',
+    exact: true,
+    meta: { kicker: 'xgroup', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+  },
+  {
     prefix: '/social/messages',
-    meta: { kicker: 'Social', title: 'Mensagens', description: 'Messenger da organização — a rede continua em Pessoas e Grupos.' },
+    meta: { kicker: 'xchat', title: 'Mensagens', description: 'Messenger (xchat). A rede social é o xgroup.' },
   },
   {
     prefix: '/social/groups',
-    meta: { kicker: 'Social', title: 'Grupos', description: 'Espaços da organização. O chat abre no dock, sem sair desta página.' },
+    meta: { kicker: 'xgroup', title: 'Grupos', description: 'Espaços do xgroup. O xchat abre no dock, sem sair desta página.' },
   },
   {
     prefix: '/social/u',
-    meta: { kicker: 'Social', title: 'Perfil', description: 'Página pública do membro na organização.' },
+    meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
   },
   {
     prefix: '/social',
     exact: true,
-    meta: { kicker: 'Social', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+    meta: { kicker: 'xgroup', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
   },
 ]
 
@@ -181,18 +198,18 @@ export function pageMetaForPath(pathname: string): PageMeta {
       }
     )
   }
-  if (pathname.startsWith('/social')) {
+  if (pathname.startsWith('/social') || pathname.startsWith('/xgroup') || pathname.startsWith('/xchat')) {
     return (
       matchMeta(pathname, SOCIAL_PAGES) ?? {
-        kicker: 'Social',
-        title: 'XVPN Social',
+        kicker: 'xgroup',
+        title: 'xgroup',
         description: '',
       }
     )
   }
   return (
     matchMeta(pathname, USER_PAGES) ?? {
-      kicker: 'Meu espaço',
+      kicker: 'xvpn',
       title: 'Painel',
       description: '',
     }

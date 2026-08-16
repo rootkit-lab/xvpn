@@ -13,15 +13,15 @@ func OpenURL(url string) error {
 
 // OpenSMBShare abre o compartilhamento SMB especificado no gerenciador de
 // arquivos padrão do SO — Explorer via caminho UNC no Windows; no Linux
-// monta via GVFS anônimo (guest) e abre o caminho local em gvfs (Cosmic
+// prefere o mount CIFS do helper em ~/XVPN e cai no GVFS anônimo (Cosmic
 // Files não trata smb:// como pasta — ver opener_linux.go).
 func OpenSMBShare(host, share string) error {
 	return openSMBShare(host, share)
 }
 
-// EnsureSMBMounted prepara o share no SO (no Linux: gio mount --anonymous)
-// sem abrir o gerenciador. Chamado após Connect para os mounts já
-// existirem quando o usuário clicar em Compartilhado / Meus arquivos.
+// EnsureSMBMounted prepara o share no SO (no Linux: CIFS se já montado,
+// senão gio mount --anonymous) sem abrir o gerenciador. Chamado após
+// Connect para os mounts já existirem quando o usuário clicar.
 func EnsureSMBMounted(host, share string) error {
 	return ensureSMBMounted(host, share)
 }

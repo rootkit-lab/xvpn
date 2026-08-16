@@ -235,6 +235,45 @@ func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
 	}
 }
 
+func TestHandleHandoffToken_OnlyOnXAuth(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUser(t, app, "alice", "senha-forte-123")
+	router := NewRouter(app)
+
+	login := doJSONHost(t, router, http.MethodPost, "/api/auth/login", loginRequest{Username: "alice", Password: "senha-forte-123"}, "", "xauth.ihuull.com")
+	if login.Code != http.StatusOK {
+		t.Fatalf("login: %d %s", login.Code, login.Body.String())
+	}
+	var resp loginResponse
+	if err := json.Unmarshal(login.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+
+	ok := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-token", nil)
+	ok.Host = "xauth.ihuull.com"
+	ok.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
+	okRec := httptest.NewRecorder()
+	router.ServeHTTP(okRec, ok)
+	if okRec.Code != http.StatusOK {
+		t.Fatalf("xauth cookie: %d %s", okRec.Code, okRec.Body.String())
+	}
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(okRec.Body.Bytes(), &body); err != nil || body.Token != resp.Token {
+		t.Fatalf("token: %s %v", okRec.Body.String(), err)
+	}
+
+	panel := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-token", nil)
+	panel.Host = "xvpn.ihuull.com"
+	panel.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
+	panelRec := httptest.NewRecorder()
+	router.ServeHTTP(panelRec, panel)
+	if panelRec.Code != http.StatusForbidden {
+		t.Fatalf("xvpn deveria ser 403, got %d", panelRec.Code)
+	}
+}
+
 func TestHandleLogout_ClearsCookie(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

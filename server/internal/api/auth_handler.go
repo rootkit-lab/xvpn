@@ -117,6 +117,32 @@ func (a *App) handleEstablishSession(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// handleHandoffToken devolve o JWE já plantado no xauth (cookie HttpOnly).
+// "Continuar como" no login não tem o token em localStorage — só o cookie
+// — e o POST /auth/session no xvpn precisa do JWE no form, senão o portal
+// volta a mostrar Entrar. Só responde em xauth.ihuull.com.
+// GET /api/auth/handoff-token
+func (a *App) handleHandoffToken(c *gin.Context) {
+	if !auth.IsXAuthHost(c.Request.Host) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "só no xauth"})
+		return
+	}
+	if a.Tokens == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	token := auth.TokenFromRequest(c)
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "não autenticado"})
+		return
+	}
+	if _, err := a.Tokens.Parse(token); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
 // handleLogout apaga o cookie de SSO. Público de propósito: quem tem o
 // cookie pode descartá-lo; sem cookie é no-op. Desktop não usa cookie.
 // POST /api/auth/logout

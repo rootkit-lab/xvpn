@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, ApiError, type SocialProfile } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { FilterBar } from '@/components/filter-bar'
+import { SocialAvatar } from '@/components/social-avatar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -17,7 +19,7 @@ export function SocialDirectoryPage() {
   const pages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.per_page ?? 24)))
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <FilterBar
         q={q}
         onQChange={(next) => {
@@ -29,13 +31,19 @@ export function SocialDirectoryPage() {
       {loading || !data ? (
         <Skeleton className="h-48 w-full rounded-[22px]" />
       ) : data.items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Ninguém neste filtro.</p>
-      ) : (
-        <div className="flex flex-col">
-          {data.items.map((p) => (
-            <ExploreRow key={p.user_id} profile={p} isMe={p.username === user?.username} onChanged={reload} />
-          ))}
+        <div className="watch-complication flex flex-col items-center gap-2 rounded-[22px] px-5 py-12 text-center">
+          <Search className="size-5 text-muted-foreground" />
+          <p className="font-display text-sm font-semibold">Ninguém neste filtro</p>
+          <p className="text-sm text-muted-foreground">Tente outro nome ou limpe a busca.</p>
         </div>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {data.items.map((p) => (
+            <li key={p.user_id}>
+              <ExploreRow profile={p} isMe={p.username === user?.username} onChanged={reload} />
+            </li>
+          ))}
+        </ul>
       )}
       {pages > 1 && (
         <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
@@ -64,6 +72,7 @@ function ExploreRow({
   onChanged: () => void
 }) {
   const [busy, setBusy] = useState(false)
+  const display = profile.display_name || profile.username
 
   async function toggle() {
     setBusy(true)
@@ -79,19 +88,20 @@ function ExploreRow({
   }
 
   return (
-    <div className="flex items-center gap-3 border-b border-white/8 py-3">
-      <Link
-        to={`/social/u/${profile.username}`}
-        className="icon-well flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-      >
-        {(profile.display_name || profile.username).slice(0, 1).toUpperCase()}
+    <div className="watch-complication flex items-center gap-3 rounded-[18px] p-3.5">
+      <Link to={`/social/u/${profile.username}`} className="shrink-0">
+        <SocialAvatar name={display} className="size-12 text-sm" />
       </Link>
       <Link to={`/social/u/${profile.username}`} className="min-w-0 flex-1">
-        <p className="truncate font-display text-sm font-semibold">{profile.display_name || profile.username}</p>
+        <p className="truncate font-display text-sm font-semibold">{display}</p>
         <p className="truncate text-xs text-muted-foreground">@{profile.username}</p>
-        {profile.bio && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{profile.bio}</p>}
+        {profile.bio && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{profile.bio}</p>}
       </Link>
-      {!isMe && (
+      {isMe ? (
+        <span className="rounded-full border border-white/12 px-2.5 py-1 text-[11px] text-muted-foreground">
+          Você
+        </span>
+      ) : (
         <Button
           size="sm"
           className="rounded-full"

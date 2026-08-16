@@ -180,16 +180,6 @@
   box-shadow: inset 0 1px 0 color-mix(in oklch, white 8%, transparent);
 }
 
-// Lockup ihuull: PNGs vêm com placa preta — screen + isolate some o fundo
-// sem misturar com o conteúdo que rola atrás do header.
-.brand-lockup {
-  isolation: isolate;
-}
-
-.brand-lockup img {
-  mix-blend-mode: screen;
-}
-
 .product-mark {
   color: var(--product);
 }

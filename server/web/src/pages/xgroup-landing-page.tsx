@@ -7,7 +7,7 @@ export function XGroupPublicLanding() {
   return (
     <div data-product="xgroup" className="watch-face relative flex min-h-svh flex-col overflow-hidden">
       <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
-      <ProductHeader product="xgroup" href="/" productHref="/" />
+      <ProductHeader product="xgroup" href="/" />
 
       <main className="relative z-10 mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-6 px-6 py-16">
         <p className="hud-label text-muted-foreground/70">Social</p>

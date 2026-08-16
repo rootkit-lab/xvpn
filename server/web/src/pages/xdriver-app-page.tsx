@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type DragEvent } from 'react'
 import { toast } from 'sonner'
 import {
   ChevronRight,
@@ -37,6 +37,7 @@ export function XDriverAppPage() {
   const [selected, setSelected] = useState<string | null>(null)
   const [folderName, setFolderName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const fetchList = useCallback(() => api.listDriver(root, path), [root, path])
@@ -44,6 +45,8 @@ export function XDriverAppPage() {
 
   const crumbs = path ? path.split('/').filter(Boolean) : []
   const homeOff = root === 'home' && !user?.samba_enabled && !user?.sftp_enabled
+  const selectedItem = data?.items.find((e) => e.path === selected)
+  const canDownload = Boolean(selectedItem && !selectedItem.is_dir)
 
   function openRoot(next: DriverRoot) {
     setRoot(next)
@@ -88,7 +91,7 @@ export function XDriverAppPage() {
   }
 
   async function downloadSelected() {
-    const item = data?.items.find((e) => e.path === selected)
+    const item = selectedItem
     if (!item || item.is_dir) return
     try {
       await api.downloadDriver(root, item.path, item.name)
@@ -98,7 +101,7 @@ export function XDriverAppPage() {
   }
 
   async function removeSelected() {
-    const item = data?.items.find((e) => e.path === selected)
+    const item = selectedItem
     if (!item) return
     if (!window.confirm(`Apagar ${item.name}?`)) return
     setBusy(true)
@@ -113,9 +116,17 @@ export function XDriverAppPage() {
     }
   }
 
+  function onDrop(e: DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    if (homeOff || busy) return
+    void onUpload(e.dataTransfer.files)
+  }
+
   return (
-    <div className="mx-auto flex h-full w-full max-w-6xl gap-4 px-4 py-5 md:px-6">
-      <aside className="hidden w-52 shrink-0 flex-col gap-1 md:flex">
+    <div className="mx-auto flex h-full min-h-[calc(100svh-8rem)] w-full max-w-6xl gap-5 px-4 py-5 md:px-6">
+      <aside className="hidden w-56 shrink-0 flex-col gap-1 md:flex">
+        <p className="hud-label px-3 pb-2 text-muted-foreground/70">Locais</p>
         {ROOTS.map(({ id, label, hint, icon: Icon }) => (
           <button
             key={id}
@@ -135,35 +146,42 @@ export function XDriverAppPage() {
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2 md:hidden">
           {ROOTS.map(({ id, label }) => (
-            <Button key={id} size="sm" className="rounded-full" variant={root === id ? 'default' : 'outline'} onClick={() => openRoot(id)}>
+            <Button
+              key={id}
+              size="sm"
+              className="rounded-full"
+              variant={root === id ? 'default' : 'outline'}
+              onClick={() => openRoot(id)}
+            >
               {label}
             </Button>
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <button type="button" className="text-primary hover:underline" onClick={() => openDir('')}>
+        <nav className="flex flex-wrap items-center gap-1.5 text-sm" aria-label="Caminho">
+          <button type="button" className="font-display font-semibold text-primary hover:underline" onClick={() => openDir('')}>
             {root === 'home' ? 'Meu Drive' : 'Compartilhado'}
           </button>
           {crumbs.map((part, i) => {
             const rel = crumbs.slice(0, i + 1).join('/')
             return (
-              <span key={rel} className="flex items-center gap-2">
-                <ChevronRight className="size-3 text-muted-foreground" />
-                <button type="button" className="text-primary hover:underline" onClick={() => openDir(rel)}>
+              <span key={rel} className="flex items-center gap-1.5">
+                <ChevronRight className="size-3.5 text-muted-foreground" />
+                <button type="button" className="text-foreground/90 hover:underline" onClick={() => openDir(rel)}>
                   {part}
                 </button>
               </span>
             )
           })}
-        </div>
+        </nav>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="watch-complication flex flex-wrap items-center gap-2 rounded-[18px] p-2.5">
           <Input
             value={folderName}
             onChange={(e) => setFolderName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void makeFolder()}
             placeholder="Nova pasta"
-            className="max-w-48"
+            className="max-w-52"
             disabled={busy || homeOff}
           />
           <Button size="sm" className="rounded-full" disabled={busy || homeOff || !folderName.trim()} onClick={makeFolder}>
@@ -175,7 +193,8 @@ export function XDriverAppPage() {
             Enviar
           </Button>
           <input ref={fileRef} type="file" className="hidden" multiple onChange={(e) => onUpload(e.target.files)} />
-          <Button size="sm" variant="outline" className="rounded-full" disabled={!selected || data?.items.find((e) => e.path === selected)?.is_dir} onClick={downloadSelected}>
+          <span className="hidden flex-1 sm:block" />
+          <Button size="sm" variant="outline" className="rounded-full" disabled={!canDownload} onClick={downloadSelected}>
             <Download className="size-4" />
             Baixar
           </Button>
@@ -190,23 +209,42 @@ export function XDriverAppPage() {
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        {loading || !data ? (
-          <Skeleton className="h-64 w-full rounded-[22px]" />
-        ) : data.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Pasta vazia. Envie um arquivo ou crie uma pasta.</p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {data.items.map((item) => (
-              <FileTile
-                key={item.path}
-                item={item}
-                selected={selected === item.path}
-                onSelect={() => setSelected(item.path)}
-                onOpen={() => item.is_dir && openDir(item.path)}
-              />
-            ))}
-          </div>
-        )}
+        <div
+          className={cn(
+            'min-h-64 flex-1 rounded-[22px] transition-colors',
+            dragOver && 'ring-2 ring-primary/60',
+          )}
+          onDragOver={(e) => {
+            e.preventDefault()
+            if (!homeOff && !busy) setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+        >
+          {loading || !data ? (
+            <Skeleton className="h-64 w-full rounded-[22px]" />
+          ) : data.items.length === 0 ? (
+            <div className="watch-complication flex h-64 flex-col items-center justify-center gap-2 rounded-[22px] px-6 text-center">
+              <Folder className="size-8 text-muted-foreground" />
+              <p className="font-display text-sm font-semibold">Pasta vazia</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                Arraste arquivos para cá, envie pelo botão ou crie uma pasta.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {data.items.map((item) => (
+                <FileTile
+                  key={item.path}
+                  item={item}
+                  selected={selected === item.path}
+                  onSelect={() => setSelected(item.path)}
+                  onOpen={() => item.is_dir && openDir(item.path)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -227,15 +265,15 @@ function FileTile({
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={() => (item.is_dir ? onOpen() : onSelect())}
       onDoubleClick={onOpen}
       className={cn(
-        'watch-complication flex flex-col items-start gap-3 rounded-[18px] p-4 text-left transition-colors',
+        'watch-complication flex flex-col items-start gap-3 rounded-[18px] p-4 text-left transition-colors hover:bg-white/6',
         selected && 'ring-2 ring-primary',
       )}
     >
-      <span className="icon-well flex size-10 items-center justify-center rounded-[12px]">
-        <Icon className="size-4" />
+      <span className="icon-well flex size-11 items-center justify-center rounded-[12px]">
+        <Icon className="size-5" />
       </span>
       <span className="w-full truncate font-display text-sm font-semibold">{item.name}</span>
       <span className="text-xs text-muted-foreground">{item.is_dir ? 'Pasta' : formatBytes(item.size)}</span>

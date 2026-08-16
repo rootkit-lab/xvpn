@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"runtime"
 	"time"
 
@@ -203,18 +204,37 @@ func (s *VPNService) Connect() error {
 	return nil
 }
 
-// mountFileSharesBestEffort monta [shared] e [home-<user>] via GVFS guest
-// depois que o túnel sobe. Falha silenciosa: o clique em Compartilhado
-// ainda tenta montar de novo e devolve o erro ao usuário.
+// mountFileSharesBestEffort monta [shared] e [home-<user>] — CIFS no
+// kernel (helper) e GVFS como fallback. Falha silenciosa: o clique em
+// Compartilhado ainda tenta montar de novo e devolve o erro ao usuário.
 func (s *VPNService) mountFileSharesBestEffort() {
 	status, err := s.Status()
 	if err != nil || !status.Connected || !status.SambaEnabled {
 		return
 	}
+	uid, gid := os.Getuid(), os.Getgid()
+	_ = s.mountSMBViaHelper(sharedSambaName, uid, gid)
+	if status.Username != "" {
+		_ = s.mountSMBViaHelper(homeSambaPrefix+status.Username, uid, gid)
+	}
 	_ = opener.EnsureSMBMounted(serverVPNAddress, sharedSambaName)
 	if status.Username != "" {
 		_ = opener.EnsureSMBMounted(serverVPNAddress, homeSambaPrefix+status.Username)
 	}
+}
+
+func (s *VPNService) mountSMBViaHelper(share string, uid, gid int) error {
+	client, err := ipc.Dial()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Call(ipc.MethodMountSMB, helper.MountSMBRequest{
+		Host:  serverVPNAddress,
+		Share: share,
+		UID:   uid,
+		GID:   gid,
+	}, nil)
 }
 
 // Disconnect desfaz o túnel. Antes, remove mounts/atalhos SMB do servidor
@@ -230,11 +250,30 @@ func (s *VPNService) Disconnect() error {
 	return client.Call(ipc.MethodDisconnect, nil, nil)
 }
 
-// unmountFileSharesBestEffort limpa GVFS/~/XVPN/Desktop deste servidor.
+// unmountFileSharesBestEffort limpa CIFS/GVFS/~/XVPN/Desktop deste servidor.
 func (s *VPNService) unmountFileSharesBestEffort() {
+	uid, gid := os.Getuid(), os.Getgid()
+	_ = s.unmountSMBViaHelper(sharedSambaName, uid, gid)
+	if status, err := s.Status(); err == nil && status.Username != "" {
+		_ = s.unmountSMBViaHelper(homeSambaPrefix+status.Username, uid, gid)
+	}
 	if err := opener.UnmountServerSMBShares(serverVPNAddress); err != nil {
 		slog.Warn("unmount smb shares failed", "err", err)
 	}
+}
+
+func (s *VPNService) unmountSMBViaHelper(share string, uid, gid int) error {
+	client, err := ipc.Dial()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Call(ipc.MethodUnmountSMB, helper.MountSMBRequest{
+		Host:  serverVPNAddress,
+		Share: share,
+		UID:   uid,
+		GID:   gid,
+	}, nil)
 }
 
 // OpenServerFiles abre o acesso a arquivos do servidor no aplicativo

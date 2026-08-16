@@ -6,6 +6,7 @@ import { ChatSidebar } from '@chat/messenger/ChatSidebar'
 import { cn } from '@/lib/utils'
 import { headerProduct } from '@/lib/product-host'
 import { PanelHeader } from '@/components/layout/panel-header'
+import { PageHeading } from '@/components/layout/page-heading'
 import { PanelStatusBar } from '@/components/layout/panel-status-bar'
 import { useChatPanel } from '@/components/layout/use-chat-panel'
 
@@ -64,6 +65,7 @@ export function SystemChrome({
                 mainClassName,
               )}
             >
+              {!fillMain && <PageHeading variant={variant} />}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={location.pathname}

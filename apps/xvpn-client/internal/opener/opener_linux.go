@@ -25,6 +25,9 @@ func openURL(urlStr string) error {
 // especiais + FileManager1/gio open corrige o clique em Compartilhado /
 // Meus arquivos.
 func openSMBShare(host, share string) error {
+	if p := localSharePath(share); isCIFSMount(p) {
+		return openLocalDir(p)
+	}
 	if err := ensureSMBMounted(host, share); err != nil {
 		return err
 	}
@@ -40,6 +43,9 @@ func openSMBShare(host, share string) error {
 }
 
 func ensureSMBMounted(host, share string) error {
+	if isCIFSMount(localSharePath(share)) {
+		return nil
+	}
 	if resolveGVFSMount(host, share) == "" {
 		uri := fmt.Sprintf("smb://%s/%s", host, share)
 		out, err := exec.Command("gio", "mount", "--anonymous", uri).CombinedOutput()
@@ -105,6 +111,37 @@ func gvfsRoot() string {
 }
 
 // shareLinkName é o nome amigável em ~/XVPN (sem ':'/',' do FUSE GVFS).
+func localSharePath(share string) string {
+	dir, err := xvpnLinksDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, shareLinkName(share))
+}
+
+func isCIFSMount(mountpoint string) bool {
+	if mountpoint == "" {
+		return false
+	}
+	f, err := os.Open("/proc/mounts")
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	want := strings.TrimRight(mountpoint, "/")
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) < 3 {
+			continue
+		}
+		if fields[1] == want && (fields[2] == "cifs" || fields[2] == "smb3") {
+			return true
+		}
+	}
+	return false
+}
+
 func shareLinkName(share string) string {
 	if share == "shared" {
 		return "Compartilhado"

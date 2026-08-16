@@ -64,7 +64,7 @@ Button, Input, Dialog, DataTable ficam em cada Vite (`components/ui/`) — depen
 ## App novo
 
 1. Alias Vite `@xvpn/ui` → `shared/ui`
-2. `index.css`: `@import "tailwindcss"` + caminhos relativos a `shared/ui/scss/index.scss` e `shared/ui/css/tailwind-bridge.css` (o resolver do Tailwind v4 não honra alias Vite)
+2. `main.tsx` importa `@xvpn/ui/scss/index.scss` (Sass via Vite — tokens + `watch-*`). `index.css`: `@import "tailwindcss"` + caminho relativo a `shared/ui/css/tailwind-bridge.css`. Não importe o `.scss` de dentro do CSS do Tailwind v4 — o plugin descarta o arquivo e o `@theme` some.
 3. Outfit (`@fontsource/outfit` 400/500/600/700)
 4. Shell = `ShellFace` ou `watch-face` + `watch-vignette`
 5. Skill `new-intranet-app` + esta página

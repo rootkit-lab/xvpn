@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -163,12 +164,47 @@ type Thread struct {
 }
 
 type Message struct {
-	ID         uint      `json:"id"`
-	ThreadKind string    `json:"thread_kind"`
-	ThreadID   uint      `json:"thread_id"`
-	AuthorID   uint      `json:"author_id"`
-	Body       string    `json:"body"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID           uint      `json:"id"`
+	ThreadKind   string    `json:"thread_kind"`
+	ThreadID     uint      `json:"thread_id"`
+	AuthorID     uint      `json:"author_id"`
+	Kind         string    `json:"kind"`
+	Body         string    `json:"body"`
+	AttachmentID *uint     `json:"attachment_id,omitempty"`
+	Filename     string    `json:"filename,omitempty"`
+	Mime         string    `json:"mime,omitempty"`
+	SizeBytes    int64     `json:"size_bytes,omitempty"`
+	Delivered    bool      `json:"delivered"`
+	Read         bool      `json:"read"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type Attachment struct {
+	ID        uint   `json:"id"`
+	Filename  string `json:"filename"`
+	Mime      string `json:"mime"`
+	SizeBytes int64  `json:"size_bytes"`
+	Kind      string `json:"kind"`
+}
+
+type StoryItem struct {
+	ID           uint      `json:"id"`
+	AuthorID     uint      `json:"author_id"`
+	Username     string    `json:"username"`
+	Kind         string    `json:"kind"`
+	Body         string    `json:"body"`
+	AttachmentID *uint     `json:"attachment_id,omitempty"`
+	Mime         string    `json:"mime,omitempty"`
+	Viewed       bool      `json:"viewed"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type StoryAuthor struct {
+	AuthorID uint        `json:"author_id"`
+	Username string      `json:"username"`
+	Unseen   bool        `json:"unseen"`
+	Items    []StoryItem `json:"items"`
 }
 
 func (c *Client) creds() (base, token string, err error) {
@@ -204,9 +240,17 @@ func (c *Client) ListMessages(ctx context.Context, kind string, id uint, page in
 }
 
 func (c *Client) PostMessage(ctx context.Context, kind string, id uint, body string) (Message, error) {
+	return c.PostMediaMessage(ctx, kind, id, body, "text", 0)
+}
+
+func (c *Client) PostMediaMessage(ctx context.Context, kind string, id uint, body, msgKind string, attachmentID uint) (Message, error) {
 	var msg Message
 	path := fmt.Sprintf("/api/social/threads/%s/%d/messages", kind, id)
-	err := c.doAuthed(ctx, http.MethodPost, path, map[string]string{"body": body}, &msg)
+	payload := map[string]any{"body": body, "kind": msgKind}
+	if attachmentID > 0 {
+		payload["attachment_id"] = attachmentID
+	}
+	err := c.doAuthed(ctx, http.MethodPost, path, payload, &msg)
 	return msg, err
 }
 
@@ -214,6 +258,111 @@ func (c *Client) CreateGroup(ctx context.Context, name, description string) (Gro
 	var g Group
 	err := c.doAuthed(ctx, http.MethodPost, "/api/social/groups", map[string]string{"name": name, "description": description}, &g)
 	return g, err
+}
+
+func (c *Client) InviteToGroup(ctx context.Context, groupID uint, username string) error {
+	path := fmt.Sprintf("/api/social/groups/%d/invite", groupID)
+	return c.doAuthed(ctx, http.MethodPost, path, map[string]string{"username": username}, nil)
+}
+
+func (c *Client) AckMessages(ctx context.Context, ids []uint, state string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return c.doAuthed(ctx, http.MethodPost, "/api/social/acks", map[string]any{"message_ids": ids, "state": state}, nil)
+}
+
+func (c *Client) UploadAttachment(ctx context.Context, filename, mime string, data []byte) (Attachment, error) {
+	base, token, err := c.creds()
+	if err != nil {
+		return Attachment{}, err
+	}
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	part, err := w.CreateFormFile("file", filename)
+	if err != nil {
+		return Attachment{}, err
+	}
+	if _, err := part.Write(data); err != nil {
+		return Attachment{}, err
+	}
+	_ = w.Close()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimSuffix(base, "/")+"/api/social/attachments", &buf)
+	if err != nil {
+		return Attachment{}, err
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return Attachment{}, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 400 {
+		var e struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(raw, &e)
+		if e.Error != "" {
+			return Attachment{}, errors.New(e.Error)
+		}
+		return Attachment{}, fmt.Errorf("erro HTTP %d", resp.StatusCode)
+	}
+	var att Attachment
+	if err := json.Unmarshal(raw, &att); err != nil {
+		return Attachment{}, err
+	}
+	_ = mime
+	return att, nil
+}
+
+func (c *Client) DownloadAttachment(ctx context.Context, id uint) ([]byte, string, error) {
+	base, token, err := c.creds()
+	if err != nil {
+		return nil, "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/api/social/attachments/%d", strings.TrimSuffix(base, "/"), id), nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return nil, "", fmt.Errorf("erro HTTP %d", resp.StatusCode)
+	}
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 33<<20))
+	return raw, resp.Header.Get("Content-Type"), err
+}
+
+func (c *Client) ListStories(ctx context.Context) ([]StoryAuthor, error) {
+	var out struct {
+		Items []StoryAuthor `json:"items"`
+	}
+	err := c.doAuthed(ctx, http.MethodGet, "/api/social/stories", nil, &out)
+	return out.Items, err
+}
+
+func (c *Client) CreateStory(ctx context.Context, body, kind string, attachmentID uint) (StoryItem, error) {
+	var st StoryItem
+	payload := map[string]any{"body": body, "kind": kind}
+	if attachmentID > 0 {
+		payload["attachment_id"] = attachmentID
+	}
+	err := c.doAuthed(ctx, http.MethodPost, "/api/social/stories", payload, &st)
+	return st, err
+}
+
+func (c *Client) ViewStory(ctx context.Context, id uint) error {
+	return c.doAuthed(ctx, http.MethodPost, fmt.Sprintf("/api/social/stories/%d/view", id), map[string]any{}, nil)
+}
+
+func (c *Client) SendSignal(evType string, payload any) error {
+	return c.writeWS(map[string]any{"type": evType, "payload": payload})
 }
 
 type WSEvent struct {

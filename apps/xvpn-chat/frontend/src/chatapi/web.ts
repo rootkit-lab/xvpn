@@ -1,4 +1,4 @@
-import type { ChatAPI, Group, Message, Page, Profile, Thread, WSEvent } from './types'
+import type { Attachment, ChatAPI, Group, Message, Page, Profile, StoryAuthor, StoryItem, Thread, WSEvent } from './types'
 
 const TOKEN_KEY = 'xvpn_token'
 
@@ -52,13 +52,63 @@ export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
       request<Thread>('/social/threads', { method: 'POST', body: JSON.stringify({ username }) }),
     listMessages: (kind, id, page) =>
       request<Page<Message>>(`/social/threads/${kind}/${id}/messages?page=${page}&per_page=50`),
-    postMessage: (kind, id, body) =>
+    postMessage: (kind, id, body, extra) =>
       request<Message>(`/social/threads/${kind}/${id}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, kind: extra?.kind ?? 'text', attachment_id: extra?.attachment_id }),
       }),
     createGroup: (name, description) =>
       request<Group>('/social/groups', { method: 'POST', body: JSON.stringify({ name, description }) }),
+    inviteToGroup: async (groupId, username) => {
+      await request(`/social/groups/${groupId}/invite`, { method: 'POST', body: JSON.stringify({ username }) })
+    },
+    async uploadAttachment(file) {
+      const headers = new Headers()
+      const t = token()
+      if (t) headers.set('Authorization', `Bearer ${t}`)
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/social/attachments', { method: 'POST', headers, body: fd })
+      if (res.status === 401) {
+        onUnauthorized?.()
+        throw new Error('sessão expirada')
+      }
+      if (!res.ok) {
+        let msg = `Erro ${res.status}`
+        try {
+          const body = (await res.json()) as { error?: string }
+          if (body.error) msg = body.error
+        } catch {
+          // ignore
+        }
+        throw new Error(msg)
+      }
+      return (await res.json()) as Attachment
+    },
+    async fetchAttachment(id) {
+      const headers = new Headers()
+      const t = token()
+      if (t) headers.set('Authorization', `Bearer ${t}`)
+      const res = await fetch(`/api/social/attachments/${id}`, { headers })
+      if (!res.ok) throw new Error('falha ao baixar anexo')
+      return res.blob()
+    },
+    async listStories() {
+      const raw = await request<{ items: StoryAuthor[] }>('/social/stories')
+      return raw.items ?? []
+    },
+    createStory: (body, extra) =>
+      request<StoryItem>('/social/stories', {
+        method: 'POST',
+        body: JSON.stringify({ body, kind: extra?.kind ?? 'text', attachment_id: extra?.attachment_id }),
+      }),
+    viewStory: async (id) => {
+      await request(`/social/stories/${id}/view`, { method: 'POST', body: JSON.stringify({}) })
+    },
+    ackMessages: async (ids, state) => {
+      if (!ids.length) return
+      await request('/social/acks', { method: 'POST', body: JSON.stringify({ message_ids: ids, state }) })
+    },
     connectEvents(onEvent) {
       const t = token()
       if (!t) return () => {}
@@ -85,6 +135,9 @@ export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
     },
     setPresence(status) {
       ws?.send(JSON.stringify({ type: 'presence', payload: { status } }))
+    },
+    sendSignal(type, payload) {
+      ws?.send(JSON.stringify({ type, payload }))
     },
   }
 }

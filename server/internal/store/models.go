@@ -367,11 +367,54 @@ type DirectThreadMember struct {
 }
 
 // Message.ThreadKind: "dm" | "group". ThreadID aponta para DirectThread ou SocialGroup.
+// Kind: "text" | "image" | "file" | "audio".
 type Message struct {
-	ID         uint   `gorm:"primaryKey"`
-	ThreadKind string `gorm:"not null;index"`
-	ThreadID   uint   `gorm:"not null;index"`
-	AuthorID   uint   `gorm:"not null;index"`
-	Body       string `gorm:"type:text;not null"`
-	CreatedAt  time.Time
+	ID           uint   `gorm:"primaryKey"`
+	ThreadKind   string `gorm:"not null;index"`
+	ThreadID     uint   `gorm:"not null;index"`
+	AuthorID     uint   `gorm:"not null;index"`
+	Kind         string `gorm:"not null;default:text"`
+	Body         string `gorm:"type:text;not null;default:''"`
+	AttachmentID *uint
+	CreatedAt    time.Time
+}
+
+// MessageReceipt: entregue/lido por um membro (não o autor).
+type MessageReceipt struct {
+	ID          uint `gorm:"primaryKey"`
+	MessageID   uint `gorm:"uniqueIndex:idx_msg_receipt;not null"`
+	UserID      uint `gorm:"uniqueIndex:idx_msg_receipt;not null"`
+	DeliveredAt *time.Time
+	ReadAt      *time.Time
+}
+
+// SocialAttachment é um blob de mídia do chat/stories (Fase 21).
+// StoragePath é relativo a XVPN_SOCIAL_MEDIA_DIR — nunca um path do cliente.
+type SocialAttachment struct {
+	ID          uint   `gorm:"primaryKey"`
+	UploaderID  uint   `gorm:"not null;index"`
+	StoragePath string `gorm:"not null"`
+	Filename    string `gorm:"not null"`
+	Mime        string `gorm:"not null"`
+	SizeBytes   int64  `gorm:"not null"`
+	SHA256      string `gorm:"not null;index"`
+	CreatedAt   time.Time
+}
+
+// Story expira em 24h (estilo WhatsApp). Kind: "text" | "image".
+type Story struct {
+	ID           uint   `gorm:"primaryKey"`
+	AuthorID     uint   `gorm:"not null;index"`
+	Kind         string `gorm:"not null;default:text"`
+	Body         string `gorm:"type:text;not null;default:''"`
+	AttachmentID *uint
+	ExpiresAt    time.Time `gorm:"index;not null"`
+	CreatedAt    time.Time
+}
+
+type StoryView struct {
+	ID        uint `gorm:"primaryKey"`
+	StoryID   uint `gorm:"uniqueIndex:idx_story_view;not null"`
+	ViewerID  uint `gorm:"uniqueIndex:idx_story_view;not null"`
+	CreatedAt time.Time
 }

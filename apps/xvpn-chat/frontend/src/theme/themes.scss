@@ -1,12 +1,17 @@
 /* Temas do messenger (Fase 20). Tokens só valem dentro de .xvpn-chat-root
-   para não pintar o chrome Workspace do painel. */
+   para não pintar o chrome Workspace do painel. Default desktop = dark
+   (mesmos tokens do xvpn-client). ICQ é opcional. */
 
 .xvpn-chat-root {
   --icq-green: oklch(0.72 0.19 135);
-  --radius: 0.75rem;
+  --radius: 1rem;
+  --safe: oklch(0.72 0.17 150);
+  --safe-foreground: oklch(0.16 0.04 150);
+  --glow-safe: oklch(0.78 0.18 150);
+  --font-display: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   color: var(--foreground);
   background: var(--background);
-  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-display);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -24,22 +29,26 @@
   --color-ring: var(--ring);
 }
 
+/* Espelho do :root do xvpn-client. */
 .xvpn-chat-root[data-chat-theme='dark'] {
-  --background: oklch(0.16 0.02 260);
-  --foreground: oklch(0.97 0.01 260);
-  --card: oklch(0.22 0.025 260);
-  --card-foreground: oklch(0.97 0.01 260);
-  --primary: oklch(0.7 0.14 230);
+  --background: oklch(0.11 0.012 260);
+  --foreground: oklch(0.98 0.005 260);
+  --card: oklch(0.18 0.014 260);
+  --card-foreground: oklch(0.98 0.005 260);
+  --primary: oklch(0.72 0.14 230);
   --primary-foreground: oklch(0.16 0.02 230);
-  --secondary: oklch(0.28 0.02 260);
+  --secondary: oklch(0.22 0.016 260);
   --secondary-foreground: oklch(0.96 0.005 260);
-  --muted: oklch(0.24 0.02 260);
+  --muted: oklch(0.2 0.012 260);
   --muted-foreground: oklch(0.7 0.02 260);
   --destructive: oklch(0.65 0.2 25);
-  --border: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.7 0.14 230);
-  --status-online: oklch(0.75 0.18 145);
+  --ring: oklch(0.72 0.14 230);
+  --safe: oklch(0.72 0.17 150);
+  --safe-foreground: oklch(0.16 0.04 150);
+  --glow-safe: oklch(0.78 0.18 150);
+  --status-online: var(--safe);
   --status-away: oklch(0.8 0.16 85);
   --status-dnd: oklch(0.65 0.2 25);
   --status-offline: oklch(0.55 0.02 260);
@@ -60,16 +69,22 @@
   --border: oklch(0.22 0.03 260 / 12%);
   --input: oklch(0.22 0.03 260 / 10%);
   --ring: oklch(0.55 0.16 230);
-  --status-online: oklch(0.62 0.18 145);
+  --safe: oklch(0.55 0.16 150);
+  --safe-foreground: oklch(0.98 0.01 150);
+  --glow-safe: oklch(0.62 0.16 150);
+  --status-online: oklch(0.55 0.16 150);
   --status-away: oklch(0.72 0.16 85);
   --status-dnd: oklch(0.58 0.2 25);
   --status-offline: oklch(0.7 0.02 260);
 }
 
-/* Chrome do painel: herda navy/azul do Workspace, só define bolinhas de status. */
+/* Chrome do painel: herda navy/azul do Workspace, só define bolinhas e --safe. */
 .xvpn-chat-root[data-chat-theme='inherit'] {
   background: var(--card);
-  --status-online: oklch(0.75 0.18 145);
+  --safe: oklch(0.72 0.17 150);
+  --safe-foreground: oklch(0.16 0.04 150);
+  --glow-safe: oklch(0.78 0.18 150);
+  --status-online: var(--safe);
   --status-away: oklch(0.8 0.16 85);
   --status-dnd: oklch(0.65 0.2 25);
   --status-offline: oklch(0.55 0.02 260);
@@ -90,39 +105,32 @@
   --border: oklch(0.78 0.2 135 / 22%);
   --input: oklch(0.78 0.2 135 / 16%);
   --ring: oklch(0.78 0.2 135);
+  --safe: oklch(0.78 0.2 135);
+  --safe-foreground: oklch(0.18 0.04 135);
+  --glow-safe: oklch(0.82 0.22 135);
   --status-online: oklch(0.82 0.22 135);
   --status-away: oklch(0.82 0.16 85);
   --status-dnd: oklch(0.65 0.2 25);
   --status-offline: oklch(0.5 0.02 145);
 }
 
-.xvpn-chat-flower {
-  width: 1.25rem;
-  height: 1.25rem;
-  position: relative;
+/* Utilities compartilhadas com o painel (server/web importa este SASS).
+   watch-face / vignette ficam no index.css do app desktop. */
+.xvpn-chat-root .font-display {
+  font-family: var(--font-display);
 }
 
-.xvpn-chat-flower span {
-  position: absolute;
-  width: 0.45rem;
-  height: 0.45rem;
-  border-radius: 999px;
-  background: var(--primary);
+.xvpn-chat-root .watch-complication {
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklch, white 10%, transparent) 0%,
+    color-mix(in oklch, white 4%, transparent) 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 12%, transparent);
+  backdrop-filter: blur(12px);
 }
 
-.xvpn-chat-flower span:nth-child(1) {
-  top: 0;
-  left: 0.4rem;
-}
-.xvpn-chat-flower span:nth-child(2) {
-  top: 0.4rem;
-  right: 0;
-}
-.xvpn-chat-flower span:nth-child(3) {
-  bottom: 0;
-  left: 0.4rem;
-}
-.xvpn-chat-flower span:nth-child(4) {
-  top: 0.4rem;
-  left: 0;
+.xvpn-chat-root .status-safe-dot {
+  background: var(--safe);
+  box-shadow: 0 0 10px var(--glow-safe), 0 0 18px color-mix(in oklch, var(--glow-safe) 50%, transparent);
 }

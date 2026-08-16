@@ -37,7 +37,8 @@ func Open(path string) (*Store, error) {
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
 		&PanelSettings{},
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
-		&DirectThread{}, &DirectThreadMember{}, &Message{},
+		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
+		&SocialAttachment{}, &Story{}, &StoryView{},
 	); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}

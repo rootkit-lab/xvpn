@@ -40,12 +40,19 @@ type socialThreadResponse struct {
 }
 
 type socialMessageResponse struct {
-	ID         uint      `json:"id"`
-	ThreadKind string    `json:"thread_kind"`
-	ThreadID   uint      `json:"thread_id"`
-	AuthorID   uint      `json:"author_id"`
-	Body       string    `json:"body"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID           uint      `json:"id"`
+	ThreadKind   string    `json:"thread_kind"`
+	ThreadID     uint      `json:"thread_id"`
+	AuthorID     uint      `json:"author_id"`
+	Kind         string    `json:"kind"`
+	Body         string    `json:"body"`
+	AttachmentID *uint     `json:"attachment_id,omitempty"`
+	Filename     string    `json:"filename,omitempty"`
+	Mime         string    `json:"mime,omitempty"`
+	SizeBytes    int64     `json:"size_bytes,omitempty"`
+	Delivered    bool      `json:"delivered"`
+	Read         bool      `json:"read"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 func (a *App) ensureProfile(user store.User) (store.SocialProfile, error) {
@@ -405,9 +412,22 @@ func (a *App) attachLastMessage(th *socialThreadResponse) {
 	if err != nil {
 		return
 	}
-	th.LastBody = msg.Body
+	th.LastBody = previewMessageBody(msg)
 	t := msg.CreatedAt
 	th.LastAt = &t
+}
+
+func previewMessageBody(msg store.Message) string {
+	switch msg.Kind {
+	case "image":
+		return "📷 Foto"
+	case "audio":
+		return "🎤 Áudio"
+	case "file":
+		return "📎 Arquivo"
+	default:
+		return msg.Body
+	}
 }
 
 func (a *App) canAccessThread(kind string, threadID, userID uint) bool {
@@ -450,13 +470,16 @@ func (a *App) handleSocialListMessages(c *gin.Context) {
 	items := make([]socialMessageResponse, 0, len(msgs))
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
-		items = append(items, socialMessageResponse{ID: m.ID, ThreadKind: m.ThreadKind, ThreadID: m.ThreadID, AuthorID: m.AuthorID, Body: m.Body, CreatedAt: m.CreatedAt})
+		items = append(items, a.messageResponse(m))
 	}
+	a.attachReceipts(items)
 	writePage(c, items, total, p)
 }
 
 type postMessageRequest struct {
-	Body string `json:"body" binding:"required"`
+	Body         string `json:"body"`
+	Kind         string `json:"kind"`
+	AttachmentID *uint  `json:"attachment_id"`
 }
 
 func (a *App) handleSocialPostMessage(c *gin.Context) {
@@ -472,12 +495,28 @@ func (a *App) handleSocialPostMessage(c *gin.Context) {
 	}
 	var req postMessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "body é obrigatório"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "JSON inválido"})
 		return
 	}
 	body := strings.TrimSpace(req.Body)
-	if body == "" || len(body) > 4000 {
+	if len(body) > 4000 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "mensagem inválida"})
+		return
+	}
+	msgKind := strings.TrimSpace(req.Kind)
+	if msgKind == "" {
+		msgKind = "text"
+	}
+	if msgKind != "text" && msgKind != "image" && msgKind != "file" && msgKind != "audio" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind de mensagem inválido"})
+		return
+	}
+	if msgKind == "text" && body == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body é obrigatório"})
+		return
+	}
+	if msgKind != "text" && (req.AttachmentID == nil || *req.AttachmentID == 0) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "anexo é obrigatório"})
 		return
 	}
 	me := callerUserID(c)
@@ -485,17 +524,27 @@ func (a *App) handleSocialPostMessage(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "sem acesso a este thread"})
 		return
 	}
+	if req.AttachmentID != nil {
+		var att store.SocialAttachment
+		if err := a.Store.DB.First(&att, *req.AttachmentID).Error; err != nil || att.UploaderID != me {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "anexo inválido"})
+			return
+		}
+	}
 	if a.msgLimiter != nil && !a.msgLimiter.allow("u:"+strconv.FormatUint(uint64(me), 10)) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "muitas mensagens"})
 		return
 	}
-	msg := store.Message{ThreadKind: kind, ThreadID: threadID, AuthorID: me, Body: body}
+	msg := store.Message{ThreadKind: kind, ThreadID: threadID, AuthorID: me, Kind: msgKind, Body: body, AttachmentID: req.AttachmentID}
 	if err := a.Store.DB.Create(&msg).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "social.message", "kind="+kind+" thread="+strconv.FormatUint(uint64(threadID), 10))
-	resp := socialMessageResponse{ID: msg.ID, ThreadKind: kind, ThreadID: threadID, AuthorID: me, Body: body, CreatedAt: msg.CreatedAt}
+	resp := a.messageResponse(msg)
+	batch := []socialMessageResponse{resp}
+	a.attachReceipts(batch)
+	resp = batch[0]
 	if a.Hub != nil {
 		a.Hub.sendToMany(a.threadMemberIDs(kind, threadID), wsEvent{Type: "message.new", Payload: resp})
 	}

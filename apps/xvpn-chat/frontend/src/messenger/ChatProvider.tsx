@@ -8,9 +8,13 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import type { ChatAPI, Message, PresenceStatus, Profile, Session, Thread } from '@chat/chatapi/types'
+import type { ChatAPI, Message, PresenceStatus, Profile, Session, StoryAuthor, Thread, WSEvent } from '@chat/chatapi/types'
 import { OPEN_CHAT_EVENT, type OpenChatDetail } from '@chat/messenger/open-chat'
-import { playMessageSound } from '@chat/messenger/sound'
+import { CallOverlay } from '@chat/messenger/CallOverlay'
+import { ChatSettingsPanel, useChatSettings } from '@chat/messenger/ChatSettings'
+import { ChatRoot } from '@chat/messenger/ui'
+import { playTone } from '@chat/messenger/sound'
+import { useChatTheme } from '@chat/theme/ThemeProvider'
 
 export type Contact = {
   key: string
@@ -24,6 +28,13 @@ export type Contact = {
 
 function contactKey(kind: string, id: number): string {
   return `${kind}:${id}`
+}
+
+function previewKind(kind?: string): string {
+  if (kind === 'image') return '📷 Foto'
+  if (kind === 'audio') return '🎤 Áudio'
+  if (kind === 'file') return '📎 Arquivo'
+  return ''
 }
 
 function threadToContact(t: Thread): Contact {
@@ -77,7 +88,18 @@ type ChatContextValue = {
   searchPeople: (q: string) => Promise<void>
   startDM: (username: string) => Promise<Contact | null>
   openGroup: (id: number, title: string) => Contact
+  createGroupChat: (name: string, usernames: string[]) => Promise<Contact | null>
+  inviteToGroup: (groupId: number, username: string) => Promise<void>
   send: (body: string, key?: string) => Promise<void>
+  sendFile: (file: File, key?: string) => Promise<void>
+  stories: StoryAuthor[]
+  refreshStories: () => Promise<void>
+  publishStory: (body: string, file?: File) => Promise<void>
+  viewStory: (id: number) => Promise<void>
+  callEvent: WSEvent | null
+  startCall: (to: number, video: boolean) => void
+  outgoingCall: { to: number; video: boolean; callId: string } | null
+  clearOutgoing: () => void
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   error: string | null
@@ -112,6 +134,15 @@ export function ChatProvider({
   const [people, setPeople] = useState<Profile[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [stories, setStories] = useState<StoryAuthor[]>([])
+  const [callEvent, setCallEvent] = useState<WSEvent | null>(null)
+  const [outgoingCall, setOutgoingCall] = useState<{ to: number; video: boolean; callId: string } | null>(null)
+  const { settings } = useChatSettings()
+  const { theme } = useChatTheme()
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
+  const ackedDelivered = useRef(new Set<number>())
+  const ackedRead = useRef(new Set<number>())
 
   const refreshSession = useCallback(async () => {
     try {
@@ -134,13 +165,20 @@ export function ChatProvider({
       title: g.name,
     }))
     setContacts([...dms, ...groups])
+    try {
+      setStories(await api.listStories())
+    } catch {
+      // stories opcional se o servidor ainda não tiver a rota
+    }
   }, [api])
 
   const popoutsRef = useRef<ChatPopout[]>([])
   const contactsRef = useRef<Contact[]>([])
+  const activeKeyRef = useRef<string | null>(null)
   const loadListsRef = useRef(loadLists)
   popoutsRef.current = popouts
   contactsRef.current = contacts
+  activeKeyRef.current = activeKey
   loadListsRef.current = loadLists
 
   useEffect(() => {
@@ -228,21 +266,47 @@ export function ChatProvider({
           return { ...prev, [key]: [...list, msg] }
         })
         setContacts((prev) =>
-          prev.map((c) => (c.key === key ? { ...c, lastBody: msg.body, lastAt: msg.created_at } : c)),
+          prev.map((c) => (c.key === key ? { ...c, lastBody: msg.body || previewKind(msg.kind), lastAt: msg.created_at } : c)),
         )
-        const focused = popoutsRef.current.some((p) => p.key === key && !p.minimized)
-        if (!focused || document.hidden) {
+        const mine = Number(msg.author_id) === Number(session.userId)
+        const focused =
+          activeKeyRef.current === key || popoutsRef.current.some((p) => p.key === key && !p.minimized)
+        if (!mine) {
+          if (!ackedDelivered.current.has(msg.id)) {
+            ackedDelivered.current.add(msg.id)
+            void api.ackMessages([msg.id], 'delivered')
+          }
+          if (focused && !document.hidden && settingsRef.current.readReceipts && !ackedRead.current.has(msg.id)) {
+            ackedRead.current.add(msg.id)
+            void api.ackMessages([msg.id], 'read')
+          }
+        }
+        if (!mine && (!focused || document.hidden)) {
           setUnread((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }))
-          if (document.hidden) {
-            playMessageSound()
-            if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-              new Notification('XVPN Chat', { body: msg.body.slice(0, 80) })
-            }
+          const s = settingsRef.current
+          if (s.soundIn) playTone('in', s.volume)
+          if (s.notify && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            new Notification('XVPN Chat', { body: (msg.body || previewKind(msg.kind)).slice(0, 80) })
           }
         }
       }
+      if (ev.type === 'message.receipt' && ev.payload && typeof ev.payload === 'object') {
+        const msg = ev.payload as Message
+        const key = contactKey(msg.thread_kind, msg.thread_id)
+        setMessages((prev) => {
+          const list = prev[key]
+          if (!list) return prev
+          return {
+            ...prev,
+            [key]: list.map((m) => (m.id === msg.id ? { ...m, delivered: msg.delivered, read: msg.read } : m)),
+          }
+        })
+      }
       if (ev.type === 'group.updated') {
         void loadListsRef.current()
+      }
+      if (ev.type.startsWith('call.')) {
+        setCallEvent(ev)
       }
     })
     return close
@@ -279,10 +343,35 @@ export function ChatProvider({
   const setMyStatus = useCallback(
     (s: Exclude<PresenceStatus, 'offline'>) => {
       setMyStatusState(s)
-      api.setPresence(s)
+      if (settingsRef.current.sharePresence) api.setPresence(s)
+      else api.setPresence('invisible')
     },
     [api],
   )
+
+  useEffect(() => {
+    if (!session?.loggedIn) return
+    api.setPresence(settings.sharePresence ? myStatus : 'invisible')
+  }, [api, session?.loggedIn, settings.sharePresence, myStatus])
+
+  useEffect(() => {
+    if (!session?.loggedIn || !settings.readReceipts) return
+    const focused = new Set<string>()
+    if (activeKey) focused.add(activeKey)
+    for (const p of popouts) {
+      if (!p.minimized) focused.add(p.key)
+    }
+    if (focused.size === 0 || document.hidden) return
+    const ids: number[] = []
+    for (const key of focused) {
+      for (const m of messages[key] ?? []) {
+        if (Number(m.author_id) === Number(session.userId) || ackedRead.current.has(m.id)) continue
+        ackedRead.current.add(m.id)
+        ids.push(m.id)
+      }
+    }
+    if (ids.length) void api.ackMessages(ids, 'read')
+  }, [api, session?.loggedIn, session?.userId, settings.readReceipts, activeKey, popouts, messages])
 
   const searchPeople = useCallback(
     async (q: string) => {
@@ -314,21 +403,98 @@ export function ChatProvider({
     [openPopout],
   )
 
+  const appendMsg = useCallback((k: string, msg: Message) => {
+    setMessages((prev) => {
+      const list = prev[k] ?? []
+      if (list.some((m) => m.id === msg.id)) return prev
+      return { ...prev, [k]: [...list, msg] }
+    })
+    setContacts((prev) =>
+      prev.map((c) => (c.key === k ? { ...c, lastBody: msg.body || previewKind(msg.kind), lastAt: msg.created_at } : c)),
+    )
+  }, [])
+
   const send = useCallback(
     async (body: string, key?: string) => {
       const k = key ?? activeKey
       if (!k || !body.trim()) return
       const c = contacts.find((x) => x.key === k)
       if (!c) return
-      const msg = await api.postMessage(c.kind, c.id, body.trim())
-      setMessages((prev) => {
-        const list = prev[k] ?? []
-        if (list.some((m) => m.id === msg.id)) return prev
-        return { ...prev, [k]: [...list, msg] }
-      })
+      appendMsg(k, await api.postMessage(c.kind, c.id, body.trim()))
+      if (settings.soundOut) playTone('out', settings.volume)
     },
-    [activeKey, api, contacts],
+    [activeKey, api, contacts, appendMsg, settings.soundOut, settings.volume],
   )
+
+  const sendFile = useCallback(
+    async (file: File, key?: string) => {
+      const k = key ?? activeKey
+      if (!k) return
+      const c = contacts.find((x) => x.key === k)
+      if (!c) return
+      const att = await api.uploadAttachment(file)
+      const msg = await api.postMessage(c.kind, c.id, '', { kind: att.kind, attachment_id: att.id })
+      appendMsg(k, msg)
+      if (settings.soundOut) playTone('out', settings.volume)
+    },
+    [activeKey, api, contacts, appendMsg, settings.soundOut, settings.volume],
+  )
+
+  const createGroupChat = useCallback(
+    async (name: string, usernames: string[]) => {
+      const g = await api.createGroup(name, '')
+      for (const u of usernames) {
+        try {
+          await api.inviteToGroup(g.id, u)
+        } catch {
+          // convite individual não aborta o grupo
+        }
+      }
+      const c: Contact = { key: contactKey('group', g.id), kind: 'group', id: g.id, title: g.name }
+      setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
+      openPopout(c.key, c)
+      return c
+    },
+    [api, openPopout],
+  )
+
+  const inviteToGroup = useCallback(
+    async (groupId: number, username: string) => {
+      await api.inviteToGroup(groupId, username)
+    },
+    [api],
+  )
+
+  const refreshStories = useCallback(async () => {
+    setStories(await api.listStories())
+  }, [api])
+
+  const publishStory = useCallback(
+    async (body: string, file?: File) => {
+      if (file) {
+        const att = await api.uploadAttachment(file)
+        await api.createStory(body, { kind: 'image', attachment_id: att.id })
+      } else {
+        await api.createStory(body, { kind: 'text' })
+      }
+      await refreshStories()
+    },
+    [api, refreshStories],
+  )
+
+  const viewStory = useCallback(
+    async (id: number) => {
+      await api.viewStory(id)
+      await refreshStories()
+    },
+    [api, refreshStories],
+  )
+
+  const startCall = useCallback((to: number, video: boolean) => {
+    setOutgoingCall({ to, video, callId: `c-${Date.now()}-${to}` })
+  }, [])
+
+  const clearOutgoing = useCallback(() => setOutgoingCall(null), [])
 
   const login = useCallback(
     async (username: string, password: string) => {
@@ -386,7 +552,18 @@ export function ChatProvider({
       searchPeople,
       startDM,
       openGroup,
+      createGroupChat,
+      inviteToGroup,
       send,
+      sendFile,
+      stories,
+      refreshStories,
+      publishStory,
+      viewStory,
+      callEvent,
+      startCall,
+      outgoingCall,
+      clearOutgoing,
       login,
       logout,
       error,
@@ -416,7 +593,18 @@ export function ChatProvider({
       searchPeople,
       startDM,
       openGroup,
+      createGroupChat,
+      inviteToGroup,
       send,
+      sendFile,
+      stories,
+      refreshStories,
+      publishStory,
+      viewStory,
+      callEvent,
+      startCall,
+      outgoingCall,
+      clearOutgoing,
       login,
       logout,
       error,
@@ -425,7 +613,17 @@ export function ChatProvider({
     ],
   )
 
-  return <ChatCtx.Provider value={value}>{children}</ChatCtx.Provider>
+  return (
+    <ChatCtx.Provider value={value}>
+      {children}
+      {session?.loggedIn ? (
+        <ChatRoot theme="inherit">
+          <CallOverlay />
+          <ChatSettingsPanel theme={mode === 'desktop' ? theme : 'inherit'} />
+        </ChatRoot>
+      ) : null}
+    </ChatCtx.Provider>
+  )
 }
 
 export function useChat(): ChatContextValue {

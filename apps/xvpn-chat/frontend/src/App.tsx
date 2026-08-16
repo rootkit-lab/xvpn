@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { ChatThemeProvider } from '@chat/theme/ThemeProvider'
+import { ChatSettingsProvider } from '@chat/messenger/ChatSettings'
 import { ChatProvider, useChat } from '@chat/messenger/ChatProvider'
 import { Messenger } from '@chat/messenger/Messenger'
 import { ChatButton, ChatInput, ChatRoot } from '@chat/messenger/ui'
+import { ChatShell } from '@chat/messenger/chrome'
 import { useChatTheme } from '@chat/theme/ThemeProvider'
 import { createDesktopChatAPI } from '@chat/chatapi/desktop'
 
@@ -11,9 +13,11 @@ const desktopApi = createDesktopChatAPI()
 export default function App() {
   return (
     <ChatThemeProvider>
-      <ChatProvider api={desktopApi} mode="desktop">
-        <DesktopShell />
-      </ChatProvider>
+      <ChatSettingsProvider>
+        <ChatProvider api={desktopApi} mode="desktop">
+          <DesktopShell />
+        </ChatProvider>
+      </ChatSettingsProvider>
     </ChatThemeProvider>
   )
 }
@@ -24,15 +28,19 @@ function DesktopShell() {
 
   if (loading) {
     return (
-      <ChatRoot theme={theme} className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Carregando…
+      <ChatRoot theme={theme} className="h-full">
+        <ChatShell className="items-center justify-center">
+          <p className="relative z-10 font-display text-sm text-muted-foreground">Carregando…</p>
+        </ChatShell>
       </ChatRoot>
     )
   }
   if (!session?.loggedIn) {
     return (
-      <ChatRoot theme={theme} className="flex h-full items-center justify-center p-6">
-        <LoginForm onLogin={login} error={error} />
+      <ChatRoot theme={theme} className="h-full">
+        <ChatShell className="items-center justify-center">
+          <LoginForm onLogin={login} error={error} />
+        </ChatShell>
       </ChatRoot>
     )
   }
@@ -65,14 +73,17 @@ function LoginForm({
   }
 
   return (
-    <form className="w-full max-w-sm rounded-xl border border-border bg-card p-5" onSubmit={submit}>
-      <h1 className="mb-1 text-lg font-semibold">XVPN Chat</h1>
-      <p className="mb-4 text-xs text-muted-foreground">Mesma conta do painel. Só vpn.officeempresa.com.</p>
-      <label className="mb-1 block text-sm" htmlFor="user">
+    <form className="relative z-10 w-full max-w-sm rounded-[22px] p-5 watch-complication" onSubmit={submit}>
+      <img src="/logo-192.png" alt="" className="mx-auto mb-3 size-12 rounded-full" />
+      <h1 className="mb-1 text-center font-display text-lg font-semibold tracking-tight">XVPN Chat</h1>
+      <p className="mb-4 text-center font-display text-xs text-muted-foreground">
+        Mesma conta do painel. Só vpn.officeempresa.com.
+      </p>
+      <label className="mb-1 block font-display text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75" htmlFor="user">
         Usuário
       </label>
       <ChatInput id="user" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" />
-      <label className="mb-1 mt-3 block text-sm" htmlFor="pass">
+      <label className="mb-1 mt-3 block font-display text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75" htmlFor="pass">
         Senha
       </label>
       <ChatInput
@@ -83,7 +94,7 @@ function LoginForm({
         autoComplete="current-password"
       />
       {(localError || error) && <p className="mt-2 text-sm text-destructive">{localError || error}</p>}
-      <ChatButton type="submit" className="mt-4 w-full" disabled={busy}>
+      <ChatButton type="submit" variant="safe" className="mt-4 w-full" disabled={busy}>
         {busy ? 'Entrando…' : 'Entrar'}
       </ChatButton>
     </form>

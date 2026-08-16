@@ -1,6 +1,6 @@
 import { Events } from '@wailsio/runtime'
 import { ChatService } from '../../bindings/github.com/rootkit-lab/xvpn/chat'
-import type { ChatAPI, Group, Message, Page, Profile, Thread, WSEvent } from './types'
+import type { Attachment, ChatAPI, Group, Message, Page, Profile, StoryAuthor, StoryItem, Thread, WSEvent } from './types'
 
 type Envelope = {
   items?: unknown[] | null
@@ -16,6 +16,22 @@ function asPage<T>(raw: Envelope | null | undefined, items: T[]): Page<T> {
     page: raw?.page ?? 1,
     per_page: raw?.per_page ?? 25,
   }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(bin)
+}
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out.buffer
 }
 
 function mapThread(th: {
@@ -78,11 +94,39 @@ export function createDesktopChatAPI(): ChatAPI {
       const raw = await ChatService.ListMessages(kind, id, page)
       return asPage<Message>(raw, (raw.items ?? []) as Message[])
     },
-    async postMessage(kind, id, body) {
+    async postMessage(kind, id, body, extra) {
+      if (extra?.attachment_id) {
+        return (await ChatService.PostMediaMessage(kind, id, body, extra.kind ?? 'file', extra.attachment_id)) as Message
+      }
       return (await ChatService.PostMessage(kind, id, body)) as Message
     },
     async createGroup(name, description) {
       return (await ChatService.CreateGroup(name, description)) as Group
+    },
+    async inviteToGroup(groupId, username) {
+      await ChatService.InviteToGroup(groupId, username)
+    },
+    async uploadAttachment(file) {
+      const buf = new Uint8Array(await file.arrayBuffer())
+      return (await ChatService.UploadAttachment(file.name, file.type, bytesToBase64(buf))) as Attachment
+    },
+    async fetchAttachment(id) {
+      const raw = await ChatService.DownloadAttachment(id)
+      if (typeof raw !== 'string' || !raw) return new Blob()
+      return new Blob([base64ToArrayBuffer(raw)])
+    },
+    async listStories() {
+      return ((await ChatService.ListStories()) ?? []) as StoryAuthor[]
+    },
+    async createStory(body, extra) {
+      return (await ChatService.CreateStory(body, extra?.kind ?? 'text', extra?.attachment_id ?? 0)) as StoryItem
+    },
+    async viewStory(id) {
+      await ChatService.ViewStory(id)
+    },
+    async ackMessages(ids, state) {
+      if (!ids.length) return
+      await ChatService.AckMessages(ids, state)
     },
     connectEvents(onEvent) {
       void ChatService.StartEvents()
@@ -96,6 +140,9 @@ export function createDesktopChatAPI(): ChatAPI {
     },
     setPresence(status) {
       void ChatService.SetPresence(status)
+    },
+    sendSignal(type, payload) {
+      void ChatService.SendSignal(type, JSON.stringify(payload))
     },
   }
 }

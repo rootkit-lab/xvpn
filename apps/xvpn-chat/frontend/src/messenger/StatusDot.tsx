@@ -2,7 +2,7 @@ import { cn } from '@chat/lib/utils'
 import type { PresenceStatus } from '@chat/chatapi/types'
 
 const COLOR: Record<PresenceStatus, string> = {
-  online: 'bg-[var(--status-online)]',
+  online: 'status-safe-dot',
   away: 'bg-[var(--status-away)]',
   dnd: 'bg-[var(--status-dnd)]',
   invisible: 'bg-[var(--status-offline)]',

@@ -2,15 +2,25 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import type { ChatTheme } from '@chat/chatapi/types'
 
 const KEY = 'xvpn-chat-theme'
+const MIGRATED = 'xvpn-chat-theme-v2'
 
 function readTheme(): ChatTheme {
   try {
+    if (!localStorage.getItem(MIGRATED)) {
+      localStorage.setItem(MIGRATED, '1')
+      const prev = localStorage.getItem(KEY)
+      // icq era o default, não uma escolha — alinha ao xvpn-client.
+      if (!prev || prev === 'icq') {
+        localStorage.setItem(KEY, 'dark')
+        return 'dark'
+      }
+    }
     const v = localStorage.getItem(KEY)
     if (v === 'light' || v === 'dark' || v === 'icq') return v
   } catch {
     // storage indisponível
   }
-  return 'icq'
+  return 'dark'
 }
 
 const ThemeCtx = createContext<{ theme: ChatTheme; setTheme: (t: ChatTheme) => void } | null>(null)

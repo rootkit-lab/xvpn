@@ -167,6 +167,7 @@ graph TB
 | FileBrowser | `10.66.66.1:8081` | Bind somente em `wg0` — nunca público |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via API em `127.0.0.1:8080` → `https://vpn.officeempresa.com` (JWT) | **Sem porta/domínio novo.** Não confundir com Samba/FileBrowser (só `wg0`). Download autenticado; nunca anônimo na internet pública. |
 | WebSocket social/chat (Fase 19) | `wss://vpn.officeempresa.com/api/ws` → mesmo `127.0.0.1:8080` | **Sem porta/domínio novo.** `location /api/ws` no Nginx com `Upgrade`/`Connection` só nesse path (não no catch-all). Auth no primeiro frame, nunca token na query string. O app `xvpn-chat` é cliente desse endpoint — não abre listener próprio. |
+| Mídia do chat (Fase 21) | Disco `/opt/xvpn/data/social/` · `POST /api/social/attachments` (JWT, 32 MiB) | **Sem porta/domínio novo.** Location Nginx isolada (`client_max_body_size 40m`). Chamadas WebRTC são P2P (sinalização no WS existente); sem TURN/porta extra. |
 | SFTP por usuário (Fase 13) | `22/tcp` (reaproveitada, `Match User` no `sshd_config`) | **Sem porta nova.** Só `internal-sftp` + chroot em `/home/<username>`; sem shell. Ver §6.9. |
 | SSH | `22/tcp` | Mantém, mas hardening (§9) |
 | DNS interno (opcional, fase futura) | `10.66.66.1:53` | Evita vazamento de DNS quando full-tunnel ativo |
@@ -475,7 +476,9 @@ Hub **in-process** no `xvpn-server` (um node). Endpoint único `GET /api/ws` (up
 
 Nginx: `location /api/ws` com `proxy_http_version 1.1`, `Upgrade` e `Connection` **somente nesse path**. O catch-all atual (`server/deploy/nginx/xvpn.conf`) já usa HTTP/1.1 mas não anuncia Upgrade — e não deve passar a anunciar, senão keep-alive do resto da API quebra. Sem linha de firewall nova (§5).
 
-Eventos: `message.new`, `message.ack`, `typing`, `presence`, `group.updated`. Histórico e CRUD de perfil/grupo/follow continuam REST paginado — o socket não substitui listagem.
+Eventos: `message.new`, `message.ack`, `message.receipt`, `typing`, `presence`, `group.updated`, `call.offer` / `call.answer` / `call.ice` / `call.hangup` / `call.reject` (relay P2P, sem persistir SDP). Histórico e CRUD de perfil/grupo/follow/stories continuam REST paginado — o socket não substitui listagem.
+
+**Mídia (Fase 21):** anexos/áudio/stories em `XVPN_SOCIAL_MEDIA_DIR` (content-addressed, mesmo padrão do marketplace). `Message.Kind` = `text|image|file|audio`. Stories expiram em 24h. Chamadas 1:1 via WebRTC; ICE com STUN público; sem TURN (funciona melhor na VPN `10.66.66.0/24`). Recibos WhatsApp (`MessageReceipt` + `POST /api/social/acks` + `message.receipt`): enviado / entregue / lido; o cliente pode desligar confirmação de leitura. Sem porta nova.
 
 #### Dados e privacidade
 
@@ -488,11 +491,11 @@ Eventos: `message.new`, `message.ack`, `typing`, `presence`, `group.updated`. Hi
 
 #### App `xvpn-chat`
 
-Cliente do protocolo acima, não dono dele. JWT só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `vpn.officeempresa.com`. Publicação pelo pipeline da Fase 16 (`marketplace.yaml`, `source: build`, Linux+Windows). Esqueleto no marketplace: `ROADMAP.md` Fase 19.4. Produto (web + desktop, UI ICQ): Fase 20.
+Cliente do protocolo acima, não dono dele. JWT só em memória (mesmo padrão da tela Apps, Fase 12). Não escuta porta, não fala com Samba/FileBrowser, só `https`/`wss` em `vpn.officeempresa.com`. Publicação pelo pipeline da Fase 16 (`marketplace.yaml`, `source: build`, Linux+Windows). Esqueleto no marketplace: `ROADMAP.md` Fase 19.4. Produto (web + desktop): Fase 20.
 
 **Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **rail direito de contatos** + **janelas de conversa no rodapé** (estilo Facebook, sem modal), acionados pela status bar do `SystemChrome` (todas as rotas autenticadas; tema `inherit`) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
 
-**Visual:** redesign moderno inspirado no ICQ (lista de contatos + conversa + status colorido; acento verde-flor). Temas `light` / `dark` / `icq`. Não é clone do protocolo AOL e não é a DataTable Workspace da 19.3. `/social` não é substituído pelo chat.
+**Visual:** a janela desktop segue o design system do `xvpn-client` (preto profundo, cards `watch-complication`, acento `--safe` neon, Outfit — skill `desktop-app-ui`). Temas `dark` (default) / `light` / `icq` (opcional). No painel, rail + popouts usam `inherit` (não pintar ICQ nem `watch-face` sobre o `/my`). Layout messenger = lista de contatos + conversa + status colorido. Não é clone do protocolo AOL e não é a DataTable Workspace da 19.3. `/social` não é substituído pelo chat.
 
 Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes desktop antigos ignoram o socket; o contrato HTTP existente não quebra, mas o campo existe para o chat recusar servidor sem 19.3.
 
@@ -734,4 +737,4 @@ Fluxo de trabalho inalterado: branch → PR Conventional Commits → squash (`CO
 
 **Ciclo v0.4 concluído (`ROADMAP.md` Fase 19):** redesign estilo Google Workspace. Prefixo do membro `/my` sem alias `/app`. `/social` (perfis, follow, DM, grupos via WebSocket); `/admin` com diretório lista+ficha; kit de UI + paginação; esqueleto `apps/xvpn-chat` no marketplace. Decisões em [§6.7](#67-admin-geral-rbac) e [§6.11](#611-xvpn-social-e-xvpn-chat).
 
-**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual redesign ICQ, temas SASS. `/social` permanece rede social; o chat integra nela (rail de contatos + janelas no rodapé) em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.
+**Ciclo v0.5 — em curso (`ROADMAP.md` Fase 20):** o `xvpn-chat` vira o messenger da organização (web + desktop), visual alinhado ao `xvpn-client`, temas SASS. `/social` permanece rede social; o chat integra nela (rail de contatos + janelas no rodapé) em todo `vpn.officeempresa.com` autenticado. Sem porta/domínio novo. Ordem: 20.1 → 20.2 → 20.3 → 20.4.

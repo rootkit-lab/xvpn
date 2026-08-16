@@ -55,7 +55,7 @@ export function ChatPopouts({ railOpen }: { railOpen: boolean }) {
           key={p.key}
           theme="inherit"
           className={cn(
-            'pointer-events-auto flex h-[26rem] w-[20.5rem] flex-col overflow-hidden rounded-t-xl border border-white/10 bg-card shadow-2xl',
+            'pointer-events-auto flex h-[26rem] w-[20.5rem] flex-col overflow-hidden rounded-t-[18px] border border-white/10 bg-card shadow-2xl',
             i < expanded.length - 1 && 'max-md:hidden',
             i < expanded.length - 2 && 'md:max-lg:hidden',
           )}

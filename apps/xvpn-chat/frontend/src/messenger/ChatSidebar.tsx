@@ -1,8 +1,10 @@
-import { MessageCircle, X } from 'lucide-react'
+import { MessageCircle, Settings, X } from 'lucide-react'
 import { useState } from 'react'
 import { useChat } from '@chat/messenger/ChatProvider'
 import { ContactList } from '@chat/messenger/ContactList'
 import { NewChatDialog } from '@chat/messenger/NewChatDialog'
+import { StoriesRail } from '@chat/messenger/Stories'
+import { useChatSettings } from '@chat/messenger/ChatSettings'
 import { StatusDot } from '@chat/messenger/StatusDot'
 import { ChatRoot } from '@chat/messenger/ui'
 import { cn } from '@chat/lib/utils'
@@ -19,6 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
 /** Rail direito: só contatos (RTL). A conversa abre em janela no rodapé. */
 export function ChatSidebar() {
   const { session, setDockOpen, setActiveKey, myStatus, setMyStatus } = useChat()
+  const { setOpen: setSettingsOpen } = useChatSettings()
   const [statusOpen, setStatusOpen] = useState(false)
 
   if (!session?.loggedIn) return null
@@ -40,6 +43,14 @@ export function ChatSidebar() {
             <StatusDot status={myStatus === 'invisible' ? 'offline' : myStatus} className="size-2 ring-0" />
           </button>
         </div>
+        <button
+          type="button"
+          className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Configurações do chat"
+        >
+          <Settings className="size-4" />
+        </button>
         <button
           type="button"
           className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/5 hover:text-foreground"
@@ -71,6 +82,7 @@ export function ChatSidebar() {
           ))}
         </div>
       )}
+      <StoriesRail />
       <NewChatDialog alignEnd />
       <div className="min-h-0 flex-1">
         <ContactList onSelect={(k) => setActiveKey(k)} alignEnd />

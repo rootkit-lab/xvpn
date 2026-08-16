@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "./theme/themes.scss";
 
+/* Tokens-base iguais ao xvpn-client (watchOS). Temas do messenger
+   sobrescrevem dentro de .xvpn-chat-root — ver theme/themes.scss. */
 :root {
   --background: oklch(0.11 0.012 260);
   --foreground: oklch(0.98 0.005 260);
@@ -13,10 +15,16 @@
   --muted: oklch(0.2 0.012 260);
   --muted-foreground: oklch(0.7 0.02 260);
   --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.98 0.01 255);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.72 0.14 230);
   --radius: 1rem;
+  --glow: oklch(0.74 0.13 230);
+  --glow-safe: oklch(0.78 0.18 150);
+  --safe: oklch(0.72 0.17 150);
+  --safe-foreground: oklch(0.16 0.04 150);
+  --font-display: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
@@ -31,9 +39,18 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-safe: var(--safe);
+  --color-safe-foreground: var(--safe-foreground);
+  --color-glow-safe: var(--glow-safe);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 10px);
+  --font-display: var(--font-display);
 }
 
 html,
@@ -43,5 +60,37 @@ body,
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-display);
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  .watch-face {
+    background:
+      radial-gradient(120% 80% at 50% 0%, oklch(0.2 0.03 230 / 0.45) 0%, transparent 55%),
+      radial-gradient(90% 60% at 50% 100%, oklch(0.16 0.02 260 / 0.5) 0%, transparent 50%),
+      var(--background);
+  }
+
+  .watch-vignette {
+    background: radial-gradient(ellipse at center, transparent 40%, oklch(0 0 0 / 0.45) 100%);
+  }
+
+  .watch-complication {
+    background: linear-gradient(
+      165deg,
+      color-mix(in oklch, white 10%, transparent) 0%,
+      color-mix(in oklch, white 4%, transparent) 100%
+    );
+    box-shadow: inset 0 1px 0 color-mix(in oklch, white 12%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .status-safe-dot {
+    background: var(--safe);
+    box-shadow: 0 0 10px var(--glow-safe), 0 0 18px color-mix(in oklch, var(--glow-safe) 50%, transparent);
+  }
 }

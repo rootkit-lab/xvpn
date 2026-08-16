@@ -30,12 +30,12 @@ export function ContactList({
           placeholder="Buscar conversas"
           aria-label="Buscar conversas"
           className={cn(
-            'h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'h-9 w-full rounded-[14px] border-0 bg-foreground/[0.06] px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             alignEnd && 'text-right',
           )}
         />
       </div>
-      <ul className="min-h-0 flex-1 overflow-y-auto" role="listbox" aria-label="Contatos">
+      <ul className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2" role="listbox" aria-label="Contatos">
         {contacts.map((c) => {
           const st =
             c.kind === 'dm' && c.peerUserId
@@ -46,16 +46,16 @@ export function ContactList({
           const n = unread[c.key] ?? 0
           const selected = popouts.some((p) => p.key === c.key) || activeKey === c.key
           return (
-            <li key={c.key}>
+            <li key={c.key} className="mb-1.5">
               <button
                 type="button"
                 role="option"
                 aria-selected={selected}
                 onClick={() => onSelect(c.key)}
                 className={cn(
-                  'flex w-full items-center gap-2 px-3 py-2 hover:bg-secondary/80',
+                  'flex w-full items-center gap-2 rounded-[18px] px-3 py-2.5 hover:bg-white/8',
                   alignEnd ? 'flex-row-reverse text-right' : 'text-left',
-                  selected && 'bg-secondary',
+                  selected && 'bg-white/10 ring-1 ring-[var(--safe)]/45',
                   compact && 'py-1.5',
                 )}
               >
@@ -72,15 +72,15 @@ export function ContactList({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className={cn('flex items-center gap-2', alignEnd && 'flex-row-reverse')}>
-                    <span className="truncate text-sm font-medium">{c.title}</span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{formatTime(c.lastAt)}</span>
+                    <span className="truncate font-display text-sm font-medium">{c.title}</span>
+                    <span className="shrink-0 font-display text-[10px] text-muted-foreground">{formatTime(c.lastAt)}</span>
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {c.lastBody || (c.kind === 'group' ? 'grupo' : session?.username === c.title ? '' : 'sem mensagens')}
                   </span>
                 </span>
                 {n > 0 && (
-                  <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                  <span className="flex size-5 items-center justify-center rounded-full bg-[var(--safe)] text-[10px] font-bold text-[var(--safe-foreground)]">
                     {n > 9 ? '9+' : n}
                   </span>
                 )}

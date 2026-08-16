@@ -113,6 +113,7 @@ func (a *App) handleDriverMkdir(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao criar pasta"})
 		return
 	}
+	_ = driver.ChownShare(dest, req.Root, user.Username)
 	c.JSON(http.StatusCreated, gin.H{"ok": true})
 }
 
@@ -149,7 +150,8 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 		return
 	}
 	defer src.Close()
-	dst, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o664)
+	dest := filepath.Join(dir, name)
+	dst, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o664)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
 		return
@@ -159,6 +161,7 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
 		return
 	}
+	_ = driver.ChownShare(dest, root, user.Username)
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "name": name})
 }
 

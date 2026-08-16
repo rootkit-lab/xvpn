@@ -114,7 +114,7 @@ func Create(r Runner, username string) error {
 	if err := r.Chmod(files, 0o700); err != nil {
 		return fmt.Errorf("chmod 0700 %s: %w", files, err)
 	}
-	if err := r.GrantXvpnACL(files); err != nil {
+	if err := r.GrantXvpnACL(files, username); err != nil {
 		return fmt.Errorf("acl xvpn em %s: %w", files, err)
 	}
 

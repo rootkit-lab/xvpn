@@ -630,8 +630,12 @@ export function ChatProvider({
   )
 }
 
+export function useOptionalChat(): ChatContextValue | null {
+  return useContext(ChatCtx)
+}
+
 export function useChat(): ChatContextValue {
-  const ctx = useContext(ChatCtx)
+  const ctx = useOptionalChat()
   if (!ctx) throw new Error('useChat fora do ChatProvider')
   return ctx
 }

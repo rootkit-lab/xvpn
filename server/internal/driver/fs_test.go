@@ -2,6 +2,7 @@ package driver
 
 import (
 	"os"
+	"os/user"
 	"path/filepath"
 	"testing"
 )
@@ -25,6 +26,30 @@ func TestResolveRejectsTraversal(t *testing.T) {
 	want := filepath.Join(r.HomeRoot, "alice", "files", "docs", "a.txt")
 	if got != want {
 		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
+func TestChownShare_RejectsBadUser(t *testing.T) {
+	if err := ChownShare("/tmp", "home", "../root"); err != ErrBadUser {
+		t.Fatalf("esperava ErrBadUser, veio %v", err)
+	}
+}
+
+func TestChownShare_SameUser(t *testing.T) {
+	u, err := user.Current()
+	if err != nil {
+		t.Skip(err)
+	}
+	if !validUsername(u.Username) {
+		t.Skip("username local fora do padrão Unix do Drive")
+	}
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f")
+	if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ChownShare(p, "home", u.Username); err != nil {
+		t.Fatal(err)
 	}
 }
 

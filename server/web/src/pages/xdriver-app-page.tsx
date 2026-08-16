@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { StoreShell } from '@/components/layout/store-shell'
+import { useDocumentTitleOverride } from '@/components/layout/document-title'
 
 export function XDriverLayout() {
   return <StoreShell kind="xdriver" />
@@ -44,6 +45,9 @@ export function XDriverAppPage() {
   const { data, loading, error, reload } = usePollingData(fetchList, 12_000)
 
   const crumbs = path ? path.split('/').filter(Boolean) : []
+  const rootLabel = root === 'home' ? 'Meu Drive' : 'Compartilhado'
+  const folder = crumbs[crumbs.length - 1]
+  useDocumentTitleOverride(folder ? `${folder} · ${rootLabel}` : rootLabel)
   const homeOff = root === 'home' && !user?.samba_enabled && !user?.sftp_enabled
   const selectedItem = data?.items.find((e) => e.path === selected)
   const canDownload = Boolean(selectedItem && !selectedItem.is_dir)

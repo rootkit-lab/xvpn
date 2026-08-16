@@ -4,7 +4,10 @@ package driver
 import (
 	"errors"
 	"os"
+	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -63,6 +66,37 @@ func (r Roots) Resolve(username, root, rel string) (string, error) {
 		return "", ErrBadPath
 	}
 	return full, nil
+}
+
+// ChownShare passa o arquivo/pasta criado pelo Drive para o force user
+// do Samba (dono do home ou xvpn-shared) e mantém ACL rwx do xvpn.
+// Sem isso o GVFS/CIFS do dono toma permission denied (os error 13).
+func ChownShare(path, root, username string) error {
+	name := username
+	if root == "shared" {
+		name = "xvpn-shared"
+	}
+	if !validUsername(name) {
+		return ErrBadUser
+	}
+	u, err := user.Lookup(name)
+	if err != nil {
+		return err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return err
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return err
+	}
+	spec := "u:xvpn:rwx,u:" + name + ":rwx"
+	_ = exec.Command("setfacl", "-m", spec, path).Run()
+	if info, err := os.Stat(path); err == nil && info.IsDir() {
+		_ = exec.Command("setfacl", "-d", "-m", spec, path).Run()
+	}
+	return os.Chown(path, uid, gid)
 }
 
 func RelFrom(base, full string) string {

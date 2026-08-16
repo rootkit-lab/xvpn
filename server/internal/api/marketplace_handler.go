@@ -128,28 +128,16 @@ func appNetworkOrDefault(n store.AppNetwork) store.AppNetwork {
 	return n
 }
 
-// requestHostName devolve o Host sem porta, em minúsculas.
-func requestHostName(c *gin.Context) string {
-	h := c.Request.Host
-	if host, _, err := net.SplitHostPort(h); err == nil {
-		h = host
-	}
-	return strings.ToLower(h)
-}
-
-// isCorpMarketplaceHost é verdadeiro para *.corp.ihuull.com (e o
-// equivalente de teste *.corp.localhost). Esses server blocks só
-// escutam em 10.66.66.1:443 — chegar aqui já implica túnel.
-func isCorpMarketplaceHost(host string) bool {
-	return strings.HasSuffix(host, ".corp.ihuull.com") || strings.HasSuffix(host, ".corp.localhost")
-}
-
 // requestFromVPN reporta se a origem está na sub-rede WireGuard.
 // RemoteIP() cobre o listener do túnel (10.66.66.1:8080). ClientIP()
-// cobre o peer que chega ao Nginx público já pelo wg0 (X-Forwarded-For
-// = $remote_addr). Não aceita header forjado: trustedProxies é só
-// loopback, então um XFF 10.66.66.x vindo da internet pública não vira
-// ClientIP (ver clientip_test.go).
+// cobre o peer que chega ao Nginx (público ou *.corp) já pelo wg0
+// (X-Forwarded-For = $remote_addr). Não aceita header forjado:
+// trustedProxies é só loopback, então um XFF 10.66.66.x vindo da
+// internet pública não vira ClientIP (ver clientip_test.go).
+//
+// Host (*.corp.ihuull.com) NÃO é prova de intranet: o mesmo processo
+// Gin é alcançado pelos vhosts públicos, e um Host que não casa
+// server_name cai no default_server ainda proxied para :8080.
 func (a *App) requestFromVPN(c *gin.Context) bool {
 	if a.Config == nil {
 		return false
@@ -168,15 +156,15 @@ func (a *App) requestFromVPN(c *gin.Context) bool {
 }
 
 // canSeeAppNetwork: visibility = quem (ACL); network = onde.
-// network:public sempre passa. network:vpn só em *.corp ou com peer
-// na VPN (PLAN.md §6.13). A loja pública (marketplace.ihuull.com)
-// sem túnel não lista nem baixa app vpn.
+// network:public sempre passa. network:vpn só com origem na sub-rede
+// WireGuard (PLAN.md §6.13). A loja pública (marketplace.ihuull.com)
+// sem túnel não lista nem baixa app vpn — Host corp sozinho não basta.
 func (a *App) canSeeAppNetwork(c *gin.Context, network store.AppNetwork) bool {
 	switch appNetworkOrDefault(network) {
 	case store.AppNetworkPublic:
 		return true
 	case store.AppNetworkVPN:
-		return isCorpMarketplaceHost(requestHostName(c)) || a.requestFromVPN(c)
+		return a.requestFromVPN(c)
 	default:
 		return false
 	}

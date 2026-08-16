@@ -493,10 +493,18 @@ func TestHandleListMarketplaceApps_NetworkFilter(t *testing.T) {
 		t.Fatalf("network no JSON: %q", publicStore[publicID].Network)
 	}
 
+	// Host *.corp sozinho não basta: o default_server público também
+	// encaminha Host forjado para 127.0.0.1:8080.
+	spoofedHost := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"xchat.corp.ihuull.com", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "203.0.113.9"}))
+	if _, ok := spoofedHost[vpnID]; ok {
+		t.Fatal("Host *.corp forjado via Nginx público não deve revelar app vpn")
+	}
+
 	corp := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
-		"xchat.corp.ihuull.com", "127.0.0.1:443", nil))
+		"xchat.corp.ihuull.com", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "10.66.66.8"}))
 	if _, ok := corp[vpnID]; !ok {
-		t.Fatal("app network:vpn deve aparecer em *.corp")
+		t.Fatal("app network:vpn deve aparecer em *.corp quando o peer está na VPN")
 	}
 
 	onTunnel := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
@@ -532,10 +540,16 @@ func TestHandleDownloadMarketplaceAsset_NetworkFilter(t *testing.T) {
 		t.Fatalf("download público sem túnel: esperado 403, got %d %s", denied.Code, denied.Body.String())
 	}
 
+	deniedSpoof := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"xdriver.corp.localhost", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "203.0.113.9"})
+	if deniedSpoof.Code != http.StatusForbidden {
+		t.Fatalf("download com Host corp forjado: esperado 403, got %d %s", deniedSpoof.Code, deniedSpoof.Body.String())
+	}
+
 	okCorp := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
-		"xdriver.corp.localhost", "127.0.0.1:443", nil)
+		"xdriver.corp.localhost", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "10.66.66.8"})
 	if okCorp.Code != http.StatusOK {
-		t.Fatalf("download em *.corp: %d %s", okCorp.Code, okCorp.Body.String())
+		t.Fatalf("download em *.corp com peer na VPN: %d %s", okCorp.Code, okCorp.Body.String())
 	}
 	if !bytes.Equal(okCorp.Body.Bytes(), content) {
 		t.Fatal("conteúdo do download em *.corp diverge")

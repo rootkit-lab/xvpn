@@ -8,9 +8,9 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Próximo / em curso (v0.5):** [Fase 20 — `xvpn-chat` web + desktop (ICQ)](#fase-20--xvpn-chat-web--desktop-icq). Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
+> **Próximo / em curso (v0.6):** [Fase 21 — mídia, stories e chamadas](#fase-21--mídia-stories-e-chamadas-v06). Fase 20 (messenger) concluída em código. Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
 >
-> **Ordem desta fase:** **20.1** stack compartilhada + temas → **20.2** messenger estilo ICQ → **20.3** dock global + Social → **20.4** janela desktop. Ver [justificativa](#ordem-de-execução-do-ciclo-v05-decidida).
+> **Ordem desta fase:** **21.1** anexos → **21.2** áudio → **21.3** grupos no messenger → **21.4** stories → **21.5** chamadas 1:1 → **21.6** recibos, som e settings.
 
 ---
 
@@ -878,16 +878,61 @@ O binário da 19.4 deixa de ser o formulário de três abas e passa a ser a casc
 - [x] Janela Wails carrega a UI da 20.2 (adapter desktop). Login JWT só em memória (Fase 12 / 19.4).
 - [x] Notificação local + som discreto de mensagem nova (quando a janela não está em foco). Sem listener de rede, sem Samba/FileBrowser.
 - [x] Tema da 20.1 aplicável na janela; tamanho mínimo que caiba lista + conversa.
+- [x] Visual da janela alinhado ao `xvpn-client` (watch-face, complications, acento `--safe`); default `dark`; ICQ opcional.
 - [x] `marketplace.yaml` / CI `chat-linux` / `release-chat.yml` inalterados em espírito (Linux `.deb` + Windows `.exe`, `source: build`, `visibility: global`).
 - [x] CI: build/vet/test do módulo + build do frontend; artefatos não commitados.
 
-**Critério de saída:** o `.deb`/`.exe` do marketplace abre o messenger ICQ; dois desktops (ou desktop + sidebar no browser) conversam; `PLAN.md` §5 sem linha nova.
+**Critério de saída:** o `.deb`/`.exe` do marketplace abre o messenger no visual do client; dois desktops (ou desktop + sidebar no browser) conversam; `PLAN.md` §5 sem linha nova.
 
 **Fora de escopo desta fase:** protocolo/servidores da AOL/ICQ, stickers/GIF marketplace, E2E encryption, segundo domínio, porta extra, Redis, app Android/iOS nativo, reabrir o chrome Workspace do `/admin` e `/my`, chat na landing/login (sem sessão).
 
 ---
 
+## Fase 21 — Mídia, stories e chamadas (v0.6)
 
+Messenger da Fase 20 ganha o que o WhatsApp/Telegram têm de básico: arquivo, áudio, grupo no próprio chat, status 24h e chamada 1:1. Sem porta/domínio novo (`PLAN.md` §5). Visual: skill `desktop-app-ui` (ícones squircle, acento `--safe`).
+
+### 21.1 Anexos (arrastar, colar, clipe)
+
+- [x] `Message.Kind` + tabela `SocialAttachment`; blobs em `XVPN_SOCIAL_MEDIA_DIR` (content-addressed).
+- [x] `POST /api/social/attachments` (multipart, 32 MiB, allowlist MIME) + `GET` com ACL do thread.
+- [x] Location Nginx isolada `40m` (não no catch-all de 1m).
+- [x] UI: clipe, drag-and-drop na conversa, Ctrl+V de imagem/arquivo; bolha imagem/arquivo.
+- [ ] Deploy: `XVPN_SOCIAL_MEDIA_DIR=/opt/xvpn/data/social` no `.env` + `nginx -t` + reload da location nova.
+
+### 21.2 Áudio
+
+- [x] Gravação no composer (`MediaRecorder`) → mesmo pipeline de anexo (`audio/webm`).
+- [x] Player inline na bolha.
+
+### 21.3 Grupos no messenger
+
+- [x] Aba Grupo em “Nova conversa”: nome + convidar usernames (`createGroup` + `invite`).
+- [x] Lista já misturava DMs e grupos; conversa de grupo usa o thread da 19.3.
+
+### 21.4 Stories (status estilo WhatsApp)
+
+- [x] Modelo `Story` (24h) + `StoryView`; `GET/POST /api/social/stories`.
+- [x] Rail de anéis no topo da lista (anel `--safe` se não visto); viewer tela cheia, toque avança.
+
+### 21.5 Chamadas 1:1 (WhatsApp/Telegram)
+
+- [x] Sinalização WS (`call.offer|answer|ice|hangup|reject`) — relay no hub, sem persistir SDP.
+- [x] Overlay atender/recusar, mudo, câmera, encerrar. STUN público; P2P (melhor na VPN).
+- [x] Botões telefone/vídeo no header da DM. Sem chamada de grupo (exigiria SFU/TURN).
+
+### 21.6 Recibos, notificações e settings
+
+- [x] `MessageReceipt` (entregue/lido por membro) + `POST /api/social/acks` + WS `message.ack` / `message.receipt`.
+- [x] Ticks na bolha: 1 = enviado, 2 cinza = entregue, 2 `--safe` = lido (desliga com privacidade).
+- [x] Settings (gear): notificações + sons (entrada/saída/chamada, volume), microfone, privacidade (leitura, digitando, presença).
+- [x] Som ao receber/enviar e toque na chamada; `Notification` do sistema quando a janela não está em foco.
+
+**Critério de saída:** dois membros trocam foto (colar ou arrastar), áudio, story 24h e uma chamada 1:1; grupo criado no messenger recebe as mensagens; ticks de entregue/lido; `PLAN.md` §5 sem porta nova.
+
+**Fora de escopo:** TURN/SFU, chamada em grupo, E2E, GIFs/stickers, stories que não expiram.
+
+---
 
 ## Como usar este arquivo
 
@@ -897,6 +942,7 @@ O binário da 19.4 deixa de ser o formulário de três abas e passa a ser a casc
 - **Parte IV (17–18):** v0.3 — split `/app`×`/admin`, depois conta do membro e papéis.
 - **Parte V (19):** v0.4 — 19.1 → 19.2 → 19.3 → 19.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v04-decidida)).
 - **Parte VI (20):** v0.5 — 20.1 → 20.2 → 20.3 → 20.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v05-decidida)).
+- **Parte VII (21):** v0.6 — 21.1 → 21.2 → 21.3 → 21.4 → 21.5 → 21.6 (mídia desbloqueia áudio/stories; chamadas e recibos por último).
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

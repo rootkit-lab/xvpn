@@ -6,15 +6,17 @@ export function ChatButton({
   className,
   variant = 'default',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'ghost' | 'outline' }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'default' | 'ghost' | 'outline' | 'safe' }) {
   return (
     <button
       type="button"
       className={cn(
-        'inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors disabled:opacity-50',
+        'inline-flex h-10 items-center justify-center gap-1.5 rounded-[14px] px-4 text-sm font-medium transition-colors disabled:opacity-50',
         variant === 'default' && 'bg-primary text-primary-foreground hover:opacity-90',
-        variant === 'ghost' && 'hover:bg-secondary',
-        variant === 'outline' && 'border border-input bg-transparent hover:bg-secondary',
+        variant === 'ghost' && 'hover:bg-white/8',
+        variant === 'outline' && 'border border-white/10 bg-transparent hover:bg-white/8',
+        variant === 'safe' &&
+          'bg-[var(--safe)] text-[var(--safe-foreground)] shadow-[0_0_18px_-4px_var(--glow-safe)] hover:opacity-90',
         className,
       )}
       {...props}
@@ -28,7 +30,7 @@ export function ChatInput({ className, ...props }: InputHTMLAttributes<HTMLInput
   return (
     <input
       className={cn(
-        'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'h-10 w-full rounded-[14px] border-0 bg-foreground/[0.06] px-3.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         className,
       )}
       {...props}

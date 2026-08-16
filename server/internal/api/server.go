@@ -81,6 +81,10 @@ type App struct {
 	// em cmd/xvpn-server/main.go junto com o restante do App).
 	Marketplace *marketplace.Store
 
+	// SocialMedia guarda anexos/áudio/stories do chat (Fase 21). Mesmo
+	// store content-addressed do marketplace, raiz distinta.
+	SocialMedia *marketplace.Store
+
 	// fetchAsset baixa um asset por URL durante o sync (Fase 16). Nil =
 	// marketplace.FetchAndPut. Os testes injetam um fake sem rede.
 	fetchAsset func(context.Context, *marketplace.Store, string, string) (marketplace.PutResult, string, error)
@@ -265,6 +269,12 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/social/threads", app.handleSocialOpenThread)
 			authed.GET("/social/threads/:kind/:id/messages", app.handleSocialListMessages)
 			authed.POST("/social/threads/:kind/:id/messages", app.handleSocialPostMessage)
+			authed.POST("/social/attachments", app.handleSocialUploadAttachment)
+			authed.GET("/social/attachments/:id", app.handleSocialDownloadAttachment)
+			authed.GET("/social/stories", app.handleSocialListStories)
+			authed.POST("/social/stories", app.handleSocialCreateStory)
+			authed.POST("/social/stories/:id/view", app.handleSocialViewStory)
+			authed.POST("/social/acks", app.handleSocialAck)
 		}
 
 		// viewerUp: leitura das telas de admin (dashboard, listas,

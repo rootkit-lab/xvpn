@@ -99,7 +99,8 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
 		&store.PanelSettings{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
-		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{},
+		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
+		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}
@@ -116,12 +117,18 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		t.Fatalf("erro criando marketplace store de teste: %v", err)
 	}
 
+	socialStore, err := marketplace.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("erro criando social media store de teste: %v", err)
+	}
+
 	app := &App{
 		Store:           &store.Store{DB: db},
 		WG:              fakeWG,
 		Tokens:          auth.NewTokenManager("segredo-de-teste-com-pelo-menos-32-bytes", time.Hour),
 		Config:          cfg,
 		Marketplace:     marketplaceStore,
+		SocialMedia:     socialStore,
 		ServerPublicKey: "test-server-public-key=",
 	}
 	return app, fakeWG

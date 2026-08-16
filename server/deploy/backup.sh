@@ -10,6 +10,7 @@ DB_PATH="${XVPN_DB_PATH:-/opt/xvpn/data/xvpn.db}"
 BACKUP_DIR="${XVPN_BACKUP_DIR:-/opt/xvpn/backups}"
 RETENTION_DAYS="${XVPN_BACKUP_RETENTION_DAYS:-7}"
 MARKETPLACE_DIR="${XVPN_MARKETPLACE_DIR:-/opt/xvpn/data/marketplace}"
+SOCIAL_MEDIA_DIR="${XVPN_SOCIAL_MEDIA_DIR:-/opt/xvpn/data/social}"
 
 if [ ! -f "$DB_PATH" ]; then
   echo "xvpn-backup: banco não encontrado em $DB_PATH, nada a fazer." >&2
@@ -44,4 +45,12 @@ if [ -d "$MARKETPLACE_DIR" ]; then
   fi
 else
   echo "xvpn-backup: $MARKETPLACE_DIR não existe ainda, pulando backup do marketplace."
+fi
+
+if [ -d "$SOCIAL_MEDIA_DIR" ]; then
+  if command -v rsync >/dev/null 2>&1; then
+    mkdir -p "$BACKUP_DIR/social"
+    rsync -a --delete "$SOCIAL_MEDIA_DIR/" "$BACKUP_DIR/social/"
+    echo "xvpn-backup: social media espelhado em $BACKUP_DIR/social/"
+  fi
 fi

@@ -88,7 +88,9 @@ func (a *App) handleSocialWS(c *gin.Context) {
 			case "presence":
 				a.applyPresence(claims.UserID, incoming.Payload)
 			case "message.ack":
-				// cliente confirma recebimento — sem persistência extra
+				a.relayMessageAck(claims.UserID, incoming.Payload)
+			case "call.offer", "call.answer", "call.ice", "call.hangup", "call.reject":
+				a.relayCall(claims.UserID, incoming.Type, incoming.Payload)
 			}
 		}
 	}()
@@ -107,6 +109,23 @@ func (a *App) handleSocialWS(c *gin.Context) {
 			}
 		}
 	}
+}
+
+func (a *App) relayMessageAck(from uint, payload any) {
+	raw, _ := json.Marshal(payload)
+	var body struct {
+		MessageIDs []uint `json:"message_ids"`
+		MessageID  uint   `json:"message_id"`
+		State      string `json:"state"`
+	}
+	if json.Unmarshal(raw, &body) != nil {
+		return
+	}
+	ids := body.MessageIDs
+	if body.MessageID != 0 {
+		ids = append(ids, body.MessageID)
+	}
+	a.applyMessageAck(from, ids, body.State)
 }
 
 func (a *App) applyPresence(from uint, payload any) {
@@ -131,6 +150,21 @@ func (a *App) relayTyping(from uint, payload any) {
 	}
 	ids := a.threadMemberIDs(body.ThreadKind, body.ThreadID)
 	a.Hub.sendToMany(ids, wsEvent{Type: "typing", Payload: gin.H{"user_id": from, "thread_kind": body.ThreadKind, "thread_id": body.ThreadID}})
+}
+
+func (a *App) relayCall(from uint, evType string, payload any) {
+	raw, _ := json.Marshal(payload)
+	var body struct {
+		To     uint   `json:"to"`
+		CallID string `json:"call_id"`
+	}
+	if json.Unmarshal(raw, &body) != nil || body.To == 0 || body.CallID == "" {
+		return
+	}
+	merged := map[string]any{}
+	_ = json.Unmarshal(raw, &merged)
+	merged["from"] = from
+	a.Hub.sendTo(body.To, wsEvent{Type: evType, Payload: merged})
 }
 
 func (a *App) threadMemberIDs(kind string, threadID uint) []uint {

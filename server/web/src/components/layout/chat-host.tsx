@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
 import { ChatThemeProvider } from '@chat/theme/ThemeProvider'
+import { ChatSettingsProvider } from '@chat/messenger/ChatSettings'
 import { ChatProvider } from '@chat/messenger/ChatProvider'
 import { createWebChatAPI } from '@chat/chatapi/web'
 import { useAuth } from '@/lib/auth-context'
@@ -21,9 +22,11 @@ export function ChatHost({ children }: { children: ReactNode }) {
 
   return (
     <ChatThemeProvider>
-      <ChatProvider api={api} mode="web" enabled={isAuthenticated}>
-        {children}
-      </ChatProvider>
+      <ChatSettingsProvider>
+        <ChatProvider api={api} mode="web" enabled={isAuthenticated}>
+          {children}
+        </ChatProvider>
+      </ChatSettingsProvider>
     </ChatThemeProvider>
   )
 }

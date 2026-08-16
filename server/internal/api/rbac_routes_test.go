@@ -159,6 +159,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"social-create-group", http.MethodPost, "/api/social/groups", createGroupRequest{Name: "grupo-rbac"}, "any"},
 	{"social-list-threads", http.MethodGet, "/api/social/threads", nil, "any"},
 	{"social-open-thread", http.MethodPost, "/api/social/threads", openThreadRequest{Username: "target"}, "any"},
+	{"social-list-stories", http.MethodGet, "/api/social/stories", nil, "any"},
 }
 
 func strPtr(s string) *string { return &s }

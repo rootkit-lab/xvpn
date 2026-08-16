@@ -18,6 +18,22 @@ function asPage<T>(raw: Envelope | null | undefined, items: T[]): Page<T> {
   }
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(bin)
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
+  return out
+}
+
 function mapThread(th: {
   id: number
   kind?: string
@@ -92,11 +108,12 @@ export function createDesktopChatAPI(): ChatAPI {
     },
     async uploadAttachment(file) {
       const buf = new Uint8Array(await file.arrayBuffer())
-      return (await ChatService.UploadAttachment(file.name, file.type, Array.from(buf))) as Attachment
+      return (await ChatService.UploadAttachment(file.name, file.type, bytesToBase64(buf))) as Attachment
     },
     async fetchAttachment(id) {
-      const raw = (await ChatService.DownloadAttachment(id)) as number[]
-      return new Blob([new Uint8Array(raw)])
+      const raw = await ChatService.DownloadAttachment(id)
+      const bytes = typeof raw === 'string' && raw ? base64ToBytes(raw) : new Uint8Array()
+      return new Blob([bytes])
     },
     async listStories() {
       return ((await ChatService.ListStories()) ?? []) as StoryAuthor[]

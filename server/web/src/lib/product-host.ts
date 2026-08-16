@@ -133,8 +133,9 @@ export function safeReturnURL(raw: string | null | undefined): string | null {
   if (!raw) return null
   try {
     const u = new URL(raw, 'https://xauth.ihuull.com')
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
     const host = u.hostname.toLowerCase()
+    const local = host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')
+    if (u.protocol !== 'https:' && !(local && u.protocol === 'http:')) return null
     // Alias legado — vpn.ihuull.com nunca foi produto (PLAN.md §5.1).
     if (host === 'vpn.ihuull.com' || host === 'vpn.localhost') {
       u.hostname = host.endsWith('.localhost') ? 'xvpn.localhost' : 'xvpn.ihuull.com'
@@ -189,6 +190,11 @@ export function ssoHandoff(role: string, returnTo: string | null | undefined, to
     return
   }
   const destURL = new URL(dest)
+  const local = destURL.hostname === 'localhost' || destURL.hostname === '127.0.0.1' || destURL.hostname.endsWith('.localhost')
+  if (destURL.protocol !== 'https:' && !(local && destURL.protocol === 'http:')) {
+    window.location.replace(dest)
+    return
+  }
   const form = document.createElement('form')
   form.method = 'POST'
   form.action = `${destURL.origin}/api/auth/session`

@@ -39,6 +39,30 @@ func isPanelReturnHost(host string) bool {
 	return host == "xvpn.ihuull.com" || host == "xvpn.localhost" || host == "localhost" || host == "127.0.0.1"
 }
 
+func allowedReturnScheme(scheme, host string) bool {
+	if isLocalDevHost(host) {
+		return scheme == "https" || scheme == "http"
+	}
+	return scheme == "https"
+}
+
+// TrustedHandoffOrigin aceita Origin/Referer só de hosts ihuull (https, ou http no localhost).
+func TrustedHandoffOrigin(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if _, ok := safeReturnHosts[host]; !ok {
+		return false
+	}
+	return allowedReturnScheme(u.Scheme, host)
+}
+
 // SafeReturnURL aceita só hosts ihuull conhecidos — bloqueia open redirect.
 // Espelha server/web/src/lib/product-host.ts.
 func SafeReturnURL(raw string) string {
@@ -47,10 +71,13 @@ func SafeReturnURL(raw string) string {
 		return ""
 	}
 	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") {
+	if err != nil {
 		return ""
 	}
 	host := strings.ToLower(u.Hostname())
+	if !allowedReturnScheme(u.Scheme, host) {
+		return ""
+	}
 	if host == "vpn.ihuull.com" || host == "vpn.localhost" {
 		if strings.HasSuffix(host, ".localhost") {
 			u.Host = "xvpn.localhost"

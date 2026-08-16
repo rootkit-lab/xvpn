@@ -75,6 +75,8 @@ describe('safeReturnURL', () => {
     expect(safeReturnURL('https://xchat.corp.ihuull.com/social/messages')).toContain('xchat.corp.ihuull.com')
     expect(safeReturnURL('https://evil.example/phish')).toBeNull()
     expect(safeReturnURL('javascript:alert(1)')).toBeNull()
+    expect(safeReturnURL('http://xvpn.ihuull.com/admin')).toBeNull()
+    expect(safeReturnURL('http://localhost/admin')).toBe('http://localhost/admin')
   })
 
   it('reescreve o alias legado vpn.ihuull.com e tira /admin de host que não é o painel', () => {

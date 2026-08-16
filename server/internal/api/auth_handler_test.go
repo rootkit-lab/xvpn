@@ -185,6 +185,7 @@ func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(form))
 	req.Host = "xvpn.ihuull.com"
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", "https://xauth.ihuull.com")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusSeeOther {
@@ -206,10 +207,21 @@ func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
 	bad := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader("token=nao-e-jwe&return=https://evil.example/"))
 	bad.Host = "xvpn.ihuull.com"
 	bad.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	bad.Header.Set("Origin", "https://xauth.ihuull.com")
 	badRec := httptest.NewRecorder()
 	router.ServeHTTP(badRec, bad)
 	if badRec.Code != http.StatusUnauthorized {
 		t.Fatalf("token lixo deveria ser 401, got %d", badRec.Code)
+	}
+
+	csrf := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(form))
+	csrf.Host = "xvpn.ihuull.com"
+	csrf.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	csrf.Header.Set("Origin", "https://evil.example")
+	csrfRec := httptest.NewRecorder()
+	router.ServeHTTP(csrfRec, csrf)
+	if csrfRec.Code != http.StatusForbidden {
+		t.Fatalf("Origin estranha deveria ser 403, got %d", csrfRec.Code)
 	}
 }
 

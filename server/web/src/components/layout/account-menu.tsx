@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { LogOut, Settings2, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
-import { PANEL_ORIGIN, isStoreHost } from '@/lib/product-host'
+import { PANEL_ORIGIN, isStoreHost, productKind, ssoLogoutURL } from '@/lib/product-host'
 import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
@@ -15,13 +15,12 @@ import {
 
 export { AppLauncher as ProductSwitcher } from '@/components/layout/app-launcher'
 
-export function AccountMenu({ variant }: { variant: 'user' | 'admin' | 'social' }) {
+export function AccountMenu({ variant: _variant }: { variant: 'user' | 'admin' | 'social' }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   if (!user) return null
 
   const store = isStoreHost()
-  const loginPath = variant === 'admin' ? '/admin/login' : store ? '/login' : '/my/login'
   const profilePath = `/social/u/${user.username}`
   const accountPath = '/my/account'
 
@@ -64,8 +63,14 @@ export function AccountMenu({ variant }: { variant: 'user' | 'admin' | 'social' 
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
-            logout()
-            navigate(loginPath, { replace: true })
+            void (async () => {
+              await logout()
+              if (productKind() === 'xauth') {
+                navigate('/login?logged_out=1', { replace: true })
+                return
+              }
+              window.location.replace(ssoLogoutURL())
+            })()
           }}
         >
           <LogOut className="size-4" />

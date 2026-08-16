@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { PANEL_ORIGIN, productKind, safeReturnURL, ssoContinueURL } from '@/lib/product-host'
+import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoContinueURL } from '@/lib/product-host'
 import { ApiError } from '@/lib/api'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
@@ -25,19 +25,13 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
   const isStoreLogin = variant === 'store'
   const isSSO = variant === 'sso' || productKind() === 'xauth'
   const returnTo = safeReturnURL(new URLSearchParams(location.search).get('return'))
+  const loggedOut = isLoggedOutParam(location.search)
+  const showContinue = isSSO && isAuthenticated && !isLoadingUser && !loggedOut
 
-  useEffect(() => {
-    if (!isAuthenticated || isLoadingUser || !isSSO) return
-    window.location.replace(ssoContinueURL(user?.role ?? 'member', returnTo))
-  }, [isAuthenticated, isLoadingUser, isSSO, user?.role, returnTo])
-
-  if (isAuthenticated && isLoadingUser) {
+  if (isAuthenticated && isLoadingUser && !isSSO) {
     return <PageFallback />
   }
-  if (isAuthenticated) {
-    if (isSSO) {
-      return <PageFallback />
-    }
+  if (isAuthenticated && !isSSO) {
     const from = (location.state as { from?: string } | null)?.from
     const redirectTo = from ?? defaultRouteForRole(user?.role ?? 'member')
     return <Navigate to={redirectTo} replace />
@@ -105,6 +99,19 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {showContinue && (
+              <div className="mb-4 flex flex-col gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  className="w-full"
+                  onClick={() => window.location.replace(ssoContinueURL(user?.role ?? 'member', returnTo))}
+                >
+                  Continuar como {user?.username ?? 'usuário'}
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">ou entre com outra conta</p>
+              </div>
+            )}
             <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="username" className="hud-label text-muted-foreground/75">

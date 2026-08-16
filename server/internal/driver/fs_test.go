@@ -100,6 +100,24 @@ func TestOpenDirNoFollow_RejectsSymlinkParent(t *testing.T) {
 	}
 }
 
+func TestOpenFileNoFollow_RejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "files")
+	if err := os.Mkdir(base, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(dir, "secret")
+	if err := os.WriteFile(target, []byte("nope"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(base, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenFileNoFollow(base, filepath.Join(base, "link")); err == nil {
+		t.Fatal("esperava erro ao abrir symlink")
+	}
+}
+
 func TestChownShare_RejectsSymlink(t *testing.T) {
 	u, err := user.Current()
 	if err != nil || !validUsername(u.Username) {

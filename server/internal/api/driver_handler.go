@@ -4,9 +4,9 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -76,11 +76,11 @@ func (a *App) handleDriverList(c *gin.Context) {
 	}
 	root := c.DefaultQuery("root", "shared")
 	rel := c.Query("path")
-	full, _, ok := a.driverResolve(c, user, root, rel)
+	full, base, ok := a.driverResolve(c, user, root, rel)
 	if !ok {
 		return
 	}
-	ents, err := driver.List(full)
+	ents, err := driver.ListNoFollow(base, full)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao listar"})
 		return
@@ -169,16 +169,19 @@ func (a *App) handleDriverDownload(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	full, _, ok := a.driverResolve(c, user, c.Query("root"), c.Query("path"))
+	full, base, ok := a.driverResolve(c, user, c.Query("root"), c.Query("path"))
 	if !ok {
 		return
 	}
-	st, err := os.Lstat(full)
-	if err != nil || st.IsDir() {
+	f, err := driver.OpenFileNoFollow(base, full)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "arquivo não encontrado"})
 		return
 	}
-	c.FileAttachment(full, filepath.Base(full))
+	defer f.Close()
+	name := filepath.Base(full)
+	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
+	http.ServeContent(c.Writer, c.Request, name, time.Time{}, f)
 }
 
 func (a *App) handleDriverDelete(c *gin.Context) {
@@ -195,11 +198,11 @@ func (a *App) handleDriverDelete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	full, _, ok := a.driverResolve(c, user, req.Root, req.Path)
+	full, base, ok := a.driverResolve(c, user, req.Root, req.Path)
 	if !ok {
 		return
 	}
-	if err := os.RemoveAll(full); err != nil {
+	if err := driver.RemoveNoFollow(base, full); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao apagar"})
 		return
 	}

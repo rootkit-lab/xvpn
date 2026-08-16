@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"unicode"
+
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -264,6 +266,105 @@ func ChownShare(path, root, username string) error {
 	}
 	defer syscall.Close(fd)
 	return applyShareACL(fd, root, username)
+}
+
+// OpenFileNoFollow abre um arquivo regular sob base sem seguir symlink.
+func OpenFileNoFollow(base, full string) (*os.File, error) {
+	parent, name, err := splitUnder(base, full)
+	if err != nil {
+		return nil, err
+	}
+	dirfd, err := OpenDirNoFollow(base, parent)
+	if err != nil {
+		return nil, err
+	}
+	defer syscall.Close(dirfd)
+	fd, err := syscall.Openat(dirfd, name, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	var st syscall.Stat_t
+	if err := syscall.Fstat(fd, &st); err != nil {
+		syscall.Close(fd)
+		return nil, err
+	}
+	if st.Mode&syscall.S_IFMT == syscall.S_IFDIR {
+		syscall.Close(fd)
+		return nil, ErrBadPath
+	}
+	return os.NewFile(uintptr(fd), name), nil
+}
+
+func splitUnder(base, full string) (parent, name string, err error) {
+	base = filepath.Clean(base)
+	full = filepath.Clean(full)
+	if full == base {
+		return "", "", ErrBadPath
+	}
+	if !strings.HasPrefix(full, base+string(os.PathSeparator)) {
+		return "", "", ErrBadPath
+	}
+	name = filepath.Base(full)
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return "", "", ErrBadPath
+	}
+	return filepath.Dir(full), name, nil
+}
+
+func procFD(fd int) string {
+	return "/proc/self/fd/" + strconv.Itoa(fd)
+}
+
+func ListNoFollow(base, full string) ([]Entry, error) {
+	fd, err := OpenDirNoFollow(base, full)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []Entry{}, nil
+		}
+		return nil, err
+	}
+	defer syscall.Close(fd)
+	return List(procFD(fd))
+}
+
+func removeAt(dirfd int, name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return ErrBadPath
+	}
+	fd, err := syscall.Openat(dirfd, name, noFollowDir, 0)
+	if err != nil {
+		return unix.Unlinkat(dirfd, name, 0)
+	}
+	ents, readErr := os.ReadDir(procFD(fd))
+	if readErr != nil {
+		syscall.Close(fd)
+		return readErr
+	}
+	for _, e := range ents {
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if err := removeAt(fd, e.Name()); err != nil {
+			syscall.Close(fd)
+			return err
+		}
+	}
+	syscall.Close(fd)
+	return unix.Unlinkat(dirfd, name, unix.AT_REMOVEDIR)
+}
+
+// RemoveNoFollow apaga arquivo ou pasta sob base sem seguir symlink.
+func RemoveNoFollow(base, full string) error {
+	parent, name, err := splitUnder(base, full)
+	if err != nil {
+		return err
+	}
+	dirfd, err := OpenDirNoFollow(base, parent)
+	if err != nil {
+		return err
+	}
+	defer syscall.Close(dirfd)
+	return removeAt(dirfd, name)
 }
 
 func RelFrom(base, full string) string {

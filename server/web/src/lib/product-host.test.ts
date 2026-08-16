@@ -3,6 +3,7 @@ import {
   headerProduct,
   isAuthPath,
   isLoggedOutParam,
+  isProductAppHost,
   isStoreHost,
   productKind,
   safeReturnURL,
@@ -12,7 +13,7 @@ import {
 } from './product-host'
 
 describe('productKind', () => {
-  it('reconhece a loja, o portal XVPN, o Drive, o marketing xgroup e o xauth', () => {
+  it('reconhece cada host de produto — corp não cai no painel', () => {
     expect(productKind('marketplace.ihuull.com')).toBe('marketplace')
     expect(productKind('xdriver.ihuull.com')).toBe('xdriver')
     expect(productKind('xdriver.corp.ihuull.com')).toBe('xdriver-corp')
@@ -21,18 +22,26 @@ describe('productKind', () => {
     expect(productKind('localhost')).toBe('xvpn')
     expect(productKind('xgroup.ihuull.com')).toBe('xgroup')
     expect(productKind('xgroup.localhost')).toBe('xgroup')
+    expect(productKind('xgroup.corp.ihuull.com')).toBe('xgroup-corp')
+    expect(productKind('xchat.ihuull.com')).toBe('xchat')
+    expect(productKind('xchat.corp.ihuull.com')).toBe('xchat-corp')
+    expect(productKind('corp.ihuull.com')).toBe('corp')
     expect(productKind('xauth.ihuull.com')).toBe('xauth')
     expect(productKind('xauth.localhost')).toBe('xauth')
     expect(productKind('ihuull.com')).toBe('core')
-    expect(productKind('xchat.ihuull.com')).toBe('core')
   })
 
-  it('trata o Drive corp como host de produto (login /login)', () => {
+  it('trata apps de produto com login /login (não /admin)', () => {
     expect(isStoreHost('xdriver.corp.ihuull.com')).toBe(true)
     expect(isStoreHost('xdriver.ihuull.com')).toBe(false)
     expect(isStoreHost('marketplace.ihuull.com')).toBe(true)
     expect(isStoreHost('xvpn.ihuull.com')).toBe(false)
     expect(isStoreHost('xgroup.ihuull.com')).toBe(false)
+    expect(isProductAppHost('xchat.corp.ihuull.com')).toBe(true)
+    expect(isProductAppHost('xgroup.corp.ihuull.com')).toBe(true)
+    expect(isProductAppHost('corp.ihuull.com')).toBe(true)
+    expect(isProductAppHost('xvpn.ihuull.com')).toBe(false)
+    expect(isProductAppHost('xchat.ihuull.com')).toBe(false)
   })
 })
 
@@ -51,6 +60,10 @@ describe('headerProduct', () => {
     expect(headerProduct('ihuull.com', '/')).toBe('ihuull')
     expect(headerProduct('www.ihuull.com', '/')).toBe('ihuull')
     expect(headerProduct('xauth.ihuull.com', '/login')).toBe('ihuull')
+    expect(headerProduct('xchat.corp.ihuull.com', '/admin')).toBe('xchat')
+    expect(headerProduct('xchat.ihuull.com', '/')).toBe('xchat')
+    expect(headerProduct('xgroup.corp.ihuull.com', '/social')).toBe('xgroup')
+    expect(headerProduct('corp.ihuull.com', '/')).toBe('xvpn')
   })
 })
 
@@ -58,8 +71,16 @@ describe('safeReturnURL', () => {
   it('aceita só hosts ihuull conhecidos', () => {
     expect(safeReturnURL('https://marketplace.ihuull.com/')).toBe('https://marketplace.ihuull.com/')
     expect(safeReturnURL('https://xvpn.ihuull.com/admin')).toContain('xvpn.ihuull.com')
+    expect(safeReturnURL('https://xchat.corp.ihuull.com/social/messages')).toContain('xchat.corp.ihuull.com')
     expect(safeReturnURL('https://evil.example/phish')).toBeNull()
     expect(safeReturnURL('javascript:alert(1)')).toBeNull()
+  })
+
+  it('reescreve o alias legado vpn.ihuull.com e tira /admin de host que não é o painel', () => {
+    expect(safeReturnURL('https://vpn.ihuull.com/social')).toBe('https://xvpn.ihuull.com/social')
+    expect(safeReturnURL('https://xchat.corp.ihuull.com/admin')).toBe('https://xvpn.ihuull.com/admin')
+    expect(safeReturnURL('https://xgroup.ihuull.com/admin/users')).toBe('https://xvpn.ihuull.com/admin')
+    expect(safeReturnURL('https://marketplace.ihuull.com/admin')).toBe('https://xvpn.ihuull.com/admin')
   })
 })
 

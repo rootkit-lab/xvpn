@@ -2,7 +2,14 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, PANEL_ORIGIN, XDRIVER_CORP_ORIGIN, productKind } from '@/lib/product-host'
+import {
+  MARKETPLACE_ORIGIN,
+  PANEL_ORIGIN,
+  XCHAT_CORP_ORIGIN,
+  XDRIVER_CORP_ORIGIN,
+  XGROUP_CORP_ORIGIN,
+  productKind,
+} from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
@@ -12,7 +19,7 @@ import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
 import { SSOLoginRedirect } from '@/pages/sso-login-redirect'
-import { HostRedirect } from '@/pages/host-redirect'
+import { AdminHostRedirect, HostRedirect, HostRedirectJoin } from '@/pages/host-redirect'
 
 const DashboardPage = lazy(() => import('@/pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
 const UsersPage = lazy(() => import('@/pages/users-page').then((m) => ({ default: m.UsersPage })))
@@ -57,6 +64,10 @@ const XvpnProductPortal = lazy(() =>
 const XGroupPublicLanding = lazy(() =>
   import('@/pages/xgroup-landing-page').then((m) => ({ default: m.XGroupPublicLanding })),
 )
+const XChatPublicLanding = lazy(() =>
+  import('@/pages/xchat-landing-page').then((m) => ({ default: m.XChatPublicLanding })),
+)
+const CorpHubPage = lazy(() => import('@/pages/corp-hub-page').then((m) => ({ default: m.CorpHubPage })))
 
 function XAuthApp() {
   return (
@@ -81,6 +92,8 @@ function MarketplaceApp() {
   return (
     <Routes>
       <Route path="/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<PlayStoreLayout />}>
           <Route index element={<PlayStoreHome />} />
@@ -101,6 +114,8 @@ function XDriverCorpApp() {
   return (
     <Routes>
       <Route path="/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<XDriverLayout />}>
           <Route index element={<XDriverAppPage />} />
@@ -116,23 +131,111 @@ function XGroupPublicApp() {
   return (
     <Routes>
       <Route path="/" element={<XGroupPublicLanding />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
 
-function PanelApp({ home }: { home: 'landing' | 'portal' }) {
+function XChatPublicApp() {
+  return (
+    <Routes>
+      <Route path="/" element={<XChatPublicLanding />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function XChatCorpApp() {
   return (
     <ChatHost>
       <Routes>
-        <Route path="/" element={home === 'portal' ? <XvpnProductPortal /> : <LandingPage />} />
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/" element={<Navigate to="/social/messages" replace />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/social" element={<SocialShell />}>
+            <Route index element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social`} />} />
+            <Route path="explore" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social/explore`} />} />
+            <Route path="messages" element={<SocialMessagesPage />} />
+            <Route path="groups" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social/groups`} />} />
+            <Route path="u/:username" element={<HostRedirectJoin to={`${XGROUP_CORP_ORIGIN}/social/u`} />} />
+          </Route>
+        </Route>
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route path="*" element={<Navigate to="/social/messages" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
+
+function XGroupCorpApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/" element={<Navigate to="/social" replace />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/social" element={<SocialShell />}>
+            <Route index element={<SocialFeedPage />} />
+            <Route path="explore" element={<SocialDirectoryPage />} />
+            <Route path="u/:username" element={<SocialProfilePage />} />
+            <Route path="messages" element={<HostRedirect to={`${XCHAT_CORP_ORIGIN}/social/messages`} />} />
+            <Route path="groups" element={<SocialGroupsPage />} />
+          </Route>
+        </Route>
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route path="*" element={<Navigate to="/social" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
+
+function CorpHubApp() {
+  return (
+    <Routes>
+      <Route path="/login" element={<SSOLoginRedirect />} />
+      <Route element={<ProtectedRoute />}>
+        <Route index element={<CorpHubPage />} />
+      </Route>
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function BrandLandingApp() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/my/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
+      <Route path="/my/*" element={<HostRedirect to={`${PANEL_ORIGIN}/`} />} />
+      <Route path="/social/*" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social`} />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function PanelApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/" element={<XvpnProductPortal />} />
 
         <Route path="/my/login" element={<SSOLoginRedirect />} />
         <Route path="/admin/login" element={<SSOLoginRedirect />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/my" element={<UserShell />}>
-            <Route index element={home === 'portal' ? <Navigate to="/" replace /> : <PortalPage />} />
+            <Route index element={<Navigate to="/" replace />} />
             <Route path="devices" element={<PortalPage />} />
             <Route path="files" element={<HostRedirect to={XDRIVER_CORP_ORIGIN} />} />
             <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
@@ -198,8 +301,18 @@ export default function App() {
             <XDriverPublicApp />
           ) : kind === 'xgroup' ? (
             <XGroupPublicApp />
+          ) : kind === 'xgroup-corp' ? (
+            <XGroupCorpApp />
+          ) : kind === 'xchat' ? (
+            <XChatPublicApp />
+          ) : kind === 'xchat-corp' ? (
+            <XChatCorpApp />
+          ) : kind === 'corp' ? (
+            <CorpHubApp />
+          ) : kind === 'xvpn' ? (
+            <PanelApp />
           ) : (
-            <PanelApp home={kind === 'xvpn' ? 'portal' : 'landing'} />
+            <BrandLandingApp />
           )}
         </Suspense>
       </AuthProvider>

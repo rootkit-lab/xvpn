@@ -1093,6 +1093,7 @@ Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header
 - [x] `/admin` seccionado por produto; RBAC com escopo (`products: [...]`). Fonte única — sem admin.* extra.
 - [x] `xauth.ihuull.com`: login único, cookie `.ihuull.com`, mesmo JWE/`aud`. Sem processo novo. A **depois** de registrar em §5.1.
 - [x] Landing `xgroup.ihuull.com` (marketing; app continua no corp).
+- [x] SPA por `Host`: `xchat.corp` = messenger, `xgroup.corp` = social, `corp` = índice, marketing `xchat.ihuull.com`; `/admin` só em `xvpn.ihuull.com` (alias `vpn.ihuull.com` → xvpn).
 - [x] Testes: matriz RBAC com fixture por papel (não por rota). Sem fatiar o módulo `server` por causa de CI.
 - [x] Client: atalhos xchat / xgroup / XDriver; hosts `*.corp` no `/etc/hosts` (Chrome DoH); catálogo via `corp.ihuull.com` quando o túnel está no ar.
 - [x] `xdriver.ihuull.com` deixa de ser landing — Drive só em `xdriver.corp`.

@@ -244,6 +244,10 @@ func (a *App) handleUpdateUser(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode editar este usuário"})
 		return
 	}
+	if !store.CoversAccount(role, callerProducts(c), target.Role, target.Products) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu escopo não pode editar este usuário"})
+		return
+	}
 
 	updates := map[string]any{}
 	if req.Username != nil {
@@ -405,6 +409,10 @@ func (a *App) handleResetPassword(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode redefinir a senha deste usuário"})
 		return
 	}
+	if !store.CoversAccount(callerRole(c), callerProducts(c), target.Role, target.Products) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu escopo não pode redefinir a senha deste usuário"})
+		return
+	}
 
 	password := req.Password
 	generated := false
@@ -463,6 +471,10 @@ func (a *App) handleDeleteUser(c *gin.Context) {
 
 	if !callerRole(c).CanManage(target.Role) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "seu papel não pode remover este usuário"})
+		return
+	}
+	if !store.CoversAccount(callerRole(c), callerProducts(c), target.Role, target.Products) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "seu escopo não pode remover este usuário"})
 		return
 	}
 

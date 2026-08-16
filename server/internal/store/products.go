@@ -83,6 +83,33 @@ func ProductScoped(role Role, stored []Product) bool {
 	return role == RoleAdmin && len(stored) > 0
 }
 
+// CoversAccount reporta se o ator pode operar a conta do alvo além do
+// rank (CanManage). super_admin e admin irrestrito cobrem todos os
+// escopos. Admin com products explícitos não cobre admin irrestrito
+// (lista vazia) nem alvo com produto fora da própria lista — senão
+// reset-password vira escalação para HasProduct nas rotas core.
+func CoversAccount(actorRole Role, actorStored []Product, targetRole Role, targetStored []Product) bool {
+	if actorRole == RoleSuperAdmin {
+		return true
+	}
+	if actorRole != RoleAdmin {
+		return false
+	}
+	if !ProductScoped(actorRole, actorStored) {
+		return true
+	}
+	if targetRole == RoleSuperAdmin {
+		return false
+	}
+	if targetRole != RoleAdmin {
+		return true
+	}
+	if len(targetStored) == 0 {
+		return false
+	}
+	return IsSubset(targetStored, actorStored)
+}
+
 // IsSubset reporta se todo item de need está em have.
 func IsSubset(need, have []Product) bool {
 	if len(need) == 0 {

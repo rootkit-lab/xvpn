@@ -95,6 +95,44 @@ func TestSuperAdminIgnoresStoredProducts(t *testing.T) {
 	}
 }
 
+func TestAdminWithoutCoreScopeCannotDeleteUser(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
+	path := "/api/users/" + strconv.FormatUint(uint64(f.targetUserID), 10)
+	rec := doJSON(t, f.router, http.MethodDelete, path, nil, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-loja não deveria apagar usuário (revoga peers), obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithoutCoverCannotResetUnrestrictedAdmin(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
+	peer := createTestUserWithRole(t, f.app, "admin-irrestrito", "senha-irrestrito-ok", store.RoleAdmin)
+	path := "/api/users/" + strconv.FormatUint(uint64(peer.ID), 10) + "/reset-password"
+	rec := doJSON(t, f.router, http.MethodPost, path, nil, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin da loja não deveria resetar senha de admin irrestrito, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithCoverCanResetMemberPassword(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
+	path := "/api/users/" + strconv.FormatUint(uint64(f.targetUserID), 10) + "/reset-password"
+	rec := doJSON(t, f.router, http.MethodPost, path, nil, f.token)
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("admin da loja deveria resetar senha de member (IAM): %s", rec.Body.String())
+	}
+}
+
+func TestAdminWithoutCoverCannotPatchUnrestrictedAdmin(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
+	peer := createTestUserWithRole(t, f.app, "admin-livre", "senha-livre-ok", store.RoleAdmin)
+	path := "/api/users/" + strconv.FormatUint(uint64(peer.ID), 10)
+	rec := doJSON(t, f.router, http.MethodPatch, path, updateUserRequest{Username: strPtr("renomeado-ataque")}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin da loja não deveria editar admin irrestrito, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCreateUser_ScopedAdminInheritsProducts(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
 	rec := doJSON(t, f.router, http.MethodPost, "/api/users",

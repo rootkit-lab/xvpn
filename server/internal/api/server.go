@@ -318,19 +318,21 @@ func NewRouter(app *App) *gin.Engine {
 		adminOnly := apiGroup.Group("")
 		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.AdminRoles...))
 		{
-			// IAM: users/roles — não é produto. Todo admin+ continua
-			// gerenciando contas (CanManage), inclusive um admin só da loja.
+			// IAM: create/invite/patch/reset — não é produto. Todo admin+
+			// continua gerenciando contas (CanManage + CoversAccount).
+			// DELETE revoga peers/SFTP: exige core, senão a loja
+			// contorna RequireProduct(core) em /devices.
 			adminOnly.POST("/users", app.handleCreateUser)
 			adminOnly.PATCH("/users/:id", app.handleUpdateUser)
-			adminOnly.DELETE("/users/:id", app.handleDeleteUser)
 			adminOnly.POST("/users/:id/invite", app.handleCreateInvite)
 			adminOnly.POST("/users/:id/reset-password", app.handleResetPassword)
 
-			// Core VPN (Fase 33): peers, waitlist, TTLs. Admin sem
-			// products:["core"] não revoga WireGuard.
+			// Core VPN (Fase 33): peers, waitlist, TTLs, apagar usuário.
+			// Admin sem products:["core"] não revoga WireGuard.
 			coreWrite := adminOnly.Group("")
 			coreWrite.Use(auth.RequireProduct(store.ProductCore))
 			{
+				coreWrite.DELETE("/users/:id", app.handleDeleteUser)
 				coreWrite.DELETE("/devices/:id", app.handleDeleteDevice)
 				coreWrite.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
 				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)

@@ -282,7 +282,7 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - Claim `role` no JWT; middleware por rota (403 se insuficiente).
 - Bootstrap do primeiro usuário continua sendo `super_admin`.
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
-- **Escopo de produto (Fase 33):** `User.Products` (`core` / `marketplace` / `xgroup` / `xdriver`). `super_admin` ignora a lista. `admin` com lista vazia permanece irrestrito (matriz da Fase 10). Com lista explícita, `RequireProduct` bloqueia a escrita da seção ausente — um admin da loja não revoga peers. IAM (users/roles/audit) não é produto. Fonte única: `xvpn.ihuull.com/admin` — sem `admin.marketplace`.
+- **Escopo de produto (Fase 33):** `User.Products` (`core` / `marketplace` / `xgroup` / `xdriver`). `super_admin` ignora a lista. `admin` com lista vazia permanece irrestrito (matriz da Fase 10). Com lista explícita, `RequireProduct` bloqueia a escrita da seção ausente — um admin da loja não revoga peers. IAM (criar/convidar/listar) não é produto; `DELETE /users` exige `core` (chama `RemovePeer`); reset/edição de conta com escopo maior que o do ator é 403 (`CoversAccount`). Fonte única: `xvpn.ihuull.com/admin` — sem `admin.marketplace`.
 
 **Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19 (layout) + Fase 30 (visual ihuull):**
 

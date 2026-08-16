@@ -71,6 +71,24 @@ func resolveSMBMount(req MountSMBRequest, uid, gid int) (mountSMBTarget, error) 
 	}, nil
 }
 
+// unescapeProcMount decodifica escapes octais de /proc/mounts (\040 = espaço).
+func unescapeProcMount(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+3 < len(s) {
+			n, err := strconv.ParseUint(s[i+1:i+4], 8, 8)
+			if err == nil {
+				b.WriteByte(byte(n))
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 func pathUnderHome(realPath, home string) bool {
 	realHome, err := filepath.EvalSymlinks(home)
 	if err != nil {

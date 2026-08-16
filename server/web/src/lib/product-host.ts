@@ -171,6 +171,13 @@ export function ssoContinueURL(role: string, returnTo?: string | null): string {
   return `${PANEL_ORIGIN}${role === 'member' ? '/' : '/admin'}`
 }
 
+/** Navegação top-level no xauth: o servidor POSTA o cookie, sem JSON. */
+export function ssoHandoffContinueURL(role: string, returnTo?: string | null): string {
+  const dest = new URL('/api/auth/handoff-continue', xauthOrigin())
+  dest.searchParams.set('return', ssoContinueURL(role, returnTo))
+  return dest.toString()
+}
+
 export function ssoLoginURL(returnTo?: string): string {
   const dest = new URL('/login', xauthOrigin())
   const fallback =

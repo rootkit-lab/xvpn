@@ -441,8 +441,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
-  // Só no xauth: lê o JWE do cookie HttpOnly para o handoff SSO.
-  handoffToken: () => request<{ token: string }>('/auth/handoff-token'),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   // me restaura {id, username, role} depois de um refresh — cookie SSO
   // ou Bearer. 401 aqui não redireciona (sonda de sessão).

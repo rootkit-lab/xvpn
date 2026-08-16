@@ -69,7 +69,10 @@ func TrustedHandoffOrigin(raw string) bool {
 // same-site/same-origin no host de destino fecha o CSRF (evil.com é cross-site).
 func HandoffAllowed(origin, referer, fetchSite, requestHost string) bool {
 	origin = strings.TrimSpace(origin)
-	if origin != "" && !strings.EqualFold(origin, "null") {
+	if strings.EqualFold(origin, "null") {
+		return false
+	}
+	if origin != "" {
 		return TrustedHandoffOrigin(origin)
 	}
 	if referer != "" {

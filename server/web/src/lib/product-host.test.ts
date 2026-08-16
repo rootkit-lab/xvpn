@@ -9,6 +9,7 @@ import {
   safeReturnURL,
   ssoContinueURL,
   ssoHandoff,
+  ssoHandoffContinueURL,
   ssoLoginURL,
   ssoLogoutURL,
 } from './product-host'
@@ -113,6 +114,15 @@ describe('ssoContinueURL', () => {
     expect(isAuthPath('/my/login')).toBe(true)
     expect(isAuthPath('/admin/login')).toBe(true)
     expect(isAuthPath('/admin')).toBe(false)
+  })
+})
+
+describe('ssoHandoffContinueURL', () => {
+  it('manda o return ao xauth sem expor o JWE', () => {
+    const url = ssoHandoffContinueURL('member', 'https://xvpn.ihuull.com/')
+    expect(url).toContain('xauth')
+    expect(url).toContain('/api/auth/handoff-continue')
+    expect(decodeURIComponent(new URL(url).searchParams.get('return') ?? '')).toBe('https://xvpn.ihuull.com/')
   })
 })
 

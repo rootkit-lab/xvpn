@@ -235,7 +235,7 @@ func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
 	}
 }
 
-func TestHandleHandoffToken_OnlyOnXAuth(t *testing.T) {
+func TestHandleHandoffContinue_OnlyOnXAuth(t *testing.T) {
 	app, _ := newTestApp(t)
 	createTestUser(t, app, "alice", "senha-forte-123")
 	router := NewRouter(app)
@@ -249,7 +249,7 @@ func TestHandleHandoffToken_OnlyOnXAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ok := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-token", nil)
+	ok := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-continue?return=https://xvpn.ihuull.com/", nil)
 	ok.Host = "xauth.ihuull.com"
 	ok.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
 	okRec := httptest.NewRecorder()
@@ -257,14 +257,18 @@ func TestHandleHandoffToken_OnlyOnXAuth(t *testing.T) {
 	if okRec.Code != http.StatusOK {
 		t.Fatalf("xauth cookie: %d %s", okRec.Code, okRec.Body.String())
 	}
-	var body struct {
-		Token string `json:"token"`
+	body := okRec.Body.String()
+	if !strings.Contains(body, `action="https://xvpn.ihuull.com/api/auth/session"`) {
+		t.Fatalf("form: %s", body)
 	}
-	if err := json.Unmarshal(okRec.Body.Bytes(), &body); err != nil || body.Token != resp.Token {
-		t.Fatalf("token: %s %v", okRec.Body.String(), err)
+	if !strings.Contains(body, resp.Token) {
+		t.Fatal("form sem JWE")
+	}
+	if ct := okRec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Fatalf("content-type %q", ct)
 	}
 
-	panel := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-token", nil)
+	panel := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-continue", nil)
 	panel.Host = "xvpn.ihuull.com"
 	panel.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
 	panelRec := httptest.NewRecorder()

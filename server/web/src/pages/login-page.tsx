@@ -3,8 +3,8 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { api, ApiError, getToken, setToken } from '@/lib/api'
-import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoHandoff } from '@/lib/product-host'
+import { api, ApiError, getToken } from '@/lib/api'
+import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoHandoff, ssoHandoffContinueURL } from '@/lib/product-host'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,19 +12,14 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageFallback } from '@/components/layout/page-fallback'
 
-/** JWE do login (localStorage) ou do cookie HttpOnly no xauth. */
-async function continueSSO(role: string, returnTo: string | null) {
-  let token = getToken()
-  if (!token) {
-    try {
-      const { token: fromCookie } = await api.handoffToken()
-      token = fromCookie
-      if (token) setToken(token)
-    } catch {
-      // sem cookie — ssoHandoff cai no redirect
-    }
+/** JWE do login (memória) ou form HTML no xauth — nunca JSON do cookie. */
+function continueSSO(role: string, returnTo: string | null) {
+  const token = getToken()
+  if (token) {
+    ssoHandoff(role, returnTo, token)
+    return
   }
-  ssoHandoff(role, returnTo, token)
+  window.location.replace(ssoHandoffContinueURL(role, returnTo))
 }
 
 export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | 'store' | 'sso' }) {
@@ -59,7 +54,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
     try {
       const loggedInUser = await login(username, password)
       if (isSSO) {
-        await continueSSO(loggedInUser.role, returnTo)
+        continueSSO(loggedInUser.role, returnTo)
         return
       }
       const from = (location.state as { from?: string } | null)?.from
@@ -120,7 +115,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
                   type="button"
                   size="lg"
                   className="w-full"
-                  onClick={() => void continueSSO(user?.role ?? 'member', returnTo)}
+                  onClick={() => continueSSO(user?.role ?? 'member', returnTo)}
                 >
                   Continuar como {user?.username ?? 'usuário'}
                 </Button>

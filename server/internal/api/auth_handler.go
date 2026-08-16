@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -117,12 +118,11 @@ func (a *App) handleEstablishSession(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// handleHandoffToken devolve o JWE já plantado no xauth (cookie HttpOnly).
-// "Continuar como" no login não tem o token em localStorage — só o cookie
-// — e o POST /auth/session no xvpn precisa do JWE no form, senão o portal
-// volta a mostrar Entrar. Só responde em xauth.ihuull.com.
-// GET /api/auth/handoff-token
-func (a *App) handleHandoffToken(c *gin.Context) {
+// handleHandoffContinue lê o cookie HttpOnly no xauth e devolve um form
+// HTML que POSTA o JWE no host de destino. Não há JSON com o token —
+// XSS no xauth não exporta a sessão para localStorage.
+// GET /api/auth/handoff-continue
+func (a *App) handleHandoffContinue(c *gin.Context) {
 	if !auth.IsXAuthHost(c.Request.Host) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "só no xauth"})
 		return
@@ -140,7 +140,20 @@ func (a *App) handleHandoffToken(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	dest := auth.SafeReturnURL(c.Query("return"))
+	if dest == "" {
+		dest = auth.PanelOrigin + "/"
+	}
+	u, err := url.Parse(dest)
+	if err != nil || u.Host == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "return inválido"})
+		return
+	}
+	action := u.Scheme + "://" + u.Host + "/api/auth/session"
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Frame-Options", "DENY")
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, auth.HandoffContinueHTML(action, token, dest))
 }
 
 // handleLogout apaga o cookie de SSO. Público de propósito: quem tem o

@@ -205,7 +205,7 @@ func NewRouter(app *App) *gin.Engine {
 	{
 		apiGroup.POST("/auth/login", rateLimit(app.loginLimiter), app.handleLogin)
 		apiGroup.POST("/auth/session", rateLimit(app.loginLimiter), app.handleEstablishSession)
-		apiGroup.GET("/auth/handoff-token", rateLimit(app.loginLimiter), app.handleHandoffToken)
+		apiGroup.GET("/auth/handoff-continue", rateLimit(app.loginLimiter), app.handleHandoffContinue)
 		apiGroup.POST("/auth/logout", app.handleLogout)
 		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
 		apiGroup.GET("/status", app.handleStatus)

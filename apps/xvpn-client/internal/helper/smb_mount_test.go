@@ -49,6 +49,13 @@ func TestResolveSMBMount_CurrentUser(t *testing.T) {
 	}
 }
 
+func TestUnescapeProcMount(t *testing.T) {
+	got := unescapeProcMount(`/home/wiz/XVPN/Meus\040arquivos`)
+	if got != "/home/wiz/XVPN/Meus arquivos" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestPathUnderHome(t *testing.T) {
 	if !pathUnderHome("/home/wiz/XVPN/Compartilhado", "/home/wiz") {
 		t.Fatal("deveria aceitar filho do home")

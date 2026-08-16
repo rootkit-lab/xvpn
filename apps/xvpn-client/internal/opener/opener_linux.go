@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -119,6 +120,23 @@ func localSharePath(share string) string {
 	return filepath.Join(dir, shareLinkName(share))
 }
 
+func unescapeProcMount(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+3 < len(s) {
+			n, err := strconv.ParseUint(s[i+1:i+4], 8, 8)
+			if err == nil {
+				b.WriteByte(byte(n))
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
 func isCIFSMount(mountpoint string) bool {
 	if mountpoint == "" {
 		return false
@@ -135,7 +153,8 @@ func isCIFSMount(mountpoint string) bool {
 		if len(fields) < 3 {
 			continue
 		}
-		if fields[1] == want && (fields[2] == "cifs" || fields[2] == "smb3") {
+		got := strings.TrimRight(unescapeProcMount(fields[1]), "/")
+		if got == want && (fields[2] == "cifs" || fields[2] == "smb3") {
 			return true
 		}
 	}

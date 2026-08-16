@@ -63,9 +63,11 @@ Qualquer outro `Host` → 404. `xdriver.ihuull.com` não serve estas rotas.
 
 | Método | Path | Auth |
 |---|---|---|
-| GET | `/api/marketplace/apps` | sessão |
-| GET | `/api/marketplace/assets/:id/download` | sessão + ACL |
+| GET | `/api/marketplace/apps` | sessão + ACL + `network` |
+| GET | `/api/marketplace/assets/:id/download` | sessão + ACL + `network` |
 | POST | `/api/marketplace/sync` | `XVPN_PUBLISH_TOKEN` |
+
+`visibility` (quem, ACL) ≠ `network` (onde). App `network: vpn` não lista nem baixa em `marketplace.ihuull.com` sem túnel; aparece em `*.corp` ou quando o peer está na VPN (`10.66.66.0/24`). `network: public` aparece na loja pública com JWE (nunca anônimo).
 
 ACL admin: `PUT /api/marketplace/apps/:id/access` no painel (`xvpn.ihuull.com/admin/marketplace`).
 

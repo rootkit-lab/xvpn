@@ -33,6 +33,7 @@ func seedMarketplaceApp(t *testing.T, app *App, visibility store.AppVisibility, 
 		Slug:       slug,
 		Name:       "App de teste",
 		Visibility: visibility,
+		Network:    store.AppNetworkPublic,
 		Source:     store.AppSourceBuild,
 		SourcePath: "apps/" + slug,
 	}
@@ -332,5 +333,231 @@ func TestHandleMarketplaceSync_NotRegisteredWithoutToken(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code == http.StatusOK {
 		t.Fatalf("rota sync não deveria existir sem token: %d", rec.Code)
+	}
+}
+
+func doMarketplaceJSON(t *testing.T, router http.Handler, method, path string, body any, token, host, remoteAddr string, extra map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			t.Fatalf("erro codificando corpo: %v", err)
+		}
+	}
+	req := httptest.NewRequest(method, path, &buf)
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	if host != "" {
+		req.Host = host
+	}
+	if remoteAddr != "" {
+		req.RemoteAddr = remoteAddr
+	}
+	for k, v := range extra {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
+func seedVpnAndPublicApps(t *testing.T, app *App) (vpnID, publicID, vpnAssetID uint, vpnContent []byte) {
+	t.Helper()
+	vpn := store.App{
+		Slug: "xchat", Name: "xchat", Visibility: store.AppVisibilityGlobal,
+		Network: store.AppNetworkVPN, Source: store.AppSourceBuild, SourcePath: "apps/xvpn-chat",
+	}
+	if err := app.Store.DB.Create(&vpn).Error; err != nil {
+		t.Fatal(err)
+	}
+	pub := store.App{
+		Slug: "xvpn-client", Name: "XVPN Client", Visibility: store.AppVisibilityGlobal,
+		Network: store.AppNetworkPublic, Source: store.AppSourceBuild, SourcePath: "apps/xvpn-client",
+	}
+	if err := app.Store.DB.Create(&pub).Error; err != nil {
+		t.Fatal(err)
+	}
+	ver := store.AppVersion{AppID: vpn.ID, Version: "1.0.0", Channel: store.ChannelStable}
+	if err := app.Store.DB.Create(&ver).Error; err != nil {
+		t.Fatal(err)
+	}
+	vpnContent = []byte("vpn-asset-" + t.Name())
+	result, err := app.Marketplace.Put(bytes.NewReader(vpnContent))
+	if err != nil {
+		t.Fatal(err)
+	}
+	asset := store.AppAsset{
+		AppVersionID: ver.ID, Platform: store.PlatformLinux, Arch: "amd64",
+		Filename: "xchat.deb", SHA256: result.SHA256, SizeBytes: result.Size, StoragePath: result.RelPath,
+	}
+	if err := app.Store.DB.Create(&asset).Error; err != nil {
+		t.Fatal(err)
+	}
+	return vpn.ID, pub.ID, asset.ID, vpnContent
+}
+
+func listedIDs(t *testing.T, rec *httptest.ResponseRecorder) map[uint]marketplaceAppResponse {
+	t.Helper()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
+	}
+	var apps []marketplaceAppResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &apps); err != nil {
+		t.Fatal(err)
+	}
+	out := make(map[uint]marketplaceAppResponse, len(apps))
+	for _, a := range apps {
+		out[a.ID] = a
+	}
+	return out
+}
+
+func TestHandleMarketplaceSync_PersistsNetwork(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Config.PublishToken = "test-publish-token"
+	content := []byte("sync-network-body")
+	sha := sha256Hex(content)
+	app.fetchAsset = func(ctx context.Context, s *marketplace.Store, url, expected string) (marketplace.PutResult, string, error) {
+		result, err := s.Put(bytes.NewReader(content))
+		if err != nil {
+			return marketplace.PutResult{}, "", err
+		}
+		return result, "xchat.deb", nil
+	}
+	router := NewRouter(app)
+
+	payload := marketplaceSyncRequest{
+		CommitSHA: "def456",
+		Apps: []marketplaceSyncAppInput{{
+			Slug: "xchat", Name: "xchat", Source: store.AppSourceBuild,
+			SourcePath: "apps/xvpn-chat", Version: "0.2.0", Channel: store.ChannelStable,
+			Visibility: store.AppVisibilityGlobal, Network: store.AppNetworkVPN,
+			Assets: []marketplaceSyncAssetInput{{
+				Platform: "linux", Arch: "amd64", URL: "https://example.com/xchat.deb", SHA256: sha, Filename: "xchat.deb",
+			}},
+		}},
+	}
+	rec := doJSON(t, router, http.MethodPost, "/api/marketplace/sync", payload, "test-publish-token")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sync: %d %s", rec.Code, rec.Body.String())
+	}
+	var row store.App
+	if err := app.Store.DB.Where("slug = ?", "xchat").First(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row.Network != store.AppNetworkVPN {
+		t.Fatalf("network após create: %q", row.Network)
+	}
+
+	payload.Apps[0].Network = store.AppNetworkPublic
+	rec = doJSON(t, router, http.MethodPost, "/api/marketplace/sync", payload, "test-publish-token")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sync update: %d %s", rec.Code, rec.Body.String())
+	}
+	if err := app.Store.DB.Where("slug = ?", "xchat").First(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row.Network != store.AppNetworkPublic {
+		t.Fatalf("network após update: %q", row.Network)
+	}
+
+	payload.Apps[0].Network = "lan"
+	rec = doJSON(t, router, http.MethodPost, "/api/marketplace/sync", payload, "test-publish-token")
+	var resp marketplaceSyncResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Skipped) != 1 || !strings.Contains(resp.Skipped[0].Reason, "network") {
+		t.Fatalf("esperado skip por network inválido: %+v", resp.Skipped)
+	}
+}
+
+func TestHandleListMarketplaceApps_NetworkFilter(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_ = createTestUserWithRole(t, app, "member", "senha-member-ok", store.RoleMember)
+	tok := loginAndGetToken(t, app, router, "member", "senha-member-ok")
+	vpnID, publicID, _, _ := seedVpnAndPublicApps(t, app)
+
+	publicStore := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", nil))
+	if _, ok := publicStore[vpnID]; ok {
+		t.Fatal("app network:vpn não deve aparecer na loja pública sem túnel")
+	}
+	if _, ok := publicStore[publicID]; !ok {
+		t.Fatal("app network:public deve aparecer na loja pública")
+	}
+	if publicStore[publicID].Network != string(store.AppNetworkPublic) {
+		t.Fatalf("network no JSON: %q", publicStore[publicID].Network)
+	}
+
+	// Host *.corp sozinho não basta: o default_server público também
+	// encaminha Host forjado para 127.0.0.1:8080.
+	spoofedHost := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"xchat.corp.ihuull.com", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "203.0.113.9"}))
+	if _, ok := spoofedHost[vpnID]; ok {
+		t.Fatal("Host *.corp forjado via Nginx público não deve revelar app vpn")
+	}
+
+	corp := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"xchat.corp.ihuull.com", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "10.66.66.8"}))
+	if _, ok := corp[vpnID]; !ok {
+		t.Fatal("app network:vpn deve aparecer em *.corp quando o peer está na VPN")
+	}
+
+	onTunnel := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"marketplace.ihuull.com", "10.66.66.5:44444", nil))
+	if _, ok := onTunnel[vpnID]; !ok {
+		t.Fatal("app network:vpn deve aparecer quando o peer está na VPN")
+	}
+
+	viaNginx := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"marketplace.ihuull.com", "127.0.0.1:54321", map[string]string{"X-Forwarded-For": "10.66.66.8"}))
+	if _, ok := viaNginx[vpnID]; !ok {
+		t.Fatal("app network:vpn deve aparecer quando o Nginx vê $remote_addr na wg0")
+	}
+
+	forged := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", map[string]string{"X-Forwarded-For": "10.66.66.2"}))
+	if _, ok := forged[vpnID]; ok {
+		t.Fatal("X-Forwarded-For forjado da internet pública não deve revelar app vpn")
+	}
+}
+
+func TestHandleDownloadMarketplaceAsset_NetworkFilter(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_ = createTestUserWithRole(t, app, "member", "senha-member-ok", store.RoleMember)
+	tok := loginAndGetToken(t, app, router, "member", "senha-member-ok")
+	_, _, assetID, content := seedVpnAndPublicApps(t, app)
+	path := "/api/marketplace/assets/" + strconv.FormatUint(uint64(assetID), 10) + "/download"
+
+	denied := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", nil)
+	if denied.Code != http.StatusForbidden {
+		t.Fatalf("download público sem túnel: esperado 403, got %d %s", denied.Code, denied.Body.String())
+	}
+
+	deniedSpoof := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"xdriver.corp.localhost", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "203.0.113.9"})
+	if deniedSpoof.Code != http.StatusForbidden {
+		t.Fatalf("download com Host corp forjado: esperado 403, got %d %s", deniedSpoof.Code, deniedSpoof.Body.String())
+	}
+
+	okCorp := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"xdriver.corp.localhost", "127.0.0.1:443", map[string]string{"X-Forwarded-For": "10.66.66.8"})
+	if okCorp.Code != http.StatusOK {
+		t.Fatalf("download em *.corp com peer na VPN: %d %s", okCorp.Code, okCorp.Body.String())
+	}
+	if !bytes.Equal(okCorp.Body.Bytes(), content) {
+		t.Fatal("conteúdo do download em *.corp diverge")
+	}
+
+	okVPN := doMarketplaceJSON(t, router, http.MethodGet, path, nil, tok,
+		"marketplace.ihuull.com", "10.66.66.4:9", nil)
+	if okVPN.Code != http.StatusOK {
+		t.Fatalf("download com peer na VPN: %d %s", okVPN.Code, okVPN.Body.String())
 	}
 }

@@ -9,6 +9,7 @@ import {
   type MarketplaceChannel,
   type MarketplacePlatform,
   type MarketplaceVersion,
+  type MarketplaceNetwork,
   type MarketplaceVisibility,
   type User,
 } from '@/lib/api'
@@ -48,6 +49,11 @@ const PLATFORM_ICONS: Record<MarketplacePlatform, typeof Terminal> = {
 const VISIBILITY_LABELS: Record<MarketplaceVisibility, string> = {
   global: 'Global (todos)',
   restricted: 'Restrito (ACL)',
+}
+
+const NETWORK_LABELS: Record<MarketplaceNetwork, string> = {
+  public: 'Rede pública',
+  vpn: 'Só VPN / *.corp',
 }
 
 const CHANNEL_LABELS: Record<MarketplaceChannel, string> = {
@@ -191,6 +197,9 @@ function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: bo
               <CardTitle className="text-base">{app.name}</CardTitle>
               <Badge variant={app.visibility === 'global' ? 'outline' : 'secondary'}>
                 {VISIBILITY_LABELS[app.visibility]}
+              </Badge>
+              <Badge variant={app.network === 'vpn' ? 'secondary' : 'outline'}>
+                {NETWORK_LABELS[app.network] ?? NETWORK_LABELS.public}
               </Badge>
               {app.source_path && (
                 <a

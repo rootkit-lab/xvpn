@@ -252,6 +252,7 @@ export interface ConfigResponse {
 // — Fase 11, ver PLAN.md §6.8.
 export type MarketplacePlatform = 'linux' | 'windows' | 'android'
 export type MarketplaceVisibility = 'global' | 'restricted'
+export type MarketplaceNetwork = 'public' | 'vpn'
 export type MarketplaceChannel = 'stable' | 'beta'
 
 export interface MarketplaceAsset {
@@ -283,6 +284,7 @@ export interface MarketplaceApp {
   description: string
   icon_url?: string
   visibility: MarketplaceVisibility
+  network: MarketplaceNetwork
   source?: string
   source_path?: string
   created_at: string

@@ -195,6 +195,22 @@ func (v AppVisibility) Valid() bool {
 	return v == AppVisibilityGlobal || v == AppVisibilityRestricted
 }
 
+// AppNetwork controla ONDE um App aparece no catálogo — distinto de
+// AppVisibility (quem, ACL). Ver PLAN.md §6.13: network:vpn só lista e
+// baixa de dentro do túnel ou de *.corp; network:public aparece na loja
+// pública (marketplace.ihuull.com) com JWE.
+type AppNetwork string
+
+const (
+	AppNetworkPublic AppNetwork = "public"
+	AppNetworkVPN    AppNetwork = "vpn"
+)
+
+// Valid reporta se n é um dos dois modos de rede reconhecidos.
+func (n AppNetwork) Valid() bool {
+	return n == AppNetworkPublic || n == AppNetworkVPN
+}
+
 const (
 	ChannelStable = "stable"
 	ChannelBeta   = "beta"
@@ -237,6 +253,11 @@ type App struct {
 	// autenticada) — admin ajusta para "restricted" explicitamente via
 	// manifesto; a ACL nominal (AppAccess) continua no painel.
 	Visibility AppVisibility `gorm:"not null;default:global"`
+	// Network é onde o app pode ser listado/baixado (public|vpn). Default
+	// public: o cliente da VPN precisa aparecer na loja aberta; apps de
+	// intranet (xchat) declaram vpn no manifesto. Vazio (linhas antigas)
+	// é tratado como public no sync e na listagem.
+	Network AppNetwork `gorm:"not null;default:public"`
 	// ArchivedAt marca apps cujo slug sumiu do diretório no último sync —
 	// nunca hard-delete pelo CI (PLAN.md §6.10.3). Nil = ativo.
 	ArchivedAt *time.Time

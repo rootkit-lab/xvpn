@@ -275,13 +275,14 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 | Role | Painel | VPN (enrollment/devices) | Marketplace |
 |---|---|---|---|
 | `super_admin` | Tudo, inclusive alterar roles e apagar outros admins | Sim | Admin + download |
-| `admin` | Users/devices/waitlist/audit/marketplace (sem promover a `super_admin`) | Sim | Admin + download |
+| `admin` | Users/devices/waitlist/audit/marketplace (sem promover a `super_admin`). Pode ser limitado por `products: [...]` (Fase 33) | Sim | Admin + download se o escopo incluir `marketplace` (lista vazia = irrestrito) |
 | `viewer` | Só leitura (dashboard, listas, audit) | Não cria convites | Download se ACL permitir |
 | `member` | Sem telas de admin (portal mínimo opcional) | Sim (próprios devices) | Download se ACL permitir |
 
 - Claim `role` no JWT; middleware por rota (403 se insuficiente).
 - Bootstrap do primeiro usuário continua sendo `super_admin`.
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
+- **Escopo de produto (Fase 33):** `User.Products` (`core` / `marketplace` / `xgroup` / `xdriver`). `super_admin` ignora a lista. `admin` com lista vazia permanece irrestrito (matriz da Fase 10). Com lista explícita, `RequireProduct` bloqueia a escrita da seção ausente — um admin da loja não revoga peers. IAM (criar/convidar/listar) não é produto; `DELETE /users` exige `core` (chama `RemovePeer`); reset/edição de conta com escopo maior que o do ator é 403 (`CoversAccount`). Fonte única: `xvpn.ihuull.com/admin` — sem `admin.marketplace`.
 
 **Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19 (layout) + Fase 30 (visual ihuull):**
 
@@ -293,7 +294,7 @@ Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` s
 | Login | `/my/login` | mesmo JWE; entra autenticado | `/admin/login` |
 | Shell | `UserShell` / MyShell | `SocialShell` | `AdminShell` |
 | Destino pós-login | `member` → `/my` | atalho no waffle | `viewer+` → `/admin` |
-| Conteúdo | dispositivos, Marketplace, conta (senha/SSH). XDriver só no waffle se Samba/SFTP ativo | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | **Core** (dashboard, users, papéis, devices, waitlist) · **Apps** (Marketplace, XDriver) · **Settings** (gerais, audit) |
+| Conteúdo | dispositivos, Marketplace, conta (senha/SSH). XDriver só no waffle se Samba/SFTP ativo | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | **Core VPN** · **Marketplace** · **XGroup** · **XDriver** · **IAM** (users, papéis, audit). Navegação filtrada pelo escopo `products` |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
 Páginas do membro (`/my`): Início (dispositivos), Marketplace (catálogo — o cliente VPN também vive aqui; `/my/download` redireciona), conta (senha + chave SSH). XDriver (`/my/files`) não fica no nav — só no waffle de apps, e só se Samba ou SFTP estiver ligado. Perfil **social** editável vive em `/social/u/:username` (produto **xgroup**), não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).

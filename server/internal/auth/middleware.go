@@ -15,6 +15,7 @@ const (
 	ContextUserIDKey   = "xvpn_user_id"
 	ContextUsernameKey = "xvpn_username"
 	ContextRoleKey     = "xvpn_role"
+	ContextProductsKey = "xvpn_products"
 )
 
 // RequireAuth é o middleware Gin que valida o header "Authorization: Bearer
@@ -71,4 +72,26 @@ func RequireRole(allowed ...store.Role) gin.HandlerFunc {
 func RoleFromContext(c *gin.Context) (store.Role, bool) {
 	role, ok := c.Value(ContextRoleKey).(store.Role)
 	return role, ok
+}
+
+// ProductsFromContext devolve o escopo de produto lido do banco por
+// refreshCallerFromDB (não do JWE — o claim não carrega products).
+func ProductsFromContext(c *gin.Context) []store.Product {
+	v, _ := c.Get(ContextProductsKey)
+	products, _ := v.([]store.Product)
+	return products
+}
+
+// RequireProduct bloqueia escrita de um admin sem o produto no escopo
+// (Fase 33). super_admin e admin sem lista passam. Deve rodar depois de
+// RequireRole(AdminRoles) — viewer nunca chega aqui.
+func RequireProduct(want store.Product) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := RoleFromContext(c)
+		if store.HasProduct(role, ProductsFromContext(c), want) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "seu escopo não inclui este produto"})
+	}
 }

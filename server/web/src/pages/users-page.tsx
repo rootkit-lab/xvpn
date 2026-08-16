@@ -5,7 +5,7 @@ import { api, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole, ALL_ROLES, ROLE_BADGE_VARIANT, ROLE_LABELS, type Role } from '@/lib/roles'
+import { isAdminRole, ALL_ROLES, PRODUCT_LABELS, ROLE_BADGE_VARIANT, ROLE_LABELS, type Role } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -41,7 +41,18 @@ export function UsersPage() {
     {
       key: 'role',
       header: 'Papel',
-      cell: (u) => <Badge variant={ROLE_BADGE_VARIANT[u.role]}>{ROLE_LABELS[u.role]}</Badge>,
+      cell: (u) => (
+        <span className="flex flex-wrap items-center gap-1">
+          <Badge variant={ROLE_BADGE_VARIANT[u.role]}>{ROLE_LABELS[u.role]}</Badge>
+          {u.role === 'admin' && (u.products?.length ?? 0) > 0
+            ? u.products!.map((p) => (
+                <Badge key={p} variant="outline">
+                  {PRODUCT_LABELS[p]}
+                </Badge>
+              ))
+            : null}
+        </span>
+      ),
     },
     {
       key: 'files',

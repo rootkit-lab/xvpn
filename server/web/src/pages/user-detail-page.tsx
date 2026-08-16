@@ -6,7 +6,17 @@ import { api, ApiError, type Device, type DeviceSSHKey, type InviteResponse, typ
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { canManageRole, isAdminRole, ROLE_BADGE_VARIANT, ROLE_LABELS, type Role } from '@/lib/roles'
+import {
+  canManageRole,
+  canWriteAdminProduct,
+  isAdminRole,
+  PRODUCT_LABELS,
+  ROLE_BADGE_VARIANT,
+  ROLE_LABELS,
+  type Product,
+  type Role,
+} from '@/lib/roles'
+import { ProductScopeFields } from '@/components/product-scope-fields'
 import { CopyField } from '@/components/copy-field'
 import { RoleSelect } from '@/components/role-select'
 import { Button } from '@/components/ui/button'
@@ -49,6 +59,7 @@ function UserFicha({ user, onChanged }: { user: User; onChanged: () => void }) {
   const { user: caller } = useAuth()
   const navigate = useNavigate()
   const canManage = isAdminRole(caller?.role) && canManageRole(caller?.role, user.role)
+  const canManageFiles = canManage && canWriteAdminProduct(caller?.role, caller?.products, 'xdriver')
   const isSelf = caller?.id === user.id
 
   return (
@@ -81,7 +92,7 @@ function UserFicha({ user, onChanged }: { user: User; onChanged: () => void }) {
           <GeralTab user={user} caller={caller} isSelf={isSelf} canManage={canManage} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="arquivos">
-          <ArquivosTab user={user} canManage={canManage} onChanged={onChanged} />
+          <ArquivosTab user={user} canManage={canManageFiles} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="dispositivos">
           <DevicesTab userId={user.id} />
@@ -112,17 +123,22 @@ function GeralTab({
 }) {
   const [username, setUsername] = useState(user.username)
   const [role, setRole] = useState<Role>(user.role)
+  const [products, setProducts] = useState<Product[]>(user.products ?? [])
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const showProducts = role === 'admin'
+  const sameProducts =
+    (user.products ?? []).length === products.length && (user.products ?? []).every((p) => products.includes(p))
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setError(null)
     setSubmitting(true)
     try {
-      const changes: { username?: string; role?: Role } = {}
+      const changes: { username?: string; role?: Role; products?: Product[] } = {}
       if (username !== user.username) changes.username = username
       if (!isSelf && role !== user.role) changes.role = role
+      if (!isSelf && showProducts && !sameProducts) changes.products = products
       await api.updateUser(user.id, changes)
       toast.success('Usuário atualizado')
       onChanged()
@@ -162,6 +178,25 @@ function GeralTab({
               <RoleSelect value={role} onChange={setRole} caller={caller?.role} />
             )}
           </div>
+          {showProducts && (
+            <ProductScopeFields
+              value={products}
+              onChange={setProducts}
+              disabled={!canManage || isSelf}
+              hint={
+                isSelf
+                  ? 'Ninguém altera o próprio escopo.'
+                  : caller?.role === 'admin' && (caller.products?.length ?? 0) > 0
+                    ? 'Você só pode conceder produtos do seu próprio escopo.'
+                    : undefined
+              }
+            />
+          )}
+          {user.role === 'admin' && (user.products?.length ?? 0) > 0 && !canManage && (
+            <p className="text-xs text-muted-foreground">
+              Escopo: {user.products?.map((p) => PRODUCT_LABELS[p]).join(', ')}
+            </p>
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {canManage && (
             <Button type="submit" disabled={submitting}>

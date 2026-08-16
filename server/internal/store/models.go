@@ -73,7 +73,12 @@ type User struct {
 	// Role nunca fica vazio em produção: AutoMigrate cria a coluna com
 	// default "member" (mais restritivo) e Open() faz backfill explícito
 	// logo em seguida para as linhas pré-existentes — ver store.go.
-	Role      Role `gorm:"not null;default:member"`
+	Role Role `gorm:"not null;default:member"`
+	// Products (Fase 33 — PLAN.md §6.13) restringe um admin a seções do
+	// /admin. Lista vazia/nil = sem restrição (compatível com a matriz
+	// RBAC da Fase 10). super_admin ignora o campo. viewer/member não
+	// usam. Persistido como JSON no SQLite e no documento Mongo.
+	Products  []Product `gorm:"serializer:json"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 

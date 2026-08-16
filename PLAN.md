@@ -550,7 +550,7 @@ Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes de
 | Utilities | `shared/ui/scss/_utilities.scss` | `watch-face`, `watch-complication`, `power-safe`, `icon-well`, `field-glass`, `chrome-bar`, HUD |
 | Temas chat | `shared/ui/scss/_themes.scss` | `.xvpn-chat-root[data-chat-theme]` |
 | Tailwind v4 | `shared/ui/css/tailwind-bridge.css` | `@theme inline` → `bg-background` etc. |
-| Primitivos | `shared/ui/react/` | `ShellFace`, `IconButton`, `Complication`, `StatusDot` |
+| Primitivos | `shared/ui/react/` | `ShellFace`, `ProductHeader`, `ProductMark`, `IconButton`, `Complication`, `StatusDot` |
 | Catálogo | `shared/ui/COMPONENTS.md` | O que reusar / o que não copiar |
 
 **Regras (não negociáveis):**

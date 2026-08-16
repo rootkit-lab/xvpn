@@ -10,7 +10,8 @@ shared/ui/
 ├── scss/_themes.scss         # .xvpn-chat-root[data-chat-theme]
 ├── scss/index.scss
 ├── css/tailwind-bridge.css   # @theme inline (Tailwind v4)
-├── react/                    # ShellFace, IconButton, Complication, StatusDot
+├── brand/                    # ihuull mark/wordmark + marks de produto (Fase 33)
+├── react/                    # ShellFace, ProductHeader, IconButton, …
 └── COMPONENTS.md
 ```
 

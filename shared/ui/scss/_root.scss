@@ -3,9 +3,11 @@
 :root {
   @include colors.apply-dark;
   @include colors.fonts-and-radius;
+  --product: var(--product-xvpn);
 }
 
 .dark {
   @include colors.apply-dark;
   @include colors.fonts-and-radius;
+  --product: var(--product-xvpn);
 }

@@ -1086,8 +1086,8 @@ O `/social` deixa de ser tabela admin e vira timeline (composer 280, feed, perfi
 
 Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header+logos → portal XVPN → `network` no marketplace → escopos no `/admin` → `xauth.ihuull.com` (DNS+Nginx por último).
 
-- [ ] Header global em `shared/ui` (logo ihuull + mark do produto) em marketplace, xvpn, xgroup, xdriver, landing.
-- [ ] Marcas em `shared/ui/brand/` (wordmark + mark). Cada produto com mark próprio.
+- [x] Header global em `shared/ui` (logo ihuull + mark do produto) em marketplace, xvpn, xgroup, xdriver, landing.
+- [x] Marcas em `shared/ui/brand/` (wordmark + mark). Cada produto com mark próprio.
 - [ ] Portal de produto em `xvpn.ihuull.com` (chrome tipo loja); `/admin` só operação.
 - [ ] `marketplace.yaml`: campo `network: public|vpn` (além de `visibility`). Admin da loja configura isso.
 - [ ] `/admin` seccionado por produto; RBAC com escopo (`products: [...]`). Fonte única — sem admin.* extra.

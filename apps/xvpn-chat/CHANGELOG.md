@@ -2,6 +2,13 @@
 
 Changelog do componente `xvpn-chat`, mantido pelo release-please. Ver o CHANGELOG na raiz do monorepo para mudanças de projeto.
 
+## [0.1.4](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.3...xvpn-chat-v0.1.4) (2026-08-16)
+
+
+### Features
+
+* **server:** DNS intranet e chrome padronizado dos produtos ([#89](https://github.com/rootkit-lab/xvpn/issues/89)) ([9012237](https://github.com/rootkit-lab/xvpn/commit/901223734744cec2c507f66187104764f71f6579))
+
 ## [0.1.3](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.2...xvpn-chat-v0.1.3) (2026-08-16)
 
 

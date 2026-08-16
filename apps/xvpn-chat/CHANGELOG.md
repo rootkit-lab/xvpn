@@ -2,6 +2,13 @@
 
 Changelog do componente `xvpn-chat`, mantido pelo release-please. Ver o CHANGELOG na raiz do monorepo para mudanças de projeto.
 
+## [0.1.3](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.2...xvpn-chat-v0.1.3) (2026-08-16)
+
+
+### Bug Fixes
+
+* **chat:** disca *.corp em 10.66.66.1 sem depender do DNS do SO ([#87](https://github.com/rootkit-lab/xvpn/issues/87)) ([10816cf](https://github.com/rootkit-lab/xvpn/commit/10816cfbf0f4727a3fd0e473fbb7577570b0b276))
+
 ## [0.1.2](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.1...xvpn-chat-v0.1.2) (2026-08-16)
 
 

@@ -7,11 +7,13 @@ import {
   Loader2,
   FolderOpen,
   Globe,
+  MessageCircle,
   Settings,
   Stethoscope,
   ShieldCheck,
   Store,
   Share2,
+  Users,
 } from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
@@ -140,7 +142,7 @@ export function MainPage({
     setAuthError(null)
   }
 
-  async function openFiles(kind: 'smb-home' | 'smb-shared' | 'filebrowser') {
+  async function openFiles(kind: 'smb-home' | 'smb-shared' | 'filebrowser' | 'xchat' | 'xgroup') {
     setActionError(null)
     try {
       await VPNService.OpenServerFiles(kind)
@@ -352,7 +354,7 @@ export function MainPage({
               />
             </div>
 
-            <div className="flex justify-center gap-5 pt-1">
+            <div className="flex flex-wrap justify-center gap-4 pt-1">
               <AppSlot
                 onClick={() => openFiles('smb-home')}
                 disabled={!sambaReady}
@@ -372,6 +374,18 @@ export function MainPage({
                 title="XDriver na VPN"
                 label="XDriver"
                 icon={<Globe className="h-5 w-5" />}
+              />
+              <AppSlot
+                onClick={() => openFiles('xchat')}
+                title="xchat na VPN"
+                label="xchat"
+                icon={<MessageCircle className="h-5 w-5" />}
+              />
+              <AppSlot
+                onClick={() => openFiles('xgroup')}
+                title="xgroup na VPN"
+                label="xgroup"
+                icon={<Users className="h-5 w-5" />}
               />
             </div>
 

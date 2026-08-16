@@ -19,6 +19,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/client/internal/apiclient"
 	"github.com/rootkit-lab/xvpn/client/internal/config"
+	"github.com/rootkit-lab/xvpn/client/internal/intranet"
 	"github.com/rootkit-lab/xvpn/client/internal/ipc"
 	"github.com/rootkit-lab/xvpn/client/internal/tunnel"
 )
@@ -319,6 +320,7 @@ func (h *Helper) handleConnect(_ json.RawMessage) (any, error) {
 		slog.Error("connect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível conectar: %w", err)
 	}
+	applyIntranetHosts()
 	slog.Info("connected", "assigned_ip", assignedIP, "endpoint", endpoint)
 
 	h.mu.Lock()
@@ -387,6 +389,9 @@ func (h *Helper) handleDisconnect(_ json.RawMessage) (any, error) {
 	if err != nil {
 		slog.Error("disconnect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível desconectar: %w", err)
+	}
+	if err := intranet.Revert(intranet.HostsPath()); err != nil {
+		slog.Warn("intranet hosts revert failed", "err", err)
 	}
 	slog.Info("disconnected")
 	return nil, nil
@@ -539,4 +544,10 @@ func intranetDNS(fromServer []string) []string {
 		return fromServer
 	}
 	return []string{"10.66.66.1"}
+}
+
+func applyIntranetHosts() {
+	if err := intranet.Apply(intranet.HostsPath()); err != nil {
+		slog.Warn("intranet hosts apply failed", "err", err)
+	}
 }

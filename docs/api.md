@@ -2,7 +2,7 @@
 
 Issuer SSO: `https://xauth.ihuull.com` (leitura ainda aceita o issuer legado `https://xvpn.ihuull.com`). Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
 
-Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Login web: `https://xauth.ihuull.com`. Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` operação). Loja: `https://marketplace.ihuull.com`. Landing de arquivos: `https://xdriver.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN). Marketing xgroup: `https://xgroup.ihuull.com` (sem API/WS; A ainda não criado). App: `https://xgroup.corp.ihuull.com`.
+Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Login web: `https://xauth.ihuull.com`. Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` operação). Loja: `https://marketplace.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN; `xdriver.ihuull.com` não serve). Marketing xgroup: `https://xgroup.ihuull.com` (sem API/WS). App: `https://xgroup.corp.ihuull.com`.
 
 Auth no browser: cookie `ihuull_session` (`Domain=.ihuull.com`, Secure, HttpOnly, SameSite=Lax), emitido só em `xauth.ihuull.com`. Desktop: `Authorization: Bearer <token>` em memória, sem cookie. Nunca na query do WebSocket.
 
@@ -88,5 +88,5 @@ Body: `{ "body": "texto", "group": "Sistema" }`. Cria/usa o grupo, adiciona todo
 
 ## Superfícies que **não** são esta API
 
-- Samba `10.66.66.1:445`. XDriver web só em `xdriver.corp` (mesmo `xvpn-server`). `xdriver.ihuull.com` é só landing. Sem FileBrowser.
+- Samba `10.66.66.1:445`. XDriver web só em `xdriver.corp` (mesmo `xvpn-server`). `xdriver.ihuull.com` não serve o Drive. Sem FileBrowser.
 - `ldpops.appapisip.com` — outro processo.

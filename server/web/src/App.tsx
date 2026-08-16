@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, XDRIVER_ORIGIN, productKind } from '@/lib/product-host'
+import { MARKETPLACE_ORIGIN, XDRIVER_CORP_ORIGIN, productKind } from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
@@ -46,9 +46,6 @@ const PlayStoreLayout = lazy(() => import('@/pages/play-store-page').then((m) =>
 const PlayStoreHome = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreHome })))
 const PlayStoreDetail = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreDetail })))
 const XDriverLayout = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverLayout })))
-const XDriverPublicLanding = lazy(() =>
-  import('@/pages/xdriver-portal-page').then((m) => ({ default: m.XDriverPublicLanding })),
-)
 const XDriverAppPage = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverAppPage })))
 const XvpnProductPortal = lazy(() =>
   import('@/pages/xvpn-portal-page').then((m) => ({ default: m.XvpnProductPortal })),
@@ -83,12 +80,7 @@ function MarketplaceApp() {
 }
 
 function XDriverPublicApp() {
-  return (
-    <Routes>
-      <Route path="/" element={<XDriverPublicLanding />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  )
+  return null
 }
 
 function XDriverCorpApp() {
@@ -127,7 +119,7 @@ function PanelApp({ home }: { home: 'landing' | 'portal' }) {
           <Route path="/my" element={<UserShell />}>
             <Route index element={home === 'portal' ? <Navigate to="/" replace /> : <PortalPage />} />
             <Route path="devices" element={<PortalPage />} />
-            <Route path="files" element={<HostRedirect to={XDRIVER_ORIGIN} />} />
+            <Route path="files" element={<HostRedirect to={XDRIVER_CORP_ORIGIN} />} />
             <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
             <Route path="marketplace" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
             <Route path="profile" element={<ProfilePage />} />

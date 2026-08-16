@@ -8,6 +8,7 @@ export const XDRIVER_ORIGIN = 'https://xdriver.ihuull.com'
 export const XDRIVER_CORP_ORIGIN = 'https://xdriver.corp.ihuull.com'
 export const XGROUP_ORIGIN = 'https://xgroup.ihuull.com'
 export const XGROUP_CORP_ORIGIN = 'https://xgroup.corp.ihuull.com'
+export const XCHAT_CORP_ORIGIN = 'https://xchat.corp.ihuull.com'
 export const XAUTH_ORIGIN = 'https://xauth.ihuull.com'
 
 export type ProductKind =
@@ -79,7 +80,7 @@ export function headerProduct(
 
 export function isStoreHost(hostname = window.location.hostname): boolean {
   const kind = productKind(hostname)
-  return kind === 'marketplace' || kind === 'xdriver' || kind === 'xdriver-corp'
+  return kind === 'marketplace' || kind === 'xdriver-corp'
 }
 
 export function storeLoginPath(): string {

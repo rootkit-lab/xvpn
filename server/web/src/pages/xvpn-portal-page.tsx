@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { isViewerUpRole } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, XDRIVER_ORIGIN, XGROUP_ORIGIN } from '@/lib/product-host'
+import { MARKETPLACE_ORIGIN, XCHAT_CORP_ORIGIN, XDRIVER_CORP_ORIGIN, XGROUP_CORP_ORIGIN } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -17,15 +17,21 @@ const SHORTCUTS = [
     icon: Store,
   },
   {
-    href: XDRIVER_ORIGIN,
+    href: XDRIVER_CORP_ORIGIN,
     label: 'XDriver',
     description: 'Arquivos só com a VPN ligada',
     icon: HardDrive,
   },
   {
-    href: XGROUP_ORIGIN,
+    href: XCHAT_CORP_ORIGIN,
+    label: 'xchat',
+    description: 'Messenger — só na VPN',
+    icon: Laptop,
+  },
+  {
+    href: XGROUP_CORP_ORIGIN,
     label: 'xgroup',
-    description: 'Rede social — app em xgroup.corp',
+    description: 'Rede social — só na VPN',
     icon: UserRound,
   },
 ] as const

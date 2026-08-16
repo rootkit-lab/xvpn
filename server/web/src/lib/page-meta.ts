@@ -26,7 +26,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'apps',
       title: 'XDriver',
-      description: 'Portal em xdriver.ihuull.com. FileBrowser (xdriver.corp) só responde dentro da VPN.',
+      description: 'Drive nativo em xdriver.corp.ihuull.com — só na VPN. Sem host público.',
     },
   },
   {

@@ -11,6 +11,7 @@ import { ChatHost } from '@/components/layout/chat-host'
 import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
+import { SSOLoginRedirect } from '@/pages/sso-login-redirect'
 import { HostRedirect } from '@/pages/host-redirect'
 
 const DashboardPage = lazy(() => import('@/pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
@@ -56,10 +57,20 @@ const XGroupPublicLanding = lazy(() =>
   import('@/pages/xgroup-landing-page').then((m) => ({ default: m.XGroupPublicLanding })),
 )
 
+function XAuthApp() {
+  return (
+    <Routes>
+      <Route path="/" element={<LoginPage variant="sso" />} />
+      <Route path="/login" element={<LoginPage variant="sso" />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  )
+}
+
 function MarketplaceApp() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage variant="store" />} />
+      <Route path="/login" element={<SSOLoginRedirect />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<PlayStoreLayout />}>
           <Route index element={<PlayStoreHome />} />
@@ -83,7 +94,7 @@ function XDriverPublicApp() {
 function XDriverCorpApp() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage variant="store" />} />
+      <Route path="/login" element={<SSOLoginRedirect />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<XDriverLayout />}>
           <Route index element={<XDriverAppPage />} />
@@ -109,8 +120,8 @@ function PanelApp({ home }: { home: 'landing' | 'portal' }) {
       <Routes>
         <Route path="/" element={home === 'portal' ? <XvpnProductPortal /> : <LandingPage />} />
 
-        <Route path="/my/login" element={<LoginPage variant="user" />} />
-        <Route path="/admin/login" element={<LoginPage variant="admin" />} />
+        <Route path="/my/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin/login" element={<SSOLoginRedirect />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/my" element={<UserShell />}>
@@ -169,7 +180,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Suspense fallback={<PageFallback />}>
-          {kind === 'marketplace' ? (
+          {kind === 'xauth' ? (
+            <XAuthApp />
+          ) : kind === 'marketplace' ? (
             <MarketplaceApp />
           ) : kind === 'xdriver-corp' ? (
             <XDriverCorpApp />

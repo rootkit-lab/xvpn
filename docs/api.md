@@ -1,17 +1,18 @@
 # API do xvpn-server
 
-Issuer SSO: `https://xvpn.ihuull.com`. Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
+Issuer SSO: `https://xauth.ihuull.com` (leitura ainda aceita o issuer legado `https://xvpn.ihuull.com`). Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
 
-Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` operação). Loja: `https://marketplace.ihuull.com`. Landing de arquivos: `https://xdriver.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN). Marketing xgroup: `https://xgroup.ihuull.com` (sem API/WS; A ainda não criado). App: `https://xgroup.corp.ihuull.com`.
+Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Login web: `https://xauth.ihuull.com`. Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` operação). Loja: `https://marketplace.ihuull.com`. Landing de arquivos: `https://xdriver.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN). Marketing xgroup: `https://xgroup.ihuull.com` (sem API/WS; A ainda não criado). App: `https://xgroup.corp.ihuull.com`.
 
-Auth: `Authorization: Bearer <token>` salvo no header, nunca na query do WebSocket.
+Auth no browser: cookie `ihuull_session` (`Domain=.ihuull.com`, Secure, HttpOnly, SameSite=Lax), emitido só em `xauth.ihuull.com`. Desktop: `Authorization: Bearer <token>` em memória, sem cookie. Nunca na query do WebSocket.
 
 ## Auth e sessão
 
 | Método | Path | Auth | Notas |
 |---|---|---|---|
-| POST | `/api/auth/login` | público + rate limit | Body `{username,password,aud?}`. Recusa `xbot`. |
-| GET | `/api/auth/me` | JWT/JWE | Papel atual do banco (não só o claim). |
+| POST | `/api/auth/login` | público + rate limit | Body `{username,password,aud?}`. Recusa `xbot`. Em `xauth` também grava o cookie de sessão. |
+| POST | `/api/auth/logout` | público | Apaga o cookie `.ihuull.com`. |
+| GET | `/api/auth/me` | Bearer ou cookie | Papel atual do banco (não só o claim). |
 | POST | `/api/devices/enroll` | convite | Devolve IP, pubkey do server, `dns: ["10.66.66.1"]`. |
 | GET | `/api/status` | público | Saúde, `api_version`, peers. |
 

@@ -64,7 +64,18 @@ func (a *App) handleLogin(c *gin.Context) {
 	}
 
 	_ = a.Store.LogAudit(user.Username, "login", "")
+	if a.Tokens != nil {
+		auth.SetSessionCookie(c, token, a.Tokens.TTL())
+	}
 	c.JSON(http.StatusOK, loginResponse{Token: token, User: toUserResponse(user)})
+}
+
+// handleLogout apaga o cookie de SSO. Público de propósito: quem tem o
+// cookie pode descartá-lo; sem cookie é no-op. Desktop não usa cookie.
+// POST /api/auth/logout
+func (a *App) handleLogout(c *gin.Context) {
+	auth.ClearSessionCookie(c)
+	c.Status(http.StatusNoContent)
 }
 
 // handleMe devolve os dados do usuário autenticado atual — usado pelo

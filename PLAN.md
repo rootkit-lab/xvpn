@@ -170,7 +170,7 @@ Fonte da verdade de portas, hostnames e bind. Qualquer serviço novo no VPS **en
 | XDriver (landing pública) | `xdriver.ihuull.com` | **DNS only**. Landing “conecte a VPN”. **Não** serve arquivos. Drive real: `xdriver.corp.ihuull.com` só na VPN. `/my/files` redireciona para cá |
 | Marketing xchat | `xchat.ihuull.com` | Landing “conecte a VPN / abra o app”. **Não** é o WebSocket nem a API do messenger |
 | Marketing xgroup | `xgroup.ihuull.com` | Landing “conecte a VPN / abra o app”. **Não** é API/WS do social. App continua em `xgroup.corp` / `/social`. Nginx: `server/deploy/nginx/xgroup.conf`. **Ainda sem A** — criar o A (DNS only) só quando for ligar o server block |
-| SSO (planejado Fase 33) | `xauth.ihuull.com` | **Ainda sem A.** Mesmo `127.0.0.1:8080`. Login único; cookie `.ihuull.com`. Registrar aqui **antes** do Nginx |
+| SSO | `xauth.ihuull.com` | **DNS only**. A → `206.189.224.72`. Backend `127.0.0.1:8080`. Login único; cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax). Sem WS. Nginx: `server/deploy/nginx/xauth.conf`. Enroll continua em `xvpn.ihuull.com` |
 | landpages-ops | `ldpops.appapisip.com` | **Não muda.** Outra app Go no mesmo Nginx |
 
 **Não criar** A/AAAA públicos para `corp.ihuull.com`, `*.corp.ihuull.com`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`. Wildcard `*.ihuull.com` casa `corp.ihuull.com` (um rótulo) — se o wildcard A existir, crie `corp` **sem** A (TXT `intranet-only`) para o nome não resolver fora do túnel. Wildcard **não** cobre `xchat.corp.ihuull.com` (dois rótulos).
@@ -571,7 +571,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 
 **Não fatiar o `xvpn-server` em vários binários agora.** Um VPS, um Nginx compartilhado, um JWE, um deploy. O custo de N systemd + N Mongo + N pipelines supera o ganho enquanto o time é um. O caminho certo é **monólito modular**: pacotes Go por produto (`internal/driver`, `internal/marketplace`, social, auth), SPA roteada por `Host`, um binário. Binário separado só quando um produto precisar de ciclo de release ou escala próprios.
 
-**SSO: `xauth.ihuull.com` (planejado, mesmo processo).** Hoje cada host tem `/login` e token em `localStorage` — a sessão não atravessa `marketplace` → `xvpn` → `xdriver.corp`. O login central emite o JWE já existente (`aud` por app). Cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax) cobre os públicos e também `*.corp.ihuull.com` (é subdomínio). Portais sem permissão recebem 403, não um segundo cadastro. Enroll WireGuard **continua** em `xvpn.ihuull.com` (ovo-e-galinha: precisa existir antes da VPN). Desktop: token só em memória, sem cookie. **Não** criar processo/porta novos; registrar o A em §5.1 **antes** do Nginx.
+**SSO: `xauth.ihuull.com` (mesmo processo).** Login central emite o JWE já existente (`aud` por app, issuer `https://xauth.ihuull.com`; `https://xvpn.ihuull.com` ainda é aceito na leitura). Cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax) cobre os públicos e também `*.corp.ihuull.com`. Portais sem permissão recebem 403, não um segundo cadastro. Enroll WireGuard **continua** em `xvpn.ihuull.com`. Desktop: token só em memória, sem cookie. Sem processo/porta novos.
 
 **`/admin` permanece fonte única** em `xvpn.ihuull.com`. Não nascer `admin.marketplace` etc. A UI é que se parte: Core (VPN/users/devices), Marketplace, XGroup, XDriver, IAM. Papéis ganham *escopo de produto* (`admin` + `products: ["marketplace"]`) — um admin da loja não mexe em peers WireGuard. `super_admin` vê tudo.
 
@@ -585,7 +585,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 | xchat | `xchat.ihuull.com` (marketing) | `xchat.corp` | `xvpn-chat` | Correto |
 | xgroup | `xgroup.ihuull.com` (marketing) | `xgroup.corp` + `/social` no painel | — | Landing no código; **A ainda não criado**. App web; desktop só se o messenger não bastar |
 | xdriver | `xdriver.ihuull.com` (landing VPN) | `xdriver.corp` | atalho no client | Correto. Sem FileBrowser |
-| xauth | `xauth.ihuull.com` | — | — | **Não existe ainda** — Fase 33 |
+| xauth | `xauth.ihuull.com` | — | — | Login único no mesmo `xvpn-server`. Cookie `.ihuull.com` |
 | ihuu.com | parking AWS | — | — | Não usar no Nginx |
 
 **Padrão obrigatório de app** (`marketplace.yaml` + skill `new-intranet-app`):
@@ -834,7 +834,7 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 | Marketing messenger | `xchat.ihuull.com` (sem API/WS) |
 | Marketing xgroup | `xgroup.ihuull.com` (sem API/WS; **A ainda não criado**) |
 | Intranet | `xchat.corp` / `xgroup.corp` / `xdriver.corp` → `10.66.66.1` (só VPN) |
-| Auth | **só JWE** (`dir` + `A256GCM`); issuer hoje `xvpn.ihuull.com` — SSO `xauth` na Fase 33 |
+| Auth | **só JWE** (`dir` + `A256GCM`); issuer `xauth.ihuull.com` (lê também o issuer legado `xvpn.ihuull.com`) |
 | Crescimento | Monólito modular (§6.13). Sem fatiar o binário. `/admin` único |
 | Persistência | Mongo `127.0.0.1:27017` se `XVPN_MONGO_URI`; senão SQLite (testes/CI) |
 | landpages-ops | `ldpops.appapisip.com` — não muda |

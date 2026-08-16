@@ -59,6 +59,19 @@ func TestTokenManager_IssueForAudience(t *testing.T) {
 	}
 }
 
+func TestTokenManager_AcceptsLegacyIssuer(t *testing.T) {
+	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
+	tm.issuer = LegacyIssuerURL
+	token, err := tm.Issue(1, "legacy", store.RoleMember)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tm.issuer = IssuerURL
+	if _, err := tm.Parse(token); err != nil {
+		t.Fatalf("issuer legado deveria ser aceito: %v", err)
+	}
+}
+
 func TestTokenManager_RejectsHMACJWT(t *testing.T) {
 	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
 	// Três segmentos = JWT assinado, não JWE.

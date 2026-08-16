@@ -1,0 +1,94 @@
+package auth
+
+import (
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+// SessionCookieName é o cookie HttpOnly do SSO web (PLAN.md §6.13).
+// Desktop nunca o envia — usa só Authorization: Bearer em memória.
+const SessionCookieName = "ihuull_session"
+
+const (
+	xauthHost        = "xauth.ihuull.com"
+	xauthLocalHost   = "xauth.localhost"
+	sessionCookieDom = ".ihuull.com"
+)
+
+func requestHostName(host string) string {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	return strings.ToLower(host)
+}
+
+// IsXAuthHost é o único vhost que grava o cookie de sessão. Login no
+// painel/loja (e o cliente desktop em xvpn.ihuull.com) devolve só o JWE.
+func IsXAuthHost(host string) bool {
+	h := requestHostName(host)
+	return h == xauthHost || h == xauthLocalHost
+}
+
+func isIhuullHost(host string) bool {
+	h := requestHostName(host)
+	return h == "ihuull.com" || strings.HasSuffix(h, ".ihuull.com")
+}
+
+func isLocalDevHost(host string) bool {
+	h := requestHostName(host)
+	return h == "localhost" || h == "127.0.0.1" || strings.HasSuffix(h, ".localhost")
+}
+
+// TokenFromRequest lê Bearer e, se ausente, o cookie de SSO.
+func TokenFromRequest(c *gin.Context) string {
+	header := c.GetHeader("Authorization")
+	if header != "" {
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			return strings.TrimSpace(parts[1])
+		}
+	}
+	ck, err := c.Request.Cookie(SessionCookieName)
+	if err != nil || ck == nil {
+		return ""
+	}
+	return strings.TrimSpace(ck.Value)
+}
+
+func sessionCookie(token string, maxAge int, host string) *http.Cookie {
+	ck := &http.Cookie{
+		Name:     SessionCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   !isLocalDevHost(host),
+		SameSite: http.SameSiteLaxMode,
+	}
+	if isIhuullHost(host) {
+		ck.Domain = sessionCookieDom
+	}
+	return ck
+}
+
+// SetSessionCookie grava o JWE só quando o login veio do xauth.
+func SetSessionCookie(c *gin.Context, token string, ttl time.Duration) {
+	if !IsXAuthHost(c.Request.Host) {
+		return
+	}
+	maxAge := int(ttl.Seconds())
+	if maxAge < 1 {
+		maxAge = 1
+	}
+	http.SetCookie(c.Writer, sessionCookie(token, maxAge, c.Request.Host))
+}
+
+// ClearSessionCookie apaga o cookie no host atual e, se for ihuull, no
+// Domain=.ihuull.com (o browser só remove com os mesmos atributos).
+func ClearSessionCookie(c *gin.Context) {
+	http.SetCookie(c.Writer, sessionCookie("", -1, c.Request.Host))
+}

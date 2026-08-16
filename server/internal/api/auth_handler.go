@@ -93,11 +93,7 @@ func (a *App) handleEstablishSession(c *gin.Context) {
 	if token == "" {
 		token = auth.TokenFromRequest(c)
 	}
-	origin := c.GetHeader("Origin")
-	if origin == "" {
-		origin = c.GetHeader("Referer")
-	}
-	if !auth.TrustedHandoffOrigin(origin) {
+	if !auth.HandoffAllowed(c.GetHeader("Origin"), c.GetHeader("Referer"), c.GetHeader("Sec-Fetch-Site"), c.Request.Host) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "origem não permitida"})
 		return
 	}

@@ -49,7 +49,7 @@ func allowedReturnScheme(scheme, host string) bool {
 // TrustedHandoffOrigin aceita Origin/Referer só de hosts ihuull (https, ou http no localhost).
 func TrustedHandoffOrigin(raw string) bool {
 	raw = strings.TrimSpace(raw)
-	if raw == "" {
+	if raw == "" || strings.EqualFold(raw, "null") {
 		return false
 	}
 	u, err := url.Parse(raw)
@@ -61,6 +61,26 @@ func TrustedHandoffOrigin(raw string) bool {
 		return false
 	}
 	return allowedReturnScheme(u.Scheme, host)
+}
+
+// HandoffAllowed decide se o POST /api/auth/session veio de um host ihuull.
+// xauth manda Referrer-Policy same-origin, então o Referer some no POST
+// cruzado; o Chrome às vezes omite Origin no POST same-site. Sec-Fetch-Site
+// same-site/same-origin no host de destino fecha o CSRF (evil.com é cross-site).
+func HandoffAllowed(origin, referer, fetchSite, requestHost string) bool {
+	if origin != "" {
+		return TrustedHandoffOrigin(origin)
+	}
+	if referer != "" {
+		return TrustedHandoffOrigin(referer)
+	}
+	site := strings.ToLower(strings.TrimSpace(fetchSite))
+	if site != "same-site" && site != "same-origin" {
+		return false
+	}
+	host := requestHostName(requestHost)
+	_, ok := safeReturnHosts[host]
+	return ok
 }
 
 // SafeReturnURL aceita só hosts ihuull conhecidos — bloqueia open redirect.

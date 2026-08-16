@@ -223,6 +223,16 @@ func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
 	if csrfRec.Code != http.StatusForbidden {
 		t.Fatalf("Origin estranha deveria ser 403, got %d", csrfRec.Code)
 	}
+
+	sameSite := httptest.NewRequest(http.MethodPost, "/api/auth/session", strings.NewReader(form))
+	sameSite.Host = "xvpn.ihuull.com"
+	sameSite.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	sameSite.Header.Set("Sec-Fetch-Site", "same-site")
+	sameRec := httptest.NewRecorder()
+	router.ServeHTTP(sameRec, sameSite)
+	if sameRec.Code != http.StatusSeeOther {
+		t.Fatalf("same-site sem Origin deveria passar, got %d %s", sameRec.Code, sameRec.Body.String())
+	}
 }
 
 func TestHandleLogout_ClearsCookie(t *testing.T) {

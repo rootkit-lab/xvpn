@@ -61,12 +61,37 @@ func (h *Helper) handleUnmountSMB(raw json.RawMessage, peer ipc.Peer) (any, erro
 	if !isCIFSMount(target.Mountpoint) {
 		return nil, nil
 	}
-	cmd := exec.Command("umount", "-l", "--", target.Mountpoint)
+	fd, err := openMountpoint(target)
+	if err != nil {
+		return nil, err
+	}
+	defer unix.Close(fd)
+	dest := fmt.Sprintf("/proc/self/fd/%d", fd)
+	cmd := exec.Command("umount", "-l", "--no-canonicalize", "--", dest)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("umount %s: %s", target.Mountpoint, strings.TrimSpace(string(out)))
 	}
 	return nil, nil
+}
+
+func openMountpoint(target mountSMBTarget) (int, error) {
+	homeFD, err := unix.Open(target.Home, unix.O_DIRECTORY|unix.O_RDONLY, 0)
+	if err != nil {
+		return -1, fmt.Errorf("abrindo home %s: %w", target.Home, err)
+	}
+	defer unix.Close(homeFD)
+	xvpnFD, err := unix.Openat(homeFD, "XVPN", unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_RDONLY, 0)
+	if err != nil {
+		return -1, fmt.Errorf("abrindo XVPN: %w", err)
+	}
+	defer unix.Close(xvpnFD)
+	leaf := shareFolderName(target.Share)
+	fd, err := unix.Openat(xvpnFD, leaf, unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_RDONLY, 0)
+	if err != nil {
+		return -1, fmt.Errorf("abrindo %s: %w", leaf, err)
+	}
+	return fd, nil
 }
 
 func prepareMountpoint(target mountSMBTarget) (int, error) {

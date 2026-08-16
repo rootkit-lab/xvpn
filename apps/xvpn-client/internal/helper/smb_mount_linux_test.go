@@ -40,6 +40,20 @@ func TestMkdirOpenat_ReplacesSymlink(t *testing.T) {
 	}
 }
 
+func TestOpenMountpoint_RefusesSymlinkLeaf(t *testing.T) {
+	home := t.TempDir()
+	if err := os.Mkdir(filepath.Join(home, "XVPN"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/tmp", filepath.Join(home, "XVPN", "Compartilhado")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := openMountpoint(mountSMBTarget{Home: home, Share: "shared"})
+	if err == nil {
+		t.Fatal("symlink deveria falhar")
+	}
+}
+
 func TestMkdirOpenat_RejectsTraversal(t *testing.T) {
 	root := t.TempDir()
 	parent, err := unix.Open(root, unix.O_DIRECTORY|unix.O_RDONLY, 0)

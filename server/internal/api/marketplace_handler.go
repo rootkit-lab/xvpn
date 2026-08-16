@@ -204,7 +204,10 @@ func (a *App) handleListMarketplaceApps(c *gin.Context) {
 
 	resp := make([]marketplaceAppResponse, 0, len(apps))
 	for _, app := range apps {
-		if !a.canSeeAppNetwork(c, app.Network) {
+		// Admin do catálogo precisa ver network:vpn fora do túnel
+		// (/admin/marketplace em host público). A loja (member) continua
+		// filtrada por origem na wg0.
+		if !admin && !a.canSeeAppNetwork(c, app.Network) {
 			continue
 		}
 		if !admin && app.Visibility == store.AppVisibilityRestricted && !containsUint(accessByApp[app.ID], userID) {

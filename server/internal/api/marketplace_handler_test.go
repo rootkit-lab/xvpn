@@ -524,6 +524,14 @@ func TestHandleListMarketplaceApps_NetworkFilter(t *testing.T) {
 	if _, ok := forged[vpnID]; ok {
 		t.Fatal("X-Forwarded-For forjado da internet pública não deve revelar app vpn")
 	}
+
+	_ = createTestUserWithRole(t, app, "mkt-admin", "senha-admin-ok", store.RoleAdmin)
+	adminTok := loginAndGetToken(t, app, router, "mkt-admin", "senha-admin-ok")
+	adminPublic := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, adminTok,
+		"xvpn.ihuull.com", "203.0.113.9:443", nil))
+	if _, ok := adminPublic[vpnID]; !ok {
+		t.Fatal("admin deve ver app network:vpn no /admin/marketplace mesmo fora do túnel")
+	}
 }
 
 func TestHandleDownloadMarketplaceAsset_NetworkFilter(t *testing.T) {

@@ -1,0 +1,8 @@
+// O helper não é root: sem isto o resolvectl dns/domain na xvpn0 é
+// recusado pelo systemd-resolved e Current Scopes fica "none".
+polkit.addRule(function (action, subject) {
+  if (action.id.indexOf("org.freedesktop.resolve1.") === 0 &&
+      subject.user === "xvpn-client-helper") {
+    return polkit.Result.YES;
+  }
+});

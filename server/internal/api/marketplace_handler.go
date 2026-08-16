@@ -155,16 +155,53 @@ func (a *App) requestFromVPN(c *gin.Context) bool {
 	return false
 }
 
+// livePeerHandshake é o mesmo limiar de GET /api/status: peer com
+// handshake recente conta como túnel no ar.
+const livePeerHandshake = 3 * time.Minute
+
+// callerHasLivePeer é a prova de VPN quando o HTTPS sai da wg0.
+// O client instala rota /32 do IP público (PLAN.md §6.9), então
+// marketplace.ihuull.com nunca chega com RemoteIP 10.66.66.x — o
+// handshake do device do usuário autenticado é o que vale.
+func (a *App) callerHasLivePeer(c *gin.Context) bool {
+	userID := callerUserID(c)
+	if userID == 0 || a.WG == nil || a.Store == nil {
+		return false
+	}
+	var keys []string
+	if err := a.Store.DB.Model(&store.Device{}).Where("user_id = ?", userID).Pluck("public_key", &keys).Error; err != nil || len(keys) == 0 {
+		return false
+	}
+	want := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		want[k] = struct{}{}
+	}
+	peers, err := a.WG.ListPeers()
+	if err != nil {
+		return false
+	}
+	now := time.Now()
+	for _, p := range peers {
+		if _, ok := want[p.PublicKey]; !ok {
+			continue
+		}
+		if p.LastHandshake != nil && now.Sub(*p.LastHandshake) < livePeerHandshake {
+			return true
+		}
+	}
+	return false
+}
+
 // canSeeAppNetwork: visibility = quem (ACL); network = onde.
-// network:public sempre passa. network:vpn só com origem na sub-rede
-// WireGuard (PLAN.md §6.13). A loja pública (marketplace.ihuull.com)
-// sem túnel não lista nem baixa app vpn — Host corp sozinho não basta.
+// network:public sempre passa. network:vpn exige túnel: origem na
+// sub-rede WireGuard OU peer do usuário com handshake recente.
+// Host corp sozinho não basta (PLAN.md §6.13).
 func (a *App) canSeeAppNetwork(c *gin.Context, network store.AppNetwork) bool {
 	switch appNetworkOrDefault(network) {
 	case store.AppNetworkPublic:
 		return true
 	case store.AppNetworkVPN:
-		return a.requestFromVPN(c)
+		return a.requestFromVPN(c) || a.callerHasLivePeer(c)
 	default:
 		return false
 	}

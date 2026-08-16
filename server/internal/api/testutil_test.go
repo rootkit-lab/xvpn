@@ -63,6 +63,15 @@ func (f *fakePeerManager) RemovePeer(publicKey string) error {
 	return nil
 }
 
+func (f *fakePeerManager) setHandshake(publicKey string, t time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := f.peers[publicKey]
+	p.PublicKey = publicKey
+	p.LastHandshake = &t
+	f.peers[publicKey] = p
+}
+
 func (f *fakePeerManager) ListPeers() ([]wireguard.PeerStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

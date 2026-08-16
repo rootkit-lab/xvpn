@@ -2,6 +2,23 @@
 
 Changelog do componente `xvpn-chat`, mantido pelo release-please. Ver o CHANGELOG na raiz do monorepo para mudanças de projeto.
 
+## [0.1.2](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.1...xvpn-chat-v0.1.2) (2026-08-16)
+
+
+### Features
+
+* **chat:** alinha o messenger ao client e adiciona mídia, recibos e settings ([#67](https://github.com/rootkit-lab/xvpn/issues/67)) ([c89025b](https://github.com/rootkit-lab/xvpn/commit/c89025bd6f2dd374a9f60be99ef69323906f6221))
+* **chat:** mostra o messenger como xchat ([#82](https://github.com/rootkit-lab/xvpn/issues/82)) ([fee26a2](https://github.com/rootkit-lab/xvpn/commit/fee26a205be229577ab26d59993f0f9c92d75b26))
+* plataforma ihuull com JWE e design system compartilhado ([#71](https://github.com/rootkit-lab/xvpn/issues/71)) ([377587c](https://github.com/rootkit-lab/xvpn/commit/377587c9f6f3609a87f76a042fcf213689d41413))
+* **server:** apps do catálogo públicos ou só na VPN ([#77](https://github.com/rootkit-lab/xvpn/issues/77)) ([33c9522](https://github.com/rootkit-lab/xvpn/commit/33c95228770fe2897ddca7e1fa9ea6756d0d243d))
+* **web:** alinha o design system ao client e reorganiza Marketplace ([#73](https://github.com/rootkit-lab/xvpn/issues/73)) ([521f287](https://github.com/rootkit-lab/xvpn/commit/521f2873d61b64322d8a0193014cd6be164fcbbc))
+
+
+### Bug Fixes
+
+* **chat:** corrige áudio, câmera, paste e presença no WebSocket ([#69](https://github.com/rootkit-lab/xvpn/issues/69)) ([72ac8c7](https://github.com/rootkit-lab/xvpn/commit/72ac8c771c8aa52686539e3254ab0d4f39d4ef44))
+* **web:** carrega o Sass do design system fora do pipeline do Tailwind ([#74](https://github.com/rootkit-lab/xvpn/issues/74)) ([9af006f](https://github.com/rootkit-lab/xvpn/commit/9af006f2ed37b543fab6a85683a7bc813b3a2942))
+
 ## [0.1.1](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.0...xvpn-chat-v0.1.1) (2026-08-15)
 
 

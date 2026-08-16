@@ -14,8 +14,9 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[2]
 APPS = ROOT / "apps"
-REQUIRED = ("slug", "name", "description", "visibility", "source", "channel", "assets")
+REQUIRED = ("slug", "name", "description", "visibility", "network", "source", "channel", "assets")
 VISIBILITY = {"global", "restricted"}
+NETWORKS = {"public", "vpn"}
 SOURCES = {"build", "external"}
 CHANNELS = {"stable", "beta"}
 PLATFORMS = {"linux", "windows", "android"}
@@ -45,6 +46,8 @@ def main() -> None:
         # Disco pode diferir do slug (Fase 26: pasta apps/xvpn-chat, slug xchat).
         if data["visibility"] not in VISIBILITY:
             fail(f"{path}: visibility inválida")
+        if data["network"] not in NETWORKS:
+            fail(f"{path}: network inválida (use public ou vpn)")
         if data["source"] not in SOURCES:
             fail(f"{path}: source inválido")
         if data["channel"] not in CHANNELS:

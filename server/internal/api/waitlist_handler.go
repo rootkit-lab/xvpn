@@ -220,7 +220,12 @@ func (a *App) handleProvisionWaitlist(c *gin.Context) {
 		return
 	}
 
-	user := store.User{Username: req.Username, PasswordHash: hash, Role: role}
+	products, err := store.ResolveAssignedProducts(callerRole(c), callerProducts(c), nil, role)
+	if err != nil {
+		writeProductAssignError(c, err)
+		return
+	}
+	user := store.User{Username: req.Username, PasswordHash: hash, Role: role, Products: products}
 	var invite store.InviteToken
 	now := time.Now()
 

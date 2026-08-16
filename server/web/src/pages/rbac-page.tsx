@@ -108,7 +108,12 @@ export function RbacPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Permissões por papel</CardTitle>
-          <CardDescription>O que cada papel alcança no painel e na API — ver PLAN.md §6.7.</CardDescription>
+          <CardDescription>
+            O que cada papel alcança no painel e na API — ver PLAN.md §6.7. Um <code className="font-mono text-xs">admin</code>{' '}
+            ainda pode ser limitado por <code className="font-mono text-xs">products: […]</code> (Fase 33): sem o produto na
+            lista, a escrita daquela seção retorna 403. Lista vazia = irrestrito. <code className="font-mono text-xs">super_admin</code>{' '}
+            ignora o escopo. IAM (usuários, papéis, auditoria) não é produto.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>

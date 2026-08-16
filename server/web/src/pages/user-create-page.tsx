@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
-import { type Role } from '@/lib/roles'
+import { type Product, type Role } from '@/lib/roles'
 import { RoleSelect } from '@/components/role-select'
+import { ProductScopeFields } from '@/components/product-scope-fields'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,6 +17,7 @@ export function UserCreatePage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('member')
+  const [products, setProducts] = useState<Product[]>([])
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -24,7 +26,7 @@ export function UserCreatePage() {
     setError(null)
     setSubmitting(true)
     try {
-      const created = await api.createUser(username, password, role)
+      const created = await api.createUser(username, password, role, role === 'admin' ? products : undefined)
       toast.success(`Usuário "${created.username}" criado`)
       navigate(`/admin/users/${created.id}`)
     } catch (err) {
@@ -63,6 +65,17 @@ export function UserCreatePage() {
             <Label>Papel</Label>
             <RoleSelect value={role} onChange={setRole} caller={caller?.role} />
           </div>
+          {role === 'admin' && (
+            <ProductScopeFields
+              value={products}
+              onChange={setProducts}
+              hint={
+                caller?.role === 'admin' && (caller.products?.length ?? 0) > 0
+                  ? 'Sem marcações, o novo admin herda o seu escopo. Você não pode conceder produtos que não tem.'
+                  : undefined
+              }
+            />
+          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-2">
             <Button type="submit" disabled={submitting}>

@@ -25,14 +25,16 @@ if ! getent passwd xvpn-client-helper >/dev/null 2>&1; then
     --gid xvpn --comment "XVPN client helper" xvpn-client-helper
 fi
 
-# A GUI precisa do grupo xvpn para o socket 0660. Instalador gráfico
-# (GNOME Software / pkexec) muitas vezes não define SUDO_USER — então
-# também entra todo usuário humano local (uid >= 1000, com shell).
+# A GUI precisa do grupo xvpn para o socket 0660. Só entra quem instalou
+# ou quem já tem sessão no host — não todas as contas uid≥1000 (o grupo
+# controla o helper com CAP_NET_ADMIN).
 add_xvpn() {
   u="$1"
   [ -z "$u" ] && return 0
   [ "$u" = "root" ] && return 0
-  id "$u" >/dev/null 2>&1 || return 0
+  uid="$(id -u "$u" 2>/dev/null || true)"
+  [ -z "$uid" ] && return 0
+  [ "$uid" -lt 1000 ] && return 0
   usermod -aG xvpn "$u" || true
 }
 
@@ -44,9 +46,11 @@ if [ -z "$INSTALL_USER" ] || [ "$INSTALL_USER" = "root" ]; then
 fi
 add_xvpn "$INSTALL_USER"
 
-getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $7 !~ /(nologin|false)/ { print $1 }' | while read -r u; do
-  add_xvpn "$u"
-done
+if command -v loginctl >/dev/null 2>&1; then
+  loginctl list-sessions --no-legend 2>/dev/null | awk '{ print $3 }' | sort -u | while read -r u; do
+    add_xvpn "$u"
+  done
+fi
 
 echo "XVPN: grupo 'xvpn' atualizado. Saia da sessão e entre de novo (ou newgrp xvpn)"
 echo "     antes de abrir o cliente — senão a GUI não alcança o helper."

@@ -1,7 +1,7 @@
 # Manifesto do catálogo (Fase 19.4).
-slug: xvpn-chat
-name: XVPN Chat
-description: Cliente desktop de chat da organização XVPN (DMs e grupos)
+slug: xchat
+name: xchat
+description: Messenger da intranet ihuull (xchat.corp.ihuull.com) — exige xvpn conectado
 visibility: global
 source: build
 channel: stable

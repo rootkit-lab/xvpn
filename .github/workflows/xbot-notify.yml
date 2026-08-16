@@ -1,0 +1,25 @@
+# Notificação do xbot no grupo Sistema (Fase 27).
+# Secret XBOT_TOKEN = XVPN_XBOT_TOKEN do VPS. Nunca JWT de humano.
+name: xbot-notify
+on:
+  workflow_dispatch:
+    inputs:
+      body:
+        description: Mensagem para o grupo Sistema
+        required: true
+        type: string
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Broadcast
+        env:
+          XBOT_TOKEN: ${{ secrets.XBOT_TOKEN }}
+          BODY: ${{ inputs.body }}
+        run: |
+          test -n "$XBOT_TOKEN"
+          curl -fsS -X POST "${XVPN_HOOK_URL:-https://xvpn.ihuull.com}/api/hooks/chat/broadcast" \
+            -H "Authorization: Bearer $XBOT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\":$(jq -n --arg b "$BODY" '$b'),\"group\":\"Sistema\"}"

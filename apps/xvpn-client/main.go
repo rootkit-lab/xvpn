@@ -67,7 +67,7 @@ func runGUI() {
 		// bandejas). Com UniqueID, a segunda invocação só sinaliza a
 		// primeira — ver https://v3.wails.io/guides/single-instance
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: "com.officeempresa.xvpn",
+			UniqueID: "com.ihuull.xvpn",
 			OnSecondInstanceLaunch: func(_ application.SecondInstanceData) {
 				if mainWindow == nil {
 					return

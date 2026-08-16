@@ -14,7 +14,7 @@ export function UserShell() {
   return (
     <SystemChrome
       variant="user"
-      subtitle="Meu espaço"
+      subtitle="xvpn"
       nav={
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
           {USER_NAV.map(({ to, label, icon: Icon, end }) => (

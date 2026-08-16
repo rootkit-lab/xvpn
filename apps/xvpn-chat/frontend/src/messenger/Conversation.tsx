@@ -8,6 +8,7 @@ import { ChatButton, ChatInput } from '@chat/messenger/ui'
 import { ChatIconButton } from '@chat/messenger/chrome'
 import { audioConstraints, useChatSettings } from '@chat/messenger/ChatSettings'
 import { audioFileFromChunks, clipboardLooksLikeImage, filesFromClipboard, pickRecorderMime } from '@chat/messenger/media'
+import { hasRTCPeerConnection, openCallInBrowser } from '@chat/messenger/webrtc'
 
 function ReceiptTicks({
   delivered,
@@ -202,10 +203,16 @@ export function Conversation({
         <div className="flex shrink-0 items-center gap-1">
           {contact.kind === 'dm' && contact.peerUserId && (
             <>
-              <ChatIconButton label="Chamada de voz" onClick={() => startCall(contact.peerUserId!, false)}>
+              <ChatIconButton
+                label={hasRTCPeerConnection() ? 'Chamada de voz' : 'Abrir chamada no navegador'}
+                onClick={() => (hasRTCPeerConnection() ? startCall(contact.peerUserId!, false) : openCallInBrowser())}
+              >
                 <Phone className="h-4 w-4" />
               </ChatIconButton>
-              <ChatIconButton label="Chamada de vídeo" onClick={() => startCall(contact.peerUserId!, true)}>
+              <ChatIconButton
+                label={hasRTCPeerConnection() ? 'Chamada de vídeo' : 'Abrir chamada no navegador'}
+                onClick={() => (hasRTCPeerConnection() ? startCall(contact.peerUserId!, true) : openCallInBrowser())}
+              >
                 <Video className="h-4 w-4" />
               </ChatIconButton>
             </>

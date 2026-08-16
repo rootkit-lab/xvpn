@@ -96,7 +96,7 @@ function EditSocialProfile({ profile, onSaved }: { profile: SocialProfile; onSav
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Editar perfil social</CardTitle>
-        <CardDescription>Isso não altera senha nem SSH — isso fica em Meu espaço → Conta.</CardDescription>
+        <CardDescription>Isso não altera senha nem SSH — isso fica em xvpn → Conta.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>

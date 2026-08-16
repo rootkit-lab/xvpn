@@ -67,6 +67,13 @@ export default function App() {
                 <Route path="messages" element={<SocialMessagesPage />} />
                 <Route path="groups" element={<SocialGroupsPage />} />
               </Route>
+              <Route path="/xgroup" element={<SocialShell />}>
+                <Route index element={<SocialDirectoryPage />} />
+                <Route path="u/:username" element={<SocialProfilePage />} />
+                <Route path="messages" element={<SocialMessagesPage />} />
+                <Route path="groups" element={<SocialGroupsPage />} />
+              </Route>
+              <Route path="/xchat/messages" element={<Navigate to="/social/messages" replace />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>

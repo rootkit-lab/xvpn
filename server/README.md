@@ -57,7 +57,7 @@ Ver `internal/config/config.go` para a lista completa e valores padrão. Só dua
 
 | Variável | Obrigatória | Descrição |
 |---|---|---|
-| `XVPN_JWT_SECRET` | Sim | Assina os tokens de sessão do painel. `openssl rand -hex 32`. |
+| `XVPN_JWT_SECRET` | Sim | Chave do JWE (`dir` + A256GCM). `openssl rand -hex 32`. |
 | `XVPN_WG_ENDPOINT` | Sim | `host:porta` público devolvido aos clientes no enrollment (ex.: `206.189.224.72:51820`). |
 
 Veja [`deploy/xvpn-server.env.example`](./deploy/xvpn-server.env.example) para o arquivo completo usado em produção.
@@ -69,10 +69,10 @@ Veja [`deploy/xvpn-server.env.example`](./deploy/xvpn-server.env.example) para o
 3. Copiar [`deploy/xvpn-server.env.example`](./deploy/xvpn-server.env.example) para `/opt/xvpn/xvpn-server.env`, preencher os valores reais, `chmod 600`.
 4. Garantir que `/etc/wireguard/server.key` (gerado na Fase 1) é legível pelo usuário `xvpn` (`chown xvpn /etc/wireguard/server.key` ou ACL equivalente — nunca `chmod o+r` num arquivo com chave privada).
 5. Instalar a unit: copiar [`deploy/systemd/xvpn-server.service`](./deploy/systemd/xvpn-server.service) para `/etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now xvpn-server`.
-6. Confirmar: `systemctl status xvpn-server`, `curl https://vpn.officeempresa.com/api/status`, `wg show wg0` (deve refletir os peers já cadastrados no banco, se houver).
+6. Confirmar: `systemctl status xvpn-server`, `curl https://xvpn.ihuull.com/api/status`, `wg show wg0` (deve refletir os peers já cadastrados no banco, se houver).
 7. Instalar o backup: ver [`deploy/xvpn-backup.cron`](./deploy/xvpn-backup.cron) (usa [`deploy/backup.sh`](./deploy/backup.sh), copiado para `/opt/xvpn/bin/backup.sh`).
 
-O server block do Nginx (`vpn.officeempresa.com` → `127.0.0.1:8080`) já foi criado na Fase 0 — não precisa mudar nada lá, só o backend passar a existir e responder.
+O server block do Nginx (`xvpn.ihuull.com` → `127.0.0.1:8080`) está em `deploy/nginx/xvpn.conf`. Landing e `*.corp` são arquivos separados.
 
 ## Primeiro acesso
 

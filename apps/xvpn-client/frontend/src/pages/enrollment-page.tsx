@@ -14,7 +14,7 @@ interface EnrollmentPageProps {
 }
 
 export function EnrollmentPage({ onEnrolled }: EnrollmentPageProps) {
-  const [serverBaseURL, setServerBaseURL] = useState('https://vpn.officeempresa.com')
+  const [serverBaseURL, setServerBaseURL] = useState('https://xvpn.ihuull.com')
   const [inviteToken, setInviteToken] = useState('')
   const [deviceName, setDeviceName] = useState('')
   const [mtu, setMtu] = useState('')
@@ -66,7 +66,7 @@ export function EnrollmentPage({ onEnrolled }: EnrollmentPageProps) {
                   id="server"
                   value={serverBaseURL}
                   onChange={(e) => setServerBaseURL(e.target.value)}
-                  placeholder="https://vpn.officeempresa.com"
+                  placeholder="https://xvpn.ihuull.com"
                   required
                 />
               </div>

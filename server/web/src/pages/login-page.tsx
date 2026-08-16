@@ -74,7 +74,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
               )}
             </div>
             <CardTitle className="text-xl tracking-tight">
-              {isAdminLogin ? 'XVPN — Administração' : 'XVPN — Meu espaço'}
+              {isAdminLogin ? 'xvpn — Administração' : 'xvpn'}
             </CardTitle>
             <CardDescription className="hud-label text-muted-foreground/80">
               {isAdminLogin

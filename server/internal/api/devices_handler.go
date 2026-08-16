@@ -34,6 +34,10 @@ type enrollResponse struct {
 	Username            string `json:"username"`
 	PersistentKeepalive int    `json:"persistent_keepalive"`
 	APIVersion          int    `json:"api_version"`
+	// DNS interno (Fase 23): o cliente aplica 10.66.66.1 no túnel para
+	// resolver *.corp.ihuull.com. Sem isso o full-tunnel usa o resolver
+	// doméstico e a intranet não existe.
+	DNS []string `json:"dns"`
 }
 
 // handleDeviceEnroll é o único endpoint de escrita que não exige JWT — o
@@ -153,6 +157,7 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 		Username:            owner.Username,
 		PersistentKeepalive: 25,
 		APIVersion:          APIVersion,
+		DNS:                 []string{"10.66.66.1"},
 	})
 }
 

@@ -21,7 +21,7 @@ const ADMIN_NAV: { to: string; label: string; icon: typeof LayoutDashboard; role
   { to: '/admin/users', label: 'Usuários', icon: Users, roles: VIEWER_UP_ROLES },
   { to: '/admin/rbac', label: 'Papéis', icon: Shield, roles: VIEWER_UP_ROLES },
   { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES },
-  { to: '/admin/shares', label: 'Compartilhamentos', icon: HardDrive, roles: VIEWER_UP_ROLES },
+  { to: '/admin/shares', label: 'xdriver', icon: HardDrive, roles: VIEWER_UP_ROLES },
   { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES },
   { to: '/admin/download', label: 'Downloads', icon: Download, roles: VIEWER_UP_ROLES },
   { to: '/admin/marketplace', label: 'Marketplace', icon: Store, roles: VIEWER_UP_ROLES },

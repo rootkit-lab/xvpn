@@ -51,6 +51,9 @@ func run() error {
 	if err := bootstrapAdmin(db, cfg); err != nil {
 		return err
 	}
+	if err := ensureXbot(db); err != nil {
+		return err
+	}
 
 	privateKey, err := wireguard.ReadPrivateKey(cfg.WireGuardPrivateKeyPath)
 	if err != nil {
@@ -240,4 +243,20 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+func ensureXbot(db *store.Store) error {
+	var u store.User
+	err := db.DB.Where("username = ?", "xbot").First(&u).Error
+	if err == nil {
+		if u.Role != store.RoleBot {
+			return db.DB.Model(&u).Update("role", store.RoleBot).Error
+		}
+		return nil
+	}
+	return db.DB.Create(&store.User{
+		Username:     "xbot",
+		PasswordHash: "!",
+		Role:         store.RoleBot,
+	}).Error
 }

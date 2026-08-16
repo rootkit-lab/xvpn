@@ -1,6 +1,6 @@
-# xvpn-chat
+# xchat
 
-Cliente desktop (Wails3) do protocolo social do XVPN (Fase 19.3). Não é um servidor: fala HTTPS/WSS com `vpn.officeempresa.com`, JWT só em memória, sem listener e sem Samba/FileBrowser.
+Cliente desktop (Wails3) do messenger. Não é um servidor: fala HTTPS/WSS com `xchat.corp.ihuull.com` (intranet; exige xvpn conectado). Token **JWE** só em memória, sem listener e sem Samba/FileBrowser.
 
 Module path: `github.com/rootkit-lab/xvpn/chat` (disco `apps/xvpn-chat/`) — mesma divergência deliberada do `xvpn-client`.
 

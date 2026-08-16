@@ -342,6 +342,10 @@ func NewRouter(app *App) *gin.Engine {
 			publish.Use(app.requireMarketplacePublishAuth())
 			publish.POST("/marketplace/sync", app.handleMarketplaceSync)
 		}
+
+		if app.Config != nil && app.Config.XbotToken != "" {
+			apiGroup.POST("/hooks/chat/broadcast", app.handleHooksChatBroadcast)
+		}
 	}
 
 	registerWebUI(r)

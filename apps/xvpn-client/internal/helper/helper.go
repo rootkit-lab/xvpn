@@ -244,6 +244,7 @@ func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {
 		// arquivos só na primeira conexão, via GET /api/me — o enrollment
 		// acontece fora do túnel, onde essa rota não responde.
 		Username: result.Username,
+		DNS:      intranetDNS(result.DNS),
 		// AutoReconnect começa ligado por padrão (ver ROADMAP.md Fase 6)
 		// — é o comportamento que a maioria das VPNs pessoais espera.
 		// KillSwitch e SplitTunnel começam desligados: são recursos
@@ -291,7 +292,7 @@ func (h *Helper) buildTunnelConfig() (tunnel.Config, error) {
 		ServerPublicKey:     h.state.ServerPublicKey,
 		ServerEndpoint:      h.state.ServerEndpoint,
 		AllowedIPs:          allowedIPs,
-		DNS:                 h.state.DNS,
+		DNS:                 intranetDNS(h.state.DNS),
 		PersistentKeepalive: time.Duration(h.state.PersistentKeepalive) * time.Second,
 		MTU:                 h.state.MTU,
 		KillSwitch:          h.state.Preferences.KillSwitch,
@@ -529,4 +530,13 @@ func (h *Helper) handleSetMTU(raw json.RawMessage) (any, error) {
 
 func (h *Helper) handleGetLogs(_ json.RawMessage) (any, error) {
 	return map[string][]string{"lines": h.logs.Lines()}, nil
+}
+
+// intranetDNS garante o resolvedor da wg0 mesmo em devices enrolled
+// antes da Fase 23 (estado sem o campo DNS).
+func intranetDNS(fromServer []string) []string {
+	if len(fromServer) > 0 {
+		return fromServer
+	}
+	return []string{"10.66.66.1"}
 }

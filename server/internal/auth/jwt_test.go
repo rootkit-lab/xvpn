@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,36 @@ func TestTokenManager_RejectsExpiredToken(t *testing.T) {
 
 	if _, err := tm.Parse(token); err == nil {
 		t.Fatalf("esperava erro para token expirado, obteve nil")
+	}
+}
+
+func TestTokenManager_IssueForAudience(t *testing.T) {
+	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
+	token, err := tm.IssueFor(7, "bob", store.RoleMember, AudXchat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(token, ".") != 4 {
+		t.Fatalf("JWE compacto deveria ter 5 partes (4 pontos), token=%q", token)
+	}
+	claims, err := tm.Parse(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claims.Audience) != 1 || claims.Audience[0] != AudXchat {
+		t.Fatalf("aud: %+v", claims.Audience)
+	}
+	if claims.Issuer != IssuerURL {
+		t.Fatalf("iss: %s", claims.Issuer)
+	}
+}
+
+func TestTokenManager_RejectsHMACJWT(t *testing.T) {
+	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
+	// Três segmentos = JWT assinado, não JWE.
+	legacy := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjF9.sig"
+	if _, err := tm.Parse(legacy); err == nil {
+		t.Fatal("JWT HMAC não pode ser aceito")
 	}
 }
 

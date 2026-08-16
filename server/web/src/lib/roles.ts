@@ -32,7 +32,7 @@ export type RoleCapability = {
 
 /** Matriz resumida do que cada papel pode no painel — espelha PLAN.md §6.7. */
 export const ROLE_CAPABILITIES: RoleCapability[] = [
-  { id: 'user-space', label: 'Painel do usuário (Meu espaço)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
+  { id: 'user-space', label: 'Painel do usuário (xvpn)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
   { id: 'own-devices', label: 'Gerenciar próprios dispositivos VPN', roles: ['super_admin', 'admin', 'viewer', 'member'] },
   { id: 'own-account', label: 'Editar a própria conta (senha, chave SSH)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
   { id: 'marketplace-dl', label: 'Baixar apps do catálogo (se a ACL permitir)', roles: ['super_admin', 'admin', 'viewer', 'member'] },

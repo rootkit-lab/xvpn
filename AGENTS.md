@@ -10,14 +10,15 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 
 - **VPS de produção real**: `206.189.224.72`, Ubuntu 26.04 LTS, acesso root via chave SSH (sem senha configurada de propósito). Trate qualquer comando executado nesse host como produção — não é um ambiente descartável.
 - **Sub-rede WireGuard**: `10.66.66.0/24` (servidor = `10.66.66.1`). **Nunca** usar `10.10.0.0/16` ou `10.136.0.0/16` — já estão em uso por outras interfaces/VPC do servidor.
-- **Domínios**: `vpn.officeempresa.com` (XVPN) e `ldpops.appapisip.com` (outra aplicação Go, `landpages-ops`, hospedada no mesmo servidor). Ambos já resolvem para `206.189.224.72`.
-- **Nginx é compartilhado** entre o XVPN e o `landpages-ops`. Nunca assuma que o XVPN é o único serviço HTTP do servidor. Antes de reservar uma porta/subdomínio novo, confira e atualize a tabela de registro em [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops).
+- **Domínios públicos**: `xvpn.ihuull.com` (painel/enroll/JWE), `www.ihuull.com` / `ihuull.com` e `www.ihuu.com` / `ihuu.com` (landing), `xchat.ihuull.com` (marketing do messenger — **sem** API/WS). `ldpops.appapisip.com` (`landpages-ops`) **não muda**. Todos os A públicos → `206.189.224.72`, **DNS only** em API/WS.
+- **Intranet** (`*.corp.ihuull.com`): só resolve no DNS interno `10.66.66.1:53` (dnsmasq no `wg0`). Comunicação dos apps desktop: `xchat.corp`, `xgroup.corp`, `xdriver.corp` → `10.66.66.1`. **Nunca** criar A público para `corp` / `*.corp`. Runbook: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md).
+- **Nginx é compartilhado** entre o XVPN e o `landpages-ops`. Nunca assuma que o XVPN é o único serviço HTTP do servidor. Antes de reservar uma porta/hostname novo, confira e atualize [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops). Server blocks `*.corp` escutam **somente** `10.66.66.1:443`.
 
 ## Invariantes de segurança (não negociáveis)
 
 1. **Chave privada WireGuard nunca sai do dispositivo do cliente.** O servidor só recebe e armazena chaves públicas. Nunca implemente um fluxo que gere a chave privada no servidor e a envie ao cliente.
-2. **Samba e FileBrowser nunca são expostos na internet pública.** Eles devem escutar exclusivamente na interface `wg0` (`10.66.66.1`) — nunca em `0.0.0.0` ou na interface pública `eth0`. Isso vale mesmo que o firewall também bloqueie — é defesa em profundidade, não substituível.
-3. **Firewall é padrão-nega.** Qualquer nova porta exposta publicamente precisa de justificativa explícita e deve ser registrada em `PLAN.md` §5.
+2. **Samba, FileBrowser/xdriver, dnsmasq e Mongo nunca são expostos na internet pública.** Samba/FileBrowser/dnsmasq escutam só em `wg0` (`10.66.66.1`); Mongo só em `127.0.0.1:27017`. Nunca `0.0.0.0` nem `eth0`. Defesa em profundidade — o firewall não substitui o bind correto.
+3. **Firewall é padrão-nega.** Público: `22`, `80`, `443`, `51820/udp`. Sem 53, 445, 27017 na `eth0`. Porta pública nova precisa de justificativa e linha em `PLAN.md` §5.
 4. **Nunca commitar segredos** (chaves privadas, tokens, `.env` com credenciais reais) no repositório.
 5. **Mudanças de arquitetura relevantes** (troca de biblioteca WireGuard, mudança de sub-rede, novo domínio, etc.) devem ser refletidas no `PLAN.md`, não só no código.
 6. **Nunca commitar artefatos de build** (binários, `dist/`, instaladores `.exe`/`.deb`/`.AppImage`) — ver convenção em [`PLAN.md` §11.1](./PLAN.md#111-convenção-de-build-e-artefatos-o-que-é-gerado-onde-fica-é-commitado) e `.gitignore`.
@@ -37,7 +38,7 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 - `.cursor/rules/*.mdc` — convenções específicas por tipo de arquivo (Go do servidor, Go do cliente, frontend React, infraestrutura). São carregadas automaticamente conforme o contexto.
 - `.cursor/hooks.json` — bloqueia comandos de shell claramente destrutivos e formata arquivos Go/TS automaticamente após edição.
 - `.cursor/skills/` — workflows executáveis para tarefas recorrentes:
-  - Infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`), checagem de colisão de porta/domínio (`port-domain-registry-check`) e deploy do binário (`deploy-xvpn-server`).
+  - Infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`), checagem de colisão de porta/domínio/corp (`port-domain-registry-check`), deploy do binário (`deploy-xvpn-server`), app de intranet novo (`new-intranet-app`) e notify do xbot (`xbot-notify`).
   - Git/GitHub: criar branch (`start-task`), abrir PR (`ship-pr`), squash-merge (`land-pr`), releases pendentes (`release-status`) e publicação no catálogo (`marketplace-publish`) — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases).
   - Painel: chrome do chat (`chat-chrome`) — status bar + rail direito (contatos RTL) + janelas de conversa no rodapé (Facebook), nunca FAB nem modal.
   - Apps desktop: design system (`desktop-app-ui`) — preto profundo, cards `watch-complication`, acento `--safe`, Outfit; copiar do `xvpn-client`, não fork.

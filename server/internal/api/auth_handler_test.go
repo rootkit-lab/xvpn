@@ -110,6 +110,78 @@ func TestHandleLogin_RateLimited(t *testing.T) {
 	}
 }
 
+func TestHandleLogin_SetsCookieOnlyOnXAuth(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUser(t, app, "sso", "senha-forte-123")
+	router := NewRouter(app)
+
+	rec := doJSONHost(t, router, http.MethodPost, "/api/auth/login",
+		loginRequest{Username: "sso", Password: "senha-forte-123"}, "", "xauth.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login xauth: %d %s", rec.Code, rec.Body.String())
+	}
+	var got *http.Cookie
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName {
+			got = ck
+		}
+	}
+	if got == nil || got.Value == "" || (got.Domain != ".ihuull.com" && got.Domain != "ihuull.com") {
+		t.Fatalf("esperado cookie SSO em xauth, got %+v", rec.Result().Cookies())
+	}
+
+	rec = doJSONHost(t, router, http.MethodPost, "/api/auth/login",
+		loginRequest{Username: "sso", Password: "senha-forte-123"}, "", "xvpn.ihuull.com")
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName {
+			t.Fatal("login em xvpn não deve gravar cookie")
+		}
+	}
+}
+
+func TestHandleMe_AcceptsSessionCookie(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUser(t, app, "cookie-user", "senha-forte-123")
+	router := NewRouter(app)
+	loginRec := doJSONHost(t, router, http.MethodPost, "/api/auth/login",
+		loginRequest{Username: "cookie-user", Password: "senha-forte-123"}, "", "xauth.ihuull.com")
+	var token string
+	for _, ck := range loginRec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName {
+			token = ck.Value
+		}
+	}
+	if token == "" {
+		t.Fatal("login xauth sem cookie")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: token})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /auth/me com cookie: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleLogout_ClearsCookie(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	rec := doJSONHost(t, router, http.MethodPost, "/api/auth/logout", nil, "", "xauth.ihuull.com")
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("logout: %d", rec.Code)
+	}
+	found := false
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName && ck.MaxAge < 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("logout deveria expirar o cookie, got %+v", rec.Result().Cookies())
+	}
+}
+
 func TestProtectedRoute_RequiresAuth(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

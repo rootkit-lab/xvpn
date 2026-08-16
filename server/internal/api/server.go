@@ -204,6 +204,7 @@ func NewRouter(app *App) *gin.Engine {
 	apiGroup := r.Group("/api")
 	{
 		apiGroup.POST("/auth/login", rateLimit(app.loginLimiter), app.handleLogin)
+		apiGroup.POST("/auth/logout", app.handleLogout)
 		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
 		apiGroup.GET("/status", app.handleStatus)
 		// Único endpoint de escrita da API sem autenticação — ver

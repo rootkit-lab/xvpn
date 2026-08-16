@@ -3,7 +3,7 @@
 // componentes, sempre passar por aqui para tratamento de erro/auth
 // consistente).
 import type { Product, Role } from '@/lib/roles'
-import { isStoreHost, storeLoginPath } from '@/lib/product-host'
+import { productKind, ssoLoginURL } from '@/lib/product-host'
 
 const TOKEN_KEY = 'xvpn_token'
 
@@ -49,17 +49,15 @@ async function parseErrorMessage(res: Response): Promise<string> {
 // quando o token expirou ou é inválido — mesmo efeito colateral (limpar
 // token e mandar pro /login) nos três casos.
 function handleUnauthorized(path: string) {
-  if (path.startsWith('/auth/login')) return
+  if (path.startsWith('/auth/login') || path === '/auth/me' || path === '/auth/logout') return
   clearToken()
-  const here = window.location.pathname
-  const login = isStoreHost()
-    ? storeLoginPath()
-    : here.startsWith('/admin') || here === '/admin/login'
-      ? '/admin/login'
-      : '/my/login'
-  if (here !== login) {
-    window.location.href = login
+  if (productKind() === 'xauth') {
+    if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+      window.location.href = '/login'
+    }
+    return
   }
+  window.location.href = ssoLoginURL()
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -70,7 +68,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const res = await fetch(`/api${path}`, { ...options, headers })
+  const res = await fetch(`/api${path}`, { ...options, headers, credentials: 'include' })
 
   if (res.status === 401) {
     handleUnauthorized(path)
@@ -97,7 +95,7 @@ async function downloadMarketplaceAsset(assetId: number, filename: string): Prom
   if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const path = `/marketplace/assets/${assetId}/download`
-  const res = await fetch(`/api${path}`, { headers })
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
 
   if (res.status === 401) {
     handleUnauthorized(path)
@@ -125,7 +123,7 @@ async function uploadDriverFile(root: DriverRoot, path: string, file: File): Pro
   fd.append('root', root)
   fd.append('path', path)
   fd.append('file', file)
-  const res = await fetch('/api/driver/upload', { method: 'POST', headers, body: fd })
+  const res = await fetch('/api/driver/upload', { method: 'POST', headers, body: fd, credentials: 'include' })
   if (res.status === 401) handleUnauthorized('/driver/upload')
   if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
   return (await res.json()) as { ok: boolean; name: string }
@@ -137,7 +135,7 @@ async function downloadDriverFile(root: DriverRoot, path: string, filename: stri
   if (token) headers.set('Authorization', `Bearer ${token}`)
   const sp = new URLSearchParams({ root, path })
   const apiPath = `/driver/download?${sp}`
-  const res = await fetch(`/api${apiPath}`, { headers })
+  const res = await fetch(`/api${apiPath}`, { headers, credentials: 'include' })
   if (res.status === 401) handleUnauthorized(apiPath)
   if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
   const blob = await res.blob()
@@ -421,8 +419,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     }),
-  // me restaura {id, username, role} depois de um refresh de página — o
-  // token em localStorage sozinho não é decodificado no cliente.
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  // me restaura {id, username, role} depois de um refresh — cookie SSO
+  // ou Bearer. 401 aqui não redireciona (sonda de sessão).
   me: () => request<User>('/auth/me'),
 
   status: () => request<StatusResponse>('/status'),

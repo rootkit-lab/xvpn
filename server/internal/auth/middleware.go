@@ -2,7 +2,6 @@ package auth
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
@@ -18,25 +17,20 @@ const (
 	ContextProductsKey = "xvpn_products"
 )
 
-// RequireAuth é o middleware Gin que valida o header "Authorization: Bearer
-// <jwt>" antes de deixar a requisição prosseguir. Todo endpoint autenticado
-// deve usar este middleware (ver go-backend.mdc). Só confirma identidade —
-// não decide o que o papel pode fazer (ver RequireRole).
+// RequireAuth é o middleware Gin que valida Authorization: Bearer ou o
+// cookie de SSO (PLAN.md §6.13) antes de deixar a requisição prosseguir.
+// Todo endpoint autenticado deve usar este middleware (ver go-backend.mdc).
+// Só confirma identidade — não decide o que o papel pode fazer (ver
+// RequireRole).
 func RequireAuth(tm *TokenManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if header == "" {
+		token := TokenFromRequest(c)
+		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "credenciais ausentes"})
 			return
 		}
 
-		parts := strings.SplitN(header, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "formato de autorização inválido"})
-			return
-		}
-
-		claims, err := tm.Parse(parts[1])
+		claims, err := tm.Parse(token)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
 			return

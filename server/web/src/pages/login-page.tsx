@@ -3,7 +3,7 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { PANEL_ORIGIN } from '@/lib/product-host'
+import { PANEL_ORIGIN, productKind, safeReturnURL } from '@/lib/product-host'
 import { ApiError } from '@/lib/api'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageFallback } from '@/components/layout/page-fallback'
 
-export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | 'store' }) {
+export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | 'store' | 'sso' }) {
   const { isAuthenticated, isLoadingUser, user, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -23,6 +23,8 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
 
   const isAdminLogin = variant === 'admin'
   const isStoreLogin = variant === 'store'
+  const isSSO = variant === 'sso' || productKind() === 'xauth'
+  const returnTo = safeReturnURL(new URLSearchParams(location.search).get('return'))
 
   if (isAuthenticated && isLoadingUser) {
     return <PageFallback />
@@ -39,9 +41,17 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
     setSubmitting(true)
     try {
       const loggedInUser = await login(username, password)
+      if (isSSO && returnTo) {
+        window.location.replace(returnTo)
+        return
+      }
       const from = (location.state as { from?: string } | null)?.from
       // Member que entrou pelo login de admin não fica no /admin — vai pro portal.
       let dest = from ?? defaultRouteForRole(loggedInUser.role)
+      if (isSSO) {
+        window.location.replace(PANEL_ORIGIN + (loggedInUser.role === 'member' ? '/' : '/admin'))
+        return
+      }
       if (isStoreLogin) {
         dest = from ?? '/'
       } else if (loggedInUser.role === 'member' && dest.startsWith('/admin')) {
@@ -78,14 +88,16 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
               )}
             </div>
             <CardTitle className="font-display text-xl tracking-tight">
-              {isAdminLogin ? 'xvpn — Administração' : isStoreLogin ? 'ihuull' : 'xvpn'}
+              {isSSO ? 'ihuull' : isAdminLogin ? 'xvpn — Administração' : isStoreLogin ? 'ihuull' : 'xvpn'}
             </CardTitle>
             <CardDescription className="hud-label text-muted-foreground/75">
-              {isAdminLogin
-                ? 'acesso seguro · painel do sistema'
-                : isStoreLogin
-                  ? 'marketplace · xdriver'
-                  : 'dispositivos · marketplace'}
+              {isSSO
+                ? 'login único · cookie .ihuull.com'
+                : isAdminLogin
+                  ? 'acesso seguro · painel do sistema'
+                  : isStoreLogin
+                    ? 'marketplace · xdriver'
+                    : 'dispositivos · marketplace'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -127,7 +139,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
             </form>
           </CardContent>
         </Card>
-        {!isStoreLogin && (
+        {!isStoreLogin && !isSSO && (
           <p className="mt-4 text-center text-sm text-muted-foreground">
             {isAdminLogin ? (
               <>

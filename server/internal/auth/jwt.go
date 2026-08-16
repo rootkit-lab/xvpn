@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	IssuerURL = "https://xvpn.ihuull.com"
+	IssuerURL       = "https://xauth.ihuull.com"
+	LegacyIssuerURL = "https://xvpn.ihuull.com"
 
 	AudXvpn    = "xvpn"
 	AudXchat   = "xchat"
@@ -45,6 +46,12 @@ func (t *TokenManager) SetTTL(ttl time.Duration) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.ttl = ttl
+}
+
+func (t *TokenManager) TTL() time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.ttl
 }
 
 func (t *TokenManager) aeadKey() []byte {
@@ -113,7 +120,7 @@ func (t *TokenManager) Parse(tokenString string) (*Claims, error) {
 	if claims.ExpiresAt != nil && time.Now().After(claims.ExpiresAt.Time) {
 		return nil, fmt.Errorf("token expirado")
 	}
-	if claims.Issuer != "" && claims.Issuer != t.issuer {
+	if claims.Issuer != "" && claims.Issuer != t.issuer && claims.Issuer != LegacyIssuerURL {
 		return nil, fmt.Errorf("issuer inesperado")
 	}
 	return claims, nil

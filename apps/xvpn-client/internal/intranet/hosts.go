@@ -67,7 +67,8 @@ func Apply(path string) error {
 	return ApplyEntries(path, nil)
 }
 
-// ApplyEntries grava os A publicados pelo /admin/dns (fallback: Names).
+// ApplyEntries grava os A publicados pelo /admin/dns, sempre incluindo
+// os oficiais (Names). Lista vazia do servidor não pode omitir xchat.
 func ApplyEntries(path string, entries []HostEntry) error {
 	raw, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -77,7 +78,32 @@ func ApplyEntries(path string, entries []HostEntry) error {
 	if body != "" && !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
-	return os.WriteFile(path, []byte(body+blockEntries(entries)), 0644)
+	return os.WriteFile(path, []byte(body+blockEntries(withOfficial(entries))), 0644)
+}
+
+func withOfficial(entries []HostEntry) []HostEntry {
+	byHost := make(map[string]string, len(Names)+len(entries))
+	order := make([]string, 0, len(Names)+len(entries))
+	for _, n := range Names {
+		byHost[n] = ServerIP
+		order = append(order, n)
+	}
+	for _, e := range entries {
+		h := strings.TrimSpace(e.Hostname)
+		ip := strings.TrimSpace(e.IPv4)
+		if h == "" || ip == "" {
+			continue
+		}
+		if _, ok := byHost[h]; !ok {
+			order = append(order, h)
+		}
+		byHost[h] = ip
+	}
+	out := make([]HostEntry, 0, len(order))
+	for _, h := range order {
+		out = append(out, HostEntry{Hostname: h, IPv4: byHost[h]})
+	}
+	return out
 }
 
 // Revert remove o bloco xvpn do arquivo hosts. Sem bloco, é no-op.

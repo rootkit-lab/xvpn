@@ -25,8 +25,8 @@ func emitSocialEvent(ev socialclient.WSEvent) {
 func main() {
 	svc := NewChatService()
 	app := application.New(application.Options{
-		Name:        "XVPN Chat",
-		Description: "Chat da organização XVPN",
+		Name:        "xchat",
+		Description: "Messenger da intranet ihuull",
 		Services: []application.Service{
 			application.NewService(svc),
 		},
@@ -40,7 +40,7 @@ func main() {
 	wailsApp = app
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "XVPN Chat",
+		Title:            "xchat",
 		Width:            960,
 		Height:           640,
 		BackgroundColour: application.NewRGB(15, 17, 21),

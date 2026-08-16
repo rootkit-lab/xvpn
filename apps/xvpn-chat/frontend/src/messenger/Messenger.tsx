@@ -48,7 +48,7 @@ export function Messenger({ className }: { className?: string }) {
               className="size-7 rounded-[9px] shadow-[inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)]"
             />
             <div className="flex min-w-0 flex-col">
-              <span className="font-display text-[17px] font-semibold tracking-tight">XVPN Chat</span>
+              <span className="font-display text-[17px] font-semibold tracking-tight">xchat</span>
               <span className="truncate font-display text-[11px] text-muted-foreground">{session?.username}</span>
             </div>
           </div>

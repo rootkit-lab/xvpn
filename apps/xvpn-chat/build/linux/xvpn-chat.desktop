@@ -1,6 +1,6 @@
 [Desktop Entry]
-Name=XVPN Chat
-Comment=Chat da organização XVPN
+Name=xchat
+Comment=Messenger da intranet ihuull
 Exec=xvpn-chat
 Icon=xvpn-chat
 Terminal=false

@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "../../../../shared/ui/scss/index.scss";
 @import "../../../../shared/ui/css/tailwind-bridge.css";
 @source "../../../../shared/ui";
 

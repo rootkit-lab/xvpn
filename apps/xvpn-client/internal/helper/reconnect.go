@@ -125,6 +125,6 @@ func (h *Helper) checkConnection(ctx context.Context) {
 		return
 	}
 	h.reconnectAttempt = 0
-	applyIntranetHosts()
+	applyIntranetHosts(h.state.IntranetHosts)
 	log.Printf("xvpn-client-helper: túnel reconectado automaticamente")
 }

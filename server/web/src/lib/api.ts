@@ -248,6 +248,28 @@ export interface ConfigResponse {
   jwt_token_ttl_minutes: number
 }
 
+export interface DNSRecord {
+  id: number
+  hostname: string
+  ipv4: string
+  system: boolean
+  enabled: boolean
+  comment: string
+}
+
+export interface DNSResponse {
+  listen: string
+  listening: boolean
+  query_ok: boolean
+  query_detail?: string
+  forwarders: string[]
+  cache_size: number
+  catch_all: boolean
+  last_applied_at?: string
+  last_apply_error?: string
+  records: DNSRecord[]
+}
+
 // Espelha store.Platform/store.AppVisibility (server/internal/store/models.go)
 // — Fase 11, ver PLAN.md §6.8.
 export type MarketplacePlatform = 'linux' | 'windows' | 'android'
@@ -492,6 +514,18 @@ export const api = {
   getConfig: () => request<ConfigResponse>('/config'),
   updateConfig: (body: { invite_token_ttl_minutes?: number; jwt_token_ttl_minutes?: number }) =>
     request<ConfigResponse>('/config', { method: 'PATCH', body: JSON.stringify(body) }),
+
+  getDNS: () => request<DNSResponse>('/dns'),
+  updateDNS: (body: { forwarders?: string; cache_size?: number; catch_all?: boolean }) =>
+    request<DNSResponse>('/dns', { method: 'PATCH', body: JSON.stringify(body) }),
+  createDNSRecord: (body: { hostname: string; ipv4: string; comment?: string; enabled?: boolean }) =>
+    request<DNSResponse>('/dns/records', { method: 'POST', body: JSON.stringify(body) }),
+  updateDNSRecord: (
+    id: number,
+    body: { hostname: string; ipv4: string; comment?: string; enabled?: boolean },
+  ) => request<DNSResponse>(`/dns/records/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteDNSRecord: (id: number) => request<DNSResponse>(`/dns/records/${id}`, { method: 'DELETE' }),
+  applyDNS: () => request<DNSResponse>('/dns/apply', { method: 'POST' }),
 
   // joinWaitlist é o único endpoint de escrita público (sem
   // autenticação) de toda a API — chamado da landing page em "/". Ver

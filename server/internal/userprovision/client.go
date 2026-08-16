@@ -142,3 +142,28 @@ func (c *Client) DisableSamba(ctx context.Context, username string) error {
 func (c *Client) SetQuota(ctx context.Context, username string, quotaMB uint64) error {
 	return c.run(ctx, "set-quota", username, "", strconv.FormatUint(quotaMB, 10))
 }
+
+// ApplyDNS grava a zona corp no dnsmasq e recarrega o serviço.
+// payload é o JSON validado pelo painel (corpdns.ApplyPayload).
+func (c *Client) ApplyDNS(ctx context.Context, payload string) error {
+	if c.binaryPath == "" {
+		return ErrBinaryMissing
+	}
+	args := []string{"-n", c.binaryPath, "dns-apply"}
+	out, err := c.executor(ctx, "sudo", args, payload)
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				msg = fmt.Sprintf("xvpn-user-provision dns-apply falhou (exit %d)", exitErr.ExitCode())
+			}
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if strings.Contains(err.Error(), "no such file") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return ErrBinaryMissing
+		}
+		return fmt.Errorf("executando sudo: %w", err)
+	}
+	return nil
+}

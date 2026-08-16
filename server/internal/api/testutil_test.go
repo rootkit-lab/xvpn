@@ -107,11 +107,15 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
 		&store.PanelSettings{},
+		&store.DNSSettings{}, &store.DNSRecord{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
 		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
 		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{}, &store.SocialPost{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
+	}
+	if err := store.SeedIntranetDNS(db); err != nil {
+		t.Fatalf("erro semeando DNS: %v", err)
 	}
 
 	fakeWG := newFakePeerManager()

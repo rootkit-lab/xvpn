@@ -14,7 +14,7 @@ export function SocialShell() {
   return (
     <SystemChrome
       variant="social"
-      subtitle="Social"
+      subtitle="XGROUP"
       nav={
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
           {SOCIAL_NAV.map(({ to, label, icon: Icon, end }) => (

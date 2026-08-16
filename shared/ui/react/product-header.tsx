@@ -3,7 +3,7 @@ import markUrl from '../brand/ihuull-mark.png'
 import wordmarkUrl from '../brand/ihuull-wordmark.png'
 import { cn } from './cn'
 import { ProductMark } from './product-mark'
-import { PRODUCT_META, type ProductId } from './products'
+import { PRODUCT_META, productDisplayName, type ProductId } from './products'
 
 export type { ProductId }
 
@@ -50,7 +50,7 @@ export function ProductHeader({
         <a
           href={productHref ?? href}
           className="flex min-w-0 shrink-0 items-center gap-2"
-          aria-label={meta.label}
+          aria-label={productDisplayName(product)}
         >
           <span className="icon-well flex size-8 items-center justify-center rounded-[10px]">
             <ProductMark product={product} className="size-4" />

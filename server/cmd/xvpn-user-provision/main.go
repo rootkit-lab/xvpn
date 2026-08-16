@@ -11,6 +11,7 @@
 //	xvpn-user-provision enable-samba <username>
 //	xvpn-user-provision set-quota <username> <mb>  # 0 = sem limite (Fase 15)
 //	xvpn-user-provision disable <username>
+//	xvpn-user-provision dns-apply                  # JSON no stdin (zona corp)
 //
 // O username é validado via regex (ver provision.ValidUsername) ANTES de
 // qualquer chamada de sistema — defesa em profundidade contra injeção
@@ -54,9 +55,18 @@ func main() {
 // errUsage sinaliza erro de linha de comando (subcomando desconhecido,
 // argumento faltando) — mapeado pra exit code 2, distinto de erros de
 // runtime (exit 1). Separado pra run() ser testável sem os.Exit.
-var errUsage = errors.New("uso: xvpn-user-provision <create|enable-sftp|enable-samba|set-quota|disable|…> <username> [mb]")
+var errUsage = errors.New("uso: xvpn-user-provision <create|enable-sftp|enable-samba|set-quota|disable|dns-apply|…> [username] [mb]")
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	if len(args) < 1 {
+		return errUsage
+	}
+	if args[0] == "dns-apply" {
+		if len(args) != 1 {
+			return errUsage
+		}
+		return provision.ApplyDNS(runnerFn(), stdin)
+	}
 	if len(args) < 2 {
 		return errUsage
 	}

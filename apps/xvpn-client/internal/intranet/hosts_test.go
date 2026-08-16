@@ -43,3 +43,18 @@ func TestApplyRevert_RoundTrip(t *testing.T) {
 		t.Fatalf("Revert: got %q want %q", after, original)
 	}
 }
+
+func TestApplyEntries_CustomRecords(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "hosts")
+	if err := ApplyEntries(path, []HostEntry{{Hostname: "lab.corp.ihuull.com", IPv4: "10.66.66.9"}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), "lab.corp.ihuull.com") || !strings.Contains(string(got), "10.66.66.9") {
+		t.Fatalf("entrada custom ausente: %q", got)
+	}
+}

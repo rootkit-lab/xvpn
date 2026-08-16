@@ -74,6 +74,7 @@ export function headerProduct(
   ) {
     return 'ihuull'
   }
+  if (pathname.includes('/messages') || pathname.startsWith('/xchat')) return 'xchat'
   if (pathname.startsWith('/social') || pathname.startsWith('/xgroup')) return 'xgroup'
   return 'xvpn'
 }

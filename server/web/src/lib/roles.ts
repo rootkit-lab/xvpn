@@ -13,8 +13,8 @@ export const ALL_PRODUCTS: Product[] = ['core', 'marketplace', 'xgroup', 'xdrive
 export const PRODUCT_LABELS: Record<Product, string> = {
   core: 'Core VPN',
   marketplace: 'Marketplace',
-  xgroup: 'XGroup',
-  xdriver: 'XDriver',
+  xgroup: 'XGROUP',
+  xdriver: 'XDRIVER',
 }
 
 export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {

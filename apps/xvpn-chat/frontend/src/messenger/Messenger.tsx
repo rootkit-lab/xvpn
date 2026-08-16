@@ -48,8 +48,8 @@ export function Messenger({ className }: { className?: string }) {
               className="size-7 rounded-[9px] shadow-[inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)]"
             />
             <div className="flex min-w-0 flex-col">
-              <span className="font-display text-[17px] font-semibold tracking-tight">xchat</span>
-              <span className="truncate font-display text-[11px] text-muted-foreground">{session?.username}</span>
+              <span className="font-display text-[17px] font-semibold tracking-tight">XCHAT</span>
+              <span className="hud-label text-muted-foreground/70">Client</span>
             </div>
           </div>
           <div className="flex items-center gap-2">

@@ -42,13 +42,27 @@ Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marca: [`brand/ihuull-mark.png
 
 | Prop | Tipo | Papel |
 |---|---|---|
-| `product` | `ihuull` \| `xvpn` \| `marketplace` \| `xgroup` \| `xdriver` | Identidade (`data-product` + `--product`) |
+| `product` | `ihuull` \| `xvpn` \| `xchat` \| `marketplace` \| `xgroup` \| `xdriver` | Identidade (`data-product` + `--product`) |
 | `href` | `string` | Link da marca ihuull (default `/`) |
 | `productHref` | `string` | Link do mark do produto (default = `href`) |
 | `children` | `ReactNode` | Centro — busca, título da rota |
 | `trailing` | `ReactNode` | Direita — `AccountMenu`, `AppLauncher`, logout |
 
-Acento: tokens `--product-xvpn` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
+Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
+
+**Nomes na UI** — slug minúsculo no código; lockup e catálogo em caixa do produto (`products.ts` / `PLAN.md` §6.13):
+
+| Slug | Label | Kicker | Vitrine |
+|---|---|---|---|
+| `xvpn` | XVPN | Client | XVPN Client |
+| `xchat` | XCHAT | Client | XCHAT Client |
+| `xgroup` | XGROUP | Social | XGROUP Social |
+| `xdriver` | XDRIVER | Drive | XDRIVER Drive |
+| `marketplace` | Marketplace | Store | Marketplace Store |
+
+Header autenticado (direita): Settings (prefs do app atual) → waffle de apps → pílula da conta. Não omitir o waffle quando o usuário está logado.
+
+**Scrollbar** — mixin `ihuull-scrollbar` em `_utilities.scss`, aplicado em `html`, `.watch-face`, `.watch-complication` e `.xvpn-chat-root`. Thin, thumb 8px, track transparente. Não declare `::-webkit-scrollbar` noutro `index.css`.
 
 Cascas por app (não duplicar o fundo):
 

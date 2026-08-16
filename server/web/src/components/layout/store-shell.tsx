@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
-import { LogOut } from 'lucide-react'
+import { Outlet } from 'react-router-dom'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
 import { PANEL_ORIGIN } from '@/lib/product-host'
-import { Button } from '@/components/ui/button'
+import { AccountMenu } from '@/components/layout/account-menu'
+import { AppLauncher } from '@/components/layout/app-launcher'
+import { AppSettingsButton } from '@/components/layout/app-settings-button'
 import { cn } from '@/lib/utils'
 
 export function StoreShell({
@@ -14,8 +15,7 @@ export function StoreShell({
   kind: 'marketplace' | 'xdriver'
   search?: ReactNode
 }) {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user } = useAuth()
 
   return (
     <div data-product={kind} className="watch-face relative flex min-h-svh flex-col overflow-hidden">
@@ -25,23 +25,13 @@ export function StoreShell({
         href="/"
         productHref="/"
         trailing={
-          <>
-            {user && (
-              <span className="hidden max-w-32 truncate text-sm text-muted-foreground sm:inline">{user.username}</span>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              title="Sair"
-              onClick={() => {
-                logout()
-                navigate('/login', { replace: true })
-              }}
-            >
-              <LogOut className="size-4" />
-            </Button>
-          </>
+          user ? (
+            <>
+              <AppSettingsButton kind={kind} />
+              <AppLauncher variant={kind} />
+              <AccountMenu variant="user" />
+            </>
+          ) : null
         }
       >
         {search}

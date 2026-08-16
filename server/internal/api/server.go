@@ -303,6 +303,7 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/waitlist", app.handleListWaitlist)
 			viewerUp.GET("/audit", app.handleListAudit)
 			viewerUp.GET("/config", app.handleGetConfig)
+			viewerUp.GET("/dns", app.handleGetDNS)
 			// Estatísticas agregadas do marketplace (Fase 12): mesmo nível
 			// de leitura do resto do dashboard — não authed (não é algo
 			// que member precise pra navegar o catálogo) nem adminOnly
@@ -339,6 +340,11 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 				coreWrite.PATCH("/config", app.handleUpdateConfig)
+				coreWrite.PATCH("/dns", app.handleUpdateDNSSettings)
+				coreWrite.POST("/dns/records", app.handleCreateDNSRecord)
+				coreWrite.PATCH("/dns/records/:id", app.handleUpdateDNSRecord)
+				coreWrite.DELETE("/dns/records/:id", app.handleDeleteDNSRecord)
+				coreWrite.POST("/dns/apply", app.handleApplyDNS)
 			}
 
 			// XDriver: SFTP/Samba/cota. Fora do escopo xdriver → 403.

@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
+import { productDisplayName } from '@xvpn/ui/react/products'
 
 afterEach(cleanup)
 
@@ -14,9 +15,19 @@ describe('ProductHeader', () => {
     const header = screen.getByRole('banner')
     expect(header).toHaveAttribute('data-product', 'marketplace')
     expect(within(header).getByRole('link', { name: 'ihuull' })).toBeInTheDocument()
-    expect(within(header).getByRole('link', { name: 'marketplace' })).toBeInTheDocument()
+    expect(within(header).getByRole('link', { name: 'Marketplace Store' })).toBeInTheDocument()
+    expect(within(header).getByText('Marketplace')).toBeInTheDocument()
+    expect(within(header).getByText('Store')).toBeInTheDocument()
     expect(within(header).getByText('buscar')).toBeInTheDocument()
     expect(within(header).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
+  })
+
+  it('usa a convenção de vitrine XVPN/XCHAT Client, XGROUP Social', () => {
+    expect(productDisplayName('xvpn')).toBe('XVPN Client')
+    expect(productDisplayName('xchat')).toBe('XCHAT Client')
+    expect(productDisplayName('xgroup')).toBe('XGROUP Social')
+    expect(productDisplayName('xdriver')).toBe('XDRIVER Drive')
+    expect(productDisplayName('marketplace')).toBe('Marketplace Store')
   })
 
   it('omite o bloco de produto na landing da marca', () => {

@@ -3,7 +3,13 @@ import { useChat } from '@chat/messenger/ChatProvider'
 
 /** Chat no chrome: escondido na landing, nos logins e na página cheia. */
 export function isChatChromeHidden(pathname: string): boolean {
-  return pathname === '/' || pathname === '/my/login' || pathname === '/admin/login' || pathname.startsWith('/social/messages')
+  return (
+    pathname === '/' ||
+    pathname === '/my/login' ||
+    pathname === '/admin/login' ||
+    pathname.startsWith('/social/messages') ||
+    pathname.startsWith('/xgroup/messages')
+  )
 }
 
 export function useChatPanel() {

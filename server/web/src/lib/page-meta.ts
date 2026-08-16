@@ -25,7 +25,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     prefix: '/my/files',
     meta: {
       kicker: 'apps',
-      title: 'XDriver',
+      title: 'XDRIVER',
       description: 'Drive nativo em xdriver.corp.ihuull.com — só na VPN. Sem host público.',
     },
   },
@@ -84,7 +84,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/shares',
     meta: {
-      kicker: 'XDriver',
+      kicker: 'XDRIVER',
       title: 'Shares e Drive',
       description: 'Samba + Drive nativo (xdriver.corp) — só na VPN.',
     },
@@ -108,9 +108,9 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/xgroup',
     meta: {
-      kicker: 'XGroup',
+      kicker: 'XGROUP',
       title: 'Rede social',
-      description: 'Operação do xgroup. A rede em si vive em /social.',
+      description: 'Operação do XGROUP. A rede em si vive em /social.',
     },
   },
   {
@@ -119,6 +119,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
       kicker: 'Core VPN',
       title: 'Gerais',
       description: 'Rede WireGuard (somente leitura) e TTLs de convite/sessão.',
+    },
+  },
+  {
+    prefix: '/admin/dns',
+    meta: {
+      kicker: 'Core VPN',
+      title: 'DNS intranet',
+      description: 'Zona corp.ihuull.com no dnsmasq (10.66.66.1:53, só wg0).',
     },
   },
   {
@@ -143,45 +151,45 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
 const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/xgroup/messages',
-    meta: { kicker: 'xchat', title: 'Mensagens', description: 'Messenger (xchat). A rede social é o xgroup.' },
+    meta: { kicker: 'XCHAT', title: 'Mensagens', description: 'Messenger (XCHAT Client). A rede social é o XGROUP.' },
   },
   {
     prefix: '/xgroup/groups',
-    meta: { kicker: 'xgroup', title: 'Grupos', description: 'Espaços do xgroup. O xchat abre no dock, sem sair desta página.' },
+    meta: { kicker: 'XGROUP', title: 'Grupos', description: 'Espaços do XGROUP. O XCHAT abre no dock, sem sair desta página.' },
   },
   {
     prefix: '/xgroup/u',
-    meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
+    meta: { kicker: 'XGROUP', title: 'Perfil', description: 'Página do membro no XGROUP.' },
   },
   {
     prefix: '/xgroup/explore',
-    meta: { kicker: 'xgroup', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
+    meta: { kicker: 'XGROUP', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
   },
   {
     prefix: '/xgroup',
     exact: true,
-    meta: { kicker: 'xgroup', title: 'Início', description: 'O que está acontecendo na VPN.' },
+    meta: { kicker: 'XGROUP', title: 'Início', description: 'O que está acontecendo na VPN.' },
   },
   {
     prefix: '/social/messages',
-    meta: { kicker: 'xchat', title: 'Mensagens', description: 'Messenger (xchat). A rede social é o xgroup.' },
+    meta: { kicker: 'XCHAT', title: 'Mensagens', description: 'Messenger (XCHAT Client). A rede social é o XGROUP.' },
   },
   {
     prefix: '/social/groups',
-    meta: { kicker: 'xgroup', title: 'Grupos', description: 'Espaços do xgroup. O xchat abre no dock, sem sair desta página.' },
+    meta: { kicker: 'XGROUP', title: 'Grupos', description: 'Espaços do XGROUP. O XCHAT abre no dock, sem sair desta página.' },
   },
   {
     prefix: '/social/u',
-    meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
+    meta: { kicker: 'XGROUP', title: 'Perfil', description: 'Página do membro no XGROUP.' },
   },
   {
     prefix: '/social/explore',
-    meta: { kicker: 'xgroup', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
+    meta: { kicker: 'XGROUP', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
   },
   {
     prefix: '/social',
     exact: true,
-    meta: { kicker: 'xgroup', title: 'Início', description: 'O que está acontecendo na VPN.' },
+    meta: { kicker: 'XGROUP', title: 'Início', description: 'O que está acontecendo na VPN.' },
   },
 ]
 
@@ -209,8 +217,8 @@ export function pageMetaForPath(pathname: string): PageMeta {
   if (pathname.startsWith('/social') || pathname.startsWith('/xgroup') || pathname.startsWith('/xchat')) {
     return (
       matchMeta(pathname, SOCIAL_PAGES) ?? {
-        kicker: 'xgroup',
-        title: 'xgroup',
+        kicker: 'XGROUP',
+        title: 'XGROUP',
         description: '',
       }
     )

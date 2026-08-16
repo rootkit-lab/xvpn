@@ -60,13 +60,13 @@ operações, invocado via `sudo -n` com escopo restrito:
   ```
   Sem wildcard de argumento — o `sudo` só aceita o caminho exato do
   binário, sem argumentos. Os subcomandos (`create`, `enable-sftp`,
-  `enable-samba`, `disable`, `disable-sftp`, `disable-samba`) são
-  parseados pelo próprio binário, que valida o username com regex
-  `^[a-z][a-z0-9_-]{2,31}$` antes de qualquer syscall e lê a chave
-  pública SSH do stdin (não de argumento — evita vazar no `ps`/`/proc`).
-- **Validação de config antes de reload**: o binário roda `sshd -t` e
-  `testparm -s` antes de recarregar os serviços; se a config gerada for
-  inválida, o reload não acontece e o binário devolve erro.
+  `enable-samba`, `disable`, `disable-sftp`, `disable-samba`, `dns-apply`)
+  são parseados pelo próprio binário. Username vai por regex
+  `^[a-z][a-z0-9_-]{2,31}$` antes de qualquer syscall; `dns-apply` lê JSON
+  no stdin e só grava dnsmasq com `listen-address=10.66.66.1`.
+- **Validação de config antes de reload**: o binário roda `sshd -t`,
+  `testparm -s` e `dnsmasq --test` antes de recarregar os serviços; se a
+  config gerada for inválida, o reload não acontece e o binário devolve erro.
 - **Defesa em profundidade**: SFTP e Samba escutam só em `wg0`
   (`10.66.66.1`) — nunca em `0.0.0.0`/`etho`. Mesmo que o `sudoers.d`
   fosse comprometido, o atacante não expõe os serviços na internet.

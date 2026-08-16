@@ -124,7 +124,7 @@ Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 - [x] Tela Usuários (CRUD + gerar convite / QR code)
 - [x] Tela Dispositivos (status, último handshake, revogar)
 - [x] Tela Compartilhamentos (placeholder explícito — implementação real chega na Fase 5)
-- [x] Tela Configurações (rede, DNS, firewall) — somente leitura por ora; edição via painel fica para uma fase futura (exigiria desenho de validação/segurança próprio)
+- [x] Tela Configurações (rede, DNS, firewall) — rede WG permanece só leitura; DNS da intranet é editável em `/admin/dns` (Fase 34)
 - [x] Tela Auditoria (log de ações administrativas)
 - [x] Build do painel embutido no binário Go via `embed.FS`
 - [x] Teste end-to-end manual: criar usuário → gerar convite → dispositivo aparece conectado no painel
@@ -1096,8 +1096,25 @@ Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header
 - [x] Testes: matriz RBAC com fixture por papel (não por rota). Sem fatiar o módulo `server` por causa de CI.
 - [x] Client: atalhos xchat / xgroup / XDriver; hosts `*.corp` no `/etc/hosts` (Chrome DoH); catálogo via `corp.ihuull.com` quando o túnel está no ar.
 - [x] `xdriver.ihuull.com` deixa de ser landing — Drive só em `xdriver.corp`.
+- [x] Lockup padronizado (`PLAN.md` §6.13): XVPN/XCHAT Client, XGROUP Social, XDRIVER Drive, Marketplace Store. Header autenticado = Settings + waffle + pílula da conta. Scrollbar canônica em `shared/ui`.
 
 **Critério de saída:** um login abre os portais permitidos; header idêntico com logo certo; app `network:vpn` some da loja pública; `/admin` não mistura peers com vitrine; `go test ./internal/api/ -count=1` da matriz cabe em dezenas de segundos.
+
+---
+
+## Fase 34 — DNS intranet administrável (forma correta)
+
+O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / DoT / Chrome DoH) não consulta o dnsmasq da `wg0`. A correção **não** é o app discar `10.66.66.1` para sempre — isso é fallback. A forma correta: zona própria no túnel + o client usar esse resolvedor.
+
+- [x] Documentar em [`PLAN.md` §5.4](./PLAN.md#54-dns-da-intranet-forma-correta): autoridade (dnsmasq) → client (resolvectl + hosts) → dial de defesa.
+- [x] `/admin/dns`: status (bind, listening, query), forwarders, catch-all, CRUD de A (`*.corp` → `10.66.66.0/24`), apply.
+- [x] Persistência `DNSSettings` / `DNSRecord`; seed dos oficiais (`corp`, `xchat`, `xgroup`, `xdriver`).
+- [x] `xvpn-user-provision dns-apply` (JSON stdin) grava `/etc/dnsmasq.d/` com bind só `10.66.66.1` e `dnsmasq --test` antes do reload.
+- [x] Enrollment e `GET /api/me` devolvem `intranet_hosts` para o helper.
+- [x] Client Linux: `resolvectl` com `~corp.ihuull.com` + `~.`, `dnsovertls no`, `dnssec no`; `/etc/hosts` com a lista do servidor.
+- [x] xchat continua discando o gateway se o DNS do processo falhar (já em 0.1.3).
+
+**Critério de saída:** `dig @10.66.66.1 xchat.corp.ihuull.com` de um peer → `10.66.66.1`; `resolvectl query` no Linux com túnel no ar resolve sem linha manual em `/etc/hosts`; admin cria `lab.corp.ihuull.com` no painel, aplica, e o nome passa a resolver.
 
 ---
 
@@ -1115,6 +1132,7 @@ Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header
 - **Parte X (31):** hosts de produto `marketplace.ihuull.com` / `xdriver.ihuull.com`.
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
+- **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

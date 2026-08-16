@@ -32,6 +32,7 @@ func allModels() []any {
 		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
 		&PanelSettings{},
+		&DNSSettings{}, &DNSRecord{},
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
 		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
 		&SocialAttachment{}, &Story{}, &StoryView{},
@@ -62,7 +63,14 @@ func openSQLite(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("abrindo banco %q: %w", path, err)
 	}
-	return finishOpen(db)
+	st, err := finishOpen(db)
+	if err != nil {
+		return nil, err
+	}
+	if err := SeedIntranetDNS(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
+	}
+	return st, nil
 }
 
 // OpenMongo usa mongod como fonte da verdade e SQLite em memória como
@@ -107,6 +115,9 @@ func OpenMongo(uri, sqlitePath string) (*Store, error) {
 		return nil, fmt.Errorf("hydrate mongo→cache: %w", err)
 	}
 	st.registerMongoCallbacks()
+	if err := SeedIntranetDNS(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
+	}
 	return st, nil
 }
 

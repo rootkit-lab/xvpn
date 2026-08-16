@@ -2,7 +2,7 @@
 
 Issuer SSO: `https://xvpn.ihuull.com`. Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
 
-Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Painel/enroll: `https://xvpn.ihuull.com`.
+Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Painel/enroll: `https://xvpn.ihuull.com`. Loja: `https://marketplace.ihuull.com`. Landing de arquivos: `https://xdriver.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN).
 
 Auth: `Authorization: Bearer <token>` salvo no header, nunca na query do WebSocket.
 
@@ -41,15 +41,33 @@ Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` 
 | POST | `/api/social/attachments` | 32 MiB, JWT |
 | GET/POST | `/api/social/stories` | 24h |
 | POST | `/api/social/acks` | entregue/lido |
+| GET | `/api/social/feed` | Timeline (self + following; mural geral se vazio) |
+| POST | `/api/social/posts` | Máx. 280 caracteres |
+| GET | `/api/social/u/:username/posts` | Posts do perfil |
+| DELETE | `/api/social/posts/:id` | Autor ou admin |
 | GET | `/api/ws` | Auth no **primeiro frame**, nunca `?token=` |
 
-## Marketplace
+## XDriver (`xdriver.corp.ihuull.com` apenas)
+
+| Método | Path | Notas |
+|---|---|---|
+| GET | `/api/driver/ls` | `root=home\|shared`, `path=` |
+| POST | `/api/driver/mkdir` | |
+| POST | `/api/driver/upload` | multipart, 2 GiB |
+| GET | `/api/driver/download` | |
+| DELETE | `/api/driver/rm` | path obrigatório |
+
+Qualquer outro `Host` → 404. `xdriver.ihuull.com` não serve estas rotas.
+
+## Marketplace (`marketplace.ihuull.com`)
 
 | Método | Path | Auth |
 |---|---|---|
 | GET | `/api/marketplace/apps` | sessão |
 | GET | `/api/marketplace/assets/:id/download` | sessão + ACL |
 | POST | `/api/marketplace/sync` | `XVPN_PUBLISH_TOKEN` |
+
+ACL admin: `PUT /api/marketplace/apps/:id/access` no painel (`xvpn.ihuull.com/admin/marketplace`).
 
 ## Hooks (xbot)
 
@@ -65,5 +83,5 @@ Body: `{ "body": "texto", "group": "Sistema" }`. Cria/usa o grupo, adiciona todo
 
 ## Superfícies que **não** são esta API
 
-- Samba `10.66.66.1:445` e FileBrowser `10.66.66.1:8081` / `xdriver.corp` — sem fork.
+- Samba `10.66.66.1:445`. XDriver web só em `xdriver.corp` (mesmo `xvpn-server`). `xdriver.ihuull.com` é só landing. Sem FileBrowser.
 - `ldpops.appapisip.com` — outro processo.

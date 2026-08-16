@@ -3,6 +3,7 @@
 // componentes, sempre passar por aqui para tratamento de erro/auth
 // consistente).
 import type { Role } from '@/lib/roles'
+import { isStoreHost, storeLoginPath } from '@/lib/product-host'
 
 const TOKEN_KEY = 'xvpn_token'
 
@@ -51,8 +52,11 @@ function handleUnauthorized(path: string) {
   if (path.startsWith('/auth/login')) return
   clearToken()
   const here = window.location.pathname
-  const login =
-    here.startsWith('/admin') || here === '/admin/login' ? '/admin/login' : '/my/login'
+  const login = isStoreHost()
+    ? storeLoginPath()
+    : here.startsWith('/admin') || here === '/admin/login'
+      ? '/admin/login'
+      : '/my/login'
   if (here !== login) {
     window.location.href = login
   }
@@ -102,6 +106,40 @@ async function downloadMarketplaceAsset(assetId: number, filename: string): Prom
     throw new ApiError(res.status, await parseErrorMessage(res))
   }
 
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+async function uploadDriverFile(root: DriverRoot, path: string, file: File): Promise<{ ok: boolean; name: string }> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const fd = new FormData()
+  fd.append('root', root)
+  fd.append('path', path)
+  fd.append('file', file)
+  const res = await fetch('/api/driver/upload', { method: 'POST', headers, body: fd })
+  if (res.status === 401) handleUnauthorized('/driver/upload')
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  return (await res.json()) as { ok: boolean; name: string }
+}
+
+async function downloadDriverFile(root: DriverRoot, path: string, filename: string): Promise<void> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const sp = new URLSearchParams({ root, path })
+  const apiPath = `/driver/download?${sp}`
+  const res = await fetch(`/api${apiPath}`, { headers })
+  if (res.status === 401) handleUnauthorized(apiPath)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -297,6 +335,33 @@ export interface SocialProfile {
   avatar_url: string
   following: boolean
   followers: number
+  following_count: number
+}
+
+export interface SocialPost {
+  id: number
+  author_id: number
+  username: string
+  display_name: string
+  avatar_url: string
+  body: string
+  created_at: string
+}
+
+export type DriverRoot = 'home' | 'shared'
+
+export interface DriverEntry {
+  name: string
+  path: string
+  is_dir: boolean
+  size: number
+  mod_time: number
+}
+
+export interface DriverList {
+  root: DriverRoot
+  path: string
+  items: DriverEntry[]
 }
 
 export interface SocialGroup {
@@ -492,4 +557,25 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ body }),
     }),
+  listSocialFeed: (params?: PageParams) => request<PageEnvelope<SocialPost>>(withQuery('/social/feed', params)),
+  listSocialUserPosts: (username: string, params?: PageParams) =>
+    request<PageEnvelope<SocialPost>>(withQuery(`/social/u/${encodeURIComponent(username)}/posts`, params)),
+  createSocialPost: (body: string) =>
+    request<SocialPost>('/social/posts', { method: 'POST', body: JSON.stringify({ body }) }),
+  deleteSocialPost: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
+
+  listDriver: (root: DriverRoot, path = '') => {
+    const sp = new URLSearchParams({ root })
+    if (path) sp.set('path', path)
+    return request<DriverList>(`/driver/ls?${sp}`)
+  },
+  mkdirDriver: (root: DriverRoot, path: string, name: string) =>
+    request<{ ok: boolean }>('/driver/mkdir', {
+      method: 'POST',
+      body: JSON.stringify({ root, path, name }),
+    }),
+  uploadDriver: (root: DriverRoot, path: string, file: File) => uploadDriverFile(root, path, file),
+  downloadDriver: (root: DriverRoot, path: string, filename: string) => downloadDriverFile(root, path, filename),
+  rmDriver: (root: DriverRoot, path: string) =>
+    request<void>('/driver/rm', { method: 'DELETE', body: JSON.stringify({ root, path }) }),
 }

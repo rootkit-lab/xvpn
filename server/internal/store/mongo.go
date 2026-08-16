@@ -35,6 +35,7 @@ func allModels() []any {
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
 		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
 		&SocialAttachment{}, &Story{}, &StoryView{},
+		&SocialPost{},
 	}
 }
 

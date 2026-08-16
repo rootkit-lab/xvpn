@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { MessageSquare, Users, UsersRound } from 'lucide-react'
+import { Home, MessageSquare, Search, UsersRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
 const SOCIAL_NAV = [
-  { to: '/social', label: 'Pessoas', icon: Users, end: true },
+  { to: '/social', label: 'Início', icon: Home, end: true },
+  { to: '/social/explore', label: 'Explorar', icon: Search, end: false },
   { to: '/social/messages', label: 'Mensagens', icon: MessageSquare, end: false },
   { to: '/social/groups', label: 'Grupos', icon: UsersRound, end: false },
 ] as const

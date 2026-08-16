@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, Shield, Store } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { isViewerUpRole } from '@/lib/roles'
+import { MARKETPLACE_ORIGIN, XDRIVER_ORIGIN } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -15,7 +16,8 @@ import { cn } from '@/lib/utils'
 type LauncherTile = {
   id: string
   label: string
-  to: string
+  to?: string
+  href?: string
   icon: typeof Store
   current: boolean
 }
@@ -26,7 +28,6 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
   const location = useLocation()
   const showAdmin = isViewerUpRole(user?.role)
   const xdriverOn = Boolean(user?.samba_enabled || user?.sftp_enabled)
-  const marketplaceTo = variant === 'admin' ? '/admin/marketplace' : '/my/marketplace'
   const onMarketplace = location.pathname.endsWith('/marketplace')
   const onXDriver = location.pathname === '/my/files' || location.pathname.startsWith('/admin/shares')
 
@@ -50,7 +51,7 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
           {
             id: 'xdriver',
             label: 'XDriver',
-            to: '/my/files',
+            href: XDRIVER_ORIGIN,
             icon: HardDrive,
             current: onXDriver,
           } satisfies LauncherTile,
@@ -62,7 +63,7 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
     {
       id: 'marketplace',
       label: 'Marketplace',
-      to: marketplaceTo,
+      href: variant === 'admin' ? '/admin/marketplace' : MARKETPLACE_ORIGIN,
       icon: Store,
       current: onMarketplace,
     },
@@ -102,25 +103,43 @@ export function AppLauncher({ variant }: { variant: 'user' | 'admin' | 'social' 
 }
 
 function TileGrid({ tiles }: { tiles: LauncherTile[] }) {
+  const className =
+    'flex flex-col items-center gap-1.5 rounded-[14px] px-1 py-2 outline-none hover:bg-white/8 focus-visible:bg-white/8'
   return (
     <div className="grid grid-cols-3 gap-1">
-      {tiles.map((tile) => (
-        <Link
-          key={tile.id}
-          to={tile.to}
-          className="flex flex-col items-center gap-1.5 rounded-[14px] px-1 py-2 outline-none hover:bg-white/8 focus-visible:bg-white/8"
-        >
-          <span
-            className={cn(
-              'icon-well-lg flex size-12 items-center justify-center rounded-[16px] text-foreground',
-              tile.current && 'ring-1 ring-safe',
-            )}
-          >
-            <tile.icon className="size-5" strokeWidth={1.75} />
-          </span>
-          <span className="font-display max-w-full truncate text-center text-[11px] font-medium">{tile.label}</span>
-        </Link>
-      ))}
+      {tiles.map((tile) => {
+        const inner = (
+          <>
+            <span
+              className={cn(
+                'icon-well-lg flex size-12 items-center justify-center rounded-[16px] text-foreground',
+                tile.current && 'ring-1 ring-safe',
+              )}
+            >
+              <tile.icon className="size-5" strokeWidth={1.75} />
+            </span>
+            <span className="font-display max-w-full truncate text-center text-[11px] font-medium">{tile.label}</span>
+          </>
+        )
+        if (tile.href) {
+          const external = tile.href.startsWith('http')
+          return (
+            <a
+              key={tile.id}
+              href={tile.href}
+              className={className}
+              {...(external ? { target: '_blank', rel: 'noreferrer' } : {})}
+            >
+              {inner}
+            </a>
+          )
+        }
+        return (
+          <Link key={tile.id} to={tile.to ?? '/'} className={className}>
+            {inner}
+          </Link>
+        )
+      })}
     </div>
   )
 }

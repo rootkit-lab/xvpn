@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
+import { MARKETPLACE_ORIGIN, XDRIVER_ORIGIN, productKind } from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
@@ -10,6 +11,7 @@ import { ChatHost } from '@/components/layout/chat-host'
 import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
+import { HostRedirect } from '@/pages/host-redirect'
 
 const DashboardPage = lazy(() => import('@/pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
 const UsersPage = lazy(() => import('@/pages/users-page').then((m) => ({ default: m.UsersPage })))
@@ -24,8 +26,8 @@ const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default
 const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
 const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
-const FilesPage = lazy(() => import('@/pages/files-page').then((m) => ({ default: m.FilesPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
+const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
 )
@@ -38,64 +40,127 @@ const SocialMessagesPage = lazy(() =>
 const SocialGroupsPage = lazy(() =>
   import('@/pages/social-groups-page').then((m) => ({ default: m.SocialGroupsPage })),
 )
+const PlayStoreLayout = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreLayout })))
+const PlayStoreHome = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreHome })))
+const PlayStoreDetail = lazy(() => import('@/pages/play-store-page').then((m) => ({ default: m.PlayStoreDetail })))
+const XDriverLayout = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverLayout })))
+const XDriverPublicLanding = lazy(() =>
+  import('@/pages/xdriver-portal-page').then((m) => ({ default: m.XDriverPublicLanding })),
+)
+const XDriverAppPage = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverAppPage })))
+
+function MarketplaceApp() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage variant="store" />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<PlayStoreLayout />}>
+          <Route index element={<PlayStoreHome />} />
+          <Route path="app/:slug" element={<PlayStoreDetail />} />
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function XDriverPublicApp() {
+  return (
+    <Routes>
+      <Route path="/" element={<XDriverPublicLanding />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function XDriverCorpApp() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage variant="store" />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<XDriverLayout />}>
+          <Route index element={<XDriverAppPage />} />
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
+function CoreApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+
+        <Route path="/my/login" element={<LoginPage variant="user" />} />
+        <Route path="/admin/login" element={<LoginPage variant="admin" />} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="/my" element={<UserShell />}>
+            <Route index element={<PortalPage />} />
+            <Route path="files" element={<HostRedirect to={XDRIVER_ORIGIN} />} />
+            <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
+            <Route path="marketplace" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="account" element={<AccountPage />} />
+          </Route>
+          <Route path="/social" element={<SocialShell />}>
+            <Route index element={<SocialFeedPage />} />
+            <Route path="explore" element={<SocialDirectoryPage />} />
+            <Route path="u/:username" element={<SocialProfilePage />} />
+            <Route path="messages" element={<SocialMessagesPage />} />
+            <Route path="groups" element={<SocialGroupsPage />} />
+          </Route>
+          <Route path="/xgroup" element={<SocialShell />}>
+            <Route index element={<SocialFeedPage />} />
+            <Route path="explore" element={<SocialDirectoryPage />} />
+            <Route path="u/:username" element={<SocialProfilePage />} />
+            <Route path="messages" element={<SocialMessagesPage />} />
+            <Route path="groups" element={<SocialGroupsPage />} />
+          </Route>
+          <Route path="/xchat/messages" element={<Navigate to="/social/messages" replace />} />
+        </Route>
+
+        <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="users/new" element={<UserCreatePage />} />
+            <Route path="users/:id" element={<UserDetailPage />} />
+            <Route path="rbac" element={<RbacPage />} />
+            <Route path="devices" element={<DevicesPage />} />
+            <Route path="shares" element={<SharesPage />} />
+            <Route path="waitlist" element={<WaitlistPage />} />
+            <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
+            <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="audit" element={<AuditPage />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
 
 export default function App() {
+  const kind = productKind()
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ChatHost>
         <Suspense fallback={<PageFallback />}>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-
-            <Route path="/my/login" element={<LoginPage variant="user" />} />
-            <Route path="/admin/login" element={<LoginPage variant="admin" />} />
-
-            <Route element={<ProtectedRoute />}>
-              <Route path="/my" element={<UserShell />}>
-                <Route index element={<PortalPage />} />
-                <Route path="files" element={<FilesPage />} />
-                <Route path="download" element={<Navigate to="/my/marketplace" replace />} />
-                <Route path="marketplace" element={<MarketplacePage variant="consume" />} />
-                <Route path="profile" element={<ProfilePage />} />
-                <Route path="account" element={<AccountPage />} />
-              </Route>
-              <Route path="/social" element={<SocialShell />}>
-                <Route index element={<SocialDirectoryPage />} />
-                <Route path="u/:username" element={<SocialProfilePage />} />
-                <Route path="messages" element={<SocialMessagesPage />} />
-                <Route path="groups" element={<SocialGroupsPage />} />
-              </Route>
-              <Route path="/xgroup" element={<SocialShell />}>
-                <Route index element={<SocialDirectoryPage />} />
-                <Route path="u/:username" element={<SocialProfilePage />} />
-                <Route path="messages" element={<SocialMessagesPage />} />
-                <Route path="groups" element={<SocialGroupsPage />} />
-              </Route>
-              <Route path="/xchat/messages" element={<Navigate to="/social/messages" replace />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
-              <Route path="/admin" element={<AdminShell />}>
-                <Route index element={<DashboardPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="users/new" element={<UserCreatePage />} />
-                <Route path="users/:id" element={<UserDetailPage />} />
-                <Route path="rbac" element={<RbacPage />} />
-                <Route path="devices" element={<DevicesPage />} />
-                <Route path="shares" element={<SharesPage />} />
-                <Route path="waitlist" element={<WaitlistPage />} />
-                <Route path="download" element={<Navigate to="/admin/marketplace" replace />} />
-                <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="audit" element={<AuditPage />} />
-              </Route>
-            </Route>
-
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          {kind === 'marketplace' ? (
+            <MarketplaceApp />
+          ) : kind === 'xdriver-corp' ? (
+            <XDriverCorpApp />
+          ) : kind === 'xdriver' ? (
+            <XDriverPublicApp />
+          ) : (
+            <CoreApp />
+          )}
         </Suspense>
-        </ChatHost>
       </AuthProvider>
     </BrowserRouter>
   )

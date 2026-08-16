@@ -4,11 +4,11 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–29) em código. **Fase 30** (design system) em andamento. Hostname canônico: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–32) em código. **Fase 33** (próxima) — chrome/SSO/admin por produto, monólito modular (`PLAN.md` §6.13). Painel: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
-> **Aplicar no VPS:** runbooks Cloudflare (A já apontam), intranet-dnsmasq, certs `*.corp`, Nginx ihuull, Mongo — **não** ligar `XVPN_MONGO_URI` no mesmo instante que o binário JWE.
+> **Aplicar no VPS:** runbooks Cloudflare (A já apontam), intranet-dnsmasq, certs `*.corp` + `marketplace`/`xdriver`, Nginx ihuull, Mongo — **não** ligar `XVPN_MONGO_URI` no mesmo instante que o binário JWE. Arquivos **nunca** no hostname público do XDriver.
 >
 > Também: [backlog legado](#backlog-legado-mvp--fora-das-fases-9).
 
@@ -1052,6 +1052,53 @@ O painel web deixa a paleta navy/Workspace e passa a **importar** o mesmo color 
 
 ---
 
+## Fase 31 — Marketplace e XDriver como produtos (subdomínio próprio)
+
+O catálogo deixa o chrome do painel e vira loja em `marketplace.ihuull.com` (UI tipo Play Store). O XDriver ganha portal público `xdriver.ihuull.com` (UI tipo Drive) — **sem** expor FileBrowser/Samba na internet; o binário de arquivos continua em `xdriver.corp.ihuull.com` (`10.66.66.1:8081`).
+
+- [x] `PLAN.md` §5.1: `marketplace.ihuull.com` (Play Store, JWE) e `xdriver.ihuull.com` (portal; FileBrowser só no corp).
+- [x] Runbook Cloudflare: A DNS-only para os dois; **não** A para `xdriver.corp`.
+- [x] Nginx de referência (`server/deploy/nginx/marketplace.conf`, `xdriver.conf`) — `listen` no IP público; backend `127.0.0.1:8080`; xdriver público **não** faz `proxy_pass` em `:8081`.
+- [x] SPA: roteamento por `Host` — loja Play Store (busca, destaques, ficha `/app/:slug`, instalar) e portal Drive (atalhos + CTA para `xdriver.corp`).
+- [x] `/my/marketplace` e `/my/files` redirecionam para os hosts de produto; ACL admin permanece em `/admin/marketplace`.
+- [x] Certs HTTP-01 + deploy no VPS. ufw público inalterado. `:8081` só em `wg0`.
+
+**Critério de saída:** `https://marketplace.ihuull.com` autentica e lista o catálogo; `https://xdriver.ihuull.com` não alcança arquivos sem VPN; `dig xdriver.corp.ihuull.com @1.1.1.1` continua sem A.
+
+---
+
+## Fase 32 — xgroup Twitter + XDriver nativo
+
+O `/social` deixa de ser tabela admin e vira timeline (composer 280, feed, perfil com banner, explorar). O FileBrowser sai de produção: `xdriver.corp.ihuull.com` passa a ser o Drive do `xvpn-server`; `xdriver.ihuull.com` fica só como landing “conecte a VPN”.
+
+- [x] `POST/GET/DELETE /api/social/posts` + `GET /api/social/feed` (self+following; mural geral se vazio).
+- [x] SPA xgroup: Início / Explorar / perfil estilo Twitter.
+- [x] `/api/driver/*` só com `Host: xdriver.corp.ihuull.com` (home + shared, anti-`..`).
+- [x] SPA Drive em `xdriver.corp`; landing pública em `xdriver.ihuull.com`.
+- [x] Nginx corp: xdriver → `127.0.0.1:8080`. Parar `xvpn-filebrowser` e remover `8081` no ufw `wg0`.
+- [x] `PLAN.md` §3.4 / §5: sem FileBrowser; porta 8081 retirada.
+
+**Critério de saída:** `/social` mostra feed, não DataTable; `https://xdriver.ihuull.com` não lista arquivo; Drive só em `xdriver.corp` com VPN; `ss` sem `:8081`.
+
+---
+
+## Fase 33 — Plataforma: chrome, SSO, admin por produto (não fatiar o server)
+
+Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header+logos → portal XVPN → `network` no marketplace → escopos no `/admin` → `xauth.ihuull.com` (DNS+Nginx por último).
+
+- [ ] Header global em `shared/ui` (logo ihuull + mark do produto) em marketplace, xvpn, xgroup, xdriver, landing.
+- [ ] Marcas em `shared/ui/brand/` (wordmark + mark). Cada produto com mark próprio.
+- [ ] Portal de produto em `xvpn.ihuull.com` (chrome tipo loja); `/admin` só operação.
+- [ ] `marketplace.yaml`: campo `network: public|vpn` (além de `visibility`). Admin da loja configura isso.
+- [ ] `/admin` seccionado por produto; RBAC com escopo (`products: [...]`). Fonte única — sem admin.* extra.
+- [ ] `xauth.ihuull.com`: login único, cookie `.ihuull.com`, mesmo JWE/`aud`. Sem processo novo. A **depois** de registrar em §5.1.
+- [ ] Landing `xgroup.ihuull.com` (marketing; app continua no corp).
+- [ ] Testes: matriz RBAC com fixture por papel (não por rota). Sem fatiar o módulo `server` por causa de CI.
+
+**Critério de saída:** um login abre os portais permitidos; header idêntico com logo certo; app `network:vpn` some da loja pública; `/admin` não mistura peers com vitrine; `go test ./internal/api/ -count=1` da matriz cabe em dezenas de segundos.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1063,6 +1110,9 @@ O painel web deixa a paleta navy/Workspace e passa a **importar** o mesmo color 
 - **Parte VII (21):** v0.6 — 21.1 → 21.2 → 21.3 → 21.4 → 21.5 → 21.6 (mídia desbloqueia áudio/stories; chamadas e recibos por último).
 - **Parte VIII (22–29):** v0.7+ — DNS/registry → intranet → cutover → chamadas → marca → JWE/xbot → Mongo → docs. Não misturar JWE+Mongo+domínio no mesmo deploy.
 - **Parte IX (30):** design system SASS em `shared/ui` — painel = xvpn = xchat.
+- **Parte X (31):** hosts de produto `marketplace.ihuull.com` / `xdriver.ihuull.com`.
+- **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
+- **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

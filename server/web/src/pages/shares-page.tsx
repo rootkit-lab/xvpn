@@ -24,7 +24,7 @@ export function SharesPage() {
           <div>
             <CardTitle className="text-base">Só acessível com a VPN conectada</CardTitle>
             <CardDescription>
-              xdriver (Samba + FileBrowser) escuta exclusivamente na interface WireGuard — nunca no IP público. A autenticação do
+              xdriver (Samba + Drive web nativo) escuta exclusivamente na interface WireGuard — nunca no IP público. A autenticação do
               Samba é a própria VPN (<code className="font-mono text-xs">guest ok</code> +{' '}
               <code className="font-mono text-xs">force user</code>); o cliente desktop abre os shares sem pedir senha.
             </CardDescription>
@@ -77,8 +77,8 @@ export function SharesPage() {
           <Card className="sm:col-span-2">
             <CardHeader>
               <Globe className="mb-1 size-6 text-muted-foreground" />
-              <CardTitle className="text-base">xdriver (FileBrowser)</CardTitle>
-              <CardDescription>Upload/download rápido pelo navegador, sem montar unidade de rede.</CardDescription>
+              <CardTitle className="text-base">XDriver (web)</CardTitle>
+              <CardDescription>Drive nativo em xdriver.corp — só na VPN. Sem FileBrowser.</CardDescription>
             </CardHeader>
             <CardContent className="text-sm">
               <a

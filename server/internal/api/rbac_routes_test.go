@@ -160,6 +160,8 @@ var rbacRouteCases = []rbacRouteCase{
 	{"social-list-threads", http.MethodGet, "/api/social/threads", nil, "any"},
 	{"social-open-thread", http.MethodPost, "/api/social/threads", openThreadRequest{Username: "target"}, "any"},
 	{"social-list-stories", http.MethodGet, "/api/social/stories", nil, "any"},
+	{"social-feed", http.MethodGet, "/api/social/feed", nil, "any"},
+	{"social-create-post", http.MethodPost, "/api/social/posts", createPostRequest{Body: "olá xgroup"}, "any"},
 }
 
 func strPtr(s string) *string { return &s }
@@ -213,10 +215,12 @@ func TestRBACRouteMatrix(t *testing.T) {
 	for _, role := range roles {
 		role := role
 		t.Run(string(role), func(t *testing.T) {
+			// Um fixture por papel — não por rota. Recriar SQLite+login
+			// em cada case (4×N) é o que deixava a matriz lenta.
+			f := setupRBACFixtures(t, role)
 			for _, rc := range rbacRouteCases {
 				rc := rc
 				t.Run(rc.name, func(t *testing.T) {
-					f := setupRBACFixtures(t, role)
 					path := resolveRoutePath(rc.path, f)
 
 					rec := doJSON(t, f.router, rc.method, path, rc.body, f.token)

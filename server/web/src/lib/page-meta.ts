@@ -26,7 +26,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'apps',
       title: 'XDriver',
-      description: 'Samba, SFTP e FileBrowser (xdriver.corp.ihuull.com) só respondem dentro da VPN.',
+      description: 'Portal em xdriver.ihuull.com. FileBrowser (xdriver.corp) só responde dentro da VPN.',
     },
   },
   {
@@ -34,7 +34,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'xvpn',
       title: 'Marketplace',
-      description: 'Catálogo interno. Confira o SHA-256 antes de instalar.',
+      description: 'Loja em marketplace.ihuull.com. Confira o SHA-256 antes de instalar.',
     },
   },
   {
@@ -138,9 +138,13 @@ const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
   },
   {
+    prefix: '/xgroup/explore',
+    meta: { kicker: 'xgroup', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
+  },
+  {
     prefix: '/xgroup',
     exact: true,
-    meta: { kicker: 'xgroup', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+    meta: { kicker: 'xgroup', title: 'Início', description: 'O que está acontecendo na VPN.' },
   },
   {
     prefix: '/social/messages',
@@ -155,9 +159,13 @@ const SOCIAL_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: { kicker: 'xgroup', title: 'Perfil', description: 'Página do membro no xgroup.' },
   },
   {
+    prefix: '/social/explore',
+    meta: { kicker: 'xgroup', title: 'Explorar', description: 'Encontre pessoas na VPN e siga.' },
+  },
+  {
     prefix: '/social',
     exact: true,
-    meta: { kicker: 'xgroup', title: 'Pessoas', description: 'Membros da VPN. Siga e abra o perfil.' },
+    meta: { kicker: 'xgroup', title: 'Início', description: 'O que está acontecendo na VPN.' },
   },
 ]
 

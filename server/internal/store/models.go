@@ -421,3 +421,11 @@ type StoryView struct {
 	ViewerID  uint `gorm:"uniqueIndex:idx_story_view;not null"`
 	CreatedAt time.Time
 }
+
+// SocialPost é um post público do xgroup (timeline estilo Twitter).
+type SocialPost struct {
+	ID        uint   `gorm:"primaryKey"`
+	AuthorID  uint   `gorm:"not null;index"`
+	Body      string `gorm:"type:text;not null"`
+	CreatedAt time.Time
+}

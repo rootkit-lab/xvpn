@@ -100,7 +100,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.PanelSettings{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
 		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
-		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
+		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{}, &store.SocialPost{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}

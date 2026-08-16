@@ -10,14 +10,14 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 
 - **VPS de produção real**: `206.189.224.72`, Ubuntu 26.04 LTS, acesso root via chave SSH (sem senha configurada de propósito). Trate qualquer comando executado nesse host como produção — não é um ambiente descartável.
 - **Sub-rede WireGuard**: `10.66.66.0/24` (servidor = `10.66.66.1`). **Nunca** usar `10.10.0.0/16` ou `10.136.0.0/16` — já estão em uso por outras interfaces/VPC do servidor.
-- **Domínios públicos**: `xvpn.ihuull.com` (painel/enroll/JWE), `www.ihuull.com` / `ihuull.com` e `www.ihuu.com` / `ihuu.com` (landing), `xchat.ihuull.com` (marketing do messenger — **sem** API/WS). `ldpops.appapisip.com` (`landpages-ops`) **não muda**. Todos os A públicos → `206.189.224.72`, **DNS only** em API/WS.
+- **Domínios públicos**: `xvpn.ihuull.com` (painel/enroll/JWE), `marketplace.ihuull.com` (loja Play Store, JWE), `xdriver.ihuull.com` (landing — **sem** arquivos), `www.ihuull.com` / `ihuull.com` e `www.ihuu.com` / `ihuu.com` (landing), `xchat.ihuull.com` (marketing do messenger — **sem** API/WS). `ldpops.appapisip.com` (`landpages-ops`) **não muda**. Todos os A públicos → `206.189.224.72`, **DNS only** em API/WS. Samba e XDriver só em `xdriver.corp` / `wg0`.
 - **Intranet** (`*.corp.ihuull.com`): só resolve no DNS interno `10.66.66.1:53` (dnsmasq no `wg0`). Comunicação dos apps desktop: `xchat.corp`, `xgroup.corp`, `xdriver.corp` → `10.66.66.1`. **Nunca** criar A público para `corp` / `*.corp`. Runbook: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md).
 - **Nginx é compartilhado** entre o XVPN e o `landpages-ops`. Nunca assuma que o XVPN é o único serviço HTTP do servidor. Antes de reservar uma porta/hostname novo, confira e atualize [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops). Server blocks `*.corp` escutam **somente** `10.66.66.1:443`.
 
 ## Invariantes de segurança (não negociáveis)
 
 1. **Chave privada WireGuard nunca sai do dispositivo do cliente.** O servidor só recebe e armazena chaves públicas. Nunca implemente um fluxo que gere a chave privada no servidor e a envie ao cliente.
-2. **Samba, FileBrowser/xdriver, dnsmasq e Mongo nunca são expostos na internet pública.** Samba/FileBrowser/dnsmasq escutam só em `wg0` (`10.66.66.1`); Mongo só em `127.0.0.1:27017`. Nunca `0.0.0.0` nem `eth0`. Defesa em profundidade — o firewall não substitui o bind correto.
+2. **Samba, XDriver, dnsmasq e Mongo nunca são expostos na internet pública.** Samba/dnsmasq escutam só em `wg0` (`10.66.66.1`); XDriver só em `xdriver.corp.ihuull.com` (Nginx `10.66.66.1:443`); Mongo só em `127.0.0.1:27017`. Nunca `0.0.0.0` nem `eth0`. Defesa em profundidade — o firewall não substitui o bind correto.
 3. **Firewall é padrão-nega.** Público: `22`, `80`, `443`, `51820/udp`. Sem 53, 445, 27017 na `eth0`. Porta pública nova precisa de justificativa e linha em `PLAN.md` §5.
 4. **Nunca commitar segredos** (chaves privadas, tokens, `.env` com credenciais reais) no repositório.
 5. **Mudanças de arquitetura relevantes** (troca de biblioteca WireGuard, mudança de sub-rede, novo domínio, etc.) devem ser refletidas no `PLAN.md`, não só no código.

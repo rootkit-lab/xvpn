@@ -34,6 +34,9 @@ type Runner interface {
 	// SetUserQuota aplica quota de disco (ext4 usrquota) em KB soft=0
 	// hard=blocksKB. blocksKB=0 remove a quota do usuário.
 	SetUserQuota(username string, blocksKB uint64) error
+	// GrantXvpnACL dá rwx ao usuário de sistema xvpn (Drive nativo)
+	// sem abrir a pasta para other.
+	GrantXvpnACL(path string) error
 }
 
 // osRunner é a implementação de produção de Runner: chama useradd via
@@ -230,6 +233,16 @@ func (osRunner) SetUserQuota(username string, blocksKB uint64) error {
 	cmd := exec.Command("setquota", "-u", username, soft, hard, "0", "0", "/")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("setquota %q: %w: %s", username, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (osRunner) GrantXvpnACL(path string) error {
+	if out, err := exec.Command("setfacl", "-R", "-m", "u:xvpn:rwx", path).CombinedOutput(); err != nil {
+		return fmt.Errorf("setfacl %s: %w: %s", path, err, strings.TrimSpace(string(out)))
+	}
+	if out, err := exec.Command("setfacl", "-R", "-d", "-m", "u:xvpn:rwx", path).CombinedOutput(); err != nil {
+		return fmt.Errorf("setfacl default %s: %w: %s", path, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

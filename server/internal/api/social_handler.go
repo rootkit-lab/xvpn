@@ -20,6 +20,7 @@ type socialProfileResponse struct {
 	AvatarURL   string `json:"avatar_url"`
 	Following   bool   `json:"following"`
 	Followers   int64  `json:"followers"`
+	FollowingN  int64  `json:"following_count"`
 }
 
 type socialGroupResponse struct {
@@ -72,8 +73,9 @@ func (a *App) ensureProfile(user store.User) (store.SocialProfile, error) {
 }
 
 func (a *App) profileResponse(p store.SocialProfile, username string, viewerID uint) socialProfileResponse {
-	var followers int64
+	var followers, followingN int64
 	_ = a.Store.DB.Model(&store.Follow{}).Where("following_id = ?", p.UserID).Count(&followers).Error
+	_ = a.Store.DB.Model(&store.Follow{}).Where("follower_id = ?", p.UserID).Count(&followingN).Error
 	var n int64
 	_ = a.Store.DB.Model(&store.Follow{}).Where("follower_id = ? AND following_id = ?", viewerID, p.UserID).Count(&n).Error
 	return socialProfileResponse{
@@ -84,6 +86,7 @@ func (a *App) profileResponse(p store.SocialProfile, username string, viewerID u
 		AvatarURL:   p.AvatarURL,
 		Following:   n > 0 && viewerID != p.UserID,
 		Followers:   followers,
+		FollowingN:  followingN,
 	}
 }
 

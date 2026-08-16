@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   headerProduct,
   isAuthPath,
@@ -8,6 +8,7 @@ import {
   productKind,
   safeReturnURL,
   ssoContinueURL,
+  ssoHandoff,
   ssoLoginURL,
   ssoLogoutURL,
 } from './product-host'
@@ -74,6 +75,8 @@ describe('safeReturnURL', () => {
     expect(safeReturnURL('https://xchat.corp.ihuull.com/social/messages')).toContain('xchat.corp.ihuull.com')
     expect(safeReturnURL('https://evil.example/phish')).toBeNull()
     expect(safeReturnURL('javascript:alert(1)')).toBeNull()
+    expect(safeReturnURL('http://xvpn.ihuull.com/admin')).toBeNull()
+    expect(safeReturnURL('http://localhost/admin')).toBe('http://localhost/admin')
   })
 
   it('reescreve o alias legado vpn.ihuull.com e tira /admin de host que não é o painel', () => {
@@ -110,6 +113,21 @@ describe('ssoContinueURL', () => {
     expect(isAuthPath('/my/login')).toBe(true)
     expect(isAuthPath('/admin/login')).toBe(true)
     expect(isAuthPath('/admin')).toBe(false)
+  })
+})
+
+describe('ssoHandoff', () => {
+  it('posta o JWE no host de destino em vez de só redirecionar', () => {
+    const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+    ssoHandoff('admin', 'https://xvpn.ihuull.com/admin', 'jwe-token')
+    const form = document.querySelector('form[action="https://xvpn.ihuull.com/api/auth/session"]')
+    expect(form).toBeTruthy()
+    const fields = Object.fromEntries(new FormData(form as HTMLFormElement))
+    expect(fields.token).toBe('jwe-token')
+    expect(fields.return).toBe('https://xvpn.ihuull.com/admin')
+    expect(submit).toHaveBeenCalledOnce()
+    submit.mockRestore()
+    form?.remove()
   })
 })
 

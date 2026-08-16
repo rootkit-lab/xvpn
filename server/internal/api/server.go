@@ -204,12 +204,12 @@ func NewRouter(app *App) *gin.Engine {
 	apiGroup := r.Group("/api")
 	{
 		apiGroup.POST("/auth/login", rateLimit(app.loginLimiter), app.handleLogin)
+		apiGroup.POST("/auth/session", rateLimit(app.loginLimiter), app.handleEstablishSession)
 		apiGroup.POST("/auth/logout", app.handleLogout)
 		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
 		apiGroup.GET("/status", app.handleStatus)
-		// Único endpoint de escrita da API sem autenticação — ver
-		// waitlist_handler.go e AGENTS.md (qualquer superfície pública
-		// nova precisa de justificativa explícita).
+		// Escritas públicas: login, session (handoff SSO), enroll, waitlist.
+		// Qualquer superfície pública nova precisa de justificativa (AGENTS.md).
 		apiGroup.POST("/waitlist", rateLimit(app.waitlistLimiter), app.handleJoinWaitlist)
 
 		// WebSocket social (Fase 19.3): upgrade sem JWT no handshake —

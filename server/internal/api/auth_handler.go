@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -68,6 +69,56 @@ func (a *App) handleLogin(c *gin.Context) {
 		auth.SetSessionCookie(c, token, a.Tokens.TTL())
 	}
 	c.JSON(http.StatusOK, loginResponse{Token: token, User: toUserResponse(user)})
+}
+
+// handleEstablishSession planta o cookie no host de destino (xvpn,
+// marketplace, *.corp). O login no xauth sozinho não basta: o browser
+// chega em /admin sem o JWE e o /auth/me 401 devolve ao xauth.
+// POST /api/auth/session — form (handoff) ou JSON.
+func (a *App) handleEstablishSession(c *gin.Context) {
+	token := strings.TrimSpace(c.PostForm("token"))
+	ret := c.PostForm("return")
+	if token == "" && strings.Contains(c.ContentType(), "json") {
+		var body struct {
+			Token  string `json:"token"`
+			Return string `json:"return"`
+		}
+		if err := c.ShouldBindJSON(&body); err == nil {
+			token = strings.TrimSpace(body.Token)
+			if ret == "" {
+				ret = body.Return
+			}
+		}
+	}
+	if token == "" {
+		token = auth.TokenFromRequest(c)
+	}
+	origin := c.GetHeader("Origin")
+	if origin == "" {
+		origin = c.GetHeader("Referer")
+	}
+	if !auth.TrustedHandoffOrigin(origin) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "origem não permitida"})
+		return
+	}
+	if a.Tokens == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if _, err := a.Tokens.Parse(token); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
+		return
+	}
+	auth.SetSessionCookieOnHost(c, token, a.Tokens.TTL())
+	dest := auth.SafeReturnURL(ret)
+	if dest == "" {
+		dest = auth.PanelOrigin + "/"
+	}
+	if strings.Contains(c.ContentType(), "form") {
+		c.Redirect(http.StatusSeeOther, dest)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // handleLogout apaga o cookie de SSO. Público de propósito: quem tem o

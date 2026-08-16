@@ -3,7 +3,8 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoContinueURL } from '@/lib/product-host'
+import { getToken } from '@/lib/api'
+import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoHandoff } from '@/lib/product-host'
 import { ApiError } from '@/lib/api'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
@@ -44,7 +45,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
     try {
       const loggedInUser = await login(username, password)
       if (isSSO) {
-        window.location.replace(ssoContinueURL(loggedInUser.role, returnTo))
+        ssoHandoff(loggedInUser.role, returnTo, getToken())
         return
       }
       const from = (location.state as { from?: string } | null)?.from
@@ -105,7 +106,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
                   type="button"
                   size="lg"
                   className="w-full"
-                  onClick={() => window.location.replace(ssoContinueURL(user?.role ?? 'member', returnTo))}
+                  onClick={() => ssoHandoff(user?.role ?? 'member', returnTo, getToken())}
                 >
                   Continuar como {user?.username ?? 'usuário'}
                 </Button>

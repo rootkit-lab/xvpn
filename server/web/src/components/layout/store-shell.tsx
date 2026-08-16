@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { Outlet } from 'react-router-dom'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
@@ -8,13 +7,7 @@ import { AppLauncher } from '@/components/layout/app-launcher'
 import { AppSettingsButton } from '@/components/layout/app-settings-button'
 import { cn } from '@/lib/utils'
 
-export function StoreShell({
-  kind,
-  search,
-}: {
-  kind: 'marketplace' | 'xdriver'
-  search?: ReactNode
-}) {
+export function StoreShell({ kind }: { kind: 'marketplace' | 'xdriver' }) {
   const { user } = useAuth()
 
   return (
@@ -23,7 +16,6 @@ export function StoreShell({
       <ProductHeader
         product={kind}
         href="/"
-        productHref="/"
         trailing={
           user ? (
             <>
@@ -33,9 +25,7 @@ export function StoreShell({
             </>
           ) : null
         }
-      >
-        {search}
-      </ProductHeader>
+      />
       <main className="relative z-10 min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>

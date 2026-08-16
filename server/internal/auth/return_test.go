@@ -63,4 +63,7 @@ func TestHandoffAllowed(t *testing.T) {
 	if HandoffAllowed("", "", "same-site", "evil.example") {
 		t.Fatal("same-site em host estranho")
 	}
+	if HandoffAllowed("null", "", "same-site", "xvpn.ihuull.com") {
+		t.Fatal("Origin null (iframe sandbox) não é same-site confiável")
+	}
 }

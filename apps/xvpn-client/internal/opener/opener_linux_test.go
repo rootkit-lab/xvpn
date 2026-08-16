@@ -56,3 +56,9 @@ func TestPickGVFSEntryEmpty(t *testing.T) {
 		t.Fatalf("esperava vazio, obtido %q", got)
 	}
 }
+
+func TestUnescapeProcMount(t *testing.T) {
+	if got := unescapeProcMount(`/home/wiz/XVPN/Meus\040arquivos`); got != "/home/wiz/XVPN/Meus arquivos" {
+		t.Fatalf("got %q", got)
+	}
+}

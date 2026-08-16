@@ -3,15 +3,24 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-import { getToken } from '@/lib/api'
-import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoHandoff } from '@/lib/product-host'
-import { ApiError } from '@/lib/api'
+import { ApiError, getToken } from '@/lib/api'
+import { PANEL_ORIGIN, isLoggedOutParam, productKind, safeReturnURL, ssoHandoff, ssoHandoffContinueURL } from '@/lib/product-host'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageFallback } from '@/components/layout/page-fallback'
+
+/** JWE do login (memória) ou form HTML no xauth — nunca JSON do cookie. */
+function continueSSO(role: string, returnTo: string | null) {
+  const token = getToken()
+  if (token) {
+    ssoHandoff(role, returnTo, token)
+    return
+  }
+  window.location.replace(ssoHandoffContinueURL(role, returnTo))
+}
 
 export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | 'store' | 'sso' }) {
   const { isAuthenticated, isLoadingUser, user, login } = useAuth()
@@ -45,7 +54,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
     try {
       const loggedInUser = await login(username, password)
       if (isSSO) {
-        ssoHandoff(loggedInUser.role, returnTo, getToken())
+        continueSSO(loggedInUser.role, returnTo)
         return
       }
       const from = (location.state as { from?: string } | null)?.from
@@ -106,7 +115,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | '
                   type="button"
                   size="lg"
                   className="w-full"
-                  onClick={() => ssoHandoff(user?.role ?? 'member', returnTo, getToken())}
+                  onClick={() => continueSSO(user?.role ?? 'member', returnTo)}
                 >
                   Continuar como {user?.username ?? 'usuário'}
                 </Button>

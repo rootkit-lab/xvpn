@@ -68,6 +68,10 @@ func TrustedHandoffOrigin(raw string) bool {
 // cruzado; o Chrome às vezes omite Origin no POST same-site. Sec-Fetch-Site
 // same-site/same-origin no host de destino fecha o CSRF (evil.com é cross-site).
 func HandoffAllowed(origin, referer, fetchSite, requestHost string) bool {
+	origin = strings.TrimSpace(origin)
+	if strings.EqualFold(origin, "null") {
+		return false
+	}
 	if origin != "" {
 		return TrustedHandoffOrigin(origin)
 	}

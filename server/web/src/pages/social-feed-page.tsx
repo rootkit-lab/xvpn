@@ -61,7 +61,7 @@ export function SocialFeedPage() {
         ) : data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Ainda não há posts. Seja o primeiro.</p>
         ) : (
-          <div className="flex flex-col">
+          <div className="watch-complication divide-y divide-white/8 overflow-hidden rounded-[22px] px-4">
             {data.items.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}
@@ -89,7 +89,7 @@ export function SocialFeedPage() {
 
 export function PostCard({ post }: { post: SocialPost }) {
   return (
-    <article className="flex gap-3 border-b border-white/8 px-1 py-4">
+    <article className="flex gap-3 px-1 py-4">
       <Link to={`/social/u/${post.username}`} className="icon-well flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
         {(post.display_name || post.username).slice(0, 1).toUpperCase()}
       </Link>

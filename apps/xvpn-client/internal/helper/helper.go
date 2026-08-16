@@ -201,6 +201,8 @@ func (h *Helper) registerHandlers(server *ipc.Server) {
 	server.Handle(ipc.MethodGetMTU, h.handleGetMTU)
 	server.Handle(ipc.MethodSetMTU, h.handleSetMTU)
 	server.Handle(ipc.MethodGetLogs, h.handleGetLogs)
+	server.HandlePeer(ipc.MethodMountSMB, h.handleMountSMB)
+	server.HandlePeer(ipc.MethodUnmountSMB, h.handleUnmountSMB)
 }
 
 func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {

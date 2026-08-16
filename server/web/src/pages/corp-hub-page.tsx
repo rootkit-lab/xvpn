@@ -47,7 +47,6 @@ export function CorpHubPage() {
       <ProductHeader
         product="xvpn"
         href="/"
-        productHref="/"
         trailing={
           user ? (
             <>

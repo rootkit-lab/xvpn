@@ -2,7 +2,7 @@
 
 Fonte da verdade visual: [`scss/_color-system.scss`](./scss/_color-system.scss).  
 Efeitos (vidro, glow, Power): [`scss/_utilities.scss`](./scss/_utilities.scss).  
-Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marca: [`brand/ihuull-mark.png`](./brand/ihuull-mark.png) + [`brand/ihuull-wordmark.png`](./brand/ihuull-wordmark.png). Marks de produto (mesma silhueta, `--product`): `brand/xvpn-mark.svg`, `xgroup-mark.svg`, `xdriver-mark.svg`, `marketplace-mark.svg`. Header: `ProductHeader`.
+Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marks de produto (silhueta, `--product`): `brand/xvpn-mark.svg`, `xgroup-mark.svg`, `xdriver-mark.svg`, `marketplace-mark.svg`. Wordmark ihuull **não** entra no header — só no hero da landing se precisar. Header: `ProductHeader`.
 
 **Não** copie tokens nem reimplemente estas classes num app. Importe daqui.
 
@@ -32,21 +32,21 @@ Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marca: [`brand/ihuull-mark.png
 | Componente | Alias | Quando usar |
 |---|---|---|
 | `ShellFace` | `@xvpn/ui/react/shell-face` | Todo shell de produto |
-| `ProductHeader` | `@xvpn/ui/react/product-header` | Header global (Fase 33) — ihuull + produto + `children`/`trailing` |
+| `ProductHeader` | `@xvpn/ui/react/product-header` | Chrome de sistema — ícone + nome do app + `trailing` |
 | `ProductMark` | `@xvpn/ui/react/product-mark` | Silhueta da fita; cor = `--product` |
 | `IconButton` | `@xvpn/ui/react/icon-button` | Ações de ícone (`filled` + `size="lg"` = AppSlot) |
 | `Complication` | `@xvpn/ui/react/complication` | Card; props `label`/`value` iguais ao client |
 | `StatusDot` | `@xvpn/ui/react/status-dot` | Presença / VPN |
 
-`ProductHeader` — um chrome, todos os SPAs. Sem react-router (use `href` absoluto entre hosts).
+`ProductHeader` — chrome de sistema, todos os SPAs. Sem react-router (use `href` absoluto entre hosts). Sem wordmark, sem título de rota, sem busca.
 
 | Prop | Tipo | Papel |
 |---|---|---|
 | `product` | `ihuull` \| `xvpn` \| `xchat` \| `marketplace` \| `xgroup` \| `xdriver` | Identidade (`data-product` + `--product`) |
-| `href` | `string` | Link da marca ihuull (default `/`) |
-| `productHref` | `string` | Link do mark do produto (default = `href`) |
-| `children` | `ReactNode` | Centro — busca, título da rota |
-| `trailing` | `ReactNode` | Direita — `AccountMenu`, `AppLauncher`, logout |
+| `href` | `string` | Link do app (default `/`) |
+| `trailing` | `ReactNode` | Direita — Settings, waffle, `AccountMenu` |
+
+Título da página (`PageHeading`) fica no template do app (`SystemChrome`), não neste chrome.
 
 Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
 

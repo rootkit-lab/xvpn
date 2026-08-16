@@ -1,12 +1,18 @@
 import { useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { Download, ExternalLink, HardDrive, Laptop, Store, UserRound } from 'lucide-react'
+import { Download, ExternalLink, HardDrive, Laptop, Shield, Store, UserRound } from 'lucide-react'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
 import { api } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { isViewerUpRole } from '@/lib/roles'
-import { MARKETPLACE_ORIGIN, XCHAT_CORP_ORIGIN, XDRIVER_CORP_ORIGIN, XGROUP_CORP_ORIGIN } from '@/lib/product-host'
+import {
+  MARKETPLACE_ORIGIN,
+  XCHAT_CORP_ORIGIN,
+  XDRIVER_CORP_ORIGIN,
+  XGROUP_CORP_ORIGIN,
+  ssoLoginURL,
+} from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { AppLauncher } from '@/components/layout/app-launcher'
 import { AppSettingsButton } from '@/components/layout/app-settings-button'
@@ -17,36 +23,37 @@ const SHORTCUTS = [
   {
     href: MARKETPLACE_ORIGIN,
     label: 'Marketplace',
-    description: 'Baixe o cliente e os apps da intranet',
+    description: 'Cliente e apps da intranet',
     icon: Store,
   },
   {
     href: XDRIVER_CORP_ORIGIN,
     label: 'XDRIVER',
-    description: 'Arquivos só com a VPN ligada',
+    description: 'Arquivos — só com a VPN',
     icon: HardDrive,
   },
   {
     href: XCHAT_CORP_ORIGIN,
     label: 'XCHAT',
-    description: 'Messenger — só na VPN',
+    description: 'Messenger na VPN',
     icon: Laptop,
   },
   {
     href: XGROUP_CORP_ORIGIN,
     label: 'XGROUP',
-    description: 'Rede social — só na VPN',
+    description: 'Rede social na VPN',
     icon: UserRound,
   },
 ] as const
 
 export function XvpnProductPortal() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoadingUser } = useAuth()
   const fetchStatus = useCallback(() => api.status(), [])
   const { data: status, error, loading } = usePollingData(fetchStatus, 10_000)
   const online = Boolean(status) && !error
   const checking = loading && !status && !error
   const showAdmin = isViewerUpRole(user?.role)
+  const loginHref = ssoLoginURL()
 
   return (
     <div data-product="xvpn" className="watch-face relative flex min-h-svh flex-col overflow-hidden">
@@ -55,41 +62,45 @@ export function XvpnProductPortal() {
       <ProductHeader
         product="xvpn"
         href="/"
-        productHref="/"
         trailing={
-          isAuthenticated && user ? (
+          isLoadingUser ? (
+            <span className="hud-label text-muted-foreground/50">Sessão…</span>
+          ) : isAuthenticated && user ? (
             <>
               <AppSettingsButton kind="user" />
               <AppLauncher variant="user" />
               <AccountMenu variant="user" />
             </>
           ) : (
-            <Button variant="ghost" className="rounded-full" asChild>
-              <Link to="/my/login">Entrar</Link>
+            <Button size="sm" className="rounded-full" asChild>
+              <a href={loginHref}>Entrar</a>
             </Button>
           )
         }
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 py-10 md:px-8">
+      <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-4 py-10 md:px-8">
         <section className="flex flex-col gap-3">
           <p className="hud-label text-muted-foreground/70">Portal</p>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Sua VPN privada</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
+            {isAuthenticated && user ? `Olá, ${user.username}` : 'Sua VPN privada'}
+          </h1>
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Status do túnel, download do cliente e atalhos. A operação de peers fica em Administração —
-            esta home não lista dispositivos.
+            {isAuthenticated
+              ? 'Status do túnel, cliente e atalhos da intranet. Peers e contas ficam em Administração.'
+              : 'Status do túnel, download do cliente e atalhos. A operação de peers fica em Administração — esta home não lista dispositivos.'}
           </p>
         </section>
 
-        <section className="watch-complication flex items-start gap-3 rounded-[18px] p-4">
+        <section className="watch-complication flex items-center gap-4 rounded-[22px] p-5">
           <span
             className={cn(
-              'mt-1.5 size-2 shrink-0 rounded-full',
+              'size-2.5 shrink-0 rounded-full',
               checking ? 'bg-muted-foreground/50' : online ? 'status-safe-dot' : 'bg-destructive',
             )}
             aria-hidden
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-semibold">
               {checking ? 'Consultando…' : online ? 'VPN no ar' : 'API offline'}
             </p>
@@ -104,6 +115,14 @@ export function XvpnProductPortal() {
               </p>
             )}
           </div>
+          {showAdmin && (
+            <Button size="sm" variant="outline" className="hidden rounded-full sm:inline-flex" asChild>
+              <Link to="/admin">
+                <Shield className="size-4" />
+                Admin
+              </Link>
+            </Button>
+          )}
         </section>
 
         <section className="flex flex-wrap gap-3">
@@ -113,9 +132,9 @@ export function XvpnProductPortal() {
               Baixar o cliente
             </a>
           </Button>
-          {!isAuthenticated && (
+          {!isLoadingUser && !isAuthenticated && (
             <Button size="lg" variant="outline" className="rounded-full" asChild>
-              <Link to="/my/login">Já tenho acesso</Link>
+              <a href={loginHref}>Já tenho acesso</a>
             </Button>
           )}
           {isAuthenticated && (
@@ -127,12 +146,14 @@ export function XvpnProductPortal() {
 
         <section>
           <h2 className="hud-label mb-3 text-muted-foreground/70">Atalhos</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             {isAuthenticated && (
               <Link to="/my/devices" className="watch-complication-lift watch-complication block rounded-[18px] p-4">
-                <Laptop className="mb-2 size-5 text-muted-foreground" />
+                <Laptop className="mb-3 size-5 text-muted-foreground" />
                 <p className="font-display text-sm font-semibold">Dispositivos</p>
-                <p className="mt-1 text-xs text-muted-foreground">Revogar os seus peers — não é o dashboard de admin</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Revogar os seus peers — não é o dashboard de admin
+                </p>
               </Link>
             )}
             {SHORTCUTS.map(({ href, label, description, icon: Icon }) => (
@@ -141,9 +162,9 @@ export function XvpnProductPortal() {
                 href={href}
                 className="watch-complication-lift watch-complication block rounded-[18px] p-4"
               >
-                <Icon className="mb-2 size-5 text-muted-foreground" />
+                <Icon className="mb-3 size-5 text-muted-foreground" />
                 <p className="font-display text-sm font-semibold">{label}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
               </a>
             ))}
           </div>

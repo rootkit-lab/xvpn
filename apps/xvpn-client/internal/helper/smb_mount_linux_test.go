@@ -1,0 +1,70 @@
+//go:build linux
+
+package helper
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"golang.org/x/sys/unix"
+)
+
+func TestMkdirOpenat_ReplacesSymlink(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Symlink("/tmp", filepath.Join(root, "XVPN")); err != nil {
+		t.Fatal(err)
+	}
+	parent, err := unix.Open(root, unix.O_DIRECTORY|unix.O_RDONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(parent)
+	fd, err := mkdirOpenat(parent, "XVPN", os.Getuid(), os.Getgid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(fd)
+	fi, err := os.Lstat(filepath.Join(root, "XVPN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatal("ainda é symlink")
+	}
+	if !fi.IsDir() {
+		t.Fatal("não é diretório")
+	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Fatalf("perm %o want 0700", fi.Mode().Perm())
+	}
+}
+
+func TestOpenMountpoint_RefusesSymlinkLeaf(t *testing.T) {
+	home := t.TempDir()
+	if err := os.Mkdir(filepath.Join(home, "XVPN"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/tmp", filepath.Join(home, "XVPN", "Compartilhado")); err != nil {
+		t.Fatal(err)
+	}
+	_, err := openMountpoint(mountSMBTarget{Home: home, Share: "shared"})
+	if err == nil {
+		t.Fatal("symlink deveria falhar")
+	}
+}
+
+func TestMkdirOpenat_RejectsTraversal(t *testing.T) {
+	root := t.TempDir()
+	parent, err := unix.Open(root, unix.O_DIRECTORY|unix.O_RDONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unix.Close(parent)
+	if _, err := mkdirOpenat(parent, "..", os.Getuid(), os.Getgid()); err == nil {
+		t.Fatal(".. deveria falhar")
+	}
+	if _, err := mkdirOpenat(parent, "a/b", os.Getuid(), os.Getgid()); err == nil {
+		t.Fatal("slash deveria falhar")
+	}
+}

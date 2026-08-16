@@ -90,7 +90,6 @@ export function LandingPage() {
       <ProductHeader
         product={product}
         href="/"
-        productHref="/"
         trailing={
           <Button variant="ghost" className="rounded-full" asChild>
             <Link to="/my/login">Entrar</Link>

@@ -53,6 +53,50 @@ func TestChownShare_SameUser(t *testing.T) {
 	}
 }
 
+func TestRejectSymlinks(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "files")
+	if err := os.MkdirAll(filepath.Join(base, "ok"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(dir, "outside")
+	if err := os.Mkdir(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "evil")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := RejectSymlinks(base, filepath.Join(base, "ok")); err != nil {
+		t.Fatal(err)
+	}
+	if err := RejectSymlinks(base, link); err != ErrBadPath {
+		t.Fatalf("symlink na raiz: %v", err)
+	}
+	if err := RejectSymlinks(base, filepath.Join(link, "x")); err != ErrBadPath {
+		t.Fatalf("symlink no meio: %v", err)
+	}
+}
+
+func TestChownShare_RejectsSymlink(t *testing.T) {
+	u, err := user.Current()
+	if err != nil || !validUsername(u.Username) {
+		t.Skip("username local fora do padrão Unix do Drive")
+	}
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.WriteFile(target, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := ChownShare(link, "home", u.Username); err == nil {
+		t.Fatal("esperava erro em symlink")
+	}
+}
+
 func TestResolveRejectsBadUser(t *testing.T) {
 	r := Roots{SharedDir: "/tmp/s", HomeRoot: "/tmp/h"}
 	if _, err := r.Resolve("../root", "home", ""); err != ErrBadUser {

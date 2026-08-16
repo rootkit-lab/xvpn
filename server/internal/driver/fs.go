@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode"
 )
 
@@ -68,9 +69,60 @@ func (r Roots) Resolve(username, root, rel string) (string, error) {
 	return full, nil
 }
 
+// RejectSymlinks recusa qualquer componente existente de full que seja
+// symlink, para mkdir/upload/chown não saírem da raiz do share.
+func RejectSymlinks(base, full string) error {
+	base = filepath.Clean(base)
+	full = filepath.Clean(full)
+	if full != base && !strings.HasPrefix(full, base+string(os.PathSeparator)) {
+		return ErrBadPath
+	}
+	if err := rejectIfSymlink(base); err != nil {
+		if os.IsNotExist(err) {
+			return ErrBadPath
+		}
+		return err
+	}
+	rel, err := filepath.Rel(base, full)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return ErrBadPath
+	}
+	if rel == "." {
+		return nil
+	}
+	cur := base
+	for _, part := range strings.Split(rel, string(os.PathSeparator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		cur = filepath.Join(cur, part)
+		err := rejectIfSymlink(cur)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectIfSymlink(path string) error {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return ErrBadPath
+	}
+	return nil
+}
+
 // ChownShare passa o arquivo/pasta criado pelo Drive para o force user
 // do Samba (dono do home ou xvpn-shared) e mantém ACL rwx do xvpn.
 // Sem isso o GVFS/CIFS do dono toma permission denied (os error 13).
+// Abre com O_NOFOLLOW e aplica ACL/chown no fd — um symlink plantado
+// no share não recebe setfacl no referente.
 func ChownShare(path, root, username string) error {
 	name := username
 	if root == "shared" {
@@ -91,12 +143,22 @@ func ChownShare(path, root, username string) error {
 	if err != nil {
 		return err
 	}
-	spec := "u:xvpn:rwx,u:" + name + ":rwx"
-	_ = exec.Command("setfacl", "-m", spec, path).Run()
-	if info, err := os.Stat(path); err == nil && info.IsDir() {
-		_ = exec.Command("setfacl", "-d", "-m", spec, path).Run()
+	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return err
 	}
-	return os.Chown(path, uid, gid)
+	defer syscall.Close(fd)
+	proc := "/proc/self/fd/" + strconv.Itoa(fd)
+	spec := "u:xvpn:rwx,u:" + name + ":rwx"
+	_ = exec.Command("setfacl", "-m", spec, proc).Run()
+	var st syscall.Stat_t
+	if err := syscall.Fstat(fd, &st); err != nil {
+		return err
+	}
+	if st.Mode&syscall.S_IFMT == syscall.S_IFDIR {
+		_ = exec.Command("setfacl", "-d", "-m", spec, proc).Run()
+	}
+	return syscall.Fchown(fd, uid, gid)
 }
 
 func RelFrom(base, full string) string {

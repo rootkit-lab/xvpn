@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
 
@@ -54,8 +55,14 @@ func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string) (
 		c.JSON(http.StatusForbidden, gin.H{"error": "Meu Drive desligado nesta conta"})
 		return "", false
 	}
-	full, err := a.driverRoots().Resolve(user.Username, root, rel)
+	roots := a.driverRoots()
+	full, err := roots.Resolve(user.Username, root, rel)
 	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return "", false
+	}
+	base, err := roots.Resolve(user.Username, root, "")
+	if err != nil || driver.RejectSymlinks(base, full) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return "", false
 	}
@@ -109,7 +116,7 @@ func (a *App) handleDriverMkdir(c *gin.Context) {
 		return
 	}
 	dest := filepath.Join(parent, req.Name)
-	if err := os.MkdirAll(dest, 0o775); err != nil {
+	if err := os.Mkdir(dest, 0o775); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao criar pasta"})
 		return
 	}
@@ -140,10 +147,6 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := os.MkdirAll(dir, 0o775); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
-		return
-	}
 	src, err := fh.Open()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
@@ -151,7 +154,7 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 	}
 	defer src.Close()
 	dest := filepath.Join(dir, name)
-	dst, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o664)
+	dst, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, 0o664)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
 		return
@@ -175,7 +178,7 @@ func (a *App) handleDriverDownload(c *gin.Context) {
 	if !ok {
 		return
 	}
-	st, err := os.Stat(full)
+	st, err := os.Lstat(full)
 	if err != nil || st.IsDir() {
 		c.JSON(http.StatusNotFound, gin.H{"error": "arquivo não encontrado"})
 		return

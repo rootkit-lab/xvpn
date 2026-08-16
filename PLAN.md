@@ -640,7 +640,7 @@ Fonte: `shared/ui/react/products.ts`. Header autenticado: waffle de apps **sempr
 - Fluxo de enrollment: usuário insere um "código de convite" (gerado no painel web) → app gera par de chaves localmente → registra no servidor → recebe config → conecta.
 - Kill switch (opcional, ativável): bloqueia todo tráfego fora do túnel se a VPN cair inesperadamente (via `nftables` no Linux / Windows Filtering Platform no Windows).
 - Reconexão automática com backoff exponencial.
-- Atalho para abrir o compartilhamento de arquivos (botão "Abrir arquivos do servidor" → monta/abre `\\10.66.66.1\shared` no Windows; no Linux o helper tenta CIFS no kernel em `~/XVPN/…` com `cache=loose` e cai no GVFS se `cifs-utils` não existir; e/ou abre `https://xdriver.corp.ihuull.com` no navegador padrão).
+- Atalho para abrir o compartilhamento de arquivos (botão "Abrir arquivos do servidor" → monta/abre `\\10.66.66.1\shared` no Windows; no Linux o helper tenta CIFS no kernel em `~/XVPN/…` com `cache=loose` — uid/gid via `SO_PEERCRED`, nunca JSON — e cai no GVFS se `cifs-utils` não existir; e/ou abre `https://xdriver.corp.ihuull.com` no navegador padrão).
 - Auto-start no boot do SO (opcional, configurável).
 - **MTU configurável** em Configurações/Diagnóstico (padrão automático, com override manual). Achado na validação manual da Fase 1 (`ROADMAP.md`): usuários atrás de outra VPN, CGNAT restritivo ou certas redes móveis têm um MTU efetivo menor que o padrão do WireGuard (1420), o que causa um "black hole" de PMTU — handshake e pacotes pequenos (ping) funcionam, mas tráfego HTTP/TLS trava silenciosamente. Sem essa opção, o usuário não teria como contornar o problema sozinho.
 

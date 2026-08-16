@@ -8,28 +8,23 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/rootkit-lab/xvpn/client/internal/ipc"
 )
 
-func (h *Helper) handleMountSMB(raw json.RawMessage) (any, error) {
+func (h *Helper) handleMountSMB(raw json.RawMessage, peer ipc.Peer) (any, error) {
 	var req MountSMBRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return nil, fmt.Errorf("parâmetros de mount SMB inválidos: %w", err)
 	}
-	target, err := resolveSMBMount(req)
+	target, err := resolveSMBMount(req, peer.UID, peer.GID)
 	if err != nil {
 		return nil, err
 	}
-	if fi, err := os.Lstat(target.Mountpoint); err == nil && fi.Mode()&os.ModeSymlink != 0 {
-		if err := os.Remove(target.Mountpoint); err != nil {
-			return nil, fmt.Errorf("removendo atalho GVFS %s: %w", target.Mountpoint, err)
-		}
-	}
-	if err := os.MkdirAll(target.Mountpoint, 0o755); err != nil {
-		return nil, fmt.Errorf("criando %s: %w", target.Mountpoint, err)
-	}
-	if err := os.Chown(target.Mountpoint, target.UID, target.GID); err != nil {
-		return nil, fmt.Errorf("chown %s: %w", target.Mountpoint, err)
+	if err := prepareMountpoint(target); err != nil {
+		return nil, err
 	}
 	if isCIFSMount(target.Mountpoint) {
 		return map[string]string{"mountpoint": target.Mountpoint}, nil
@@ -50,12 +45,12 @@ func (h *Helper) handleMountSMB(raw json.RawMessage) (any, error) {
 	return map[string]string{"mountpoint": target.Mountpoint}, nil
 }
 
-func (h *Helper) handleUnmountSMB(raw json.RawMessage) (any, error) {
+func (h *Helper) handleUnmountSMB(raw json.RawMessage, peer ipc.Peer) (any, error) {
 	var req MountSMBRequest
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return nil, fmt.Errorf("parâmetros de umount SMB inválidos: %w", err)
 	}
-	target, err := resolveSMBMount(req)
+	target, err := resolveSMBMount(req, peer.UID, peer.GID)
 	if err != nil {
 		return nil, err
 	}
@@ -68,6 +63,38 @@ func (h *Helper) handleUnmountSMB(raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("umount %s: %s", target.Mountpoint, strings.TrimSpace(string(out)))
 	}
 	return nil, nil
+}
+
+func prepareMountpoint(target mountSMBTarget) error {
+	if fi, err := os.Lstat(target.Mountpoint); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if err := os.Remove(target.Mountpoint); err != nil {
+			return fmt.Errorf("removendo atalho GVFS %s: %w", target.Mountpoint, err)
+		}
+	}
+	if err := os.MkdirAll(target.Mountpoint, 0o755); err != nil {
+		return fmt.Errorf("criando %s: %w", target.Mountpoint, err)
+	}
+	fi, err := os.Lstat(target.Mountpoint)
+	if err != nil {
+		return fmt.Errorf("stat %s: %w", target.Mountpoint, err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("mountpoint %s é symlink — recusado", target.Mountpoint)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("mountpoint %s não é diretório", target.Mountpoint)
+	}
+	real, err := filepath.EvalSymlinks(target.Mountpoint)
+	if err != nil {
+		return fmt.Errorf("resolvendo %s: %w", target.Mountpoint, err)
+	}
+	if !pathUnderHome(real, target.Home) {
+		return fmt.Errorf("mountpoint %s saiu do home do peer", real)
+	}
+	if err := os.Lchown(target.Mountpoint, target.UID, target.GID); err != nil {
+		return fmt.Errorf("lchown %s: %w", target.Mountpoint, err)
+	}
+	return nil
 }
 
 func isCIFSMount(mountpoint string) bool {

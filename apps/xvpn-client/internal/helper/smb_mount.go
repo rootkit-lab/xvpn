@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -14,19 +15,18 @@ const serverVPNAddress = "10.66.66.1"
 
 var smbShareName = regexp.MustCompile(`^(shared|home-[a-z][a-z0-9_-]{0,31})$`)
 
-// MountSMBRequest é o parâmetro de mount_smb. O helper resolve o
-// mountpoint a partir do uid (não confia em path vindo da GUI).
+// MountSMBRequest é o parâmetro de mount_smb. Host/share vêm da GUI;
+// uid/gid e o mountpoint vêm do peer Unix (SO_PEERCRED), nunca deste JSON.
 type MountSMBRequest struct {
 	Host  string `json:"host"`
 	Share string `json:"share"`
-	UID   int    `json:"uid"`
-	GID   int    `json:"gid"`
 }
 
 type mountSMBTarget struct {
 	Host       string
 	Share      string
 	Mountpoint string
+	Home       string
 	UID        int
 	GID        int
 }
@@ -41,7 +41,7 @@ func shareFolderName(share string) string {
 	return share
 }
 
-func resolveSMBMount(req MountSMBRequest) (mountSMBTarget, error) {
+func resolveSMBMount(req MountSMBRequest, uid, gid int) (mountSMBTarget, error) {
 	host := strings.TrimSpace(req.Host)
 	share := strings.TrimSpace(req.Share)
 	if host != serverVPNAddress {
@@ -50,22 +50,35 @@ func resolveSMBMount(req MountSMBRequest) (mountSMBTarget, error) {
 	if !smbShareName.MatchString(share) {
 		return mountSMBTarget{}, fmt.Errorf("share SMB inválido")
 	}
-	if req.UID < 1 || req.GID < 0 {
+	if uid < 1 || gid < 0 {
 		return mountSMBTarget{}, fmt.Errorf("uid/gid inválidos")
 	}
-	u, err := user.LookupId(strconv.Itoa(req.UID))
+	u, err := user.LookupId(strconv.Itoa(uid))
 	if err != nil {
-		return mountSMBTarget{}, fmt.Errorf("usuário %d: %w", req.UID, err)
+		return mountSMBTarget{}, fmt.Errorf("usuário %d: %w", uid, err)
 	}
 	if u.HomeDir == "" || u.HomeDir == "/" {
-		return mountSMBTarget{}, fmt.Errorf("home do uid %d inválida", req.UID)
+		return mountSMBTarget{}, fmt.Errorf("home do uid %d inválida", uid)
 	}
 	mountpoint := filepath.Join(u.HomeDir, "XVPN", shareFolderName(share))
 	return mountSMBTarget{
 		Host:       host,
 		Share:      share,
 		Mountpoint: mountpoint,
-		UID:        req.UID,
-		GID:        req.GID,
+		Home:       u.HomeDir,
+		UID:        uid,
+		GID:        gid,
 	}, nil
+}
+
+func pathUnderHome(realPath, home string) bool {
+	realHome, err := filepath.EvalSymlinks(home)
+	if err != nil {
+		realHome = filepath.Clean(home)
+	}
+	rel, err := filepath.Rel(realHome, realPath)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }

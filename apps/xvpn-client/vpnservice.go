@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"runtime"
 	"time"
 
@@ -212,10 +211,9 @@ func (s *VPNService) mountFileSharesBestEffort() {
 	if err != nil || !status.Connected || !status.SambaEnabled {
 		return
 	}
-	uid, gid := os.Getuid(), os.Getgid()
-	_ = s.mountSMBViaHelper(sharedSambaName, uid, gid)
+	_ = s.mountSMBViaHelper(sharedSambaName)
 	if status.Username != "" {
-		_ = s.mountSMBViaHelper(homeSambaPrefix+status.Username, uid, gid)
+		_ = s.mountSMBViaHelper(homeSambaPrefix + status.Username)
 	}
 	_ = opener.EnsureSMBMounted(serverVPNAddress, sharedSambaName)
 	if status.Username != "" {
@@ -223,7 +221,7 @@ func (s *VPNService) mountFileSharesBestEffort() {
 	}
 }
 
-func (s *VPNService) mountSMBViaHelper(share string, uid, gid int) error {
+func (s *VPNService) mountSMBViaHelper(share string) error {
 	client, err := ipc.Dial()
 	if err != nil {
 		return err
@@ -232,8 +230,6 @@ func (s *VPNService) mountSMBViaHelper(share string, uid, gid int) error {
 	return client.Call(ipc.MethodMountSMB, helper.MountSMBRequest{
 		Host:  serverVPNAddress,
 		Share: share,
-		UID:   uid,
-		GID:   gid,
 	}, nil)
 }
 
@@ -252,17 +248,16 @@ func (s *VPNService) Disconnect() error {
 
 // unmountFileSharesBestEffort limpa CIFS/GVFS/~/XVPN/Desktop deste servidor.
 func (s *VPNService) unmountFileSharesBestEffort() {
-	uid, gid := os.Getuid(), os.Getgid()
-	_ = s.unmountSMBViaHelper(sharedSambaName, uid, gid)
+	_ = s.unmountSMBViaHelper(sharedSambaName)
 	if status, err := s.Status(); err == nil && status.Username != "" {
-		_ = s.unmountSMBViaHelper(homeSambaPrefix+status.Username, uid, gid)
+		_ = s.unmountSMBViaHelper(homeSambaPrefix + status.Username)
 	}
 	if err := opener.UnmountServerSMBShares(serverVPNAddress); err != nil {
 		slog.Warn("unmount smb shares failed", "err", err)
 	}
 }
 
-func (s *VPNService) unmountSMBViaHelper(share string, uid, gid int) error {
+func (s *VPNService) unmountSMBViaHelper(share string) error {
 	client, err := ipc.Dial()
 	if err != nil {
 		return err
@@ -271,8 +266,6 @@ func (s *VPNService) unmountSMBViaHelper(share string, uid, gid int) error {
 	return client.Call(ipc.MethodUnmountSMB, helper.MountSMBRequest{
 		Host:  serverVPNAddress,
 		Share: share,
-		UID:   uid,
-		GID:   gid,
 	}, nil)
 }
 

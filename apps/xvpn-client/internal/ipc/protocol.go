@@ -51,9 +51,9 @@ const (
 	// diagnóstico da GUI.
 	MethodGetLogs = "get_logs"
 
-	// MethodMountSMB/MethodUnmountSMB — CIFS no kernel (Linux). O GVFS
-	// faz um GETINFO por arquivo (~RTT da VPN); o mount com cache deixa
-	// o gerenciador de arquivos listar como pasta local.
+	// MethodMountSMB/MethodUnmountSMB — CIFS no kernel (Linux). O uid/gid
+	// do mount vem de SO_PEERCRED, não do JSON. O GVFS faz um GETINFO por
+	// arquivo (~RTT da VPN); o mount com cache lista como pasta local.
 	MethodMountSMB   = "mount_smb"
 	MethodUnmountSMB = "unmount_smb"
 )

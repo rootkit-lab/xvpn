@@ -1099,7 +1099,7 @@ Decisão em `PLAN.md` §6.13. **Não** criar binário por produto. Ordem: header
 - [x] `xdriver.ihuull.com` deixa de ser landing — Drive só em `xdriver.corp`.
 - [x] Lockup padronizado (`PLAN.md` §6.13): XVPN/XCHAT Client, XGROUP Social, XDRIVER Drive, Marketplace Store. Chrome de sistema = ícone + nome + Settings/waffle/conta — sem wordmark ihuull. Título da rota no `PageHeading` do template. Scrollbar canônica em `shared/ui`.
 - [x] Handoff SSO: `GET /api/auth/handoff-token` só no xauth — "Continuar como" manda o JWE ao `xvpn.ihuull.com` (portal não fica em Entrar com sessão no cookie).
-- [x] Linux: helper monta CIFS em `~/XVPN` (`cache=loose`); GVFS só se `cifs-utils` faltar.
+- [x] Linux: helper monta CIFS em `~/XVPN` (`cache=loose`); uid/gid via `SO_PEERCRED`; GVFS só se `cifs-utils` faltar.
 
 **Critério de saída:** um login abre os portais permitidos; header idêntico com logo certo; app `network:vpn` some da loja pública; `/admin` não mistura peers com vitrine; `go test ./internal/api/ -count=1` da matriz cabe em dezenas de segundos.
 

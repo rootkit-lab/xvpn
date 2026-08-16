@@ -78,6 +78,28 @@ func TestRejectSymlinks(t *testing.T) {
 	}
 }
 
+func TestOpenDirNoFollow_RejectsSymlinkParent(t *testing.T) {
+	dir := t.TempDir()
+	base := filepath.Join(dir, "files")
+	outside := filepath.Join(dir, "outside")
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(outside, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(base, "evil")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := OpenDirNoFollow(base, link); err == nil {
+		t.Fatal("esperava erro ao abrir symlink")
+	}
+	if err := MkdirShare(base, link, "novo", "home", "alice"); err == nil {
+		t.Fatal("esperava erro ao mkdir via symlink")
+	}
+}
+
 func TestChownShare_RejectsSymlink(t *testing.T) {
 	u, err := user.Current()
 	if err != nil || !validUsername(u.Username) {

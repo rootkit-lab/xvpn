@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/gin-gonic/gin"
 
@@ -50,23 +49,23 @@ func (a *App) driverRoots() driver.Roots {
 	return driver.Roots{SharedDir: shared, HomeRoot: home}
 }
 
-func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string) (string, bool) {
+func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string) (full, base string, ok bool) {
 	if root == "home" && !user.SambaEnabled && !user.SFTPEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Meu Drive desligado nesta conta"})
-		return "", false
+		return "", "", false
 	}
 	roots := a.driverRoots()
 	full, err := roots.Resolve(user.Username, root, rel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
-		return "", false
+		return "", "", false
 	}
-	base, err := roots.Resolve(user.Username, root, "")
+	base, err = roots.Resolve(user.Username, root, "")
 	if err != nil || driver.RejectSymlinks(base, full) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
-		return "", false
+		return "", "", false
 	}
-	return full, true
+	return full, base, true
 }
 
 func (a *App) handleDriverList(c *gin.Context) {
@@ -77,7 +76,7 @@ func (a *App) handleDriverList(c *gin.Context) {
 	}
 	root := c.DefaultQuery("root", "shared")
 	rel := c.Query("path")
-	full, ok := a.driverResolve(c, user, root, rel)
+	full, _, ok := a.driverResolve(c, user, root, rel)
 	if !ok {
 		return
 	}
@@ -111,16 +110,14 @@ func (a *App) handleDriverMkdir(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	parent, ok := a.driverResolve(c, user, req.Root, req.Path)
+	parent, base, ok := a.driverResolve(c, user, req.Root, req.Path)
 	if !ok {
 		return
 	}
-	dest := filepath.Join(parent, req.Name)
-	if err := os.Mkdir(dest, 0o775); err != nil {
+	if err := driver.MkdirShare(base, parent, req.Name, req.Root, user.Username); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao criar pasta"})
 		return
 	}
-	_ = driver.ChownShare(dest, req.Root, user.Username)
 	c.JSON(http.StatusCreated, gin.H{"ok": true})
 }
 
@@ -143,7 +140,7 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	dir, ok := a.driverResolve(c, user, root, rel)
+	dir, base, ok := a.driverResolve(c, user, root, rel)
 	if !ok {
 		return
 	}
@@ -153,8 +150,7 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 		return
 	}
 	defer src.Close()
-	dest := filepath.Join(dir, name)
-	dst, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, 0o664)
+	dst, err := driver.CreateFileShare(base, dir, name, root, user.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
 		return
@@ -164,7 +160,6 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
 		return
 	}
-	_ = driver.ChownShare(dest, root, user.Username)
 	c.JSON(http.StatusCreated, gin.H{"ok": true, "name": name})
 }
 
@@ -174,7 +169,7 @@ func (a *App) handleDriverDownload(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	full, ok := a.driverResolve(c, user, c.Query("root"), c.Query("path"))
+	full, _, ok := a.driverResolve(c, user, c.Query("root"), c.Query("path"))
 	if !ok {
 		return
 	}
@@ -200,7 +195,7 @@ func (a *App) handleDriverDelete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	full, ok := a.driverResolve(c, user, req.Root, req.Path)
+	full, _, ok := a.driverResolve(c, user, req.Root, req.Path)
 	if !ok {
 		return
 	}

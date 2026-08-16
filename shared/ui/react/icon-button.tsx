@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
+import { cn } from './cn'
 
-/** Botão de ícone canônico — filled = rounded-[10px] vidro; senão círculo. */
+/** Botão de ícone canônico — filled = poço de vidro (header do client); senão círculo. */
 export function IconButton({
   children,
   onClick,
@@ -8,6 +9,8 @@ export function IconButton({
   title,
   disabled,
   filled = false,
+  size = 'md',
+  className = '',
 }: {
   children: ReactNode
   onClick?: () => void
@@ -15,7 +18,14 @@ export function IconButton({
   title?: string
   disabled?: boolean
   filled?: boolean
+  size?: 'md' | 'lg'
+  className?: string
 }) {
+  const well =
+    size === 'lg'
+      ? 'size-12 rounded-[16px] icon-well-lg'
+      : 'size-8 rounded-[10px] icon-well'
+
   return (
     <button
       type="button"
@@ -23,11 +33,13 @@ export function IconButton({
       disabled={disabled}
       aria-label={label}
       title={title ?? label}
-      className={
+      className={cn(
+        'flex items-center justify-center text-foreground transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40',
         filled
-          ? 'flex size-8 items-center justify-center rounded-[10px] bg-gradient-to-b from-white/16 to-white/6 text-foreground shadow-[inset_0_1px_0_color-mix(in_oklch,white_18%,transparent)] transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40'
-          : 'flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
-      }
+          ? well
+          : 'size-8 rounded-full text-muted-foreground hover:bg-white/10 hover:text-foreground',
+        className,
+      )}
     >
       {children}
     </button>

@@ -1044,8 +1044,11 @@ O painel web deixa a paleta navy/Workspace e passa a **importar** o mesmo color 
 - [x] Painel: `SystemChrome` + login + `Card` usam `watch-face` / `watch-complication` / Outfit.
 - [x] Catálogo `shared/ui/COMPONENTS.md` + skill `desktop-app-ui` (painel incluso).
 - [x] `frontend-react.mdc` e `new-intranet-app` apontam para `shared/ui`.
+- [x] Efeitos do client no SASS compartilhado: `power-safe`, `icon-well`, `field-glass`, `chrome-bar`, `btn-glow`, `nav-link`.
+- [x] Landing `/` entra no sistema (`watch-face`, mesmos cards/pills/inputs) — sem paleta marketing paralela.
+- [x] Button / Input / Card do painel e do chat usam as classes canônicas (sem `rounded-md` + `bg-primary` plano).
 
-**Critério de saída:** mudar um token em `_color-system.scss` altera os três frontends; `rg 'oklch\\(0\\.15 0\\.022 255\\)'` (navy antigo) vazio nos CSS de app.
+**Critério de saída:** mudar um token em `_color-system.scss` altera os três frontends; `rg 'oklch\\(0\\.15 0\\.022 255\\)'` (navy antigo) vazio nos CSS de app; `power-safe` existe só em `shared/ui/scss/_utilities.scss`.
 
 ---
 

@@ -119,18 +119,6 @@ export function ConnectionRings({
           />
         )}
       </svg>
-      <style>{`
-        @keyframes watch-ring-spin {
-          to { transform: rotate(360deg); }
-        }
-        @keyframes watch-ring-spin-rev {
-          to { transform: rotate(-360deg); }
-        }
-        @keyframes watch-ring-pulse {
-          0%, 100% { opacity: 0.2; transform: scale(0.96); }
-          50% { opacity: 0.45; transform: scale(1.04); }
-        }
-      `}</style>
     </div>
   )
 }

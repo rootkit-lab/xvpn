@@ -1,13 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Download, FolderOpen, Home, Store } from 'lucide-react'
+import { Home, Store } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
 const USER_NAV = [
   { to: '/my', label: 'Início', icon: Home, end: true },
-  { to: '/my/files', label: 'Arquivos', icon: FolderOpen, end: false },
-  { to: '/my/download', label: 'Downloads', icon: Download, end: false },
-  { to: '/my/marketplace', label: 'Apps', icon: Store, end: false },
+  { to: '/my/marketplace', label: 'Marketplace', icon: Store, end: false },
 ] as const
 
 export function UserShell() {
@@ -22,14 +20,7 @@ export function UserShell() {
               key={to}
               to={to}
               end={end}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-[10px] px-3 py-2.5 font-display text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
-                )
-              }
+              className={({ isActive }) => cn('nav-link', isActive && 'nav-link-active')}
             >
               <Icon className="size-4" />
               {label}

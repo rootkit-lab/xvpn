@@ -77,16 +77,16 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
             <CardTitle className="font-display text-xl tracking-tight">
               {isAdminLogin ? 'xvpn — Administração' : 'xvpn'}
             </CardTitle>
-            <CardDescription className="hud-label text-muted-foreground/80">
+            <CardDescription className="hud-label text-muted-foreground/75">
               {isAdminLogin
                 ? 'acesso seguro · painel do sistema'
-                : 'dispositivos · downloads · apps'}
+                : 'dispositivos · marketplace'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="username" className="hud-label text-muted-foreground/80">
+                <Label htmlFor="username" className="hud-label text-muted-foreground/75">
                   Usuário
                 </Label>
                 <Input
@@ -95,11 +95,10 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="font-mono"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <Label htmlFor="password" className="hud-label text-muted-foreground/80">
+                <Label htmlFor="password" className="hud-label text-muted-foreground/75">
                   Senha
                 </Label>
                 <Input
@@ -109,7 +108,6 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="font-mono"
                 />
               </div>
               {error && (
@@ -118,7 +116,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
                   {error}
                 </p>
               )}
-              <Button type="submit" disabled={submitting} className="mt-2 rounded-[10px] font-display tracking-wide">
+              <Button type="submit" disabled={submitting} size="lg" className="mt-2 w-full">
                 {submitting ? 'Autenticando…' : 'Entrar →'}
               </Button>
             </form>

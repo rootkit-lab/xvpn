@@ -235,7 +235,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
 Páginas: **Login**, **Dashboard** (peers ativos, throughput agregado), **Usuários** (CRUD + gerar convite/QR code), **Dispositivos** (status, revogar), **Compartilhamentos** (gerenciar pastas Samba/FileBrowser e permissões), **Configurações** (rede, DNS, firewall), **Auditoria** (log de conexões/ações administrativas).
 
-**Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS). Preto profundo, `watch-face`, cards `watch-complication`, Outfit, acento `--safe`. Não há paleta navy/Workspace paralela. Ver [§6.12](#612-design-system-e-color-system).
+**Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS) — inclusive a landing `/`. Preto profundo, `watch-face`, cards `watch-complication`, `icon-well`, `field-glass`, Outfit, acento `--safe` / `power-safe`. Não há paleta navy/Workspace nem marketing paralela. Ver [§6.12](#612-design-system-e-color-system).
 
 Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.FS`. Resultado: **um único binário** `xvpn-server` sobe API + painel + lógica WireGuard. Simplifica deploy/systemd a um único serviço.
 
@@ -255,7 +255,7 @@ Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.
 
 ### 6.6 Landing pública e lista de espera (feature adicional, fora das 9 fases originais)
 
-Landing pública em `www.ihuull.com` / `ihuull.com` / `ihuu.com` (e marketing `xchat.ihuull.com`). O painel autenticado vive em `xvpn.ihuull.com` (`/my`, `/admin`). Formulário de lista de espera (nome + e-mail + mensagem opcional) no mesmo binário.
+Landing pública em `www.ihuull.com` / `ihuull.com` / `ihuu.com` (e marketing `xchat.ihuull.com`). O painel autenticado vive em `xvpn.ihuull.com` (`/my`, `/admin`). Formulário de lista de espera (nome + e-mail + mensagem opcional) no mesmo binário. Visual = o mesmo design system (`watch-face`, `watch-complication`, `btn-glow`, `field-glass`) — ver [§6.12](#612-design-system-e-color-system).
 
 **Decisão de design — aprovação não provisiona acesso automaticamente**: `POST /api/waitlist` (único endpoint de escrita da API **sem autenticação**) só grava um `WaitlistEntry` com status `pending`. Uma tela nova no painel (`/waitlist`, autenticada) lista os cadastros e permite marcá-los como `approved`/`rejected` — mas isso é só um sinalizador de "pode liberar". Aprovar **não** cria `User`/`InviteToken` automaticamente: o admin ainda cria o usuário e gera o convite manualmente na tela Usuários já existente (Fase 2/3), usando nome/e-mail do cadastro como referência. Justificativa: evita criar um segundo caminho de provisionamento de acesso (com sua própria superfície de bugs/segurança) só para essa conveniência — o único caminho que cria acesso real (`POST /api/users` → `POST /api/users/:id/invite`) continua sendo o mesmo já testado desde a Fase 2, sem mudanças. Mesmo padrão de decisão já usado para usuários Samba (§6.4/`ROADMAP.md` Fase 5): privilegiar manter operações sensíveis manuais em vez de automatizar via um caminho novo e menos escrutinado.
 
@@ -290,10 +290,10 @@ Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` s
 | Login | `/my/login` | mesmo JWE; entra autenticado | `/admin/login` |
 | Shell | `UserShell` / MyShell | `SocialShell` | `AdminShell` |
 | Destino pós-login | `member` → `/my` | atalho no waffle | `viewer+` → `/admin` |
-| Conteúdo | dispositivos, arquivos, downloads, apps, conta (senha/SSH) | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | dashboard, **diretório de usuários** (lista + ficha), papéis, devices, waitlist, marketplace ACL, settings, audit |
+| Conteúdo | dispositivos, Marketplace, conta (senha/SSH). XDriver só no waffle se Samba/SFTP ativo | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | **Core** (dashboard, users, papéis, devices, waitlist) · **Apps** (Marketplace, XDriver) · **Settings** (gerais, audit) |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
-Páginas do membro (`/my`): Início (dispositivos), Arquivos (Samba/SFTP/xdriver — member não chama `GET /api/config`), Downloads, Apps, conta (senha + chave SSH). Perfil **social** editável vive em `/social/u/:username` (produto **xgroup**), não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
+Páginas do membro (`/my`): Início (dispositivos), Marketplace (catálogo — o cliente VPN também vive aqui; `/my/download` redireciona), conta (senha + chave SSH). XDriver (`/my/files`) não fica no nav — só no waffle de apps, e só se Samba ou SFTP estiver ligado. Perfil **social** editável vive em `/social/u/:username` (produto **xgroup**), não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
 
 Página admin de papéis: `/admin/rbac`. Usuários: lista paginada `/admin/users` + ficha `/admin/users/:id` (abas), não tabela com cinco ícones por linha.
 
@@ -328,7 +328,7 @@ Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat). Design syste
 - **Configuração**: `XVPN_MARKETPLACE_DIR` (`internal/config/config.go`), obrigatória em produção com caminho absoluto dentro de `ReadWritePaths` do systemd (mesmo motivo do `XVPN_DB_PATH`, ver achado da Fase 2) — produção usa `/opt/xvpn/data/marketplace` (`server/deploy/xvpn-server.env.example`).
 - **Backup dos blobs**: como o conteúdo nunca muda depois de escrito (só é criado ou apagado), `server/deploy/backup.sh` passou a espelhar `XVPN_MARKETPLACE_DIR` para `$XVPN_BACKUP_DIR/marketplace/` via `rsync -a --delete` (incremental, sem gzip — os assets já costumam ser binários compactados) na mesma rotina diária que já fazia o `.backup` do `xvpn.db`. Mesma limitação de sempre: é uma cópia no mesmo disco da VPS, protege contra bug/exclusão acidental na aplicação, não contra falha física do disco (backup off-site fica fora do escopo desta fase).
 - **API**: na Fase 11 havia CRUD de app/versão/asset em `adminOnly`; a **Fase 16 removeu a publicação manual** — permanece `PUT /marketplace/apps/:id/access` (ACL operacional), `GET /marketplace/apps`, `GET /marketplace/assets/:id/download` e `POST /marketplace/sync` (token de CI / `super_admin`, ver §6.10). Modelo: `App` (com `Slug`/`Source`/`SourcePath`/`ArchivedAt`) → `AppVersion` → `AppAsset`; `AppAccess` só para apps `restricted`.
-- **UI**: tela `/admin/marketplace` para gestão (ACL + download); `/my/marketplace` só consumo. O cliente XVPN e o `xvpn-chat` (Fase 19.4) figuram no catálogo; `/my/download` é a primeira instalação do cliente VPN. Sem alias `/app` nem `/download` na raiz.
+- **UI**: tela `/admin/marketplace` para gestão (ACL + download); `/my/marketplace` só consumo (grade de ícones). O cliente XVPN e o `xvpn-chat` figuram no catálogo — `/my/download` e `/admin/download` **redirecionam** para o Marketplace. Sem alias `/app` nem `/download` na raiz.
 
 ### 6.9 Contas Unix reais por usuário (SFTP + Samba integrados)
 
@@ -544,7 +544,7 @@ Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes de
 |---|---|---|
 | Color system | `shared/ui/scss/_color-system.scss` | Maps `dark` / `light` / `icq` (oklch). Única fonte de hex/oklch |
 | `:root` | `shared/ui/scss/_root.scss` | Aplica `$dark` no documento |
-| Utilities | `shared/ui/scss/_utilities.scss` | `watch-face`, `watch-complication`, HUD |
+| Utilities | `shared/ui/scss/_utilities.scss` | `watch-face`, `watch-complication`, `power-safe`, `icon-well`, `field-glass`, `chrome-bar`, HUD |
 | Temas chat | `shared/ui/scss/_themes.scss` | `.xvpn-chat-root[data-chat-theme]` |
 | Tailwind v4 | `shared/ui/css/tailwind-bridge.css` | `@theme inline` → `bg-background` etc. |
 | Primitivos | `shared/ui/react/` | `ShellFace`, `IconButton`, `Complication`, `StatusDot` |
@@ -553,13 +553,13 @@ Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes de
 **Regras (não negociáveis):**
 
 1. Cor nova ou mudança de token → só `_color-system.scss`. Proibido segundo `:root` com oklch no app.
-2. Shell autenticado = `watch-face` + `watch-vignette` (`ShellFace` ou `SystemChrome`).
-3. Card = `watch-complication` + `rounded-[18px]`–`[22px]`. Botão de ícone = `IconButton` (`rounded-[10px]` filled).
-4. Tipo: Outfit (`--font-display`). Labels técnicas: `hud-label`.
-5. `--safe` = ativo / online / “meu”. Não inventar outro verde.
-6. ICQ e `light` são **opções** do messenger, nunca identidade do painel ou de app novo.
-7. shadcn (Button, Input, Dialog, DataTable) continua **por app** (React 18 vs 19). Estilo deles segue os tokens. Não publicar um segundo kit de card.
-8. Landing pública (`/`) pode ser mais marketing; `/my`, `/admin`, `/social` e logins **seguem** o sistema.
+2. Toda superfície de produto = `watch-face` + `watch-vignette` (`ShellFace`, `SystemChrome` **ou** landing `/`). Sem fundo `bg-background` plano paralelo.
+3. Card = `watch-complication` + `rounded-[18px]`–`[22px]`. Ícone de ação = `icon-well` / `IconButton` filled. Input = `field-glass`. Header/footer = `chrome-bar`.
+4. Tipo: Outfit (`--font-display`). Labels de complication: `hud-label` (10px, tracking 0.14em). `hud-mono` só se o contexto for terminal.
+5. `--safe` / `power-safe` = ativo / online / “meu” / túnel. CTA de marca = `btn-glow` (`--primary`). Não inventar outro verde.
+6. ICQ e `light` são **opções** do messenger, nunca identidade do painel, landing ou de app novo.
+7. shadcn (Button, Input, Dialog, DataTable) continua **por app** (React 18 vs 19). Estilo deles **usa as classes canônicas** — proibido `rounded-md` + `bg-primary` plano.
+8. Landing pública (`/`), `/my`, `/admin`, `/social` e logins **seguem o mesmo sistema**. Sem paleta marketing paralela.
 
 Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta para `shared/ui`, não “copiar CSS do client”.
 

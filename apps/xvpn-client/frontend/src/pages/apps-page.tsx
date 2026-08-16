@@ -150,7 +150,7 @@ export function AppsPage({ status, onBack }: AppsPageProps) {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="h-full">
       <WatchShell scroll className="gap-4">
         <WatchPageHeader
-          title="Apps"
+          title="Marketplace"
           onBack={onBack}
           trailing={
             <>

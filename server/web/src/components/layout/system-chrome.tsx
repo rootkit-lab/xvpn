@@ -53,11 +53,7 @@ export function SystemChrome({
             <span className={cn('font-display block font-semibold tracking-tight', variant === 'admin' ? 'text-lg' : 'text-base')}>
               XVPN
             </span>
-            {variant === 'admin' ? (
-              <span className="hud-label text-muted-foreground/70">{subtitle}</span>
-            ) : (
-              <span className="text-[11px] text-muted-foreground">{subtitle}</span>
-            )}
+            <span className="hud-label text-muted-foreground/70">{subtitle}</span>
           </div>
         </div>
         {variant === 'admin' && <div className="scanline mx-3" />}
@@ -82,7 +78,7 @@ export function SystemChrome({
           {chatOpen && (
             <aside
               id="xvpn-chat-sidebar"
-              className="relative z-20 flex h-full w-80 shrink-0 flex-col border-l border-white/8 bg-card max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-[min(100%,20rem)] max-md:shadow-2xl"
+              className="watch-complication relative z-20 flex h-full w-80 shrink-0 flex-col border-l border-white/8 max-md:absolute max-md:inset-y-0 max-md:right-0 max-md:z-30 max-md:w-[min(100%,20rem)] max-md:shadow-2xl"
             >
               <ChatSidebar />
             </aside>

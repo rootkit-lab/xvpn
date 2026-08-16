@@ -16,4 +16,4 @@ shared/ui/
 
 Mudança de cor → só `_color-system.scss`. Os três apps herdam no próximo build.
 
-Landing pública (`/`) pode ser mais marketing; `/my`, `/admin`, `/social` e logins autenticados **seguem** este sistema.
+Landing pública (`/`), painel autenticado e apps desktop **seguem** este sistema — mesmos efeitos (`power-safe`, `icon-well`, `field-glass`, `watch-complication`). Sem paleta marketing paralela.

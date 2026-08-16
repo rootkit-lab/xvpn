@@ -283,10 +283,22 @@ func TestHandleHandoffContinue_OnlyOnXAuth(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cross := httptest.NewRequest(http.MethodGet, redeemURL.RequestURI(), nil)
+	cross.Host = "xvpn.ihuull.com"
+	cross.Header.Set("Sec-Fetch-Dest", "document")
+	cross.Header.Set("Sec-Fetch-Mode", "navigate")
+	cross.Header.Set("Sec-Fetch-Site", "cross-site")
+	crossRec := httptest.NewRecorder()
+	router.ServeHTTP(crossRec, cross)
+	if crossRec.Code != http.StatusForbidden {
+		t.Fatalf("redeem cross-site deveria ser 403, got %d", crossRec.Code)
+	}
+
 	redeem := httptest.NewRequest(http.MethodGet, redeemURL.RequestURI(), nil)
 	redeem.Host = "xvpn.ihuull.com"
 	redeem.Header.Set("Sec-Fetch-Dest", "document")
 	redeem.Header.Set("Sec-Fetch-Mode", "navigate")
+	redeem.Header.Set("Sec-Fetch-Site", "same-site")
 	redeemRec := httptest.NewRecorder()
 	router.ServeHTTP(redeemRec, redeem)
 	if redeemRec.Code != http.StatusSeeOther {

@@ -177,6 +177,10 @@ func (a *App) handleRedeemHandoff(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "só navegação"})
 		return
 	}
+	if !auth.HandoffAllowed(c.GetHeader("Origin"), c.GetHeader("Referer"), c.GetHeader("Sec-Fetch-Site"), c.Request.Host) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "origem não permitida"})
+		return
+	}
 	if a.Tokens == nil || a.Handoff == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return

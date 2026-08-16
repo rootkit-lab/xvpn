@@ -2,6 +2,21 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.2](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.1...xvpn-client-v0.1.2) (2026-08-16)
+
+
+### Features
+
+* plataforma ihuull com JWE e design system compartilhado ([#71](https://github.com/rootkit-lab/xvpn/issues/71)) ([377587c](https://github.com/rootkit-lab/xvpn/commit/377587c9f6f3609a87f76a042fcf213689d41413))
+* **server:** apps do catálogo públicos ou só na VPN ([#77](https://github.com/rootkit-lab/xvpn/issues/77)) ([33c9522](https://github.com/rootkit-lab/xvpn/commit/33c95228770fe2897ddca7e1fa9ea6756d0d243d))
+* **web:** alinha o design system ao client e reorganiza Marketplace ([#73](https://github.com/rootkit-lab/xvpn/issues/73)) ([521f287](https://github.com/rootkit-lab/xvpn/commit/521f2873d61b64322d8a0193014cd6be164fcbbc))
+* **web:** hosts de produto, xgroup Twitter e XDriver nativo ([#75](https://github.com/rootkit-lab/xvpn/issues/75)) ([aa54d45](https://github.com/rootkit-lab/xvpn/commit/aa54d45311af38ec5e351412d651b55d0c388c49))
+
+
+### Bug Fixes
+
+* **web:** carrega o Sass do design system fora do pipeline do Tailwind ([#74](https://github.com/rootkit-lab/xvpn/issues/74)) ([9af006f](https://github.com/rootkit-lab/xvpn/commit/9af006f2ed37b543fab6a85683a7bc813b3a2942))
+
 ## [0.1.1](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.0...xvpn-client-v0.1.1) (2026-08-15)
 
 

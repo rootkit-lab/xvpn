@@ -2,6 +2,13 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.3](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.2...xvpn-client-v0.1.3) (2026-08-16)
+
+
+### Features
+
+* **client:** abre xchat/xgroup e resolve *.corp com a VPN ([#83](https://github.com/rootkit-lab/xvpn/issues/83)) ([d5adf05](https://github.com/rootkit-lab/xvpn/commit/d5adf05bab96012700df4f86ed46e4c6bdd6b953))
+
 ## [0.1.2](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.1...xvpn-client-v0.1.2) (2026-08-16)
 
 

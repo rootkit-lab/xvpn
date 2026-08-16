@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { FolderOpen, Pencil, Store, Trash2, UserRound } from 'lucide-react'
+import { Pencil, Trash2, UserRound } from 'lucide-react'
 import { api, ApiError, type Device } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime, formatRelativeTime } from '@/lib/format'
@@ -30,10 +30,8 @@ function isOnline(device: Device): boolean {
 }
 
 const SHORTCUTS = [
-  { to: '/my/files', label: 'xdriver', description: 'Samba, SFTP e FileBrowser na VPN (xdriver.corp)', icon: FolderOpen },
   { to: '/my/profile', label: 'Perfil', description: 'Papel, cota e resumo da conta', icon: UserRound },
   { to: '/my/account', label: 'Editar conta', description: 'Trocar senha e chave SSH', icon: Pencil },
-  { to: '/my/marketplace', label: 'Apps', description: 'Catálogo interno de programas', icon: Store },
 ] as const
 
 // PortalPage é o autosserviço (Fase 10 + Fase 18): dispositivos próprios e
@@ -44,7 +42,7 @@ export function PortalPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         {SHORTCUTS.map(({ to, label, description, icon: Icon }) => (
           <Link key={to} to={to} className="group">
             <Card className="h-full transition-colors group-hover:border-primary/40 group-hover:bg-primary/5">

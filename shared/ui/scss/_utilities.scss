@@ -1,4 +1,5 @@
 // Superfícies e HUD. Classes canônicas — não redefinir noutro index.css.
+// Efeitos extraídos do xvpn-client (power, vidro, anéis) para painel, landing e chat.
 
 .font-display {
   font-family: var(--font-display);
@@ -25,6 +26,21 @@
   backdrop-filter: blur(12px);
 }
 
+.watch-complication-lift {
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklch, var(--glow) 40%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklch, white 14%, transparent),
+      0 0 30px -10px var(--glow);
+  }
+}
+
 .status-safe-dot {
   background: var(--safe);
   box-shadow: 0 0 10px var(--glow-safe), 0 0 18px color-mix(in oklch, var(--glow-safe) 50%, transparent);
@@ -41,6 +57,129 @@
     opacity: 0.75;
     transform: scale(1.25);
   }
+}
+
+// Botão Power conectado — mesmo glow/respiração do cliente desktop.
+.power-safe {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklch, var(--safe) 92%, white) 0%,
+    var(--safe) 55%,
+    color-mix(in oklch, var(--safe) 80%, black) 100%
+  );
+  color: var(--safe-foreground);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, white 18%, transparent),
+    0 10px 36px -6px color-mix(in oklch, var(--glow-safe) 75%, transparent),
+    0 0 48px -4px color-mix(in oklch, var(--glow-safe) 55%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
+  animation: power-safe-breathe 2.8s ease-in-out infinite;
+}
+
+@keyframes power-safe-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, white 18%, transparent),
+      0 10px 36px -6px color-mix(in oklch, var(--glow-safe) 70%, transparent),
+      0 0 40px -4px color-mix(in oklch, var(--glow-safe) 45%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, white 22%, transparent),
+      0 14px 48px -2px color-mix(in oklch, var(--glow-safe) 95%, transparent),
+      0 0 72px 4px color-mix(in oklch, var(--glow-safe) 70%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 40%, transparent);
+  }
+}
+
+// CTA primário (landing / login) — mesmo tratamento de glow, acento da marca.
+.btn-glow {
+  background: linear-gradient(
+    160deg,
+    color-mix(in oklch, var(--primary) 88%, white) 0%,
+    var(--primary) 55%,
+    color-mix(in oklch, var(--primary) 78%, black) 100%
+  );
+  color: var(--primary-foreground);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, white 16%, transparent),
+    0 8px 28px -8px color-mix(in oklch, var(--glow) 70%, transparent),
+    0 0 36px -6px color-mix(in oklch, var(--glow) 45%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 28%, transparent);
+}
+
+.btn-glow:hover {
+  filter: brightness(1.06);
+}
+
+// Poço de ícone — header do client (rounded-[10px]) e AppSlot (rounded-[16px]).
+.icon-well {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, white 16%, transparent) 0%,
+    color-mix(in oklch, white 6%, transparent) 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 18%, transparent);
+}
+
+.icon-well-lg {
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, white 14%, transparent) 0%,
+    color-mix(in oklch, white 6%, transparent) 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 18%, transparent);
+}
+
+// Inputs / textarea — vidro do formulário da landing e do login.
+.field-glass {
+  background: color-mix(in oklch, white 4%, transparent);
+  border: 1px solid color-mix(in oklch, white 10%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 8%, transparent);
+  backdrop-filter: blur(8px);
+
+  &:focus-visible {
+    border-color: color-mix(in oklch, var(--glow) 45%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklch, white 10%, transparent),
+      0 0 0 3px color-mix(in oklch, var(--glow) 18%, transparent);
+    outline: none;
+  }
+}
+
+// Header / status bar do painel — mesmo vidro do chrome do client.
+.chrome-bar {
+  background: color-mix(in oklch, var(--card) 60%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 8%, transparent);
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 10px;
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.nav-link:hover {
+  background: color-mix(in oklch, white 5%, transparent);
+  color: var(--foreground);
+}
+
+.nav-link-active {
+  background: color-mix(in oklch, var(--safe) 15%, transparent);
+  color: var(--safe);
+  box-shadow: inset 1px 0 0 var(--safe);
 }
 
 .glow-blob {
@@ -92,7 +231,17 @@
     0 0 24px -4px var(--glow);
 }
 
+// Label de complication do client: Outfit 10px, tracking largo — não mono.
 .hud-label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.625rem;
+  line-height: 1;
+}
+
+.hud-mono {
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -108,4 +257,28 @@
     color-mix(in oklch, var(--glow) 50%, transparent),
     transparent
   );
+}
+
+@keyframes watch-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes watch-ring-spin-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes watch-ring-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.04);
+  }
 }

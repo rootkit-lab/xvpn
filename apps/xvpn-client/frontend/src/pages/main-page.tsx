@@ -201,7 +201,7 @@ export function MainPage({
           <span className="font-display text-[17px] font-semibold tracking-tight">XVPN</span>
         </div>
         <div className="flex items-center gap-2">
-          <WatchIconButton onClick={onOpenApps} label="Apps" title="Marketplace" filled>
+          <WatchIconButton onClick={onOpenApps} label="Marketplace" title="Marketplace" filled>
             <Store className="h-4 w-4" strokeWidth={2} />
           </WatchIconButton>
           <WatchIconButton onClick={onOpenDiagnostics} label="Diagnóstico" filled>
@@ -403,7 +403,7 @@ function Complication({
 }) {
   return (
     <div className="watch-complication rounded-[18px] px-3.5 py-2.5">
-      <p className="font-display text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75">{label}</p>
+      <p className="hud-label text-muted-foreground/75">{label}</p>
       <p className="mt-0.5 flex items-center gap-1 font-display text-[13px] font-semibold tabular-nums tracking-tight">
         {icon}
         <span className="truncate">{value}</span>
@@ -439,7 +439,7 @@ function AppSlot({
       title={title}
       className="group flex flex-col items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
     >
-      <span className="flex size-12 items-center justify-center rounded-[16px] bg-gradient-to-b from-white/14 to-white/6 text-foreground shadow-[inset_0_1px_0_color-mix(in_oklch,white_18%,transparent)] transition-transform group-hover:scale-105 group-active:scale-95">
+      <span className="icon-well-lg flex size-12 items-center justify-center rounded-[16px] text-foreground transition-transform group-hover:scale-105 group-active:scale-95">
         {icon}
       </span>
       <span className="font-display text-[10px] font-medium text-muted-foreground">{label}</span>

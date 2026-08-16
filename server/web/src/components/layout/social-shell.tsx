@@ -21,14 +21,7 @@ export function SocialShell() {
               key={to}
               to={to}
               end={end}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-[10px] px-3 py-2.5 font-display text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
-                )
-              }
+              className={({ isActive }) => cn('nav-link', isActive && 'nav-link-active')}
             >
               <Icon className="size-4" />
               {label}

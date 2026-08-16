@@ -69,8 +69,8 @@ export function ChatSidebar() {
               role="option"
               aria-selected={myStatus === s}
               className={cn(
-                'rounded-md px-2 py-1 text-[11px]',
-                myStatus === s ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',
+                'rounded-[10px] px-2 py-1 font-display text-[11px]',
+                myStatus === s ? 'bg-safe/15 text-safe' : 'text-muted-foreground hover:bg-white/8 hover:text-foreground',
               )}
               onClick={() => {
                 setMyStatus(s)

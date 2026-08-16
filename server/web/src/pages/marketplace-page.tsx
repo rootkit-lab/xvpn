@@ -64,7 +64,8 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
   const [q, setQ] = useState('')
   const [page, setPage] = useState(1)
-  const perPage = 25
+  const [openId, setOpenId] = useState<number | null>(null)
+  const perPage = 24
 
   const filtered = (apps ?? []).filter((app) => {
     const needle = q.trim().toLowerCase()
@@ -84,7 +85,7 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
           setQ(next)
           setPage(1)
         }}
-        placeholder="Buscar app"
+        placeholder="Buscar no Marketplace"
       />
 
       {loading || !apps ? (
@@ -126,20 +127,46 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Nenhum app disponível</CardTitle>
+              <CardTitle className="text-base">Marketplace vazio</CardTitle>
               <CardDescription>
-                Quando um administrador liberar programas para você, eles aparecem aqui para download.
+                Quando um administrador liberar programas para você, eles aparecem aqui.
               </CardDescription>
             </CardHeader>
           </Card>
         )
       ) : slice.length === 0 ? (
-        <EmptyState title="Nenhum app neste filtro." />
+        <EmptyState title="Nenhum item neste filtro." />
       ) : (
         <div className="flex flex-col gap-4">
-          {slice.map((app) => (
-            <AppCard key={app.id} app={app} isAdmin={isManage} onChanged={reload} />
-          ))}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {slice.map((app) => (
+              <button
+                key={app.id}
+                type="button"
+                onClick={() => setOpenId((id) => (id === app.id ? null : app.id))}
+                className={`watch-complication flex flex-col items-center gap-2 rounded-[18px] px-3 py-5 text-center transition-transform hover:scale-[1.02] ${
+                  openId === app.id ? 'ring-1 ring-safe' : ''
+                }`}
+              >
+                {app.icon_url ? (
+                  <img src={app.icon_url} alt="" className="size-12 rounded-[16px] object-cover" />
+                ) : (
+                  <span className="icon-well-lg flex size-12 items-center justify-center rounded-[16px] text-foreground">
+                    <Package className="size-5" />
+                  </span>
+                )}
+                <span className="font-display w-full truncate text-[13px] font-semibold">{app.name}</span>
+                {app.description && (
+                  <span className="line-clamp-2 text-[11px] text-muted-foreground">{app.description}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          {slice
+            .filter((app) => app.id === openId)
+            .map((app) => (
+              <AppCard key={app.id} app={app} isAdmin={isManage} onChanged={reload} />
+            ))}
           <PaginationBar page={page} perPage={perPage} total={total} onPageChange={setPage} />
         </div>
       )}

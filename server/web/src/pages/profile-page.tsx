@@ -54,7 +54,7 @@ export function ProfilePage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Acesso a arquivos</CardTitle>
-            <CardDescription>Ligado pelo administrador. Os caminhos estão em Arquivos.</CardDescription>
+            <CardDescription>Ligado pelo administrador. Os caminhos estão no XDriver (waffle de apps).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="flex items-center justify-between gap-3">
@@ -74,7 +74,7 @@ export function ProfilePage() {
             <Button variant="outline" size="sm" asChild>
               <Link to="/my/files">
                 <FolderOpen className="size-4" />
-                Ver caminhos
+                Abrir XDriver
               </Link>
             </Button>
           </CardContent>

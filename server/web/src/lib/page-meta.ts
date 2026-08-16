@@ -24,25 +24,17 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/my/files',
     meta: {
-      kicker: 'xvpn',
-      title: 'xdriver',
+      kicker: 'apps',
+      title: 'XDriver',
       description: 'Samba, SFTP e FileBrowser (xdriver.corp.ihuull.com) só respondem dentro da VPN.',
-    },
-  },
-  {
-    prefix: '/my/download',
-    meta: {
-      kicker: 'xvpn',
-      title: 'Downloads',
-      description: 'Cliente desktop do XVPN — .deb, AppImage e instalador Windows.',
     },
   },
   {
     prefix: '/my/marketplace',
     meta: {
       kicker: 'xvpn',
-      title: 'Apps',
-      description: 'Programas liberados para a sua conta. Confira o SHA-256 antes de instalar.',
+      title: 'Marketplace',
+      description: 'Catálogo interno. Confira o SHA-256 antes de instalar.',
     },
   },
   {
@@ -60,7 +52,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/users',
     meta: {
-      kicker: 'Administração',
+      kicker: 'Core',
       title: 'Usuários',
       description: 'Contas com acesso à VPN e ao painel.',
     },
@@ -68,7 +60,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/rbac',
     meta: {
-      kicker: 'Administração',
+      kicker: 'Core',
       title: 'Papéis',
       description: 'Hierarquia RBAC: um ator só gerencia contas no próprio nível ou abaixo.',
     },
@@ -76,7 +68,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/devices',
     meta: {
-      kicker: 'Administração',
+      kicker: 'Core',
       title: 'Dispositivos',
       description: 'Peers WireGuard cadastrados no servidor.',
     },
@@ -84,31 +76,23 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/shares',
     meta: {
-      kicker: 'Administração',
-      title: 'xdriver',
+      kicker: 'Apps',
+      title: 'XDriver',
       description: 'Shares Samba + FileBrowser (xdriver.corp) — só na VPN.',
     },
   },
   {
     prefix: '/admin/waitlist',
     meta: {
-      kicker: 'Administração',
+      kicker: 'Core',
       title: 'Lista de espera',
       description: 'Pedidos de acesso aguardando aprovação.',
     },
   },
   {
-    prefix: '/admin/download',
-    meta: {
-      kicker: 'Administração',
-      title: 'Downloads',
-      description: 'Cliente desktop do XVPN — .deb, AppImage e instalador Windows.',
-    },
-  },
-  {
     prefix: '/admin/marketplace',
     meta: {
-      kicker: 'Administração',
+      kicker: 'Apps',
       title: 'Marketplace',
       description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL e download.',
     },
@@ -116,15 +100,15 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/settings',
     meta: {
-      kicker: 'Administração',
-      title: 'Configurações',
+      kicker: 'Settings',
+      title: 'Gerais',
       description: 'Rede WireGuard (somente leitura) e TTLs de convite/sessão.',
     },
   },
   {
     prefix: '/admin/audit',
     meta: {
-      kicker: 'Administração',
+      kicker: 'Settings',
       title: 'Auditoria',
       description: 'Últimas ações administrativas registradas no servidor.',
     },
@@ -133,7 +117,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     prefix: '/admin',
     exact: true,
     meta: {
-      kicker: 'Administração',
+      kicker: 'Core',
       title: 'Dashboard',
       description: 'Visão geral da VPN em tempo real.',
     },

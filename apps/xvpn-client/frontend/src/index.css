@@ -20,39 +20,3 @@
     user-select: none;
   }
 }
-
-@layer utilities {
-  .power-safe {
-    background: linear-gradient(
-      160deg,
-      color-mix(in oklch, var(--safe) 92%, white) 0%,
-      var(--safe) 55%,
-      color-mix(in oklch, var(--safe) 80%, black) 100%
-    );
-    color: var(--safe-foreground);
-    box-shadow:
-      0 0 0 1px color-mix(in oklch, white 18%, transparent),
-      0 10px 36px -6px color-mix(in oklch, var(--glow-safe) 75%, transparent),
-      0 0 48px -4px color-mix(in oklch, var(--glow-safe) 55%, transparent),
-      inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
-    animation: power-safe-breathe 2.8s ease-in-out infinite;
-  }
-
-  @keyframes power-safe-breathe {
-    0%,
-    100% {
-      box-shadow:
-        0 0 0 1px color-mix(in oklch, white 18%, transparent),
-        0 10px 36px -6px color-mix(in oklch, var(--glow-safe) 70%, transparent),
-        0 0 40px -4px color-mix(in oklch, var(--glow-safe) 45%, transparent),
-        inset 0 1px 0 color-mix(in oklch, white 35%, transparent);
-    }
-    50% {
-      box-shadow:
-        0 0 0 1px color-mix(in oklch, white 22%, transparent),
-        0 14px 48px -2px color-mix(in oklch, var(--glow-safe) 95%, transparent),
-        0 0 72px 4px color-mix(in oklch, var(--glow-safe) 70%, transparent),
-        inset 0 1px 0 color-mix(in oklch, white 40%, transparent);
-    }
-  }
-}

@@ -20,18 +20,14 @@ export function PanelStatusBar({ variant }: { variant: 'user' | 'admin' }) {
 
   return (
     <footer
-      className={cn(
-        'flex h-8 shrink-0 items-center gap-3 border-t px-4 text-[11px] text-muted-foreground',
-        variant === 'admin'
-          ? 'border-white/5 bg-card/80 font-mono backdrop-blur'
-          : 'border-white/8 bg-card/70 backdrop-blur-xl',
-      )}
+      data-variant={variant}
+      className="chrome-bar flex h-8 shrink-0 items-center gap-3 border-t border-white/8 px-4 font-display text-[11px] text-muted-foreground"
     >
       <span className="flex items-center gap-1.5">
         <span
           className={cn(
             'size-1.5 rounded-full',
-            online ? 'bg-primary shadow-[0_0_8px_var(--color-glow)]' : 'bg-destructive',
+            online ? 'status-safe-dot' : 'bg-destructive',
           )}
         />
         {online ? 'API' : 'API offline'}
@@ -65,14 +61,14 @@ export function PanelStatusBar({ variant }: { variant: 'user' | 'admin' }) {
             aria-label={open ? 'Fechar chat' : 'Abrir chat'}
             onClick={() => setDockOpen(!open)}
             className={cn(
-              'relative flex items-center gap-1.5 rounded-md px-2 py-0.5 font-sans transition-colors',
-              open ? 'bg-primary/15 text-primary' : 'hover:bg-white/5 hover:text-foreground',
+              'relative flex items-center gap-1.5 rounded-[10px] px-2 py-0.5 font-display transition-colors',
+              open ? 'bg-safe/15 text-safe' : 'hover:bg-white/8 hover:text-foreground',
             )}
           >
             <MessageCircle className="size-3.5" />
             Chat
             {totalUnread > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-safe px-1 text-[10px] font-bold text-safe-foreground">
                 {totalUnread > 9 ? '9+' : totalUnread}
               </span>
             )}

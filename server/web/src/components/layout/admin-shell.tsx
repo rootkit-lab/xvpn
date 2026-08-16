@@ -9,39 +9,59 @@ import {
   ListChecks,
   Store,
   Shield,
+  AtSign,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
-import { VIEWER_UP_ROLES, type Role } from '@/lib/roles'
+import { hasAdminProduct, VIEWER_UP_ROLES, type Product, type Role } from '@/lib/roles'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
-type AdminNavItem = { to: string; label: string; icon: typeof LayoutDashboard; roles: Role[]; end?: boolean }
+type AdminNavItem = {
+  to: string
+  label: string
+  icon: typeof LayoutDashboard
+  roles: Role[]
+  product?: Product
+  always?: boolean
+  end?: boolean
+}
 
-const ADMIN_NAV: { id: string; label: string; items: AdminNavItem[] }[] = [
+const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNavItem[] }[] = [
   {
     id: 'core',
-    label: 'Core',
+    label: 'Core VPN',
+    product: 'core',
     items: [
-      { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES, end: true },
+      { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES, always: true, end: true },
+      { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES, product: 'core' },
+      { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES, product: 'core' },
+      { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES, product: 'core' },
+    ],
+  },
+  {
+    id: 'marketplace',
+    label: 'Marketplace',
+    product: 'marketplace',
+    items: [{ to: '/admin/marketplace', label: 'Catálogo e ACL', icon: Store, roles: VIEWER_UP_ROLES, product: 'marketplace' }],
+  },
+  {
+    id: 'xgroup',
+    label: 'XGroup',
+    product: 'xgroup',
+    items: [{ to: '/admin/xgroup', label: 'Rede social', icon: AtSign, roles: VIEWER_UP_ROLES, product: 'xgroup' }],
+  },
+  {
+    id: 'xdriver',
+    label: 'XDriver',
+    product: 'xdriver',
+    items: [{ to: '/admin/shares', label: 'Shares e Drive', icon: HardDrive, roles: VIEWER_UP_ROLES, product: 'xdriver' }],
+  },
+  {
+    id: 'iam',
+    label: 'IAM',
+    items: [
       { to: '/admin/users', label: 'Usuários', icon: Users, roles: VIEWER_UP_ROLES },
       { to: '/admin/rbac', label: 'Papéis', icon: Shield, roles: VIEWER_UP_ROLES },
-      { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES },
-      { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES },
-    ],
-  },
-  {
-    id: 'apps',
-    label: 'Apps',
-    items: [
-      { to: '/admin/marketplace', label: 'Marketplace', icon: Store, roles: VIEWER_UP_ROLES },
-      { to: '/admin/shares', label: 'XDriver', icon: HardDrive, roles: VIEWER_UP_ROLES },
-    ],
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    items: [
-      { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES },
       { to: '/admin/audit', label: 'Auditoria', icon: ScrollText, roles: VIEWER_UP_ROLES },
     ],
   },
@@ -57,7 +77,14 @@ export function AdminShell() {
       nav={
         <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
           {ADMIN_NAV.map((group) => {
-            const items = user ? group.items.filter((item) => item.roles.includes(user.role)) : []
+            const items = user
+              ? group.items.filter((item) => {
+                  if (!item.roles.includes(user.role)) return false
+                  if (item.always) return true
+                  if (!item.product) return true
+                  return hasAdminProduct(user.role, user.products, item.product)
+                })
+              : []
             if (items.length === 0) return null
             return (
               <div key={group.id} className="flex flex-col gap-1">

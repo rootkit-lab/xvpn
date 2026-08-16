@@ -2,6 +2,8 @@ import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
 import { Trash2 } from 'lucide-react'
 import { api, ApiError, type Device } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
+import { canWriteAdminProduct } from '@/lib/roles'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime, formatRelativeTime } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -29,6 +31,8 @@ function isOnline(device: Device): boolean {
 }
 
 export function DevicesPage() {
+  const { user: caller } = useAuth()
+  const canRevoke = canWriteAdminProduct(caller?.role, caller?.products, 'core')
   const [page, setPage] = useState(1)
   const [q, setQ] = useState('')
   const fetchDevices = useCallback(() => api.listDevices({ page, per_page: 25, q }), [page, q])
@@ -58,12 +62,16 @@ export function DevicesPage() {
         </span>
       ),
     },
-    {
-      key: 'actions',
-      header: 'Ações',
-      className: 'text-right',
-      cell: (d) => <RevokeDevice device={d} onChanged={reload} />,
-    },
+    ...(canRevoke
+      ? [
+          {
+            key: 'actions',
+            header: 'Ações',
+            className: 'text-right',
+            cell: (d: Device) => <RevokeDevice device={d} onChanged={reload} />,
+          } satisfies DataTableColumn<Device>,
+        ]
+      : []),
   ]
 
   return (

@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -48,6 +49,7 @@ type marketplaceAppResponse struct {
 	Description string                       `json:"description"`
 	IconURL     string                       `json:"icon_url,omitempty"`
 	Visibility  string                       `json:"visibility"`
+	Network     string                       `json:"network"`
 	Source      string                       `json:"source,omitempty"`
 	SourcePath  string                       `json:"source_path,omitempty"`
 	CreatedAt   time.Time                    `json:"created_at"`
@@ -101,6 +103,7 @@ func toMarketplaceAppResponse(app store.App) marketplaceAppResponse {
 		Description: app.Description,
 		IconURL:     app.IconURL,
 		Visibility:  string(app.Visibility),
+		Network:     string(appNetworkOrDefault(app.Network)),
 		Source:      app.Source,
 		SourcePath:  app.SourcePath,
 		CreatedAt:   app.CreatedAt,
@@ -116,10 +119,62 @@ func isMarketplaceAdmin(role store.Role) bool {
 	return role.Rank() >= store.RoleAdmin.Rank()
 }
 
+// appNetworkOrDefault trata linhas antigas (coluna vazia) como public —
+// o default do AutoMigrate só vale para INSERT novo.
+func appNetworkOrDefault(n store.AppNetwork) store.AppNetwork {
+	if n == "" {
+		return store.AppNetworkPublic
+	}
+	return n
+}
+
+// requestFromVPN reporta se a origem está na sub-rede WireGuard.
+// RemoteIP() cobre o listener do túnel (10.66.66.1:8080). ClientIP()
+// cobre o peer que chega ao Nginx (público ou *.corp) já pelo wg0
+// (X-Forwarded-For = $remote_addr). Não aceita header forjado:
+// trustedProxies é só loopback, então um XFF 10.66.66.x vindo da
+// internet pública não vira ClientIP (ver clientip_test.go).
+//
+// Host (*.corp.ihuull.com) NÃO é prova de intranet: o mesmo processo
+// Gin é alcançado pelos vhosts públicos, e um Host que não casa
+// server_name cai no default_server ainda proxied para :8080.
+func (a *App) requestFromVPN(c *gin.Context) bool {
+	if a.Config == nil {
+		return false
+	}
+	_, subnet, err := net.ParseCIDR(a.Config.WireGuardAllowedSubnet)
+	if err != nil || subnet == nil {
+		return false
+	}
+	if ip := net.ParseIP(c.RemoteIP()); ip != nil && subnet.Contains(ip) {
+		return true
+	}
+	if ip := net.ParseIP(c.ClientIP()); ip != nil && subnet.Contains(ip) {
+		return true
+	}
+	return false
+}
+
+// canSeeAppNetwork: visibility = quem (ACL); network = onde.
+// network:public sempre passa. network:vpn só com origem na sub-rede
+// WireGuard (PLAN.md §6.13). A loja pública (marketplace.ihuull.com)
+// sem túnel não lista nem baixa app vpn — Host corp sozinho não basta.
+func (a *App) canSeeAppNetwork(c *gin.Context, network store.AppNetwork) bool {
+	switch appNetworkOrDefault(network) {
+	case store.AppNetworkPublic:
+		return true
+	case store.AppNetworkVPN:
+		return a.requestFromVPN(c)
+	default:
+		return false
+	}
+}
+
 // handleListMarketplaceApps lista o catálogo do marketplace (Fase 11 — ver
 // PLAN.md §6.8). admin/super_admin veem todos os apps (inclusive
 // restritos, com a lista de quem tem acesso); os demais papéis só veem
-// apps globais ou restritos aos quais já têm AppAccess.
+// apps globais ou restritos aos quais já têm AppAccess. Apps
+// network:vpn somem da loja pública sem túnel (PLAN.md §6.13).
 // GET /api/marketplace/apps
 func (a *App) handleListMarketplaceApps(c *gin.Context) {
 	var apps []store.App
@@ -149,6 +204,9 @@ func (a *App) handleListMarketplaceApps(c *gin.Context) {
 
 	resp := make([]marketplaceAppResponse, 0, len(apps))
 	for _, app := range apps {
+		if !a.canSeeAppNetwork(c, app.Network) {
+			continue
+		}
 		if !admin && app.Visibility == store.AppVisibilityRestricted && !containsUint(accessByApp[app.ID], userID) {
 			continue
 		}
@@ -343,6 +401,10 @@ func (a *App) handleDownloadMarketplaceAsset(c *gin.Context) {
 	}
 	if app.ArchivedAt != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "asset não encontrado"})
+		return
+	}
+	if !a.canSeeAppNetwork(c, app.Network) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "este app só está disponível na VPN"})
 		return
 	}
 

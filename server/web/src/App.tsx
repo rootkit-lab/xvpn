@@ -27,6 +27,7 @@ const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ defau
 const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
+const XGroupAdminPage = lazy(() => import('@/pages/xgroup-admin-page').then((m) => ({ default: m.XGroupAdminPage })))
 const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
@@ -150,6 +151,7 @@ function PanelApp({ home }: { home: 'landing' | 'portal' }) {
             <Route path="waitlist" element={<WaitlistPage />} />
             <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
             <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
+            <Route path="xgroup" element={<XGroupAdminPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="audit" element={<AuditPage />} />
           </Route>

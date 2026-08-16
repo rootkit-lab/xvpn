@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Laptop, Lock, Network, ShieldCheck, Wifi, Zap } from 'lucide-react'
+import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
 import { api, ApiError } from '@/lib/api'
+import { headerProduct } from '@/lib/product-host'
 import { defaultRouteForRole } from '@/lib/roles'
 import { NetworkGlobe } from '@/components/network-globe'
 import { Button } from '@/components/ui/button'
@@ -59,6 +61,8 @@ export function LandingPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
+  const product = headerProduct()
+
   if (isAuthenticated && !isLoadingUser) {
     return <Navigate to={defaultRouteForRole(user?.role ?? 'member')} replace />
   }
@@ -78,20 +82,21 @@ export function LandingPage() {
   }
 
   return (
-    <div className="watch-face relative min-h-svh overflow-hidden">
+    <div data-product={product} className="watch-face relative min-h-svh overflow-hidden">
       <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="glow-blob pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[560px] -translate-x-1/2" />
       <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[520px] w-full max-w-3xl opacity-70" />
 
-      <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
-        <div className="flex items-center gap-2">
-          <img src="/logo-192.png" alt="XVPN" className="size-9" />
-          <span className="font-display text-lg font-semibold tracking-tight">XVPN</span>
-        </div>
-        <Button variant="ghost" className="rounded-full" asChild>
-          <Link to="/my/login">Entrar</Link>
-        </Button>
-      </header>
+      <ProductHeader
+        product={product}
+        href="/"
+        productHref="/"
+        trailing={
+          <Button variant="ghost" className="rounded-full" asChild>
+            <Link to="/my/login">Entrar</Link>
+          </Button>
+        }
+      />
 
       <main className="relative z-10 mx-auto flex max-w-5xl flex-col gap-16 px-6 pb-20 sm:px-10">
         <motion.section

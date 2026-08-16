@@ -35,6 +35,7 @@ type marketplaceSyncAppInput struct {
 	Description string                      `json:"description"`
 	IconURL     string                      `json:"icon_url"`
 	Visibility  store.AppVisibility         `json:"visibility"`
+	Network     store.AppNetwork            `json:"network"`
 	Source      string                      `json:"source"`
 	SourcePath  string                      `json:"source_path"`
 	Version     string                      `json:"version"`
@@ -191,6 +192,13 @@ func (a *App) syncOneMarketplaceApp(ctx context.Context, in marketplaceSyncAppIn
 	if !visibility.Valid() {
 		return "", errors.New("visibility inválido")
 	}
+	network := in.Network
+	if network == "" {
+		network = store.AppNetworkPublic
+	}
+	if !network.Valid() {
+		return "", errors.New("network inválido (use public ou vpn)")
+	}
 	version := strings.TrimSpace(in.Version)
 	if version == "" {
 		return "", errors.New("version é obrigatório")
@@ -224,6 +232,7 @@ func (a *App) syncOneMarketplaceApp(ctx context.Context, in marketplaceSyncAppIn
 			Description: strings.TrimSpace(in.Description),
 			IconURL:     strings.TrimSpace(in.IconURL),
 			Visibility:  visibility,
+			Network:     network,
 			Source:      source,
 			SourcePath:  sourcePath,
 		}
@@ -242,11 +251,13 @@ func (a *App) syncOneMarketplaceApp(ctx context.Context, in marketplaceSyncAppIn
 		desc := strings.TrimSpace(in.Description)
 		icon := strings.TrimSpace(in.IconURL)
 		if app.Name != name || app.Description != desc || app.IconURL != icon ||
-			app.Visibility != visibility || app.Source != source || app.SourcePath != sourcePath {
+			app.Visibility != visibility || app.Network != network ||
+			app.Source != source || app.SourcePath != sourcePath {
 			app.Name = name
 			app.Description = desc
 			app.IconURL = icon
 			app.Visibility = visibility
+			app.Network = network
 			app.Source = source
 			app.SourcePath = sourcePath
 			changed = true

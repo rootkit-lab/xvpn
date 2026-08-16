@@ -2,7 +2,7 @@
 // .cursor/rules/frontend-react.mdc (nunca `fetch` espalhado por
 // componentes, sempre passar por aqui para tratamento de erro/auth
 // consistente).
-import type { Role } from '@/lib/roles'
+import type { Product, Role } from '@/lib/roles'
 import { isStoreHost, storeLoginPath } from '@/lib/product-host'
 
 const TOKEN_KEY = 'xvpn_token'
@@ -156,6 +156,8 @@ export interface User {
   username: string
   role: Role
   created_at: string
+  // Escopo de produto (Fase 33). Lista vazia = admin irrestrito.
+  products?: Product[]
   // Acesso a arquivos (Fase 13, PLAN.md §6.9): toggles de SFTP/Samba
   // + chave pública SSH do usuário. Omitidos em respostas antigas
   // (back-end pré-Fase 13) — trate como false/"" se ausente.
@@ -252,6 +254,7 @@ export interface ConfigResponse {
 // — Fase 11, ver PLAN.md §6.8.
 export type MarketplacePlatform = 'linux' | 'windows' | 'android'
 export type MarketplaceVisibility = 'global' | 'restricted'
+export type MarketplaceNetwork = 'public' | 'vpn'
 export type MarketplaceChannel = 'stable' | 'beta'
 
 export interface MarketplaceAsset {
@@ -283,6 +286,7 @@ export interface MarketplaceApp {
   description: string
   icon_url?: string
   visibility: MarketplaceVisibility
+  network: MarketplaceNetwork
   source?: string
   source_path?: string
   created_at: string
@@ -425,12 +429,12 @@ export const api = {
 
   listUsers: (params?: PageParams) => request<PageEnvelope<User>>(withQuery('/users', params)),
   getUser: (id: number) => request<User>(`/users/${id}`),
-  createUser: (username: string, password: string, role: Role) =>
+  createUser: (username: string, password: string, role: Role, products?: Product[]) =>
     request<User>('/users', {
       method: 'POST',
-      body: JSON.stringify({ username, password, role }),
+      body: JSON.stringify({ username, password, role, products }),
     }),
-  updateUser: (id: number, changes: { username?: string; role?: Role }) =>
+  updateUser: (id: number, changes: { username?: string; role?: Role; products?: Product[] }) =>
     request<User>(`/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(changes),

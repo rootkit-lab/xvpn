@@ -25,6 +25,7 @@
   --color-safe: var(--safe);
   --color-safe-foreground: var(--safe-foreground);
   --color-glow-safe: var(--glow-safe);
+  --color-product: var(--product);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 4px);

@@ -9,13 +9,14 @@ import {
   type MarketplaceChannel,
   type MarketplacePlatform,
   type MarketplaceVersion,
+  type MarketplaceNetwork,
   type MarketplaceVisibility,
   type User,
 } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole } from '@/lib/roles'
+import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserPicker } from '@/components/user-picker'
@@ -50,6 +51,11 @@ const VISIBILITY_LABELS: Record<MarketplaceVisibility, string> = {
   restricted: 'Restrito (ACL)',
 }
 
+const NETWORK_LABELS: Record<MarketplaceNetwork, string> = {
+  public: 'Rede pública',
+  vpn: 'Só VPN / *.corp',
+}
+
 const CHANNEL_LABELS: Record<MarketplaceChannel, string> = {
   stable: 'Estável',
   beta: 'Beta',
@@ -59,7 +65,8 @@ const GITHUB_APPS_BASE = 'https://github.com/rootkit-lab/xvpn/tree/main/'
 
 export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' | 'manage' }) {
   const { user: caller } = useAuth()
-  const isManage = variant === 'manage' && isAdminRole(caller?.role)
+  const isManage =
+    variant === 'manage' && isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'marketplace')
   const fetchApps = useCallback(() => api.listMarketplaceApps(), [])
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
   const [q, setQ] = useState('')
@@ -191,6 +198,9 @@ function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: bo
               <CardTitle className="text-base">{app.name}</CardTitle>
               <Badge variant={app.visibility === 'global' ? 'outline' : 'secondary'}>
                 {VISIBILITY_LABELS[app.visibility]}
+              </Badge>
+              <Badge variant={app.network === 'vpn' ? 'secondary' : 'outline'}>
+                {NETWORK_LABELS[app.network] ?? NETWORK_LABELS.public}
               </Badge>
               {app.source_path && (
                 <a

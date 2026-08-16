@@ -5,6 +5,25 @@ import { isStoreHost, productKind, storeLoginPath } from '@/lib/product-host'
 
 export type Role = 'super_admin' | 'admin' | 'viewer' | 'member'
 
+/** Escopos de produto de um admin — espelha store.Product (PLAN.md §6.13). */
+export type Product = 'core' | 'marketplace' | 'xgroup' | 'xdriver'
+
+export const ALL_PRODUCTS: Product[] = ['core', 'marketplace', 'xgroup', 'xdriver']
+
+export const PRODUCT_LABELS: Record<Product, string> = {
+  core: 'Core VPN',
+  marketplace: 'Marketplace',
+  xgroup: 'XGroup',
+  xdriver: 'XDriver',
+}
+
+export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
+  core: 'Peers WireGuard, lista de espera e TTLs do painel.',
+  marketplace: 'ACL da loja (quem vê app restrito).',
+  xgroup: 'Operação da rede social.',
+  xdriver: 'Shares Samba, SFTP e cota de disco.',
+}
+
 export const ROLE_RANK: Record<Role, number> = {
   super_admin: 3,
   admin: 2,
@@ -21,7 +40,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   super_admin: 'Controle total: altera papéis, apaga outros admins e gerencia toda a operação.',
-  admin: 'Gerencia usuários, dispositivos, waitlist e marketplace — sem promover a super admin.',
+  admin: 'Gerencia IAM e os produtos do escopo (lista vazia = todos). Sem promover a super admin.',
   viewer: 'Só leitura no painel de administração (dashboard, listas, auditoria).',
   member: 'Acesso ao próprio espaço: VPN, arquivos, apps e conta. Sem telas de admin.',
 }
@@ -40,8 +59,9 @@ export const ROLE_CAPABILITIES: RoleCapability[] = [
   { id: 'marketplace-dl', label: 'Baixar apps do catálogo (se a ACL permitir)', roles: ['super_admin', 'admin', 'viewer', 'member'] },
   { id: 'admin-read', label: 'Ler dashboard, usuários, dispositivos e auditoria', roles: ['super_admin', 'admin', 'viewer'] },
   { id: 'admin-write', label: 'Criar usuários, convites e resetar senhas', roles: ['super_admin', 'admin'] },
-  { id: 'file-access', label: 'Ligar SFTP/Samba e cota de disco de outros', roles: ['super_admin', 'admin'] },
-  { id: 'marketplace-acl', label: 'Gerenciar ACL do marketplace', roles: ['super_admin', 'admin'] },
+  { id: 'file-access', label: 'Ligar SFTP/Samba e cota (escopo xdriver)', roles: ['super_admin', 'admin'] },
+  { id: 'marketplace-acl', label: 'Gerenciar ACL da loja (escopo marketplace)', roles: ['super_admin', 'admin'] },
+  { id: 'product-scope', label: 'Restringir admin a products: [core, marketplace, xgroup, xdriver]', roles: ['super_admin', 'admin'] },
   { id: 'super', label: 'Promover ou rebaixar super admin', roles: ['super_admin'] },
 ]
 
@@ -101,4 +121,29 @@ export function loginPathForLocation(pathname: string): string {
 
 export function loginPathForRole(role: Role): string {
   return role === 'member' ? '/my/login' : '/admin/login'
+}
+
+/** Lista vazia = admin irrestrito (Fase 10). super_admin e viewer veem tudo. */
+export function hasAdminProduct(
+  role: Role | undefined,
+  products: Product[] | undefined,
+  want: Product,
+): boolean {
+  if (!role) return false
+  if (role === 'super_admin' || role === 'viewer') return true
+  if (role !== 'admin') return false
+  if (!products || products.length === 0) return true
+  return products.includes(want)
+}
+
+export function canWriteAdminProduct(
+  role: Role | undefined,
+  products: Product[] | undefined,
+  want: Product,
+): boolean {
+  if (!role) return false
+  if (role === 'super_admin') return true
+  if (role !== 'admin') return false
+  if (!products || products.length === 0) return true
+  return products.includes(want)
 }

@@ -224,6 +224,7 @@ export function PlayStoreDetail() {
               </Badge>
             ))}
             {version && <Badge variant="secondary">v{version.version}</Badge>}
+            {app.network === 'vpn' && <Badge variant="secondary">VPN</Badge>}
           </div>
         </div>
       </div>

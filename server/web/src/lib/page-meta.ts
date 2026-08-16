@@ -60,23 +60,23 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/users',
     meta: {
-      kicker: 'Core',
+      kicker: 'IAM',
       title: 'Usuários',
-      description: 'Contas com acesso à VPN e ao painel.',
+      description: 'Contas, papéis e escopo de produtos (products: […]).',
     },
   },
   {
     prefix: '/admin/rbac',
     meta: {
-      kicker: 'Core',
+      kicker: 'IAM',
       title: 'Papéis',
-      description: 'Hierarquia RBAC: um ator só gerencia contas no próprio nível ou abaixo.',
+      description: 'Hierarquia RBAC e escopo de produto. Um ator só gerencia contas no próprio nível ou abaixo.',
     },
   },
   {
     prefix: '/admin/devices',
     meta: {
-      kicker: 'Core',
+      kicker: 'Core VPN',
       title: 'Dispositivos',
       description: 'Peers WireGuard cadastrados no servidor.',
     },
@@ -84,15 +84,15 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/shares',
     meta: {
-      kicker: 'Apps',
-      title: 'XDriver',
-      description: 'Shares Samba + FileBrowser (xdriver.corp) — só na VPN.',
+      kicker: 'XDriver',
+      title: 'Shares e Drive',
+      description: 'Samba + Drive nativo (xdriver.corp) — só na VPN.',
     },
   },
   {
     prefix: '/admin/waitlist',
     meta: {
-      kicker: 'Core',
+      kicker: 'Core VPN',
       title: 'Lista de espera',
       description: 'Pedidos de acesso aguardando aprovação.',
     },
@@ -100,15 +100,23 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/marketplace',
     meta: {
-      kicker: 'Apps',
-      title: 'Marketplace',
-      description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL e download.',
+      kicker: 'Marketplace',
+      title: 'Catálogo e ACL',
+      description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL, network e download.',
+    },
+  },
+  {
+    prefix: '/admin/xgroup',
+    meta: {
+      kicker: 'XGroup',
+      title: 'Rede social',
+      description: 'Operação do xgroup. A rede em si vive em /social.',
     },
   },
   {
     prefix: '/admin/settings',
     meta: {
-      kicker: 'Settings',
+      kicker: 'Core VPN',
       title: 'Gerais',
       description: 'Rede WireGuard (somente leitura) e TTLs de convite/sessão.',
     },
@@ -116,7 +124,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/audit',
     meta: {
-      kicker: 'Settings',
+      kicker: 'IAM',
       title: 'Auditoria',
       description: 'Últimas ações administrativas registradas no servidor.',
     },
@@ -125,7 +133,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     prefix: '/admin',
     exact: true,
     meta: {
-      kicker: 'Core',
+      kicker: 'Core VPN',
       title: 'Dashboard',
       description: 'Visão geral da VPN em tempo real.',
     },

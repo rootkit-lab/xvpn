@@ -26,12 +26,13 @@ func (a *App) refreshCallerFromDB() gin.HandlerFunc {
 			return
 		}
 		var u store.User
-		if err := a.Store.DB.Select("id", "username", "role").First(&u, uid).Error; err != nil {
+		if err := a.Store.DB.Select("id", "username", "role", "products").First(&u, uid).Error; err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
 			return
 		}
 		c.Set(auth.ContextUsernameKey, u.Username)
 		c.Set(auth.ContextRoleKey, u.Role)
+		c.Set(auth.ContextProductsKey, u.Products)
 		c.Next()
 	}
 }

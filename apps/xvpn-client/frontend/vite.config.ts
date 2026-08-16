@@ -16,6 +16,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(rootDir, "./src"),
+      "@xvpn/ui": path.resolve(rootDir, "../../../shared/ui"),
     },
   },
   plugins: [react(), tailwindcss(), wails("./bindings")],

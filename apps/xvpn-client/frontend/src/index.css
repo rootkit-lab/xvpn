@@ -1,66 +1,9 @@
 @import "tailwindcss";
+@import "../../../../shared/ui/scss/index.scss";
+@import "../../../../shared/ui/css/tailwind-bridge.css";
+@source "../../../../shared/ui";
 
 @custom-variant dark (&:is(.dark *));
-
-/* Cliente desktop — face inspirada no watchOS: preto profundo, anéis,
-   tipografia arredondada, complications e ícones de app. A janela continua
-   sempre escura (utilitário de bandeja). */
-:root {
-  --background: oklch(0.11 0.012 260);
-  --foreground: oklch(0.98 0.005 260);
-  --card: oklch(0.18 0.014 260);
-  --card-foreground: oklch(0.98 0.005 260);
-  --primary: oklch(0.72 0.14 230);
-  --primary-foreground: oklch(0.16 0.02 230);
-  --secondary: oklch(0.22 0.016 260);
-  --secondary-foreground: oklch(0.96 0.005 260);
-  --muted: oklch(0.2 0.012 260);
-  --muted-foreground: oklch(0.7 0.02 260);
-  --destructive: oklch(0.65 0.2 25);
-  --destructive-foreground: oklch(0.98 0.01 255);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.72 0.14 230);
-  --radius: 1rem;
-  --glow: oklch(0.74 0.13 230);
-  --glow-amber: oklch(0.78 0.14 75);
-  --glow-red: oklch(0.65 0.2 25);
-  /* Estado "protegido" / túnel ativo — verde watchOS Activity */
-  --glow-safe: oklch(0.78 0.18 150);
-  --safe: oklch(0.72 0.17 150);
-  --safe-foreground: oklch(0.16 0.04 150);
-  --corner: color-mix(in oklch, var(--primary) 50%, transparent);
-  --font-display: "Outfit", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-glow: var(--glow);
-  --color-safe: var(--safe);
-  --color-safe-foreground: var(--safe-foreground);
-  --color-glow-safe: var(--glow-safe);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 4px);
-  --radius-xl: calc(var(--radius) + 10px);
-  --font-mono: var(--font-mono);
-  --font-display: var(--font-display);
-}
 
 @layer base {
   * {
@@ -79,31 +22,6 @@
 }
 
 @layer utilities {
-  .font-display {
-    font-family: var(--font-display);
-  }
-
-  .watch-face {
-    background:
-      radial-gradient(120% 80% at 50% 0%, oklch(0.2 0.03 230 / 0.45) 0%, transparent 55%),
-      radial-gradient(90% 60% at 50% 100%, oklch(0.16 0.02 260 / 0.5) 0%, transparent 50%),
-      var(--background);
-  }
-
-  .watch-vignette {
-    background: radial-gradient(ellipse at center, transparent 40%, oklch(0 0 0 / 0.45) 100%);
-  }
-
-  .watch-complication {
-    background: linear-gradient(
-      165deg,
-      color-mix(in oklch, white 10%, transparent) 0%,
-      color-mix(in oklch, white 4%, transparent) 100%
-    );
-    box-shadow: inset 0 1px 0 color-mix(in oklch, white 12%, transparent);
-    backdrop-filter: blur(12px);
-  }
-
   .power-safe {
     background: linear-gradient(
       160deg,
@@ -136,81 +54,5 @@
         0 0 72px 4px color-mix(in oklch, var(--glow-safe) 70%, transparent),
         inset 0 1px 0 color-mix(in oklch, white 40%, transparent);
     }
-  }
-
-  .status-safe-dot {
-    background: var(--safe);
-    box-shadow: 0 0 10px var(--glow-safe), 0 0 18px color-mix(in oklch, var(--glow-safe) 50%, transparent);
-    animation: status-safe-pulse 2.2s ease-in-out infinite;
-  }
-
-  @keyframes status-safe-pulse {
-    0%,
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.75;
-      transform: scale(1.25);
-    }
-  }
-
-  /* Legado — outras páginas ainda usam */
-  .glow-blob {
-    background: radial-gradient(closest-side, var(--glow) 0%, transparent 70%);
-    filter: blur(40px);
-    opacity: 0.35;
-  }
-  .text-glow {
-    text-shadow: 0 0 18px color-mix(in oklch, var(--glow) 55%, transparent);
-  }
-  .dot-grid {
-    background-image: radial-gradient(
-      color-mix(in oklch, var(--foreground) 8%, transparent) 1px,
-      transparent 1px
-    );
-    background-size: 22px 22px;
-  }
-  .cyber-frame {
-    position: relative;
-  }
-  .cyber-frame::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    border-radius: inherit;
-    background:
-      linear-gradient(var(--corner), var(--corner)) top left / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) top left / 1px 12px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) top right / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) top right / 1px 12px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom left / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom left / 1px 12px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom right / 12px 1px no-repeat,
-      linear-gradient(var(--corner), var(--corner)) bottom right / 1px 12px no-repeat;
-  }
-  .cyber-diamond {
-    transform: rotate(45deg);
-    box-shadow:
-      0 0 0 1px color-mix(in oklch, var(--glow) 50%, transparent),
-      0 0 24px -4px var(--glow);
-  }
-  .hud-label {
-    font-family: var(--font-mono);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: 0.6875rem;
-    line-height: 1;
-  }
-  .scanline {
-    height: 1px;
-    background: linear-gradient(
-      to right,
-      transparent,
-      color-mix(in oklch, var(--glow) 50%, transparent),
-      transparent
-    );
   }
 }

@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–29) em código. Hostname canônico: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–29) em código. **Fase 30** (design system) em andamento. Hostname canônico: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1033,6 +1033,22 @@ Wails3 permanece. O buraco é o WebKitGTK sem `RTCPeerConnection`.
 
 ---
 
+## Fase 30 — Design system (painel = xvpn = xchat)
+
+O painel web deixa a paleta navy/Workspace e passa a **importar** o mesmo color system SASS dos apps desktop. Componentes documentados em `shared/ui/COMPONENTS.md` — não copiar tokens nem `watch-complication` de um app para o outro.
+
+- [x] `PLAN.md` §6.3 + [§6.12](./PLAN.md#612-design-system-e-color-system): fonte única `shared/ui`, SASS, regras de reuso.
+- [x] Color system SASS (`_color-system.scss` maps dark/light/icq) + utilities `watch-*` + `tailwind-bridge.css`.
+- [x] Três Vite importam `@xvpn/ui` (`server/web`, `xvpn-client`, `xvpn-chat`). Sem `:root` oklch duplicado.
+- [x] Primitivos `ShellFace` / `IconButton` / `Complication` / `StatusDot`; `WatchShell` e `ChatShell` reexportam.
+- [x] Painel: `SystemChrome` + login + `Card` usam `watch-face` / `watch-complication` / Outfit.
+- [x] Catálogo `shared/ui/COMPONENTS.md` + skill `desktop-app-ui` (painel incluso).
+- [x] `frontend-react.mdc` e `new-intranet-app` apontam para `shared/ui`.
+
+**Critério de saída:** mudar um token em `_color-system.scss` altera os três frontends; `rg 'oklch\\(0\\.15 0\\.022 255\\)'` (navy antigo) vazio nos CSS de app.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1043,6 +1059,7 @@ Wails3 permanece. O buraco é o WebKitGTK sem `RTCPeerConnection`.
 - **Parte VI (20):** v0.5 — 20.1 → 20.2 → 20.3 → 20.4 (ver [justificativa](#ordem-de-execução-do-ciclo-v05-decidida)).
 - **Parte VII (21):** v0.6 — 21.1 → 21.2 → 21.3 → 21.4 → 21.5 → 21.6 (mídia desbloqueia áudio/stories; chamadas e recibos por último).
 - **Parte VIII (22–29):** v0.7+ — DNS/registry → intranet → cutover → chamadas → marca → JWE/xbot → Mongo → docs. Não misturar JWE+Mongo+domínio no mesmo deploy.
+- **Parte IX (30):** design system SASS em `shared/ui` — painel = xvpn = xchat.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

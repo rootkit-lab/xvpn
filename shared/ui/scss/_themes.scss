@@ -1,0 +1,29 @@
+@use "color-system" as colors;
+
+// Temas do messenger. Tokens só valem dentro de .xvpn-chat-root.
+// Default desktop = dark (mesmo map do :root). ICQ é opcional.
+
+.xvpn-chat-root {
+  @include colors.fonts-and-radius;
+  --icq-green: oklch(0.72 0.19 135);
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-display);
+}
+
+.xvpn-chat-root[data-chat-theme="dark"] {
+  @include colors.apply-palette(colors.$dark);
+}
+
+.xvpn-chat-root[data-chat-theme="light"] {
+  @include colors.apply-palette(colors.$light);
+}
+
+// Painel autenticado já usa o color system no :root — herda sem pintar ICQ.
+.xvpn-chat-root[data-chat-theme="inherit"] {
+  background: var(--card);
+}
+
+.xvpn-chat-root[data-chat-theme="icq"] {
+  @include colors.apply-palette(colors.$icq);
+}

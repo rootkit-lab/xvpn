@@ -235,6 +235,8 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
 Páginas: **Login**, **Dashboard** (peers ativos, throughput agregado), **Usuários** (CRUD + gerar convite/QR code), **Dispositivos** (status, revogar), **Compartilhamentos** (gerenciar pastas Samba/FileBrowser e permissões), **Configurações** (rede, DNS, firewall), **Auditoria** (log de conexões/ações administrativas).
 
+**Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS). Preto profundo, `watch-face`, cards `watch-complication`, Outfit, acento `--safe`. Não há paleta navy/Workspace paralela. Ver [§6.12](#612-design-system-e-color-system).
+
 Build: `vite build` → arquivos estáticos embutidos no binário Go via `embed.FS`. Resultado: **um único binário** `xvpn-server` sobe API + painel + lógica WireGuard. Simplifica deploy/systemd a um único serviço.
 
 **Implementado na Fase 3** (ver `ROADMAP.md` para o checklist e achados completos): `go:embed` não aceita `..` no caminho do diretório embutido, então o Vite builda direto dentro da árvore do pacote Go que faz o embed (`server/internal/webui/dist/`, não `server/web/dist/`) — ver `server/internal/webui/webui.go` e `server/web/vite.config.ts`. Dois endpoints de leitura foram adicionados além do previsto originalmente na Fase 2, só para alimentar as telas do painel: `GET /api/config` (config de rede não sensível) e `GET /api/audit` (últimas entradas de auditoria).
@@ -278,7 +280,7 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - Bootstrap do primeiro usuário continua sendo `super_admin`.
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
 
-**Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19, estilo Google Workspace:**
+**Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19 (layout) + Fase 30 (visual ihuull):**
 
 Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` só tem conteúdo da página. O header carrega o **menu da conta logada** (avatar → perfil social, conta, sair) e o seletor de produto (waffle).
 
@@ -299,7 +301,7 @@ Sem alias e sem rota antiga: `/app`, `/portal`, `/dashboard`, `/login`, `/downlo
 
 Listas (users, devices, waitlist, audit, social) são **paginadas no servidor** (`page`/`per_page`/`q`, default 25, máx. 100) e renderizadas pelo kit compartilhado (`DataTable` / `Pagination`). Ver `ROADMAP.md` Fase 19.1–19.2.
 
-Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat).
+Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat). Design system: [§6.12](#612-design-system-e-color-system).
 
 ### 6.8 Marketplace de software
 
@@ -528,9 +530,38 @@ Cliente do protocolo acima, não dono dele. JWE só em memória (mesmo padrão d
 
 **Um frontend, três cascas (Fase 20):** o React vive em `apps/xvpn-chat/frontend` (Go / Wails3 / React / Tailwind / shadcn/ui + **SASS** para temas). Desktop = janela Wails. Web = o mesmo UI em (1) **rail direito de contatos** + **janelas de conversa no rodapé** (estilo Facebook, sem modal), acionados pela status bar do `SystemChrome` (todas as rotas autenticadas; tema `inherit`) e (2) página cheia `/social/messages`. Sem iframe, sem segundo SPA, sem FAB, sem chat na landing/login. Uma fachada `chatapi` esconde bindings Wails vs `fetch`+WebSocket.
 
-**Visual:** a janela desktop segue o design system do `xvpn-client` (preto profundo, cards `watch-complication`, acento `--safe` neon, Outfit — skill `desktop-app-ui`). Temas `dark` (default) / `light` / `icq` (opcional). No painel, rail + popouts usam `inherit` (não pintar ICQ nem `watch-face` sobre o `/my`). Layout messenger = lista de contatos + conversa + status colorido. Não é clone do protocolo AOL e não é a DataTable Workspace da 19.3. `/social` não é substituído pelo chat.
+**Visual:** janela desktop e painel autenticado usam o mesmo color system (`shared/ui`). Temas do messenger: `dark` (default) / `light` / `icq` (opcional). Rail + popouts no painel: `inherit` (herda o `:root` ihuull — já é `watch-face`, não navy). Layout messenger = lista de contatos + conversa + status colorido. `/social` não é substituído pelo chat.
 
 Bump de `APIVersion` quando o WS e os endpoints sociais entrarem — clientes desktop antigos ignoram o socket; o contrato HTTP existente não quebra, mas o campo existe para o chat recusar servidor sem 19.3.
+
+### 6.12 Design system e color system
+
+**Problema:** o painel nasceu navy/azul Workspace; o `xvpn-client` e o `xvpn-chat` usam preto profundo + `--safe`. Tokens e `watch-complication` foram copiados. Qualquer tela nova destandardiza.
+
+**Decisão:** um design system em **SASS** em `shared/ui/`. Os três Vite **importam** — não copiam. Alias `@xvpn/ui` no TypeScript; CSS usa caminho relativo (`shared/ui/scss/…`) porque o resolver do Tailwind v4 não honra alias Vite.
+
+| Peça | Caminho | Papel |
+|---|---|---|
+| Color system | `shared/ui/scss/_color-system.scss` | Maps `dark` / `light` / `icq` (oklch). Única fonte de hex/oklch |
+| `:root` | `shared/ui/scss/_root.scss` | Aplica `$dark` no documento |
+| Utilities | `shared/ui/scss/_utilities.scss` | `watch-face`, `watch-complication`, HUD |
+| Temas chat | `shared/ui/scss/_themes.scss` | `.xvpn-chat-root[data-chat-theme]` |
+| Tailwind v4 | `shared/ui/css/tailwind-bridge.css` | `@theme inline` → `bg-background` etc. |
+| Primitivos | `shared/ui/react/` | `ShellFace`, `IconButton`, `Complication`, `StatusDot` |
+| Catálogo | `shared/ui/COMPONENTS.md` | O que reusar / o que não copiar |
+
+**Regras (não negociáveis):**
+
+1. Cor nova ou mudança de token → só `_color-system.scss`. Proibido segundo `:root` com oklch no app.
+2. Shell autenticado = `watch-face` + `watch-vignette` (`ShellFace` ou `SystemChrome`).
+3. Card = `watch-complication` + `rounded-[18px]`–`[22px]`. Botão de ícone = `IconButton` (`rounded-[10px]` filled).
+4. Tipo: Outfit (`--font-display`). Labels técnicas: `hud-label`.
+5. `--safe` = ativo / online / “meu”. Não inventar outro verde.
+6. ICQ e `light` são **opções** do messenger, nunca identidade do painel ou de app novo.
+7. shadcn (Button, Input, Dialog, DataTable) continua **por app** (React 18 vs 19). Estilo deles segue os tokens. Não publicar um segundo kit de card.
+8. Landing pública (`/`) pode ser mais marketing; `/my`, `/admin`, `/social` e logins **seguem** o sistema.
+
+Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta para `shared/ui`, não “copiar CSS do client”.
 
 ---
 
@@ -649,7 +680,9 @@ xvpn/
 │   ├── frontend/           # React+Tailwind+shadcn (UI da GUI Wails)
 │   ├── build/              # scripts NSIS, .deb, AppImage
 │   └── go.mod
-├── shared/                 # tipos/DTOs Go compartilhados entre server e client
+├── shared/
+│   ├── *.go             # tipos/DTOs Go (server ↔ client)
+│   └── ui/              # design system SASS + primitivos React (§6.12)
 └── docs/
 ```
 
@@ -765,5 +798,7 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 | Auth | **só JWE** (`dir` + `A256GCM`); JWT HMAC rejeitado |
 | Persistência | Mongo `127.0.0.1:27017` se `XVPN_MONGO_URI`; senão SQLite (testes/CI) |
 | landpages-ops | `ldpops.appapisip.com` — não muda |
+
+**Fase 30 — design system:** `shared/ui` (SASS) é a fonte de tokens; painel web, xvpn e xchat importam o mesmo color system. Catálogo em `shared/ui/COMPONENTS.md`.
 
 Aplicar no VPS pelos runbooks (Cloudflare, dnsmasq, Mongo) **sem** ligar Mongo no mesmo instante que o binário JWE. Fluxo: branch → PR → squash (`CONTRIBUTING.md`). Backlog (Windows real, `LICENSE`) permanece no `ROADMAP.md`.

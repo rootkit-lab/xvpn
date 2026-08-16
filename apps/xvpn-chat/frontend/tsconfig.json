@@ -14,7 +14,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@chat/*": ["src/*"]
+      "@chat/*": ["src/*"],
+      "@xvpn/ui/*": ["../../../shared/ui/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"]
     },
     "strict": true,
     "noUnusedLocals": true,
@@ -22,5 +25,5 @@
     "noImplicitAny": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "bindings"]
+  "include": ["src", "bindings", "../../../shared/ui"]
 }

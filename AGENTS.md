@@ -28,7 +28,7 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 ## Convenções do repositório
 
 - Documentação e comunicação com o usuário: **português (pt-BR)**. Identificadores de código (variáveis, funções, nomes de pacotes): **inglês**, seguindo convenção idiomática de Go/TypeScript.
-- Estrutura planejada do monorepo: `apps/` (produtos distribuíveis — hoje só `apps/xvpn-client/`, o app desktop Wails3), `server/` (control-plane Go + painel React), `shared/` (tipos/DTOs Go compartilhados), `docs/`. Consulte [`PLAN.md` §11](./PLAN.md#11-estrutura-de-diretórios-monorepo) antes de criar uma estrutura diferente.
+- Estrutura planejada do monorepo: `apps/` (produtos distribuíveis), `server/` (control-plane Go + painel React), `shared/` (DTOs Go + `shared/ui` design system SASS), `docs/`. Consulte [`PLAN.md` §11](./PLAN.md#11-estrutura-de-diretórios-monorepo) e [§6.12](./PLAN.md#612-design-system-e-color-system).
 - Commits e branches: ver [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 - Antes de rodar comandos destrutivos ou que alterem firewall/rede/serviços no VPS, prefira passos read-only primeiro (ex.: `ufw status`, `wg show`, `ss -tulnp`) para confirmar o estado atual antes de alterar algo. Há um hook (`.cursor/hooks.json`) que bloqueia automaticamente padrões claramente destrutivos — não tente contorná-lo sem confirmar explicitamente com o usuário.
 - Há dois níveis de hook distintos e complementares: `.cursor/hooks.json` só protege ações do agente de IA dentro do Cursor; `.githooks/pre-commit` protege qualquer `git commit`, de qualquer origem. Um clone novo do repositório precisa rodar `git config core.hooksPath .githooks` uma vez para ativar o segundo (ver `CONTRIBUTING.md`).
@@ -41,7 +41,7 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
   - Infraestrutura: auditoria de segurança do VPS (`vps-security-audit`), operações manuais de peer WireGuard (`wireguard-peer-ops`), checagem de colisão de porta/domínio/corp (`port-domain-registry-check`), deploy do binário (`deploy-xvpn-server`), app de intranet novo (`new-intranet-app`) e notify do xbot (`xbot-notify`).
   - Git/GitHub: criar branch (`start-task`), abrir PR (`ship-pr`), squash-merge (`land-pr`), releases pendentes (`release-status`) e publicação no catálogo (`marketplace-publish`) — ver [`PLAN.md` §13](./PLAN.md#13-versionamento-e-releases).
   - Painel: chrome do chat (`chat-chrome`) — status bar + rail direito (contatos RTL) + janelas de conversa no rodapé (Facebook), nunca FAB nem modal.
-  - Apps desktop: design system (`desktop-app-ui`) — preto profundo, cards `watch-complication`, acento `--safe`, Outfit; copiar do `xvpn-client`, não fork.
+  - UI: design system (`desktop-app-ui` / `design-system`) — `shared/ui` SASS, painel = xvpn = xchat; catálogo em `shared/ui/COMPONENTS.md`. Não copiar tokens.
   Use-as em vez de reinventar os mesmos comandos a cada vez.
 - **Criação proativa de Skills**: sempre que, numa mesma sessão, um comando ou sequência de passos for repetido 3 ou mais vezes (ou já existir claramente destinado a se repetir no futuro), o agente deve propor ao usuário transformá-lo numa nova Skill em `.cursor/skills/`, seguindo o padrão já estabelecido (`SKILL.md` com frontmatter `name`/`description` + `scripts/`). Não espere o usuário pedir explicitamente — isso mantém o fluxo de trabalho consistente e evita reinventar o mesmo comando de formas ligeiramente diferentes ao longo do tempo.
 

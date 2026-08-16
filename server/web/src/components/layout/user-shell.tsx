@@ -24,7 +24,7 @@ export function UserShell() {
               end={end}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+                  'flex items-center gap-3 rounded-[10px] px-3 py-2.5 font-display text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-primary/15 text-primary'
                     : 'text-muted-foreground hover:bg-white/5 hover:text-foreground',

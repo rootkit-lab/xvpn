@@ -1,7 +1,11 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { IconButton } from '@xvpn/ui/react/icon-button'
+import { ShellFace } from '@xvpn/ui/react/shell-face'
 import { cn } from '@chat/lib/utils'
 
-/** Fundo + vinheta iguais ao WatchShell do xvpn-client. */
+export { IconButton as ChatIconButton }
+
+/** Fundo + vinheta — `ShellFace` do design system (`shared/ui`). */
 export function ChatShell({
   children,
   className = '',
@@ -12,50 +16,9 @@ export function ChatShell({
   scroll?: boolean
 }) {
   return (
-    <div
-      className={cn(
-        'watch-face relative flex h-full flex-col px-5 pb-5 pt-4',
-        scroll ? 'overflow-y-auto' : 'overflow-hidden',
-        className,
-      )}
-    >
-      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
+    <ShellFace className={className} scroll={scroll}>
       {children}
-    </div>
-  )
-}
-
-/** Botão circular / ícone de app do chrome watchOS. */
-export function ChatIconButton({
-  children,
-  onClick,
-  label,
-  title,
-  disabled,
-  filled = false,
-}: {
-  children: ReactNode
-  onClick?: () => void
-  label: string
-  title?: string
-  disabled?: boolean
-  filled?: boolean
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={title ?? label}
-      className={
-        filled
-          ? 'flex size-8 items-center justify-center rounded-[10px] bg-gradient-to-b from-white/16 to-white/6 text-foreground shadow-[inset_0_1px_0_color-mix(in_oklch,white_18%,transparent)] transition-transform hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40'
-          : 'flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
-      }
-    >
-      {children}
-    </button>
+    </ShellFace>
   )
 }
 

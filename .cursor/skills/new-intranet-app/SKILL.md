@@ -25,7 +25,7 @@ Reuso obrigatório: identidade JWE (`aud` = slug), skill `desktop-app-ui`, gate 
 5. JWE `aud` = slug. Login pede esse `aud`. Token só em memória no desktop.
 6. Gate: recusar API se helper `disconnected` ou se `*.corp` ≠ `10.66.66.1`.
 7. `apps/<slug>/marketplace.yaml` — um slug, sem segundo manifesto.
-8. UI: copiar `xvpn-client` (skill `desktop-app-ui`), não fork visual.
+8. UI: alias `@xvpn/ui` + `shared/ui` (skill `desktop-app-ui`, `PLAN.md` §6.12). Não copiar `index.css` nem inventar paleta.
 9. Documentar rotas em [`docs/api.md`](../../../docs/api.md).
 
 Disco `apps/xvpn-chat` pode permanecer mesmo com slug `xchat` — não renomear módulo Wails sem necessidade.

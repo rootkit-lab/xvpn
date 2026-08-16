@@ -1,0 +1,111 @@
+// Superfícies e HUD. Classes canônicas — não redefinir noutro index.css.
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.watch-face {
+  background:
+    radial-gradient(120% 80% at 50% 0%, oklch(0.2 0.03 230 / 0.45) 0%, transparent 55%),
+    radial-gradient(90% 60% at 50% 100%, oklch(0.16 0.02 260 / 0.5) 0%, transparent 50%),
+    var(--background);
+}
+
+.watch-vignette {
+  background: radial-gradient(ellipse at center, transparent 40%, oklch(0 0 0 / 0.45) 100%);
+}
+
+.watch-complication {
+  background: linear-gradient(
+    165deg,
+    color-mix(in oklch, white 10%, transparent) 0%,
+    color-mix(in oklch, white 4%, transparent) 100%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 12%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.status-safe-dot {
+  background: var(--safe);
+  box-shadow: 0 0 10px var(--glow-safe), 0 0 18px color-mix(in oklch, var(--glow-safe) 50%, transparent);
+  animation: status-safe-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes status-safe-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.25);
+  }
+}
+
+.glow-blob {
+  background: radial-gradient(closest-side, var(--glow) 0%, transparent 70%);
+  filter: blur(40px);
+  opacity: 0.35;
+}
+
+.glow-ring {
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--glow) 40%, transparent),
+    0 0 40px -8px var(--glow);
+}
+
+.text-glow {
+  text-shadow: 0 0 18px color-mix(in oklch, var(--glow) 55%, transparent);
+}
+
+.dot-grid {
+  background-image: radial-gradient(color-mix(in oklch, var(--foreground) 8%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.cyber-frame {
+  position: relative;
+}
+
+.cyber-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    linear-gradient(var(--corner), var(--corner)) top left / 12px 1px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top left / 1px 12px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top right / 12px 1px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) top right / 1px 12px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom left / 12px 1px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom left / 1px 12px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom right / 12px 1px no-repeat,
+    linear-gradient(var(--corner), var(--corner)) bottom right / 1px 12px no-repeat;
+}
+
+.cyber-diamond {
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--glow) 50%, transparent),
+    0 0 24px -4px var(--glow);
+}
+
+.hud-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.6875rem;
+  line-height: 1;
+}
+
+.scanline {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklch, var(--glow) 50%, transparent),
+    transparent
+  );
+}

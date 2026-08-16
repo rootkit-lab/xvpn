@@ -330,7 +330,7 @@ Social e o app `xvpn-chat`: [§6.11](#611-xvpn-social-e-xvpn-chat). Design syste
 - **Limite de tamanho por arquivo**: `MaxAssetSize` = 2 GiB (`server/internal/marketplace/storage.go`), aplicado em duas camadas — `http.MaxBytesReader` na request inteira (rejeita cedo, antes de gravar em disco) e `io.LimitReader`+contagem no `Put` (defesa em profundidade caso o `Content-Length` minta). VPS de produção tem ~150 GB livres (ago/2026) — folga confortável para o catálogo atual, mas sem quota por usuário/app nesta fase (ver Fase 12).
 - **Configuração**: `XVPN_MARKETPLACE_DIR` (`internal/config/config.go`), obrigatória em produção com caminho absoluto dentro de `ReadWritePaths` do systemd (mesmo motivo do `XVPN_DB_PATH`, ver achado da Fase 2) — produção usa `/opt/xvpn/data/marketplace` (`server/deploy/xvpn-server.env.example`).
 - **Backup dos blobs**: como o conteúdo nunca muda depois de escrito (só é criado ou apagado), `server/deploy/backup.sh` passou a espelhar `XVPN_MARKETPLACE_DIR` para `$XVPN_BACKUP_DIR/marketplace/` via `rsync -a --delete` (incremental, sem gzip — os assets já costumam ser binários compactados) na mesma rotina diária que já fazia o `.backup` do `xvpn.db`. Mesma limitação de sempre: é uma cópia no mesmo disco da VPS, protege contra bug/exclusão acidental na aplicação, não contra falha física do disco (backup off-site fica fora do escopo desta fase).
-- **API**: na Fase 11 havia CRUD de app/versão/asset em `adminOnly`; a **Fase 16 removeu a publicação manual** — permanece `PUT /marketplace/apps/:id/access` (ACL operacional), `GET /marketplace/apps`, `GET /marketplace/assets/:id/download` e `POST /marketplace/sync` (token de CI / `super_admin`, ver §6.10). Modelo: `App` (com `Slug`/`Source`/`SourcePath`/`ArchivedAt`) → `AppVersion` → `AppAsset`; `AppAccess` só para apps `restricted`.
+- **API**: na Fase 11 havia CRUD de app/versão/asset em `adminOnly`; a **Fase 16 removeu a publicação manual** — permanece `PUT /marketplace/apps/:id/access` (ACL operacional), `GET /marketplace/apps`, `GET /marketplace/assets/:id/download` e `POST /marketplace/sync` (token de CI / `super_admin`, ver §6.10). Modelo: `App` (com `Slug`/`Source`/`SourcePath`/`ArchivedAt`/`Network`) → `AppVersion` → `AppAsset`; `AppAccess` só para apps `restricted`. `visibility` (quem) ≠ `network` (onde): `network: vpn` só lista/baixa de `*.corp` ou com peer na VPN; a loja pública (`marketplace.ihuull.com`) sem túnel omite esses apps.
 - **UI**: loja em `https://marketplace.ihuull.com` (clone Play Store: busca, destaques, grade, ficha `/app/:slug`, instalar). `/my/marketplace` e `/my/download` redirecionam para esse host. Gestão de ACL permanece em `/admin/marketplace` no painel. O cliente XVPN e o `xvpn-chat` figuram no catálogo. Sem alias `/app` nem `/download` na raiz do painel.
 
 ### 6.9 Contas Unix reais por usuário (SFTP + Samba integrados)
@@ -438,7 +438,7 @@ Se um dia o cliente virar dependência importável de outro módulo do monorepo,
 
 #### 6.10.2 O manifesto é a fonte da verdade
 
-Cada app publicável declara `apps/<pasta>/marketplace.yaml`. O campo `slug` é a **chave de identidade** no catálogo (`App.Slug`, unique). A pasta no disco pode diferir (ex.: `apps/xvpn-chat` + slug `xchat`) — o sync usa o slug, não o nome da pasta. Trocar o slug arquiva o app antigo e cria outro.
+Cada app publicável declara `apps/<pasta>/marketplace.yaml`. O campo `slug` é a **chave de identidade** no catálogo (`App.Slug`, unique). A pasta no disco pode diferir (ex.: `apps/xvpn-chat` + slug `xchat`) — o sync usa o slug, não o nome da pasta. Trocar o slug arquiva o app antigo e cria outro. `visibility` (global|restricted) é quem vê (ACL); `network` (public|vpn) é onde lista/baixa — ver §6.13.
 
 Dois modos de origem, porque as duas situações reais são diferentes:
 
@@ -580,7 +580,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 |---|---|---|---|---|
 | Marca ihuull | `ihuull.com` / `www` | — | — | Landing. Logo principal: `shared/ui/brand/` |
 | xvpn | `xvpn.ihuull.com` | — | `xvpn-client` | Painel+enroll existem; falta portal de produto (chrome próprio, como a loja) separado do `/admin` |
-| marketplace | `marketplace.ihuull.com` | — | — | Loja ok. Falta `network: public\|vpn` no manifesto (além de `visibility: global\|restricted`) |
+| marketplace | `marketplace.ihuull.com` | — | — | Loja ok. `network: public\|vpn` no manifesto (além de `visibility: global\|restricted`) |
 | xchat | `xchat.ihuull.com` (marketing) | `xchat.corp` | `xvpn-chat` | Correto |
 | xgroup | *falta* landing `xgroup.ihuull.com` | `xgroup.corp` + `/social` no painel | — | App web; desktop só se o messenger não bastar |
 | xdriver | `xdriver.ihuull.com` (landing VPN) | `xdriver.corp` | atalho no client | Correto. Sem FileBrowser |

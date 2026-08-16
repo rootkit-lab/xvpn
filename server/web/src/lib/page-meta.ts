@@ -26,7 +26,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'apps',
       title: 'XDriver',
-      description: 'Samba, SFTP e FileBrowser (xdriver.corp.ihuull.com) só respondem dentro da VPN.',
+      description: 'Portal em xdriver.ihuull.com. FileBrowser (xdriver.corp) só responde dentro da VPN.',
     },
   },
   {
@@ -34,7 +34,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'xvpn',
       title: 'Marketplace',
-      description: 'Catálogo interno. Confira o SHA-256 antes de instalar.',
+      description: 'Loja em marketplace.ihuull.com. Confira o SHA-256 antes de instalar.',
     },
   },
   {

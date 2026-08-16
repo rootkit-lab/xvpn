@@ -2,7 +2,7 @@
 
 Issuer SSO: `https://xvpn.ihuull.com`. Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
 
-Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Painel/enroll: `https://xvpn.ihuull.com`.
+Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Painel/enroll: `https://xvpn.ihuull.com`. Loja: `https://marketplace.ihuull.com`. Portal de arquivos: `https://xdriver.ihuull.com` (FileBrowser só em `xdriver.corp`).
 
 Auth: `Authorization: Bearer <token>` salvo no header, nunca na query do WebSocket.
 
@@ -43,13 +43,15 @@ Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` 
 | POST | `/api/social/acks` | entregue/lido |
 | GET | `/api/ws` | Auth no **primeiro frame**, nunca `?token=` |
 
-## Marketplace
+## Marketplace (`marketplace.ihuull.com`)
 
 | Método | Path | Auth |
 |---|---|---|
 | GET | `/api/marketplace/apps` | sessão |
 | GET | `/api/marketplace/assets/:id/download` | sessão + ACL |
 | POST | `/api/marketplace/sync` | `XVPN_PUBLISH_TOKEN` |
+
+ACL admin: `PUT /api/marketplace/apps/:id/access` no painel (`xvpn.ihuull.com/admin/marketplace`).
 
 ## Hooks (xbot)
 
@@ -65,5 +67,5 @@ Body: `{ "body": "texto", "group": "Sistema" }`. Cria/usa o grupo, adiciona todo
 
 ## Superfícies que **não** são esta API
 
-- Samba `10.66.66.1:445` e FileBrowser `10.66.66.1:8081` / `xdriver.corp` — sem fork.
+- Samba `10.66.66.1:445` e FileBrowser `10.66.66.1:8081` / `xdriver.corp` — sem fork. `xdriver.ihuull.com` é só o portal (sem proxy para `:8081`).
 - `ldpops.appapisip.com` — outro processo.

@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ShieldCheck, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
+import { PANEL_ORIGIN } from '@/lib/product-host'
 import { ApiError } from '@/lib/api'
 import { defaultRouteForRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PageFallback } from '@/components/layout/page-fallback'
 
-export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) {
+export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' | 'store' }) {
   const { isAuthenticated, isLoadingUser, user, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -21,6 +22,7 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
   const [submitting, setSubmitting] = useState(false)
 
   const isAdminLogin = variant === 'admin'
+  const isStoreLogin = variant === 'store'
 
   if (isAuthenticated && isLoadingUser) {
     return <PageFallback />
@@ -40,10 +42,11 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
       const from = (location.state as { from?: string } | null)?.from
       // Member que entrou pelo login de admin não fica no /admin — vai pro /my.
       let dest = from ?? defaultRouteForRole(loggedInUser.role)
-      if (loggedInUser.role === 'member' && dest.startsWith('/admin')) {
+      if (isStoreLogin) {
+        dest = from ?? '/'
+      } else if (loggedInUser.role === 'member' && dest.startsWith('/admin')) {
         dest = '/my'
-      }
-      if (loggedInUser.role !== 'member' && isAdminLogin && !from) {
+      } else if (loggedInUser.role !== 'member' && isAdminLogin && !from) {
         dest = '/admin'
       }
       navigate(dest, { replace: true })
@@ -75,12 +78,14 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
               )}
             </div>
             <CardTitle className="font-display text-xl tracking-tight">
-              {isAdminLogin ? 'xvpn — Administração' : 'xvpn'}
+              {isAdminLogin ? 'xvpn — Administração' : isStoreLogin ? 'ihuull' : 'xvpn'}
             </CardTitle>
             <CardDescription className="hud-label text-muted-foreground/75">
               {isAdminLogin
                 ? 'acesso seguro · painel do sistema'
-                : 'dispositivos · marketplace'}
+                : isStoreLogin
+                  ? 'marketplace · xdriver'
+                  : 'dispositivos · marketplace'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -122,27 +127,35 @@ export function LoginPage({ variant = 'user' }: { variant?: 'user' | 'admin' }) 
             </form>
           </CardContent>
         </Card>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          {isAdminLogin ? (
-            <>
-              Conta de membro?{' '}
-              <Link to="/my/login" className="underline underline-offset-4 hover:text-foreground">
-                Entrar no meu espaço
-              </Link>
-            </>
-          ) : (
-            <>
-              Operador do sistema?{' '}
-              <Link to="/admin/login" className="underline underline-offset-4 hover:text-foreground">
-                Administração
-              </Link>
-            </>
-          )}
-        </p>
+        {!isStoreLogin && (
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {isAdminLogin ? (
+              <>
+                Conta de membro?{' '}
+                <Link to="/my/login" className="underline underline-offset-4 hover:text-foreground">
+                  Entrar no meu espaço
+                </Link>
+              </>
+            ) : (
+              <>
+                Operador do sistema?{' '}
+                <Link to="/admin/login" className="underline underline-offset-4 hover:text-foreground">
+                  Administração
+                </Link>
+              </>
+            )}
+          </p>
+        )}
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          <Link to="/" className="underline underline-offset-4 hover:text-foreground">
-            ← Voltar para a página inicial
-          </Link>
+          {isStoreLogin ? (
+            <a href={PANEL_ORIGIN} className="underline underline-offset-4 hover:text-foreground">
+              ← Painel XVPN
+            </a>
+          ) : (
+            <Link to="/" className="underline underline-offset-4 hover:text-foreground">
+              ← Voltar para a página inicial
+            </Link>
+          )}
         </p>
       </motion.div>
     </div>

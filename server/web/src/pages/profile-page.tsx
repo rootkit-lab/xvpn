@@ -5,6 +5,7 @@ import { api, type Device } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
+import { XDRIVER_ORIGIN } from '@/lib/product-host'
 import { ROLE_BADGE_VARIANT, ROLE_CAPABILITIES, ROLE_DESCRIPTIONS, ROLE_LABELS } from '@/lib/roles'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -72,10 +73,10 @@ export function ProfilePage() {
             <ProfileRow label="Cota de disco" value={quota} />
             <ProfileRow label="Chave SSH manual" value={hasSSH ? 'cadastrada' : 'não cadastrada'} />
             <Button variant="outline" size="sm" asChild>
-              <Link to="/my/files">
+              <a href={XDRIVER_ORIGIN}>
                 <FolderOpen className="size-4" />
                 Abrir XDriver
-              </Link>
+              </a>
             </Button>
           </CardContent>
         </Card>

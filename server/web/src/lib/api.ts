@@ -3,6 +3,7 @@
 // componentes, sempre passar por aqui para tratamento de erro/auth
 // consistente).
 import type { Role } from '@/lib/roles'
+import { isStoreHost, storeLoginPath } from '@/lib/product-host'
 
 const TOKEN_KEY = 'xvpn_token'
 
@@ -51,8 +52,11 @@ function handleUnauthorized(path: string) {
   if (path.startsWith('/auth/login')) return
   clearToken()
   const here = window.location.pathname
-  const login =
-    here.startsWith('/admin') || here === '/admin/login' ? '/admin/login' : '/my/login'
+  const login = isStoreHost()
+    ? storeLoginPath()
+    : here.startsWith('/admin') || here === '/admin/login'
+      ? '/admin/login'
+      : '/my/login'
   if (here !== login) {
     window.location.href = login
   }

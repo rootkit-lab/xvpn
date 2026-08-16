@@ -21,7 +21,9 @@ Manter **DNS only** (nuvem cinza) em tudo que for API, WebSocket ou VPN. Cloudfl
 |---|---|---|---|---|
 | A | `@` | `206.189.224.72` | DNS only (laranja só se for landing pura) | `ihuull.com` → landing |
 | A | `www` | `206.189.224.72` | igual | landing |
-| A | `xvpn` | `206.189.224.72` | **DNS only** | painel, enroll, JWT, marketplace |
+| A | `xvpn` | `206.189.224.72` | **DNS only** | painel, enroll, JWE |
+| A | `marketplace` | `206.189.224.72` | **DNS only** | loja (Play Store). Download autenticado — laranja quebra? não, mas DNS only por consistência com API |
+| A | `xdriver` | `206.189.224.72` | **DNS only** | **portal** Drive (atalhos). **Não** é o FileBrowser |
 | A | `xchat` | `206.189.224.72` | DNS only | **só landing** “conecte a VPN / abra o app” — **não** é o WS |
 | TXT | `corp` | `intranet-only` | — | Impede que `corp.ihuull.com` herde um A do wildcard. **Nenhum A** neste nome |
 | TXT | `_dmarc` / SPF | (se houver e-mail) | — | opcional |
@@ -32,7 +34,7 @@ Certificado `*.corp.ihuull.com`: **DNS-01** com o plugin Cloudflare do Certbot. 
 
 ## Zona `ihuull.com` — NÃO criar
 
-- A/AAAA `corp`, `*.corp`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`
+- A/AAAA `corp`, `*.corp`, `xchat.corp`, `xgroup.corp`, `xdriver.corp` (o A público `xdriver` é o **portal**, não o FileBrowser)
 - A `*.ihuull.com` apontando para o VPS **se** isso fizer `corp.ihuull.com` resolver na internet. Se o wildcard já existir: ou apague, ou deixe só como catch-all de nomes **públicos** e cubra `corp` com o TXT acima (mais específico que o wildcard para aquele rótulo)
 - Proxy laranja em `xvpn` ou em qualquer hostname que faça upgrade WebSocket
 - Registro que publique `10.66.66.1` na internet (não ajuda o cliente fora do túnel e vaza a topologia)

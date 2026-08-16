@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -249,28 +250,63 @@ func TestHandleHandoffContinue_OnlyOnXAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	fetch := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-continue?return=https://xvpn.ihuull.com/", nil)
+	fetch.Host = "xauth.ihuull.com"
+	fetch.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
+	fetch.Header.Set("Sec-Fetch-Dest", "empty")
+	fetch.Header.Set("Sec-Fetch-Mode", "cors")
+	fetchRec := httptest.NewRecorder()
+	router.ServeHTTP(fetchRec, fetch)
+	if fetchRec.Code != http.StatusForbidden {
+		t.Fatalf("fetch XSS deveria ser 403, got %d", fetchRec.Code)
+	}
+
 	ok := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-continue?return=https://xvpn.ihuull.com/", nil)
 	ok.Host = "xauth.ihuull.com"
 	ok.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
+	ok.Header.Set("Sec-Fetch-Dest", "document")
+	ok.Header.Set("Sec-Fetch-Mode", "navigate")
 	okRec := httptest.NewRecorder()
 	router.ServeHTTP(okRec, ok)
-	if okRec.Code != http.StatusOK {
+	if okRec.Code != http.StatusSeeOther {
 		t.Fatalf("xauth cookie: %d %s", okRec.Code, okRec.Body.String())
 	}
-	body := okRec.Body.String()
-	if !strings.Contains(body, `action="https://xvpn.ihuull.com/api/auth/session"`) {
-		t.Fatalf("form: %s", body)
+	loc := okRec.Header().Get("Location")
+	if !strings.Contains(loc, "https://xvpn.ihuull.com/api/auth/redeem") || !strings.Contains(loc, "ticket=") {
+		t.Fatalf("location: %s", loc)
 	}
-	if !strings.Contains(body, resp.Token) {
-		t.Fatal("form sem JWE")
+	if strings.Contains(loc, resp.Token) || strings.Contains(okRec.Body.String(), resp.Token) {
+		t.Fatal("JWE vazou no redirect")
 	}
-	if ct := okRec.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
-		t.Fatalf("content-type %q", ct)
+
+	redeemURL, err := url.Parse(loc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	redeem := httptest.NewRequest(http.MethodGet, redeemURL.RequestURI(), nil)
+	redeem.Host = "xvpn.ihuull.com"
+	redeem.Header.Set("Sec-Fetch-Dest", "document")
+	redeem.Header.Set("Sec-Fetch-Mode", "navigate")
+	redeemRec := httptest.NewRecorder()
+	router.ServeHTTP(redeemRec, redeem)
+	if redeemRec.Code != http.StatusSeeOther {
+		t.Fatalf("redeem: %d %s", redeemRec.Code, redeemRec.Body.String())
+	}
+	found := false
+	for _, ck := range redeemRec.Result().Cookies() {
+		if ck.Name == auth.SessionCookieName && ck.Value == resp.Token {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("redeem não plantou cookie")
 	}
 
 	panel := httptest.NewRequest(http.MethodGet, "/api/auth/handoff-continue", nil)
 	panel.Host = "xvpn.ihuull.com"
 	panel.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: resp.Token})
+	panel.Header.Set("Sec-Fetch-Dest", "document")
+	panel.Header.Set("Sec-Fetch-Mode", "navigate")
 	panelRec := httptest.NewRecorder()
 	router.ServeHTTP(panelRec, panel)
 	if panelRec.Code != http.StatusForbidden {

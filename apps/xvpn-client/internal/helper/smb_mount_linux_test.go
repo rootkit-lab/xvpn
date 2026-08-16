@@ -35,6 +35,9 @@ func TestMkdirOpenat_ReplacesSymlink(t *testing.T) {
 	if !fi.IsDir() {
 		t.Fatal("não é diretório")
 	}
+	if fi.Mode().Perm() != 0o700 {
+		t.Fatalf("perm %o want 0700", fi.Mode().Perm())
+	}
 }
 
 func TestMkdirOpenat_RejectsTraversal(t *testing.T) {

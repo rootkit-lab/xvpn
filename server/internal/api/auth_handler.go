@@ -118,16 +118,19 @@ func (a *App) handleEstablishSession(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// handleHandoffContinue lê o cookie HttpOnly no xauth e devolve um form
-// HTML que POSTA o JWE no host de destino. Não há JSON com o token —
-// XSS no xauth não exporta a sessão para localStorage.
+// handleHandoffContinue só no xauth, só navegação top-level: emite um
+// ticket opaco e redireciona ao host de destino. O JWE não vai no corpo.
 // GET /api/auth/handoff-continue
 func (a *App) handleHandoffContinue(c *gin.Context) {
 	if !auth.IsXAuthHost(c.Request.Host) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "só no xauth"})
 		return
 	}
-	if a.Tokens == nil {
+	if !auth.IsDocumentNavigation(c.GetHeader("Sec-Fetch-Dest"), c.GetHeader("Sec-Fetch-Mode")) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "só navegação"})
+		return
+	}
+	if a.Tokens == nil || a.Handoff == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -149,11 +152,50 @@ func (a *App) handleHandoffContinue(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "return inválido"})
 		return
 	}
-	action := u.Scheme + "://" + u.Host + "/api/auth/session"
+	id, err := a.Handoff.Issue(token, auth.HandoffTicketTTL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	redeem, err := url.Parse(u.Scheme + "://" + u.Host + "/api/auth/redeem")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	q := redeem.Query()
+	q.Set("ticket", id)
+	q.Set("return", dest)
+	redeem.RawQuery = q.Encode()
 	c.Header("Cache-Control", "no-store")
-	c.Header("X-Frame-Options", "DENY")
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, auth.HandoffContinueHTML(action, token, dest))
+	c.Redirect(http.StatusSeeOther, redeem.String())
+}
+
+// handleRedeemHandoff troca o ticket por cookie no host de destino.
+// GET /api/auth/redeem
+func (a *App) handleRedeemHandoff(c *gin.Context) {
+	if !auth.IsDocumentNavigation(c.GetHeader("Sec-Fetch-Dest"), c.GetHeader("Sec-Fetch-Mode")) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "só navegação"})
+		return
+	}
+	if a.Tokens == nil || a.Handoff == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	token, ok := a.Handoff.Redeem(c.Query("ticket"))
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "ticket inválido ou expirado"})
+		return
+	}
+	if _, err := a.Tokens.Parse(token); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
+		return
+	}
+	auth.SetSessionCookieOnHost(c, token, a.Tokens.TTL())
+	dest := auth.SafeReturnURL(c.Query("return"))
+	if dest == "" {
+		dest = auth.PanelOrigin + "/"
+	}
+	c.Redirect(http.StatusSeeOther, dest)
 }
 
 // handleLogout apaga o cookie de SSO. Público de propósito: quem tem o

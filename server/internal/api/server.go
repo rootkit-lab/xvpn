@@ -74,7 +74,9 @@ type App struct {
 	Store  *store.Store
 	WG     wireguard.PeerManager
 	Tokens *auth.TokenManager
-	Config *config.Config
+	// Handoff guarda tickets opacos de SSO (uso único, 60s).
+	Handoff *auth.TicketStore
+	Config  *config.Config
 
 	// Marketplace grava/lê os blobs de asset do catálogo de software
 	// (Fase 11 — ver PLAN.md §6.8). Nunca nil em produção (inicializado
@@ -200,12 +202,16 @@ func NewRouter(app *App) *gin.Engine {
 	if app.msgLimiter == nil {
 		app.msgLimiter = newIPRateLimiter(msgRateLimitMax, msgRateLimitWindow)
 	}
+	if app.Handoff == nil {
+		app.Handoff = auth.NewTicketStore()
+	}
 
 	apiGroup := r.Group("/api")
 	{
 		apiGroup.POST("/auth/login", rateLimit(app.loginLimiter), app.handleLogin)
 		apiGroup.POST("/auth/session", rateLimit(app.loginLimiter), app.handleEstablishSession)
 		apiGroup.GET("/auth/handoff-continue", rateLimit(app.loginLimiter), app.handleHandoffContinue)
+		apiGroup.GET("/auth/redeem", rateLimit(app.loginLimiter), app.handleRedeemHandoff)
 		apiGroup.POST("/auth/logout", app.handleLogout)
 		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
 		apiGroup.GET("/status", app.handleStatus)

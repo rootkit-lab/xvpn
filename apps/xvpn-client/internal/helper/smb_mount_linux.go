@@ -36,7 +36,7 @@ func (h *Helper) handleMountSMB(raw json.RawMessage, peer ipc.Peer) (any, error)
 	}
 	src := fmt.Sprintf("//%s/%s", target.Host, target.Share)
 	opts := fmt.Sprintf(
-		"guest,vers=3.1.1,uid=%d,gid=%d,iocharset=utf8,file_mode=0664,dir_mode=0775,actimeo=30,cache=loose,noserverino,nounix,noperm,nobrl",
+		"guest,vers=3.1.1,uid=%d,gid=%d,iocharset=utf8,file_mode=0600,dir_mode=0700,actimeo=30,cache=loose,noserverino,nounix,nobrl",
 		target.UID, target.GID,
 	)
 	// /proc/self/fd/N prende o inode (O_NOFOLLOW) — mount não segue symlink.
@@ -101,7 +101,7 @@ func mkdirOpenat(dirfd int, name string, uid, gid int) (int, error) {
 			return -1, fmt.Errorf("removendo symlink %s: %w", name, err)
 		}
 	}
-	if err := unix.Mkdirat(dirfd, name, 0o755); err != nil && err != unix.EEXIST {
+	if err := unix.Mkdirat(dirfd, name, 0o700); err != nil && err != unix.EEXIST {
 		return -1, err
 	}
 	fd, err := unix.Openat(dirfd, name, unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_RDONLY, 0)
@@ -111,6 +111,10 @@ func mkdirOpenat(dirfd int, name string, uid, gid int) (int, error) {
 	if err := unix.Fchown(fd, uid, gid); err != nil {
 		unix.Close(fd)
 		return -1, fmt.Errorf("fchown %s: %w", name, err)
+	}
+	if err := unix.Fchmod(fd, 0o700); err != nil {
+		unix.Close(fd)
+		return -1, fmt.Errorf("fchmod %s: %w", name, err)
 	}
 	return fd, nil
 }

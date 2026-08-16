@@ -30,6 +30,14 @@ contents:
     dst: "/usr/lib/systemd/system/xvpn-client-helper.service"
     file_info:
       mode: 0644
+  - src: "./deploy/systemd/xvpn-client-helper.service.d/intranet.conf"
+    dst: "/usr/lib/systemd/system/xvpn-client-helper.service.d/intranet.conf"
+    file_info:
+      mode: 0644
+  - src: "./deploy/polkit/50-xvpn-resolved.rules"
+    dst: "/etc/polkit-1/rules.d/50-xvpn-resolved.rules"
+    file_info:
+      mode: 0644
   # Chrome/Chromium DoH pergunta à Cloudflare, que devolve NXDOMAIN para
   # *.corp de propósito (sem A público). Desligar o cliente DNS embutido
   # faz o browser usar systemd-resolved — aí o split-horizon da xvpn0 vale.

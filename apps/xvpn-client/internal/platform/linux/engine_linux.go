@@ -9,8 +9,10 @@ package linux
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -207,9 +209,9 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 
 	if len(cfg.DNS) > 0 {
 		if err := applyDNS(cfg.DNS); err != nil {
-			// DNS é best-effort: sem systemd-resolved, seguimos conectados
-			// mas sem resolução automática — documentado como limitação
-			// conhecida (ver ROADMAP.md Fase 4).
+			// DNS é best-effort: sem systemd-resolved/polkit, seguimos
+			// conectados mas sem resolução automática (ROADMAP Fase 4).
+			slog.Warn("apply dns failed", "err", err)
 			e.dnsApplied = false
 		} else {
 			e.dnsApplied = true
@@ -445,11 +447,11 @@ func applyDNS(dns []string) error {
 		return fmt.Errorf("resolvectl não encontrado")
 	}
 	dnsArgs, domainArgs, defaultRouteArgs := splitHorizonResolvectlArgs(ifaceName, dns)
-	if err := exec.Command("resolvectl", dnsArgs...).Run(); err != nil {
-		return fmt.Errorf("resolvectl dns: %w", err)
+	if out, err := exec.Command("resolvectl", dnsArgs...).CombinedOutput(); err != nil {
+		return fmt.Errorf("resolvectl dns: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	if err := exec.Command("resolvectl", domainArgs...).Run(); err != nil {
-		return fmt.Errorf("resolvectl domain: %w", err)
+	if out, err := exec.Command("resolvectl", domainArgs...).CombinedOutput(); err != nil {
+		return fmt.Errorf("resolvectl domain: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	_ = exec.Command("resolvectl", "dnsovertls", ifaceName, "no").Run()
 	_ = exec.Command("resolvectl", "dnssec", ifaceName, "no").Run()

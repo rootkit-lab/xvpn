@@ -58,6 +58,12 @@ echo "XVPN: Chrome/Chromium passam a usar o DNS do sistema (*.corp via túnel)."
 echo "     Feche o Chrome por completo depois de instalar."
 
 # --- systemd ---
+# Unit manual em /etc sobrescreve a do .deb e tira ReadWritePaths
+# (achado no Pop!_OS: helper logava "open /etc/hosts: read-only file system").
+if [ -f /etc/systemd/system/xvpn-client-helper.service ]; then
+  rm -f /etc/systemd/system/xvpn-client-helper.service
+fi
+
 if command -v systemctl >/dev/null 2>&1; then
   systemctl daemon-reload || true
   systemctl enable xvpn-client-helper.service >/dev/null 2>&1 || true

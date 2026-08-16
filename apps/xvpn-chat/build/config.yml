@@ -1,9 +1,9 @@
 version: '3'
 info:
   companyName: "rootkit-lab"
-  productName: "XVPN Chat"
+  productName: "xchat"
   productIdentifier: "com.ihuull.xchat"
-  description: "Chat da organização XVPN"
+  description: "Messenger da intranet ihuull"
   copyright: "(c) 2026, rootkit-lab"
-  comments: "Cliente do protocolo social XVPN"
+  comments: "Cliente desktop do xchat"
   version: "0.1.0"

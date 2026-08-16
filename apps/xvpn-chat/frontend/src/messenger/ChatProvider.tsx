@@ -286,7 +286,7 @@ export function ChatProvider({
           const s = settingsRef.current
           if (s.soundIn) playTone('in', s.volume)
           if (s.notify && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            new Notification('XVPN Chat', { body: (msg.body || previewKind(msg.kind)).slice(0, 80) })
+            new Notification('xchat', { body: (msg.body || previewKind(msg.kind)).slice(0, 80) })
           }
         }
       }

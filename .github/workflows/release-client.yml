@@ -1,15 +1,25 @@
 name: release-client
 
 # Fase 16.5 — build + GitHub Release na tag xvpn-client-v*, depois sync
-# do marketplace. Sem este workflow o "automático" do catálogo fica
-# pela metade (PLAN.md §6.10.5).
+# do marketplace. O release-please cria a tag com GITHUB_TOKEN — isso
+# NÃO dispara on.push.tags. Depois do land, rode workflow_dispatch com
+# a tag (ex. xvpn-client-v0.1.2).
 on:
   push:
     tags:
       - "xvpn-client-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ex.: xvpn-client-v0.1.2)"
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   linux:
@@ -19,6 +29,8 @@ jobs:
         working-directory: apps/xvpn-client
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/xvpn-client/go.mod
@@ -47,8 +59,7 @@ jobs:
       - name: Versão da tag
         id: ver
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VERSION="${TAG#xvpn-client-v}"
+          VERSION="${RELEASE_TAG#xvpn-client-v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
       - name: Package (.deb)
@@ -76,6 +87,8 @@ jobs:
         working-directory: apps/xvpn-client
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: apps/xvpn-client/go.mod
@@ -104,7 +117,7 @@ jobs:
       - name: Versão da tag
         id: ver
         run: |
-          VERSION="${GITHUB_REF_NAME#xvpn-client-v}"
+          VERSION="${RELEASE_TAG#xvpn-client-v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
       - name: Fetch wintun (se script existir)
@@ -135,6 +148,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -142,7 +157,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${RELEASE_TAG}"
           VERSION="${TAG#xvpn-client-v}"
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Release automática do cliente XVPN ${VERSION}"
           find artifacts -type f \( -name '*.deb' -o -name '*.exe' \) -print0 | xargs -0 -r gh release upload "$TAG" --clobber

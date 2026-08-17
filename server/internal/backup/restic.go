@@ -316,6 +316,10 @@ func (r *Runner) copyXDriver(ctx context.Context, dest Dest, paths []string, dry
 	return Result{SnapshotID: r.now().UTC().Format("20060102T150405Z"), Log: log.String()}, nil
 }
 
+func safeINIValue(s string) bool {
+	return !strings.ContainsAny(s, "\n\r=")
+}
+
 func safeRclonePath(p string) bool {
 	p = strings.TrimSpace(p)
 	if p == "" || strings.ContainsAny(p, "\n\r:") || strings.Contains(p, "..") {
@@ -327,7 +331,10 @@ func safeRclonePath(p string) bool {
 func rcloneConfig(kind string, sec Secret) (string, error) {
 	switch kind {
 	case "webdav":
-		if sec.WebDAVURL == "" || strings.ContainsAny(sec.WebDAVURL, "\n\r") {
+		if !safeINIValue(sec.WebDAVURL) || !safeINIValue(sec.WebDAVUser) || !safeINIValue(sec.WebDAVPass) {
+			return "", ErrBadKind
+		}
+		if sec.WebDAVURL == "" {
 			return "", ErrBadKind
 		}
 		return fmt.Sprintf("[webdav]\ntype = webdav\nvendor = other\nurl = %s\nuser = %s\npass = %s\n",

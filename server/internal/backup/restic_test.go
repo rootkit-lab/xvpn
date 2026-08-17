@@ -72,6 +72,9 @@ func TestRcloneConfigAllowlist(t *testing.T) {
 	if _, err := rcloneConfig("webdav", Secret{WebDAVURL: "https://dav.example/"}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := rcloneConfig("webdav", Secret{WebDAVURL: "https://dav.example/", WebDAVUser: "u\ntype = sftp"}); err != ErrBadKind {
+		t.Fatalf("ini inject: %v", err)
+	}
 	if safeRclonePath("../etc") || safeRclonePath("a:b") {
 		t.Fatal("path")
 	}

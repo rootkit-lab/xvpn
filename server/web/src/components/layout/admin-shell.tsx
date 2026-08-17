@@ -49,7 +49,10 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     id: 'marketplace',
     label: 'Marketplace',
     product: 'marketplace',
-    items: [{ to: '/admin/marketplace', label: 'Catálogo e ACL', icon: Store, roles: VIEWER_UP_ROLES, product: 'marketplace' }],
+    items: [
+      { to: '/admin/marketplace/catalog', label: 'Catálogo', icon: Store, roles: VIEWER_UP_ROLES, product: 'marketplace' },
+      { to: '/admin/marketplace/acl', label: 'ACL', icon: Shield, roles: VIEWER_UP_ROLES, product: 'marketplace' },
+    ],
   },
   {
     id: 'xgroup',

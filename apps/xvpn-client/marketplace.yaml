@@ -5,6 +5,7 @@ name: XVPN Client
 description: Cliente desktop da VPN privada XVPN (Windows e Linux)
 visibility: global
 network: public
+kind: desktop
 source: build
 channel: stable
 # ${VERSION} é resolvido pelo CI a partir do release-please / tag xvpn-client-v*.

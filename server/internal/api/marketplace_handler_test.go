@@ -535,6 +535,48 @@ func TestHandleListMarketplaceApps_NetworkFilter(t *testing.T) {
 	}
 }
 
+func TestHandleListMarketplaceApps_KindFilter(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_ = createTestUserWithRole(t, app, "member", "senha-member-ok", store.RoleMember)
+	tok := loginAndGetToken(t, app, router, "member", "senha-member-ok")
+	svc := store.App{
+		Slug: "shared-ui", Name: "shared/ui", Visibility: store.AppVisibilityGlobal,
+		Network: store.AppNetworkPublic, Kind: store.AppKindLibrary,
+		Source: store.AppSourceBuild, SourcePath: "shared/ui",
+	}
+	if err := app.Store.DB.Create(&svc).Error; err != nil {
+		t.Fatal(err)
+	}
+	desk := store.App{
+		Slug: "loja-desk", Name: "Desktop", Visibility: store.AppVisibilityGlobal,
+		Network: store.AppNetworkPublic, Kind: store.AppKindDesktop,
+		Source: store.AppSourceBuild, SourcePath: "apps/loja-desk",
+	}
+	if err := app.Store.DB.Create(&desk).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	storefront := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, tok,
+		"marketplace.ihuull.com", "203.0.113.9:443", nil))
+	if _, ok := storefront[svc.ID]; ok {
+		t.Fatal("kind library não deve aparecer na loja")
+	}
+	if item, ok := storefront[desk.ID]; !ok {
+		t.Fatal("kind desktop deve aparecer na loja")
+	} else if item.Kind != string(store.AppKindDesktop) {
+		t.Fatalf("kind no JSON: %q", item.Kind)
+	}
+
+	_ = createTestUserWithRole(t, app, "mkt-admin", "senha-admin-ok", store.RoleAdmin)
+	adminTok := loginAndGetToken(t, app, router, "mkt-admin", "senha-admin-ok")
+	adminList := listedIDs(t, doMarketplaceJSON(t, router, http.MethodGet, "/api/marketplace/apps", nil, adminTok,
+		"xadmin.corp.ihuull.com", "10.66.66.2:443", nil))
+	if _, ok := adminList[svc.ID]; !ok {
+		t.Fatal("admin deve ver kind library no catálogo")
+	}
+}
+
 func TestHandleDownloadMarketplaceAsset_NetworkFilter(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

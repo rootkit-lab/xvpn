@@ -134,11 +134,27 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/marketplace/acl',
+    meta: {
+      kicker: 'Marketplace',
+      title: 'ACL',
+      description: 'Quem acessa apps restricted. Não mistura com versões nem assets.',
+    },
+  },
+  {
+    prefix: '/admin/marketplace/catalog',
+    meta: {
+      kicker: 'Marketplace',
+      title: 'Catálogo',
+      description: 'Espelho de apps/*/marketplace.yaml — kind, network, versões e assets.',
+    },
+  },
+  {
     prefix: '/admin/marketplace',
     meta: {
       kicker: 'Marketplace',
-      title: 'Catálogo e ACL',
-      description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL, network e download.',
+      title: 'Catálogo',
+      description: 'Espelho de apps/*/marketplace.yaml — kind, network, versões e assets.',
     },
   },
   {

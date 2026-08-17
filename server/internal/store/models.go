@@ -216,6 +216,38 @@ func (n AppNetwork) Valid() bool {
 	return n == AppNetworkPublic || n == AppNetworkVPN
 }
 
+// AppKind classifica o artefato no catálogo (Fase 36 — PLAN.md §6.8).
+// A loja (member) só lista desktop/web; os demais kinds ficam no xadmin.
+type AppKind string
+
+const (
+	AppKindDesktop   AppKind = "desktop"
+	AppKindWeb       AppKind = "web"
+	AppKindService   AppKind = "service"
+	AppKindLibrary   AppKind = "library"
+	AppKindInfra     AppKind = "infra"
+	AppKindDocs      AppKind = "docs"
+	AppKindContainer AppKind = "container"
+)
+
+func (k AppKind) Valid() bool {
+	switch k {
+	case AppKindDesktop, AppKindWeb, AppKindService, AppKindLibrary, AppKindInfra, AppKindDocs, AppKindContainer:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsStoreKind reporta se o kind entra na vitrine (Play Store / member).
+func (k AppKind) IsStoreKind() bool {
+	kk := k
+	if kk == "" {
+		kk = AppKindDesktop
+	}
+	return kk == AppKindDesktop || kk == AppKindWeb
+}
+
 const (
 	ChannelStable = "stable"
 	ChannelBeta   = "beta"
@@ -263,6 +295,8 @@ type App struct {
 	// intranet (xchat) declaram vpn no manifesto. Vazio (linhas antigas)
 	// é tratado como public no sync e na listagem.
 	Network AppNetwork `gorm:"not null;default:public"`
+	// Kind (desktop|web|service|…). Vazio nas linhas antigas = desktop.
+	Kind AppKind `gorm:"not null;default:desktop"`
 	// ArchivedAt marca apps cujo slug sumiu do diretório no último sync —
 	// nunca hard-delete pelo CI (PLAN.md §6.10.3). Nil = ativo.
 	ArchivedAt *time.Time

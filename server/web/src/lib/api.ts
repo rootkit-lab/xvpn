@@ -298,6 +298,7 @@ export interface DNSResponse {
 export type MarketplacePlatform = 'linux' | 'windows' | 'android'
 export type MarketplaceVisibility = 'global' | 'restricted'
 export type MarketplaceNetwork = 'public' | 'vpn'
+export type MarketplaceKind = 'desktop' | 'web' | 'service' | 'library' | 'infra' | 'docs' | 'container'
 export type MarketplaceChannel = 'stable' | 'beta'
 
 export interface MarketplaceAsset {
@@ -330,6 +331,7 @@ export interface MarketplaceApp {
   icon_url?: string
   visibility: MarketplaceVisibility
   network: MarketplaceNetwork
+  kind: MarketplaceKind
   source?: string
   source_path?: string
   created_at: string

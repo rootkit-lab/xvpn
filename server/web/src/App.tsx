@@ -240,7 +240,9 @@ function XAdminCorpApp() {
             <Route path="shares" element={<SharesPage />} />
             <Route path="waitlist" element={<WaitlistPage />} />
             <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
-            <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
+            <Route path="marketplace" element={<Navigate to="/admin/marketplace/catalog" replace />} />
+            <Route path="marketplace/catalog" element={<MarketplacePage variant="manage" section="catalog" />} />
+            <Route path="marketplace/acl" element={<MarketplacePage variant="manage" section="acl" />} />
             <Route path="xgroup" element={<XGroupAdminPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="dns" element={<DNSPage />} />

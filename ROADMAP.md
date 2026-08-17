@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fase 35** (host xadmin) nesta branch. **Próximo:** Fases 36–45 — catálogo≠ACL, forge, compute, DNS público, serviços orquestrados, backups (`PLAN.md` §6.14–§6.19). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fase 35** em produção. **Fase 36** (catálogo ≠ ACL) nesta branch. **Próximo:** Fases 37–45 — projeto, forge, compute, DNS público, serviços, backups (`PLAN.md` §6.14–§6.19). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1156,10 +1156,10 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ## Fase 36 — Marketplace: catálogo ≠ ACL + kinds
 
-- [ ] Nav: **Catálogo** e **ACL** (duas rotas). Backend já separa sync vs `PUT .../access`.
-- [ ] `marketplace.yaml`: campo `kind` (`desktop|web|service|library|infra|docs|container`). Validador CI + [`docs/marketplace.md`](./docs/marketplace.md).
-- [ ] Loja pública lista só `desktop`/`web` com `network: public`.
-- [ ] Sem inventário de `/home/wiz/Projects` no servidor/PLAN. Projeto nasce no xadmin quando existir.
+- [x] Nav: **Catálogo** e **ACL** (duas rotas). Backend já separa sync vs `PUT .../access`.
+- [x] `marketplace.yaml`: campo `kind` (`desktop|web|service|library|infra|docs|container`). Validador CI + [`docs/marketplace.md`](./docs/marketplace.md).
+- [x] Loja pública lista só `desktop`/`web` com `network: public`.
+- [x] Sem inventário de `/home/wiz/Projects` no servidor/PLAN. Projeto nasce no xadmin quando existir.
 
 **Critério de saída:** admin da loja gerencia ACL sem misturar com a vitrine; manifesto sem `kind` reprova o CI.
 

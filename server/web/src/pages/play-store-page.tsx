@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowLeft, Download, Monitor, Package, Smartphone, Terminal } from 'lucide-react'
+import { ArrowLeft, Download, Monitor, Smartphone, Terminal } from 'lucide-react'
 import {
   api,
   ApiError,
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/pagination'
 import { StoreShell } from '@/components/layout/store-shell'
+import { MarketplaceAppIcon } from '@/components/marketplace-app-icon'
 
 const PLATFORM_LABELS: Record<MarketplacePlatform, string> = {
   linux: 'Linux',
@@ -50,7 +51,7 @@ export function PlayStoreSearch({ q, onQ }: { q: string; onQ: (v: string) => voi
       value={q}
       onChange={(e) => onQ(e.target.value)}
       placeholder="Buscar apps e jogos"
-      className="mx-auto max-w-xl"
+      className="mx-auto max-w-xl rounded-full"
       aria-label="Buscar no Marketplace"
     />
   )
@@ -112,7 +113,7 @@ export function PlayStoreHome() {
           ) : (
             <section>
               <h2 className="font-display mb-4 text-lg font-semibold">Recomendados para você</h2>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
+              <div className="flex flex-wrap gap-3">
                 {filtered.map((app) => (
                   <AppTile key={app.id} app={app} />
                 ))}
@@ -132,7 +133,7 @@ function FeaturedHero({ app }: { app: MarketplaceApp }) {
       to={`/app/${app.slug}`}
       className="watch-complication-lift watch-complication relative flex flex-col gap-4 overflow-hidden rounded-[22px] p-6 md:flex-row md:items-center md:gap-8"
     >
-      <AppIcon app={app} className="size-20 rounded-[22px] md:size-24" />
+      <MarketplaceAppIcon app={app} className="size-20 shrink-0 rounded-[22px] md:size-24" />
       <div className="min-w-0 flex-1">
         <p className="hud-label text-muted-foreground/70">Destaque</p>
         <h1 className="font-display mt-1 text-2xl font-semibold tracking-tight">{app.name}</h1>
@@ -154,22 +155,14 @@ function FeaturedHero({ app }: { app: MarketplaceApp }) {
 function AppTile({ app }: { app: MarketplaceApp }) {
   const version = latestVersion(app)
   return (
-    <Link to={`/app/${app.slug}`} className="flex flex-col items-center gap-2 rounded-[18px] px-2 py-3 text-center hover:bg-white/6">
-      <AppIcon app={app} className="size-16 rounded-[18px]" />
+    <Link
+      to={`/app/${app.slug}`}
+      className="flex w-[7.25rem] flex-col items-center gap-2 rounded-[18px] px-2 py-3 text-center hover:bg-white/6"
+    >
+      <MarketplaceAppIcon app={app} className="size-[4.5rem] rounded-[20px]" />
       <span className="font-display w-full truncate text-[13px] font-semibold">{app.name}</span>
       <span className="text-[11px] text-muted-foreground">{version ? `v${version.version}` : '—'}</span>
     </Link>
-  )
-}
-
-function AppIcon({ app, className }: { app: MarketplaceApp; className?: string }) {
-  if (app.icon_url) {
-    return <img src={app.icon_url} alt="" className={`object-cover ${className ?? ''}`} />
-  }
-  return (
-    <span className={`icon-well-lg flex items-center justify-center text-foreground ${className ?? ''}`}>
-      <Package className="size-7" />
-    </span>
   )
 }
 
@@ -213,7 +206,7 @@ export function PlayStoreDetail() {
       </Link>
 
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <AppIcon app={app} className="size-24 shrink-0 rounded-[22px]" />
+        <MarketplaceAppIcon app={app} className="size-24 shrink-0 rounded-[22px]" />
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-semibold tracking-tight">{app.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{app.description || 'App da intranet ihuull.'}</p>

@@ -1,6 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { Copy, Download, ExternalLink, Monitor, Package, Smartphone, Terminal, Users as UsersIcon } from 'lucide-react'
+import { Copy, Download, ExternalLink, Monitor, Smartphone, Terminal, Users as UsersIcon } from 'lucide-react'
 import {
   api,
   ApiError,
@@ -24,6 +24,7 @@ import { FilterBar } from '@/components/filter-bar'
 import { PaginationBar, EmptyState } from '@/components/pagination'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MarketplaceAppIcon } from '@/components/marketplace-app-icon'
 import {
   Dialog,
   DialogContent,
@@ -155,13 +156,7 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
                   openId === app.id ? 'ring-1 ring-safe' : ''
                 }`}
               >
-                {app.icon_url ? (
-                  <img src={app.icon_url} alt="" className="size-12 rounded-[16px] object-cover" />
-                ) : (
-                  <span className="icon-well-lg flex size-12 items-center justify-center rounded-[16px] text-foreground">
-                    <Package className="size-5" />
-                  </span>
-                )}
+                <MarketplaceAppIcon app={app} className="size-12 rounded-[16px]" />
                 <span className="font-display w-full truncate text-[13px] font-semibold">{app.name}</span>
                 {app.description && (
                   <span className="line-clamp-2 text-[11px] text-muted-foreground">{app.description}</span>
@@ -186,13 +181,7 @@ function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: bo
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          {app.icon_url ? (
-            <img src={app.icon_url} alt="" className="size-10 shrink-0 rounded-full object-cover" />
-          ) : (
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[0_0_20px_-6px_var(--color-glow)]">
-              <Package className="size-5" />
-            </div>
-          )}
+          <MarketplaceAppIcon app={app} className="size-10 shrink-0 rounded-full" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="text-base">{app.name}</CardTitle>

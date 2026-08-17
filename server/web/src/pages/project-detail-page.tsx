@@ -327,7 +327,7 @@ function GitCard({ slug, username, canWrite }: { slug: string; username: string;
     const cmd = `git clone ${url}`
     try {
       await navigator.clipboard.writeText(cmd)
-      toast.success(token ? 'Comando copiado — a senha é o JWE da sessão' : 'URL copiada')
+      toast.success(token ? 'Comando copiado — senha = a da conta ihuull' : 'URL copiada')
     } catch {
       toast.error('Não foi possível copiar')
     }
@@ -377,8 +377,8 @@ function GitCard({ slug, username, canWrite }: { slug: string; username: string;
       <CardHeader>
         <CardTitle className="text-base">Git</CardTitle>
         <CardDescription>
-          Clone só em <code className="font-mono text-xs">xgit.corp</code> com VPN. Senha HTTP = JWE. Guest/reporter
-          leem; developer faz push; maintainer em branch protegida.
+          Clone só em <code className="font-mono text-xs">xgit.corp</code> com VPN. Usuário e senha da conta.
+          Guest/reporter leem; developer faz push; maintainer em branch protegida.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

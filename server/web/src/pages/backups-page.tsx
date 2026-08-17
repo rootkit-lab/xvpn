@@ -26,7 +26,7 @@ const KINDS: { id: BackupKind; label: string }[] = [
   { id: 's3', label: 'S3 / MinIO' },
   { id: 'webdav', label: 'WebDAV' },
   { id: 'drive', label: 'Google Drive (rclone)' },
-  { id: 'xdriver', label: 'XDRIVER (extra)' },
+  { id: 'xdriver', label: 'XDRIVER (extra, sem Mongo)' },
 ]
 
 export function BackupsPage() {

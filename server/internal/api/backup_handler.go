@@ -375,6 +375,9 @@ func (a *App) handleRunBackup(c *gin.Context) {
 		Secret:   backup.ParseSecret(dest.Secret),
 	}
 	if dest.Kind == store.BackupKindXDriver {
+		// [shared] é guest ok — nunca copiar mongodump (hashes, secrets).
+		inc.Mongo = false
+		inc.MongoURI = ""
 		runDest.Path = a.xdriverBackupPath(dest)
 	}
 	res, runErr := a.backupEngine().Backup(c.Request.Context(), runDest, inc, a.backupStaging(), req.DryRun)

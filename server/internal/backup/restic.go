@@ -231,7 +231,7 @@ func resticRepo(dest Dest, staging string) (string, []string, error) {
 		if path == "" {
 			path = dest.Path
 		}
-		if user == "" || host == "" || path == "" {
+		if !safeSFTPUser(user) || !safeSFTPHost(host) || !safeSFTPRepoPath(path) {
 			return "", nil, ErrBadKind
 		}
 		return fmt.Sprintf("sftp:%s@%s:%s", user, host, path), nil, nil
@@ -314,6 +314,30 @@ func (r *Runner) copyXDriver(ctx context.Context, dest Dest, paths []string, dry
 		}
 	}
 	return Result{SnapshotID: r.now().UTC().Format("20060102T150405Z"), Log: log.String()}, nil
+}
+
+func safeSFTPHost(h string) bool {
+	h = strings.TrimSpace(h)
+	if h == "" || strings.HasPrefix(h, "-") || strings.ContainsAny(h, "\n\r @:/\\") {
+		return false
+	}
+	return true
+}
+
+func safeSFTPUser(u string) bool {
+	u = strings.TrimSpace(u)
+	if u == "" || strings.HasPrefix(u, "-") || strings.ContainsAny(u, "\n\r @:/\\") {
+		return false
+	}
+	return true
+}
+
+func safeSFTPRepoPath(p string) bool {
+	p = strings.TrimSpace(p)
+	if p == "" || strings.ContainsAny(p, "\n\r") || strings.Contains(p, "..") {
+		return false
+	}
+	return true
 }
 
 func safeINIValue(s string) bool {

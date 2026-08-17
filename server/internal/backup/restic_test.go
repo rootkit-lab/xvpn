@@ -78,4 +78,7 @@ func TestRcloneConfigAllowlist(t *testing.T) {
 	if safeRclonePath("../etc") || safeRclonePath("a:b") {
 		t.Fatal("path")
 	}
+	if safeSFTPHost("-oProxyCommand=x") || safeSFTPHost("host:22") || !safeSFTPHost("nas.example") {
+		t.Fatal("sftp host")
+	}
 }

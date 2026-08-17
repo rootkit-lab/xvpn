@@ -7,16 +7,32 @@ import (
 	"gorm.io/gorm"
 )
 
-// CodeSpace é um worktree do forge (Fase 49). Não é VM nem shell.
+const (
+	CodespaceKindQuick  = "quick"
+	CodespaceKindRemote = "remote"
+	CodespaceStopped    = "stopped"
+	CodespaceStarting   = "starting"
+	CodespaceRunning    = "running"
+	CodespaceError      = "error"
+)
+
+// CodeSpace é um workspace do XCODESPACES.
+// Kind=quick: worktree + Monaco (Fase 49). Kind=remote: clone + container (Fase 50).
 type CodeSpace struct {
-	ID        uint   `gorm:"primaryKey"`
-	PublicID  string `gorm:"uniqueIndex;not null"`
-	UserID    uint   `gorm:"index;not null"`
-	ProjectID uint   `gorm:"index;not null"`
-	Branch    string `gorm:"not null"`
-	RelPath   string `gorm:"not null"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           uint   `gorm:"primaryKey"`
+	PublicID     string `gorm:"uniqueIndex;not null"`
+	UserID       uint   `gorm:"index;not null"`
+	ProjectID    uint   `gorm:"index;not null"`
+	Branch       string `gorm:"not null"`
+	RelPath      string `gorm:"not null"`
+	Kind         string `gorm:"not null;default:quick"`
+	Status       string `gorm:"not null;default:stopped"`
+	HostPort     int
+	Image        string
+	GitTokenHash string
+	LastActiveAt *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 
 	User    User    `gorm:"foreignKey:UserID"`
 	Project Project `gorm:"foreignKey:ProjectID"`
@@ -39,7 +55,7 @@ func SeedXcodespacesApp(db *gorm.DB) error {
 	return db.Create(&App{
 		Slug:        "xcodespaces",
 		Name:        "XCODESPACES IDE",
-		Description: "IDE Monaco na intranet — xcodespaces.corp.ihuull.com. Worktree do forge; sem VM/shell.",
+		Description: "IDE na intranet — editor rápido (Monaco) e codespace remoto (VS Code + Docker).",
 		Visibility:  AppVisibilityRestricted,
 		Network:     AppNetworkVPN,
 		Kind:        AppKindWeb,

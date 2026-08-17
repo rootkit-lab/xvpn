@@ -11,6 +11,18 @@ import (
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
+func TestCodespaceRuntimeHost(t *testing.T) {
+	if got := codespaceRuntimeHost("cs-aabbccddeeff.corp.ihuull.com"); got != "aabbccddeeff" {
+		t.Fatalf("got %q", got)
+	}
+	if codespaceRuntimeHost("evil.xcodespaces.corp.ihuull.com") != "" {
+		t.Fatal("dois rótulos não podem casar")
+	}
+	if codespaceRuntimeHost("xcodespaces.corp.ihuull.com") != "" {
+		t.Fatal("catálogo não é runtime")
+	}
+}
+
 func TestCodespaceLifecycle(t *testing.T) {
 	app, router, adminTok := setupGitApp(t)
 	app.Config.CodespacesDir = t.TempDir()
@@ -135,5 +147,55 @@ func TestCodespaceRejectsGitMetadataAndSymlinks(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "etc-link") || strings.Contains(rec.Body.String(), "passwd-link") {
 		t.Fatalf("tree leaked symlink: %s", rec.Body.String())
+	}
+}
+
+func TestCodespaceRemoteCreateUsesHelper(t *testing.T) {
+	fp := &fakeUserProvisioner{}
+	app, _ := withProvisioner(t, fp)
+	app.Config.CodespacesDir = t.TempDir()
+	app.Config.GitDir = t.TempDir()
+	if err := store.SeedXcodespacesApp(app.Store.DB); err != nil {
+		t.Fatal(err)
+	}
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	seedProjectBranches(t, app.Config.GitDir, "lab")
+
+	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Slug: "lab", Branch: "main", Kind: "remote"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create remote: %d %s", rec.Code, rec.Body.String())
+	}
+	var cs codespaceJSON
+	if err := json.Unmarshal(rec.Body.Bytes(), &cs); err != nil {
+		t.Fatal(err)
+	}
+	if cs.Kind != store.CodespaceKindRemote || cs.Status != store.CodespaceRunning {
+		t.Fatalf("cs: %+v", cs)
+	}
+	if !strings.HasPrefix(cs.RuntimeURL, "https://cs-") {
+		t.Fatalf("runtime: %s", cs.RuntimeURL)
+	}
+	joined := strings.Join(fp.calls, "\n")
+	if !strings.Contains(joined, "ApplyCodespace(") {
+		t.Fatalf("helper não chamado: %v", fp.calls)
+	}
+	if strings.Contains(joined, "worktree") {
+		t.Fatal("remote não pode usar worktree")
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces/"+cs.ID+"/stop", nil, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("stop: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodDelete, "/api/xcodespaces/"+cs.ID, nil, adminTok)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: %d", rec.Code)
 	}
 }

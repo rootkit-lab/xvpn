@@ -117,9 +117,11 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/projects/:slug/merge-requests/:iid/reviews` | sessão + ACL | |
 | POST | `/api/projects/:slug/merge-requests/:iid/reviews` | reporter+ | `approve` / `request_changes` / `comment` |
 | GET | `/api/xcodespaces` | sessão | `?slug=` lista workspaces do user |
-| POST | `/api/xcodespaces` | sessão + ACL do repo | `slug`, `branch`. Worktree em `/opt/xvpn/data/codespaces/…` |
-| GET | `/api/xcodespaces/:id` | dono ou `forge` | |
-| DELETE | `/api/xcodespaces/:id` | dono ou `forge` | apaga worktree |
+| POST | `/api/xcodespaces` | sessão + ACL do repo | `slug`, `branch`, `kind`=`quick`\|`remote`. Remote exige developer+ |
+| GET | `/api/xcodespaces/:id` | dono ou `forge` | `kind`, `status`, `runtime_url` |
+| POST | `/api/xcodespaces/:id/start` | developer+ | liga o container (teto 1 em execução) |
+| POST | `/api/xcodespaces/:id/stop` | dono ou `forge` | para o container; volume fica |
+| DELETE | `/api/xcodespaces/:id` | dono ou `forge` | apaga worktree ou volume+container |
 | GET | `/api/xcodespaces/:id/tree` | dono | `?path=` |
 | GET | `/api/xcodespaces/:id/blob` | dono | `?path=` teto 2 MiB |
 | PUT | `/api/xcodespaces/:id/contents` | developer+ | grava arquivo no worktree |

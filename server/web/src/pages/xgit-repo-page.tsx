@@ -329,8 +329,8 @@ export function XgitCodePage() {
                     ) : (
                       (spaces?.items ?? []).map((cs) => (
                         <DropdownMenuItem key={cs.id} asChild>
-                          <a href={`${XCODESPACES_CORP_ORIGIN}/${cs.id}`}>
-                            {cs.branch} · {cs.id}
+                          <a href={cs.kind === 'remote' && cs.runtime_url ? cs.runtime_url : `${XCODESPACES_CORP_ORIGIN}/${cs.id}`}>
+                            {cs.kind === 'remote' ? 'VS Code' : 'Editor'} · {cs.status} · {cs.branch} · {cs.id}
                           </a>
                         </DropdownMenuItem>
                       ))
@@ -341,9 +341,26 @@ export function XgitCodePage() {
                       onClick={() => {
                         setCsBusy(true)
                         void api
-                          .createCodespace({ slug, branch: activeRef === 'HEAD' ? 'main' : activeRef })
+                          .createCodespace({ slug, branch: activeRef === 'HEAD' ? 'main' : activeRef, kind: 'remote' })
                           .then((cs) => {
                             toast.success('Codespace criado')
+                            reloadSpaces()
+                            window.location.href = cs.runtime_url || `${XCODESPACES_CORP_ORIGIN}/${cs.id}`
+                          })
+                          .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Falha ao criar'))
+                          .finally(() => setCsBusy(false))
+                      }}
+                    >
+                      Create codespace on {activeRef === 'HEAD' ? 'main' : activeRef}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={csBusy}
+                      onClick={() => {
+                        setCsBusy(true)
+                        void api
+                          .createCodespace({ slug, branch: activeRef === 'HEAD' ? 'main' : activeRef, kind: 'quick' })
+                          .then((cs) => {
+                            toast.success('Editor rápido criado')
                             reloadSpaces()
                             window.location.href = `${XCODESPACES_CORP_ORIGIN}/${cs.id}`
                           })
@@ -351,7 +368,7 @@ export function XgitCodePage() {
                           .finally(() => setCsBusy(false))
                       }}
                     >
-                      Create codespace on {activeRef === 'HEAD' ? 'main' : activeRef}
+                      Abrir no editor rápido
                     </DropdownMenuItem>
                   </>
                 )}

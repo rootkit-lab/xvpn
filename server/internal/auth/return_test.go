@@ -11,6 +11,7 @@ func TestSafeReturnURL(t *testing.T) {
 		{"https://xchat.corp.ihuull.com/social/messages", "https://xchat.corp.ihuull.com/social/messages"},
 		{"https://vpn.ihuull.com/social", "https://xvpn.ihuull.com/social"},
 		{"https://xchat.corp.ihuull.com/admin", AdminOrigin + "/admin"},
+		{"https://cs-aabbccddeeff.corp.ihuull.com/", "https://cs-aabbccddeeff.corp.ihuull.com/"},
 		{"https://evil.example/phish", ""},
 		{"http://xvpn.ihuull.com/admin", ""},
 		{"http://localhost/admin", AdminOrigin + "/admin"},

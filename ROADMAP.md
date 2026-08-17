@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–49** em produção. **Próximo operacional:** Fase 50 — XCODESPACES remoto (VS Code + clone + Docker). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–49** em produção. **Fase 50** (XCODESPACES remoto) nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1399,16 +1399,16 @@ O Create passa a ser o fluxo do GitHub Codespaces: provisiona um **container iso
 
 Decisão e invariantes: `PLAN.md` §3.6. **Não** é KVM. **Não** é bash na 22 nem `docker exec` no host. Shell só no container.
 
-- [ ] Registrar em `PLAN.md` §5.2/`§5.3` (já nesta PR de docs): `cs-<id>.corp.ihuull.com` + faixa `127.0.0.1:19000–19007`. Catch-all `*.corp` + cert `*.corp`. Sem A público. Sem porta no ufw. Skill `port-domain-registry-check` no deploy. **Não** usar `<id>.xcodespaces.corp` (dois rótulos).
-- [ ] Docker no VPS: daemon só socket Unix; `xvpn` **fora** do grupo `docker`. Helper privilegiado no padrão do `xvpn-user-provision` (`cs-create` / `cs-start` / `cs-stop` / `cs-rm`, JSON stdin). O PID do `xvpn-server` não fala com o Docker.
-- [ ] Create (developer+): clone `https://xgit.corp.ihuull.com/<slug>` no volume `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` (branch escolhida). Token de clone de curta duração — não senha da conta, não JWE de humano em env logável. Bare em `/opt/xvpn/data/git/` intocado. Não reusar worktree da Fase 49 como `.git` do container.
-- [ ] Imagem: se o repo tiver `.devcontainer/devcontainer.json` válido (allowlist de imagem), usar; senão imagem base ihuull (git + go + node), pinada. Sem `privileged`, sem `docker.sock`, sem `--network=host`. Usuário sem root no container. cgroup: ~1,5–2 GiB RAM, 1 vCPU. Quota de disco no volume.
-- [ ] Teto: **1 codespace em execução** no VPS atual (2 se a RAM livre permitir). Idle-stop (container para; volume fica). Start de novo remonta o clone. Delete apaga volume + container.
-- [ ] IDE: openvscode-server no container, publish `127.0.0.1:<porta>`. Nginx `cs-<id>.corp` → essa porta (WebSocket). JWE `aud=xcodespaces` no proxy. Lista/create continua em `xcodespaces.corp`. Fallback documentado: code-server se o proxy quebrar.
-- [ ] Terminal = PTY do VS Code **dentro** do container. Commit/push pelo Git do VS Code (smart HTTP + token). Branch protegida: as mesmas regras do receive-pack (developer não empurra `main`).
-- [ ] Popover **Code** → XCODESPACES: **Create codespace** (Fase 50) vs **Abrir no editor rápido** (Fase 49). Empty state e lista mostram estado (Starting / Running / Stopped) + idle.
-- [ ] Guest/reporter: não criam nem ligam codespace. Fora da VPN `cs-*` não resolve. Sem bind em `0.0.0.0`.
-- [ ] Testes: helper rejeita JSON com imagem fora da allowlist / path escape; create não monta o bare; proxy recusa Host que não seja `cs-<id>.corp`. Runbook curto de operação (start/stop/disco).
+- [x] Registrar em `PLAN.md` §5.2/`§5.3`: `cs-<id>.corp.ihuull.com` + faixa `127.0.0.1:19000–19007`. Catch-all `*.corp` + cert `*.corp`. Sem A público. Sem porta no ufw. Skill `port-domain-registry-check` no deploy. **Não** usar `<id>.xcodespaces.corp` (dois rótulos).
+- [x] Helper `cs-apply` no `xvpn-user-provision` (JSON stdin). O PID do `xvpn-server` não fala com o Docker. `xvpn` **fora** do grupo `docker`.
+- [x] Create (developer+): clone do bare para `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` + remote `xgit.corp`. Token de clone de curta duração (hash no banco). Bare intocado. Não reusar worktree da Fase 49 como `.git` do container.
+- [x] Imagem: `.devcontainer/devcontainer.json` na allowlist (`gitpod/openvscode-server`, `codercom/code-server`); senão `gitpod/openvscode-server:1.98.2`. Sem `privileged`, sem `docker.sock`, sem `--network=host`. cgroup ~1,5 GiB / 1 vCPU.
+- [x] Teto: **1 codespace em execução**. Idle-stop 30 min (volume fica). Delete apaga volume + container.
+- [x] IDE: openvscode-server, publish `127.0.0.1:<porta>`. Nginx `cs-<id>.corp` → Go (JWE) → porta. Lista/create em `xcodespaces.corp`.
+- [x] Terminal = PTY do VS Code no container. Push via smart HTTP + token `codespace-<id>`. Protected branch no receive-pack.
+- [x] Popover **Code** → **Create codespace** vs **Abrir no editor rápido**. Lista mostra estado.
+- [x] Guest/reporter: não criam nem ligam codespace remoto. Sem bind em `0.0.0.0`.
+- [x] Testes de allowlist/path/clone do bare. Runbook: [`docs/runbooks/codespaces.md`](./docs/runbooks/codespaces.md).
 
 **Critério de saída:** Code → Create codespace clona o repo, abre VS Code em `cs-<id>.corp`, o terminal roda `git status` e `go version` (ou `node -v`) **dentro** do container; commit + push aparece no XGIT; Create em `main` como developer não faz push direto; parar o codespace não apaga o clone; delete apaga volume; `docker.sock` não existe no container; fora da VPN o host não resolve.
 

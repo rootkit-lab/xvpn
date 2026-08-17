@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"io"
 	"net"
 	"net/http"
@@ -66,6 +67,11 @@ func (a *App) authenticateGit(c *gin.Context) (store.User, bool) {
 		}
 		return user, true
 	}
+	if hasBasic && strings.HasPrefix(basicUser, "codespace-") {
+		if user, ok := a.authenticateCodespaceGit(basicUser, basicPass); ok {
+			return user, true
+		}
+	}
 	// Git CLI pede a senha da conta — JWE no prompt é inviável.
 	if !hasBasic || basicUser == "" || basicPass == "" {
 		return a.gitUnauthorized(c)
@@ -84,6 +90,25 @@ func (a *App) authenticateGit(c *gin.Context) (store.User, bool) {
 	ok, err := auth.VerifyPassword(user.PasswordHash, basicPass)
 	if err != nil || !ok {
 		return a.gitUnauthorized(c)
+	}
+	return user, true
+}
+
+func (a *App) authenticateCodespaceGit(basicUser, basicPass string) (store.User, bool) {
+	id := strings.TrimPrefix(basicUser, "codespace-")
+	if !codespaceHostRe.MatchString("cs-" + id + ".corp.ihuull.com") {
+		return store.User{}, false
+	}
+	var cs store.CodeSpace
+	if err := a.Store.DB.Where("public_id = ?", id).First(&cs).Error; err != nil {
+		return store.User{}, false
+	}
+	if cs.GitTokenHash == "" || subtle.ConstantTimeCompare([]byte(cs.GitTokenHash), []byte(hashCodespaceToken(basicPass))) != 1 {
+		return store.User{}, false
+	}
+	var user store.User
+	if err := a.Store.DB.First(&user, cs.UserID).Error; err != nil {
+		return store.User{}, false
 	}
 	return user, true
 }

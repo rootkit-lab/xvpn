@@ -79,6 +79,7 @@ export function productKind(hostname = window.location.hostname): ProductKind {
   if (host === 'xadmin.corp.ihuull.com' || host === 'xadmin.corp.localhost') return 'xadmin-corp'
   if (host === 'xgit.corp.ihuull.com' || host === 'xgit.corp.localhost') return 'xgit-corp'
   if (host === 'xcodespaces.corp.ihuull.com' || host === 'xcodespaces.corp.localhost') return 'xcodespaces-corp'
+  if (/^cs-[a-f0-9]{12}\.corp\.(ihuull\.com|localhost)$/.test(host)) return 'xcodespaces-corp'
   if (host === 'xvpn.ihuull.com' || host === 'xvpn.localhost' || host === 'localhost' || host === '127.0.0.1') {
     return 'xvpn'
   }
@@ -161,7 +162,10 @@ export function safeReturnURL(raw: string | null | undefined): string | null {
     if (host === 'vpn.ihuull.com' || host === 'vpn.localhost') {
       u.hostname = host.endsWith('.localhost') ? 'xvpn.localhost' : 'xvpn.ihuull.com'
     }
-    if (!SAFE_RETURN_HOSTS.has(u.hostname.toLowerCase())) return null
+    const hostOk =
+      SAFE_RETURN_HOSTS.has(u.hostname.toLowerCase()) ||
+      /^cs-[a-f0-9]{12}\.corp\.(ihuull\.com|localhost)$/.test(u.hostname.toLowerCase())
+    if (!hostOk) return null
     const kind = productKind(u.hostname)
     if (kind !== 'xadmin-corp' && u.pathname.startsWith('/admin')) {
       return `${XADMIN_CORP_ORIGIN}/admin`

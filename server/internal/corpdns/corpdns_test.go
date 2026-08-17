@@ -55,6 +55,17 @@ func TestParseApplyPayloadAndRender(t *testing.T) {
 	}
 }
 
+func TestParseApplyPayloadStackRecords(t *testing.T) {
+	raw := []byte(`{"forwarders":["8.8.8.8"],"cache_size":1,"records":[],"stack_records":[{"hostname":"app.example.com","ipv4":"10.66.66.9"}]}`)
+	p, err := ParseApplyPayload(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.StackRecords) != 1 || p.StackRecords[0].Hostname != "app.example.com" {
+		t.Fatalf("%+v", p.StackRecords)
+	}
+}
+
 func TestParseApplyPayloadRejectsPublicBind(t *testing.T) {
 	_, err := ParseApplyPayload([]byte(`{"forwarders":["10.66.66.1"],"cache_size":1,"records":[]}`))
 	if err == nil {

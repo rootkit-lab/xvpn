@@ -147,6 +147,11 @@ var rbacRouteCases = []rbacRouteCase{
 	{"update-dns", http.MethodPatch, "/api/dns", updateDNSSettingsRequest{CacheSize: intPtr(200)}, "adminOnly"},
 	{"create-dns-record", http.MethodPost, "/api/dns/records", upsertDNSRecordRequest{Hostname: "lab.corp.ihuull.com", IPv4: "10.66.66.9"}, "adminOnly"},
 	{"apply-dns", http.MethodPost, "/api/dns/apply", nil, "adminOnly"},
+	{"get-public-dns-settings", http.MethodGet, "/api/dns/public/settings", nil, "viewerUp"},
+	{"list-public-zones", http.MethodGet, "/api/dns/public/zones", nil, "viewerUp"},
+	{"create-public-zone", http.MethodPost, "/api/dns/public/zones", createPublicZoneRequest{Name: "rbac.ihuull.com"}, "adminOnly"},
+	{"create-cf-account", http.MethodPost, "/api/dns/public/settings/accounts", upsertCFAccountRequest{Name: "rbac", Email: "cf@ihuull.com", Token: "token-rbac-16chars"}, "adminOnly"},
+	{"me-dns-suffixes", http.MethodGet, "/api/me/dns-suffixes", nil, "any"},
 
 	{"list-marketplace-apps", http.MethodGet, "/api/marketplace/apps", nil, "any"},
 	{"download-marketplace-asset", http.MethodGet, "/api/marketplace/assets/{marketAsset}/download", nil, "any"},

@@ -45,7 +45,11 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     id: 'dns',
     label: 'DNS',
     product: 'dns',
-    items: [{ to: '/admin/dns', label: 'DNS intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' }],
+    items: [
+      { to: '/admin/dns', label: 'Intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' },
+      { to: '/admin/dns/public', label: 'Zonas', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' },
+      { to: '/admin/dns/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'dns' },
+    ],
   },
   {
     id: 'forge',

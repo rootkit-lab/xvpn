@@ -34,6 +34,11 @@ const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ d
 const MarketplacePage = lazy(() => import('@/pages/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
 const DNSPage = lazy(() => import('@/pages/dns-page').then((m) => ({ default: m.DNSPage })))
+const PublicDNSPage = lazy(() => import('@/pages/public-dns-page').then((m) => ({ default: m.PublicDNSPage })))
+const PublicDNSZonePage = lazy(() =>
+  import('@/pages/public-dns-zone-page').then((m) => ({ default: m.PublicDNSZonePage })),
+)
+const DNSSettingsPage = lazy(() => import('@/pages/dns-settings-page').then((m) => ({ default: m.DNSSettingsPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
 const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
 const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
@@ -261,6 +266,9 @@ function XAdminCorpApp() {
             <Route path="servers/:id" element={<ServerDetailPage />} />
             <Route path="compute/settings" element={<ComputeSettingsPage />} />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="dns/settings" element={<DNSSettingsPage />} />
+            <Route path="dns/public/:id" element={<PublicDNSZonePage />} />
+            <Route path="dns/public" element={<PublicDNSPage />} />
             <Route path="dns" element={<DNSPage />} />
             <Route path="audit" element={<AuditPage />} />
           </Route>

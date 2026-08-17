@@ -217,7 +217,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 
 Não é o app desktop quem “inventa” o IP do `*.corp`. A zona vive no **dnsmasq da `wg0`**. Três camadas, nesta ordem:
 
-1. **Autoridade** — xadmin → DNS intranet persiste A records (`corp.ihuull.com` / um rótulo `*.corp.ihuull.com` → IPv4 em `10.66.66.0/24`) e forwarders. Apply grava `/etc/dnsmasq.d/xvpn-corp.conf` + `xvpn-records.hosts` e dá `systemctl reload dnsmasq`. Bind fixo `10.66.66.1`. Sem A público (Cloudflare). Zona **pública** é outro plano (§6.17) — adapter Cloudflare, sem `:53` na `eth0`.
+1. **Autoridade** — xadmin → DNS intranet persiste A records (`corp.ihuull.com` / um rótulo `*.corp.ihuull.com` → IPv4 em `10.66.66.0/24`) e forwarders. Apply grava `/etc/dnsmasq.d/xvpn-corp.conf` + `xvpn-records.hosts` e dá `systemctl reload dnsmasq`. Bind fixo `10.66.66.1`. Sem A público para `corp`. Zona **pública** do stack (§6.17): Cloudflare + NS no registrador; visão interna (`intranet_ipv4`) também entra no hosts. Sem `:53` na `eth0`.
 2. **Cliente** — no connect: `resolvectl dns xvpn0 10.66.66.1`, `domain ~corp.ihuull.com` **sem** `~.` / `default-route yes`. Helper grava `/etc/hosts` (`CAP_DAC_OVERRIDE` + drop-in, porque unit antiga em `/etc/systemd/system` deixava o arquivo read-only). Polkit libera só `set-dns-servers` / `set-domains` / `set-default-route` / `set-dns-over-tls` / `set-dnssec` / `revert` para `xvpn-client-helper` na `xvpn0` (sem isso `Current Scopes: none`). O `.deb` instala política Chrome `BuiltInDnsClientEnabled=false` — DoH do Chrome pergunta à Cloudflare, que **deve** devolver NXDOMAIN para `*.corp`.
 3. **Defesa em profundidade** — xchat ainda disca `10.66.66.1` com SNI `*.corp` se o DNS do processo falhar.
 
@@ -692,14 +692,18 @@ O VPS `206.189.224.72` já está no BitLaunch. O xadmin lista, rotula e provisio
 - SSH de operação nos hosts **novos**: preferir só `wg0`. ufw público do node atual permanece até cutover documentado.
 - Acesso: VPN + `ServerAccess`. Sem permissão, a política barra — resolver o nome não basta.
 
-### 6.17 DNS público (tipo Route 53)
+### 6.17 DNS do stack (público + visão interna)
 
-Dois planos, de propósito:
+**Para que serve.** Sem isso, cada hostname novo (landing, app, domínio de cliente) exige editar o Cloudflare à mão e **não** existe na VPN. O xadmin vira o Route 53 do stack: adicionar um domínio, ver os **nameservers para apontar no registrador**, criar A/CNAME/TXT, e — se quiser — o mesmo FQDN resolver em `10.66.66.1` dentro do túnel.
 
-1. **Intranet** — dnsmasq `10.66.66.1:53` só `wg0` (Fase 34). UI no grupo DNS do xadmin.
-2. **Público** — zonas `ihuull.com` / `ihuu.com` no xadmin. Interface `DNSProvider`; **v1 = API Cloudflare** (token que já existe para DNS-01). Trocável (PowerDNS depois). `ldpops.appapisip.com` **não entra**.
+**Como os nameservers “próprios” funcionam (v1).** Autoridade **pública** continua na Cloudflare (já tem as zonas e o token DNS-01). Ao cadastrar um domínio, o painel cria a zona e mostra os NS da conta (`*.ns.cloudflare.com`). Esses NS **são** os nameservers do stack: o dono do domínio aponta o registrador para eles. Não abrimos `:53` na `eth0` do node de controle (invariante §5 / AGENTS.md). `ns1.ihuull.com` vanity ou PowerDNS num VPS dedicado = fase posterior (porta 53 pública no §5 + host novo). `ldpops.appapisip.com` **não entra**.
 
-Recursor nos VPS da malha: `*.corp` → `10.66.66.1`; resto → forwarders. **Não** nascer autoridade pública em `206.189.224.72:53`. Runbook Cloudflare vira fallback; o xadmin cria o A no dia a dia.
+**Dois planos, de propósito:**
+
+1. **Intranet** — dnsmasq `10.66.66.1:53` só `wg0`. UI **DNS → Intranet**. Só `*.corp.ihuull.com` → `10.66.66.0/24`. Sem A público para `corp`.
+2. **Público** — UI **DNS → Zonas** + **DNS → Configurações** (contas Cloudflare, no mesmo padrão do Compute). Token só no VPS, nunca inteiro no GET. `XVPN_CLOUDFLARE_TOKEN` só semeia se o banco estiver vazio. Sem A/`*.corp`, sem RFC1918 no registro público, sem proxy laranja em host de API/WS.
+
+**Visão interna do domínio público.** Record com `intranet_ipv4` (obrigatoriamente `10.66.66.0/24`) entra no `addn-hosts` do dnsmasq. `GET /api/me/dns-suffixes` lista os sufixos para o cliente (split-horizon além de `~corp.ihuull.com`). Recursor da malha: `GET /api/dns/recursor` (`server=/zona/10.66.66.1`). Runbook Cloudflare vira fallback.
 
 ### 6.18 Serviços gerenciados (orquestrador)
 
@@ -894,7 +898,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **38. Compute BitLaunch** | Importar VPS atual; labels/grupos; create; enroll WG | Peer na malha + A corp |
 | **38.1 Contas BitLaunch** | Settings no Compute; várias APIs/e-mails | Token só no VPS; create escolhe a conta |
 | **38.2 Console + saldo** | xterm/observações; hosts externos; recarga cripto | Sem SSH; sem mexer em cripto-prod |
-| **39. DNS público** | Adapter Cloudflare + recursor da malha | A criado no xadmin; sem `:53` na eth0 |
+| **39. DNS do stack** | Settings + zonas + NS Cloudflare; visão interna | A no CF; NS no registrador; FQDN também no túnel |
 | **40. Git smart HTTP** | `xgit.corp` + protected branches | Clone/push só na VPN |
 | **41. Merge requests** | MR + thread XCHAT | Review sem segundo chat |
 | **42. CI** | Runners peers + artifacts XDRIVER | Job não roda no PID do xvpn-server |

@@ -91,6 +91,10 @@ type App struct {
 	// cliente sai de BitLaunchAccount (Compute → Configurações).
 	BitLaunch BitLaunchAPI
 
+	// Cloudflare (Fase 39). Só os testes injetam o fake. Em produção o
+	// cliente sai de CloudflareAccount (DNS → Configurações).
+	Cloudflare CloudflareAPI
+
 	// fetchAsset baixa um asset por URL durante o sync (Fase 16). Nil =
 	// marketplace.FetchAndPut. Os testes injetam um fake sem rede.
 	fetchAsset func(context.Context, *marketplace.Store, string, string) (marketplace.PutResult, string, error)
@@ -259,6 +263,7 @@ func NewRouter(app *App) *gin.Engine {
 			// reusa o do login: a senha atual é o mesmo segredo que o
 			// POST /auth/login protege contra força bruta.
 			authed.PATCH("/me/password", rateLimit(app.loginLimiter), app.handleChangeMyPassword)
+			authed.GET("/me/dns-suffixes", app.handleMeDNSSuffixes)
 
 			// Marketplace (Fase 11, PLAN.md §6.8): catálogo e download são
 			// liberados a qualquer papel autenticado (inclusive member) —
@@ -325,6 +330,11 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/audit", app.handleListAudit)
 			viewerUp.GET("/config", app.handleGetConfig)
 			viewerUp.GET("/dns", app.handleGetDNS)
+			viewerUp.GET("/dns/recursor", app.handleDNSRecursor)
+			viewerUp.GET("/dns/public/settings", app.handleGetPublicDNSSettings)
+			viewerUp.GET("/dns/public/zones", app.handleListPublicZones)
+			viewerUp.GET("/dns/public/zones/:id", app.handleGetPublicZone)
+			viewerUp.GET("/dns/public/zones/:id/records", app.handleListPublicRecords)
 			// Estatísticas agregadas do marketplace (Fase 12): mesmo nível
 			// de leitura do resto do dashboard — não authed (não é algo
 			// que member precise pra navegar o catálogo) nem adminOnly
@@ -367,7 +377,7 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.PATCH("/config", app.handleUpdateConfig)
 			}
 
-			// DNS intranet (Fase 35): sai do core. Público (§6.17) entra depois.
+			// DNS intranet (Fase 35) + público do stack (Fase 39).
 			dnsWrite := adminOnly.Group("")
 			dnsWrite.Use(auth.RequireProduct(store.ProductDNS))
 			{
@@ -376,6 +386,12 @@ func NewRouter(app *App) *gin.Engine {
 				dnsWrite.PATCH("/dns/records/:id", app.handleUpdateDNSRecord)
 				dnsWrite.DELETE("/dns/records/:id", app.handleDeleteDNSRecord)
 				dnsWrite.POST("/dns/apply", app.handleApplyDNS)
+				dnsWrite.POST("/dns/public/settings/accounts", app.handleCreateCloudflareAccount)
+				dnsWrite.DELETE("/dns/public/settings/accounts/:id", app.handleDeleteCloudflareAccount)
+				dnsWrite.POST("/dns/public/zones", app.handleCreatePublicZone)
+				dnsWrite.POST("/dns/public/zones/import", app.handleImportPublicZones)
+				dnsWrite.POST("/dns/public/zones/:id/records", app.handleCreatePublicRecord)
+				dnsWrite.DELETE("/dns/public/zones/:id/records/:rid", app.handleDeletePublicRecord)
 			}
 
 			// XDriver: SFTP/Samba/cota. Fora do escopo xdriver → 403.

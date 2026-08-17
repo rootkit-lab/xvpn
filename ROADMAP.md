@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–38.1** em produção. **Fase 38.2** (console xterm + saldo BitLaunch) nesta branch. **Próximo:** Fase 39 — DNS público (`PLAN.md` §6.17). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–38.2** em produção. **Fase 39** (DNS do stack: zonas + NS + visão interna) nesta branch. **Próximo:** Fase 40 — Git smart HTTP. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1207,13 +1207,13 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ---
 
-## Fase 39 — DNS público (Route 53-like)
+## Fase 39 — DNS do stack (público + interno)
 
-- [ ] UI zonas `ihuull.com` / `ihuu.com`. Adapter `DNSProvider` = Cloudflare v1.
-- [ ] Recursor nos hosts da malha (`*.corp` → `10.66.66.1`). Sem `:53` na `eth0` do node de controle.
-- [ ] `ldpops.appapisip.com` fora. Runbook Cloudflare = fallback.
+- [x] Menu DNS: Intranet | Zonas | Configurações (contas Cloudflare, padrão Compute). Token só no VPS.
+- [x] Adicionar domínio → zona Cloudflare + **nameservers do stack** para o registrador. Sem `:53` na `eth0`. `ldpops` fora. Sem A `*.corp` / RFC1918 no público.
+- [x] Record com `intranet_ipv4` (`10.66.66.0/24`) no dnsmasq; `GET /api/me/dns-suffixes` + recursor da malha.
 
-**Critério de saída:** criar um A no xadmin aparece no Cloudflare; `dig` público confirma; corp continua só no dnsmasq.
+**Critério de saída:** cadastrar uma zona mostra os NS; um A público aparece no Cloudflare; o mesmo nome com visão interna resolve em `10.66.66.1` na VPN. Corp continua só no dnsmasq.
 
 ---
 

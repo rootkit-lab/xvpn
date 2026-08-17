@@ -198,6 +198,22 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/dns/settings',
+    meta: {
+      kicker: 'DNS',
+      title: 'Configurações',
+      description: 'Contas Cloudflare. Token só no VPS. Nameservers do stack saem daqui.',
+    },
+  },
+  {
+    prefix: '/admin/dns/public',
+    meta: {
+      kicker: 'DNS',
+      title: 'Zonas públicas',
+      description: 'Domínios do stack. NS no registrador. Visão interna no dnsmasq.',
+    },
+  },
+  {
     prefix: '/admin/dns',
     meta: {
       kicker: 'DNS',

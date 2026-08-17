@@ -3,14 +3,13 @@ import { Navigate, useLocation, useNavigate, Link } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { ProductMark } from '@xvpn/ui/react/product-mark'
 import { PRODUCT_META } from '@xvpn/ui/react/products'
-import { Complication } from '@xvpn/ui/react/complication'
 import { IconButton } from '@xvpn/ui/react/icon-button'
 import { useAuth } from '@/lib/auth-context'
 import { ApiError, getToken } from '@/lib/api'
 import { isLoggedOutParam, productKind, safeReturnURL, ssoHandoff, ssoHandoffContinueURL } from '@/lib/product-host'
 import { defaultRouteForRole } from '@/lib/roles'
 import { loginCopy, loginHomeLink, type LoginVariant } from '@/lib/login-copy'
-import { NetworkGlobe } from '@/components/network-globe'
+import { NetworkPlexus } from '@/components/network-plexus'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -90,7 +89,7 @@ export function LoginPage({ variant = 'user' }: { variant?: LoginVariant }) {
 
       <div className="relative z-10 grid min-h-svh lg:grid-cols-[minmax(0,2fr)_minmax(24rem,3fr)]">
         <aside className="relative hidden overflow-hidden border-r border-white/8 lg:flex">
-          <div className="dot-grid pointer-events-none absolute inset-0 opacity-40" aria-hidden="true" />
+          <NetworkPlexus />
           <div
             className="glow-blob pointer-events-none absolute -bottom-28 -left-20 h-[440px] w-[440px]"
             aria-hidden="true"
@@ -106,24 +105,6 @@ export function LoginPage({ variant = 'user' }: { variant?: LoginVariant }) {
                 <span className="hud-label text-muted-foreground/70">{copy.kicker}</span>
               </span>
             </a>
-
-            <div className="relative my-auto">
-              <NetworkGlobe className="mx-auto h-56 w-full max-w-md opacity-50" />
-              <Complication className="absolute inset-x-6 bottom-1 border border-white/10 px-4 py-3.5">
-                <p className="hud-label text-muted-foreground/70">Sessão</p>
-                <p className="mt-1 font-display text-sm font-semibold">Cookie .ihuull.com</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Um login vale nos hosts da organização. A chave WireGuard continua só no seu aparelho.
-                </p>
-              </Complication>
-            </div>
-
-            <div className="max-w-md pt-8">
-              <h2 className="font-display text-3xl font-semibold tracking-tight text-balance text-glow">
-                {copy.brandTitle}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{copy.brandBody}</p>
-            </div>
           </div>
         </aside>
 

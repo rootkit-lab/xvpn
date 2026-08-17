@@ -173,7 +173,7 @@ Fonte da verdade de portas, hostnames e bind. Qualquer serviço novo no VPS **en
 | SSO | `xauth.ihuull.com` | **DNS only**. A → `206.189.224.72`. Backend `127.0.0.1:8080`. Login único; cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax). Sem WS. Nginx: `server/deploy/nginx/xauth.conf`. Enroll continua em `xvpn.ihuull.com` |
 | landpages-ops | `ldpops.appapisip.com` | **Não muda.** Outra app Go no mesmo Nginx |
 
-**Não criar** A/AAAA públicos para `corp.ihuull.com`, `*.corp.ihuull.com`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`. Wildcard `*.ihuull.com` casa `corp.ihuull.com` (um rótulo) — se o wildcard A existir, crie `corp` **sem** A (TXT `intranet-only`) para o nome não resolver fora do túnel. Wildcard **não** cobre `xchat.corp.ihuull.com` (dois rótulos).
+**Não criar** A/AAAA públicos para `corp.ihuull.com`, `*.corp.ihuull.com`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`, `xgit.corp`, `xcodespaces.corp`. Wildcard `*.ihuull.com` casa `corp.ihuull.com` (um rótulo) — se o wildcard A existir, crie `corp` **sem** A (TXT `intranet-only`) para o nome não resolver fora do túnel. Wildcard **não** cobre `xchat.corp.ihuull.com` (dois rótulos).
 
 ### 5.2 Hostnames de intranet (`*.corp` — só com VPN)
 
@@ -184,6 +184,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice da intranet. `/admin` → `xadmin.corp` |
 | xadmin (console) | `xadmin.corp.ihuull.com` | `127.0.0.1:8080` (`/admin/*`) | Gerenciador geral. **Só VPN.** JWE `aud=xadmin`. Sem A público. §6.14 |
 | xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git) | Repos do forge. **Só VPN.** Sem A público. Fase 40 |
+| xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | IDE Monaco sobre worktree do forge. **Só VPN.** Sem A público. Sem landing pública. Fase 49 |
 | xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Messenger em `/` e `/social/messages`. **Sem `/admin`.** DNS canônico: dnsmasq `10.66.66.1:53`. Client: split-horizon + `/etc/hosts` |
 | xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Feed/grupos. Mensagens → `xchat.corp`. **Sem `/admin`.** |
 | xdriver (arquivos) | `xdriver.corp.ihuull.com` | `127.0.0.1:8080` (`/api/driver/*`) | Drive nativo; `Host` obrigatório. **Sem `/admin`.** Samba continua `wg0:445` |
@@ -203,6 +204,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | ~~FileBrowser / :8081~~ | **retirado** | XDriver nativo no `xvpn-server`. Porta 8081 livre — não reusar sem linha nova |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via `127.0.0.1:8080` em `marketplace.ihuull.com` (e xadmin) | Sem porta nova. JWE. Nunca anônimo na internet |
 | Forge (git bare) | Disco `/opt/xvpn/data/git/` · smart HTTP em `xgit.corp` | Só VPN. Sem `git://` público. Fase 40 |
+| XCODESPACES (worktrees) | Disco `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` | Só VPN. Fora do bare. Sem shell. Fase 49 |
 | Forge (arquivos de projeto) | Disco `/opt/xvpn/data/projects/<slug>` · XDRIVER `root=project:<slug>` | Só VPN. Sem FileBrowser. Samba `[project-*]` fica para depois. Fase 37 |
 | Serviços gerenciados | Mongo/Redis/Rabbit/LB no host alvo · bind **só `wg0`** (ou `127.0.0.1` se local-only) | xadmin orquestra (§6.18). **Não** é o Mongo `127.0.0.1:27017` do control-plane. Sem 6379/5672/27017 na `eth0` |
 | WebSocket xchat | `wss://xchat.corp.ihuull.com/api/ws` → `127.0.0.1:8080` | Upgrade **só** neste path. Auth no primeiro frame. App desktop não abre listener |
@@ -223,7 +225,7 @@ Não é o app desktop quem “inventa” o IP do `*.corp`. A zona vive no **dnsm
 
 Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também não — é fallback para o browser.
 
-> Quem for configurar o `landpages-ops` (ou um app novo do marketplace) checa esta tabela **e** o runbook Cloudflare antes de escolher porta ou hostname. App de intranet novo: skill `new-intranet-app`. Registro corp novo: xadmin → DNS intranet + apply. Seed: incluir `xadmin` e `xgit` → `10.66.66.1`.
+> Quem for configurar o `landpages-ops` (ou um app novo do marketplace) checa esta tabela **e** o runbook Cloudflare antes de escolher porta ou hostname. App de intranet novo: skill `new-intranet-app`. Registro corp novo: xadmin → DNS intranet + apply. Seed: incluir `xadmin`, `xgit` e `xcodespaces` → `10.66.66.1`.
 
 ---
 
@@ -253,7 +255,7 @@ Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também n
 | `PATCH /api/dns` / `POST /api/dns/records` / `POST /api/dns/apply` | Admin+ com escopo `core` (Fase 35+: `dns`). Apply recarrega dnsmasq via provisioner. Zona pública (§6.17) é outra API |
 
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
-Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44.
+Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44; Issues/PRs/editor/XCODESPACES nas 46–49.
 
 **Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS) — inclusive a landing `/`. Preto profundo, `watch-face`, cards `watch-complication`, `icon-well`, `field-glass`, Outfit, acento `--safe` / `power-safe`. Não há paleta navy/Workspace nem marketing paralela. Ver [§6.12](#612-design-system-e-color-system).
 
@@ -611,6 +613,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 | xdriver | — (público 444) | `xdriver.corp` | atalho no client | Só VPN. Sem FileBrowser |
 | xauth | `xauth.ihuull.com` | — | — | Login único no mesmo `xvpn-server`. Cookie `.ihuull.com` |
 | xgit | — | `xgit.corp` | — | Smart HTTP do forge. Fase 40 |
+| xcodespaces | — (sem landing pública) | `xcodespaces.corp` | — | IDE Monaco. Fase 49. Sem A público |
 | ihuu.com | parking AWS | — | — | Não usar no Nginx |
 
 **Padrão obrigatório de app** (`marketplace.yaml` + skill `new-intranet-app`):
@@ -619,7 +622,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 2. **portal** — hostname público (landing) e/ou `*.corp` (app). Sem A público para `corp`.
 3. **client** — opcional (Wails). Se existir, um `marketplace.yaml`, gate VPN se o app for `network: vpn`.
 
-Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome (XVPN, XGROUP, …) e as ações da direita. Wordmark ihuull não entra no header — título da rota fica no template do app (`PageHeading`). Marks em `shared/ui/brand/` (azul xvpn, verde xchat, magenta xgroup, laranja xdriver, ciano marketplace, teal xgit). Não copiar chrome por SPA.
+Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome (XVPN, XGROUP, …) e as ações da direita. Wordmark ihuull não entra no header — título da rota fica no template do app (`PageHeading`). Marks em `shared/ui/brand/` (azul xvpn, verde xchat, magenta xgroup, laranja xdriver, ciano marketplace, teal xgit, violeta xcodespaces). Não copiar chrome por SPA.
 
 **Nomenclatura de produto (obrigatória na UI).** Slug de código (`ProductId`, `marketplace.yaml` `slug`, JWE `aud`, pasta) é **sempre minúsculo**. O lockup do header e o `name` do catálogo usam a caixa do produto:
 
@@ -632,6 +635,7 @@ Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome 
 | `marketplace` | Marketplace / Store | Marketplace Store | `marketplace.ihuull.com` |
 | `xadmin` | XADMIN / Console | XADMIN Console | `xadmin.corp` |
 | `xgit` | XGIT / Forge | XGIT Forge | `xgit.corp` — waffle se `ProjectMember` ou ACL do app |
+| `xcodespaces` | XCODESPACES / IDE | XCODESPACES IDE | `xcodespaces.corp` — waffle se `ProjectMember` ou ACL do app. Fase 49 |
 | `ihuull` | ihuull / plataforma | ihuull | landing da marca |
 
 Fonte: `shared/ui/react/products.ts`. Header autenticado: waffle de apps **sempre** + ícone Settings (prefs **deste** app) + pílula da conta (username + papel). Conta (perfil/senha) fica no menu da pílula, não no Settings. Scrollbar canônica em `shared/ui/scss/_utilities.scss` (`ihuull-scrollbar`) — não reinventar por SPA.
@@ -666,8 +670,8 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Feature GitLab | Onde no ihuull |
 |---|---|
 | SSO / membros | xauth + IAM + `ProjectMember` (guest/reporter/developer/maintainer/owner) |
-| Issues, labels, boards, milestones, activity | XGROUP (grupo/projeto por slug; post = issue) |
-| Discussão ao vivo / review | XCHAT (uma thread por MR; skill `chat-chrome`) |
+| Issues, labels, assignees | XGIT (`Issue` no Mongo, Fase 46). Activity social continua no XGROUP (grupo por slug) — post = link, não o tracker |
+| Discussão ao vivo / review | XCHAT (thread por MR e por issue; skill `chat-chrome`) |
 | Wiki, LFS, artifacts, job logs | XDRIVER share `project-<slug>` (só VPN) |
 | Releases / deb-exe-apk | Marketplace (`AppVersion` / `AppAsset`) |
 | Audit | IAM `/admin/audit` |
@@ -675,17 +679,29 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Protected branches | Modelo `ProtectedBranch` no projeto (`main`/`master` no create). Developer faz push; maintainer+ em branch protegida. MR (Fase 41) é o caminho de merge |
 | CI/CD | Pipeline no xadmin; **runners** = peers WG com label `runner` (não no PID do `xvpn-server`). Artifacts → XDRIVER |
 | Pages | Nginx gerado + blob; hostname `*.corp` ou A público via §6.17 |
+| Editor web (arquivo único) | Monaco no blob `/edit` do XGIT; salvar = commit (ou branch + PR se a ref for protegida). Fase 48 |
+| Codespaces / IDE | App `xcodespaces.corp` (Monaco, worktree por user). Sem VM/Docker, sem shell no VPS. Fase 49 |
 | Container / npm / pypi, snippets, SAST, feature flags | Fases 45+ |
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
 
-**Console XGIT (Fase 43.1).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é a home do usuário (Overview com heatmap/timeline, Repositórios, Packages futuro, Stars) e o detalhe Code / MRs / Actions / Settings. Lista do membro: `scope=mine`. App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess`. `member` no xadmin é redirecionado a `xgit.corp`. Discussão de MR abre o XCHAT no chrome. `/admin/projects*` redireciona. Sem GitLab CE.
+**Console XGIT (Fase 43.1).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é a home do usuário (Overview com heatmap/timeline, Repositórios, Packages futuro, Stars) e o detalhe Code / Issues (46) / Pull requests (47) / Actions / Settings. Lista do membro: `scope=mine`. App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess`. `member` no xadmin é redirecionado a `xgit.corp`. Discussão de MR/issue abre o XCHAT no chrome. `/admin/projects*` redireciona. Sem GitLab CE.
+
+**Issues (Fase 46).** `Issue` first-class no Mongo (número por projeto, labels, assignees, open/closed). Aba no detalhe do repo. Thread XCHAT (`Kind=issue`). XGROUP só anuncia (link de volta). Guest lê; reporter+ cria.
+
+**Pull requests GitHub-like (Fase 47).** A Fase 41 entrega o modelo + merge. Esta fase entrega a superfície: Conversation / Commits / Files changed, checks da CI no header, review Approve/Request changes, popover **Code** (aba Local). API `mrs` pode permanecer; o rótulo da UI é Pull requests.
+
+**Editor web (Fase 48).** Monaco no blob. Salvar = diálogo de commit no servidor (autor = JWE). Branch protegida + papel sem push direto → criar branch e abrir PR (mesmo fluxo do GitHub). `PUT /api/projects/:slug/contents`. Limite ~2 MiB; binário não edita.
+
+**XCODESPACES (Fase 49).** Produto `xcodespaces`, host `xcodespaces.corp.ihuull.com`, `aud=xcodespaces`, Nginx só `10.66.66.1:443`. Worktree em `/opt/xvpn/data/codespaces/…` (bare intocado). IDE: tree + Monaco multi-tab + git commit/push + abrir PR. Entrada: popover Code → aba XCODESPACES → Create codespace na branch atual. **Não** é Codespaces da Microsoft: sem container, sem terminal/SSH no VPS (`PLAN.md` §3). Guest/reporter read-only.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
 **Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/xgit/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
 
 **CI (Fase 42).** Push (receive-pack) e merge de MR enfileiram um `CiJob`. O agent `xvpn-runner` (binário separado, systemd no peer `role=runner`) reclama o job em `http://10.66.66.1:8080/api/ci/*` — só VPN (`RequireVPN`); Nginx público (127.0.0.1) cai. Token do runner gerado no detalhe do MeshServer, uma vez. Clone no agent com Basic `runner:<token>` (só fetch). Script: `.xvpn-ci.sh` no repo (senão `echo ok`). Log/artifact em `/opt/xvpn/data/projects/<slug>/ci/<n>/` (XDRIVER). Sem porta nova. Sem job no PID do `xvpn-server`.
+
+**Actions (Fase 42.1).** UI no XGIT no estilo GitHub Actions (sidebar de workflows, lista de runs, detalhe com grafo). Workflow único `ci`. Abrir MR como developer (sem `forge`) cria o run em `awaiting_approval`; maintainer+ **Approve and run** → `pending`. Runner não reclama run aguardando aprovação. Re-run cria um run novo. Sem YAML multi-job, sem caches/métricas.
 
 **Serviços gerenciados (Fase 43).** `ServiceInstance` no xadmin (`/admin/services`, produto `managed`). Local: `xvpn-user-provision svc-apply` (JSON stdin) instala pacote/unit com bind só `10.66.66.1` ou `127.0.0.1`. Malha: `xvpn-svc-agent` (root no peer `mesh`/`runner`) polla `GET /api/svc/desired` em `10.66.66.1:8080` — `RequireVPN` + token do host. DNS `svc-<slug>.corp.ihuull.com` no apply. Mongo gerenciado usa porta ≠ 27017. Redis/Rabbit **não** reabrem o hub do XCHAT (§6.11). LB só intranet (sem porta pública nova no §5). `deploy-xvpn-server` não instala o agent.
 
@@ -914,11 +930,16 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **40. Git smart HTTP** | `xgit.corp` + protected branches | Clone/push só na VPN |
 | **41. Merge requests** | MR + thread XCHAT | Review sem segundo chat |
 | **42. CI** | Runners peers + artifacts XDRIVER | Job não roda no PID do xvpn-server |
+| **42.1 Actions GitHub-like** | lista/detalhe/aprovação no XGIT | MR de developer espera Approve and run |
 | **43. Serviços orquestrados** | mongo/redis/rabbit/lb no local e na malha | Bind só wg0; control-plane Mongo intocado |
 | **44. Backups externos** | restic+rclone no Settings | Destino off-site configurável |
 | **45+. Forge tardio** | registry, pages, snippets, SAST | Backlog explícito |
+| **46. Issues no XGIT** | `Issue` + aba + thread XCHAT | Tracker no forge; XGROUP só activity |
+| **47. PRs GitHub-like** | diff, commits, checks, review | Superfície de PR; merge já existe (41) |
+| **48. Editor Monaco** | `/edit` + commit (ou branch+PR) | Salvar = commit; protected branch respeitada |
+| **49. XCODESPACES** | `xcodespaces.corp` + worktree + IDE | Sem VM/shell; só VPN |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–45 são o ciclo xadmin — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–49 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 
 ---
 
@@ -993,7 +1014,7 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 | Landing | `www.ihuull.com` / `ihuull.com` / `ihuu.com` |
 | Marketing messenger | `xchat.ihuull.com` (sem API/WS) |
 | Marketing xgroup | `xgroup.ihuull.com` (landing + perfil `/:user` com JWE; sem WS) |
-| Intranet | `xadmin.corp` / `xchat.corp` / `xgroup.corp` / `xdriver.corp` / `xgit.corp` → `10.66.66.1` (só VPN) |
+| Intranet | `xadmin.corp` / `xchat.corp` / `xgroup.corp` / `xdriver.corp` / `xgit.corp` / `xcodespaces.corp` → `10.66.66.1` (só VPN) |
 | Auth | **só JWE** (`dir` + `A256GCM`); issuer `xauth.ihuull.com` (lê também o issuer legado `xvpn.ihuull.com`); `aud` inclui `xadmin` |
 | Crescimento | Monólito modular (§6.13). Sem fatiar o binário. Console só no xadmin |
 | Persistência | Mongo control-plane `127.0.0.1:27017` se `XVPN_MONGO_URI`; senão SQLite (testes/CI). Serviços gerenciados são outras instâncias (§6.18) |

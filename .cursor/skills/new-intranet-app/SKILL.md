@@ -15,6 +15,8 @@ App novo **só nasce** se não couber num slug já existente:
 | xdriver | XDRIVER Drive | Arquivos (Samba + Drive nativo em `xdriver.corp`) | FileBrowser; expor arquivos na internet |
 | marketplace | Marketplace Store | Loja pública | Segunda vitrine |
 | xadmin | XADMIN Console | Gerenciador geral (só `xadmin.corp`) | Segundo `/admin` público; AdminShell fora deste host |
+| xgit | XGIT Forge | Repos + smart HTTP (`xgit.corp`) | GitLab CE; A público; issues só no XGROUP |
+| xcodespaces | XCODESPACES IDE | IDE Monaco (`xcodespaces.corp`, Fase 49) | VM/Docker no VPS; shell SSH; segundo binário Go |
 
 Nomes de UI: `shared/ui/react/products.ts` + `PLAN.md` §6.13. Slug minúsculo no código; `marketplace.yaml` `name` = `productDisplayName(slug)`.
 

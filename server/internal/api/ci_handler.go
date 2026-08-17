@@ -19,26 +19,56 @@ import (
 )
 
 const (
-	ciTriggerPush = "push"
-	ciTriggerMR   = "mr"
-	maxCiLogBytes = 2 << 20
-	ciURLHint     = "http://10.66.66.1:8080"
+	ciTriggerPush  = "push"
+	ciTriggerMR    = "mr"
+	ciWorkflow     = "ci"
+	ciWorkflowPath = ".xvpn-ci.sh"
+	maxCiLogBytes  = 2 << 20
+	ciURLHint      = "http://10.66.66.1:8080"
 )
+
+type ciJobStepJSON struct {
+	Name   string            `json:"name"`
+	Status store.CiJobStatus `json:"status"`
+}
+
+type ciWorkflowJSON struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+}
 
 type ciJobJSON struct {
 	Number             uint              `json:"number"`
+	Workflow           string            `json:"workflow"`
+	Title              string            `json:"title"`
+	Event              string            `json:"event"`
 	Trigger            string            `json:"trigger"`
 	Ref                string            `json:"ref"`
+	Branch             string            `json:"branch"`
 	SHA                string            `json:"sha"`
+	Actor              string            `json:"actor,omitempty"`
 	MergeRequestNumber *uint             `json:"merge_request_number,omitempty"`
 	Status             store.CiJobStatus `json:"status"`
 	Runner             string            `json:"runner,omitempty"`
 	HasLog             bool              `json:"has_log"`
 	HasArtifact        bool              `json:"has_artifact"`
 	Error              string            `json:"error,omitempty"`
+	Jobs               []ciJobStepJSON   `json:"jobs"`
+	DurationMs         *int64            `json:"duration_ms,omitempty"`
+	CanApprove         bool              `json:"can_approve,omitempty"`
+	CanRerun           bool              `json:"can_rerun,omitempty"`
+	CanCancel          bool              `json:"can_cancel,omitempty"`
 	StartedAt          *time.Time        `json:"started_at,omitempty"`
 	FinishedAt         *time.Time        `json:"finished_at,omitempty"`
 	CreatedAt          time.Time         `json:"created_at"`
+}
+
+type ciRunnerJSON struct {
+	Hostname string   `json:"hostname"`
+	Name     string   `json:"name"`
+	Status   string   `json:"status"`
+	Labels   []string `json:"labels,omitempty"`
+	WgIP     string   `json:"wg_ip,omitempty"`
 }
 
 type ciClaimJSON struct {
@@ -73,20 +103,95 @@ func (a *App) RequireVPN() gin.HandlerFunc {
 	}
 }
 
+func ciEvent(trigger string) string {
+	if trigger == ciTriggerMR {
+		return "pull_request"
+	}
+	return "push"
+}
+
+func ciBranch(ref string) string {
+	return strings.TrimPrefix(strings.TrimSpace(ref), "refs/heads/")
+}
+
+func (a *App) ciJobTitle(proj store.Project, job store.CiJob) string {
+	if job.MergeRequestNumber != nil {
+		var mr store.MergeRequest
+		if a.Store.DB.Where("project_id = ? AND number = ?", proj.ID, *job.MergeRequestNumber).First(&mr).Error == nil && mr.Title != "" {
+			return mr.Title
+		}
+	}
+	if items, err := forge.ListCommits(a.gitDir(), proj.Slug, job.SHA, "", 1); err == nil && len(items) > 0 && items[0].Subject != "" {
+		return items[0].Subject
+	}
+	if job.Trigger == ciTriggerMR && job.MergeRequestNumber != nil {
+		return fmt.Sprintf("Merge request !%d", *job.MergeRequestNumber)
+	}
+	return fmt.Sprintf("ci #%d", job.Number)
+}
+
+func (a *App) ciJobDurationMs(job store.CiJob) *int64 {
+	if job.StartedAt == nil {
+		return nil
+	}
+	end := time.Now()
+	if job.FinishedAt != nil {
+		end = *job.FinishedAt
+	}
+	ms := end.Sub(*job.StartedAt).Milliseconds()
+	if ms < 0 {
+		ms = 0
+	}
+	return &ms
+}
+
+func (a *App) canApproveCi(user store.User, proj store.Project) bool {
+	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
+		return true
+	}
+	role, ok := a.projectMemberRole(user, proj)
+	return ok && role.Rank() >= store.ProjectRoleMaintainer.Rank()
+}
+
 func (a *App) ciJobJSON(job store.CiJob) ciJobJSON {
+	return a.ciJobJSONFor(store.Project{}, store.User{}, job)
+}
+
+func (a *App) ciJobJSONFor(proj store.Project, user store.User, job store.CiJob) ciJobJSON {
+	workflow := strings.TrimSpace(job.Workflow)
+	if workflow == "" {
+		workflow = ciWorkflow
+	}
 	out := ciJobJSON{
 		Number:             job.Number,
+		Workflow:           workflow,
+		Event:              ciEvent(job.Trigger),
 		Trigger:            job.Trigger,
 		Ref:                job.Ref,
+		Branch:             ciBranch(job.Ref),
 		SHA:                job.SHA,
+		Actor:              job.Actor,
 		MergeRequestNumber: job.MergeRequestNumber,
 		Status:             job.Status,
 		HasLog:             job.LogRel != "",
 		HasArtifact:        job.ArtifactRel != "",
 		Error:              job.Error,
+		Jobs:               []ciJobStepJSON{{Name: ciWorkflow, Status: job.Status}},
+		DurationMs:         a.ciJobDurationMs(job),
 		StartedAt:          job.StartedAt,
 		FinishedAt:         job.FinishedAt,
 		CreatedAt:          job.CreatedAt,
+	}
+	if proj.ID != 0 {
+		out.Title = a.ciJobTitle(proj, job)
+	} else {
+		out.Title = fmt.Sprintf("ci #%d", job.Number)
+	}
+	if user.ID != 0 {
+		ok := a.canApproveCi(user, proj)
+		out.CanApprove = ok && job.Status == store.CiAwaitingApproval
+		out.CanRerun = ok && job.Status.Terminal()
+		out.CanCancel = ok && !job.Status.Terminal()
 	}
 	if job.RunnerID != nil {
 		var s store.MeshServer
@@ -97,20 +202,27 @@ func (a *App) ciJobJSON(job store.CiJob) ciJobJSON {
 	return out
 }
 
-func (a *App) enqueuePushJobs(proj store.Project, updates []forge.RefUpdate) {
+func (a *App) enqueuePushJobs(proj store.Project, updates []forge.RefUpdate, actor string) {
 	for _, u := range updates {
 		if forge.IsZeroOID(u.NewHex) || !strings.HasPrefix(u.Ref, "refs/heads/") {
 			continue
 		}
-		a.enqueueCiJob(proj, ciTriggerPush, u.Ref, u.NewHex, nil)
+		a.enqueueCiJobAs(proj, ciTriggerPush, u.Ref, u.NewHex, nil, actor, store.CiPending)
 	}
 }
 
 func (a *App) enqueueCiJob(proj store.Project, trigger, ref, sha string, mrNumber *uint) {
+	a.enqueueCiJobAs(proj, trigger, ref, sha, mrNumber, "", store.CiPending)
+}
+
+func (a *App) enqueueCiJobAs(proj store.Project, trigger, ref, sha string, mrNumber *uint, actor string, status store.CiJobStatus) *store.CiJob {
 	sha = strings.TrimSpace(sha)
 	ref = strings.TrimSpace(ref)
 	if sha == "" || ref == "" || forge.IsZeroOID(sha) {
-		return
+		return nil
+	}
+	if !status.Valid() {
+		status = store.CiPending
 	}
 	var last store.CiJob
 	number := uint(1)
@@ -124,13 +236,16 @@ func (a *App) enqueueCiJob(proj store.Project, trigger, ref, sha string, mrNumbe
 		Ref:                ref,
 		SHA:                sha,
 		MergeRequestNumber: mrNumber,
-		Status:             store.CiPending,
+		Workflow:           ciWorkflow,
+		Actor:              strings.TrimSpace(actor),
+		Status:             status,
 	}
 	if err := a.Store.DB.Create(&job).Error; err != nil {
-		return
+		return nil
 	}
 	_ = a.ensureProjectFilesDir(proj.Slug)
 	_ = a.Store.LogAudit("system", "project.ci.enqueue", fmt.Sprintf("%s#%d %s", proj.Slug, job.Number, trigger))
+	return &job
 }
 
 func (a *App) runnerMatchesProject(srv store.MeshServer, proj store.Project) bool {
@@ -228,20 +343,31 @@ func (a *App) authenticateGitRunner(c *gin.Context) (store.MeshServer, bool) {
 }
 
 func (a *App) handleListCiJobs(c *gin.Context) {
-	proj, _, ok := a.loadProjectBySlug(c)
+	proj, user, ok := a.loadProjectBySlug(c)
 	if !ok {
 		return
 	}
+	q := a.Store.DB.Where("project_id = ?", proj.ID)
+	if wf := strings.TrimSpace(c.Query("workflow")); wf != "" && wf != ciWorkflow {
+		c.JSON(http.StatusOK, gin.H{
+			"items":     []ciJobJSON{},
+			"workflows": []ciWorkflowJSON{{Name: ciWorkflow, Path: ciWorkflowPath}},
+		})
+		return
+	}
 	var rows []store.CiJob
-	if err := a.Store.DB.Where("project_id = ?", proj.ID).Order("number desc").Limit(50).Find(&rows).Error; err != nil {
+	if err := q.Order("number desc").Limit(80).Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
 	items := make([]ciJobJSON, 0, len(rows))
 	for _, j := range rows {
-		items = append(items, a.ciJobJSON(j))
+		items = append(items, a.ciJobJSONFor(proj, user, j))
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusOK, gin.H{
+		"items":     items,
+		"workflows": []ciWorkflowJSON{{Name: ciWorkflow, Path: ciWorkflowPath}},
+	})
 }
 
 func (a *App) loadCiJob(c *gin.Context) (store.Project, store.User, store.CiJob, bool) {
@@ -263,11 +389,11 @@ func (a *App) loadCiJob(c *gin.Context) (store.Project, store.User, store.CiJob,
 }
 
 func (a *App) handleGetCiJob(c *gin.Context) {
-	_, _, job, ok := a.loadCiJob(c)
+	proj, user, job, ok := a.loadCiJob(c)
 	if !ok {
 		return
 	}
-	c.JSON(http.StatusOK, a.ciJobJSON(job))
+	c.JSON(http.StatusOK, a.ciJobJSONFor(proj, user, job))
 }
 
 func (a *App) handleGetCiJobLog(c *gin.Context) {
@@ -321,7 +447,77 @@ func (a *App) handleCancelCiJob(c *gin.Context) {
 		return
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "project.ci.cancel", fmt.Sprintf("%s#%d", proj.Slug, job.Number))
-	c.JSON(http.StatusOK, a.ciJobJSON(job))
+	c.JSON(http.StatusOK, a.ciJobJSONFor(proj, user, job))
+}
+
+func (a *App) handleApproveCiJob(c *gin.Context) {
+	proj, user, job, ok := a.loadCiJob(c)
+	if !ok {
+		return
+	}
+	if !a.canApproveCi(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para aprovar"})
+		return
+	}
+	if job.Status != store.CiAwaitingApproval {
+		c.JSON(http.StatusConflict, gin.H{"error": "run não está aguardando aprovação"})
+		return
+	}
+	job.Status = store.CiPending
+	if err := a.Store.DB.Save(&job).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "project.ci.approve", fmt.Sprintf("%s#%d", proj.Slug, job.Number))
+	c.JSON(http.StatusOK, a.ciJobJSONFor(proj, user, job))
+}
+
+func (a *App) handleRerunCiJob(c *gin.Context) {
+	proj, user, job, ok := a.loadCiJob(c)
+	if !ok {
+		return
+	}
+	if !a.canApproveCi(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para reexecutar"})
+		return
+	}
+	if !job.Status.Terminal() {
+		c.JSON(http.StatusConflict, gin.H{"error": "só é possível reexecutar um run encerrado"})
+		return
+	}
+	next := a.enqueueCiJobAs(proj, job.Trigger, job.Ref, job.SHA, job.MergeRequestNumber, user.Username, store.CiPending)
+	if next == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "project.ci.rerun", fmt.Sprintf("%s#%d→%d", proj.Slug, job.Number, next.Number))
+	c.JSON(http.StatusCreated, a.ciJobJSONFor(proj, user, *next))
+}
+
+func (a *App) handleListProjectRunners(c *gin.Context) {
+	proj, _, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	var rows []store.MeshServer
+	if err := a.Store.DB.Where("role = ?", store.ServerRoleRunner).Order("hostname").Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	items := make([]ciRunnerJSON, 0)
+	for _, s := range rows {
+		if !a.runnerMatchesProject(s, proj) {
+			continue
+		}
+		items = append(items, ciRunnerJSON{
+			Hostname: s.Hostname,
+			Name:     s.Name,
+			Status:   s.Status,
+			Labels:   s.Labels,
+			WgIP:     s.WgIP,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
 func (a *App) handleCiClaim(c *gin.Context) {

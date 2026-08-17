@@ -23,12 +23,10 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import {
-  CiJobsCard,
   GitCard,
   MembersForm,
   MembersRead,
   MergeRequestsCard,
-  ProjectServicesCard,
   RulesForm,
   RulesRead,
 } from '@/pages/project-detail-page'
@@ -561,15 +559,7 @@ export function XgitMrsPage() {
   return <MergeRequestsCard slug={slug} members={data.members ?? []} userId={user?.id} canWrite={canWrite} />
 }
 
-export function XgitActionsPage() {
-  const { slug = '' } = useParams()
-  return (
-    <div className="flex flex-col gap-6">
-      <CiJobsCard slug={slug} />
-      <ProjectServicesCard slug={slug} />
-    </div>
-  )
-}
+export { XgitActionsPage } from '@/pages/xgit-actions-page'
 
 export function XgitRepoSettingsPage() {
   const { slug = '' } = useParams()

@@ -343,6 +343,9 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/projects/:slug/jobs/:n/log", app.handleGetCiJobLog)
 			authed.GET("/projects/:slug/jobs/:n/artifact", app.handleGetCiJobArtifact)
 			authed.POST("/projects/:slug/jobs/:n/cancel", app.handleCancelCiJob)
+			authed.POST("/projects/:slug/jobs/:n/approve", app.handleApproveCiJob)
+			authed.POST("/projects/:slug/jobs/:n/rerun", app.handleRerunCiJob)
+			authed.GET("/projects/:slug/runners", app.handleListProjectRunners)
 			authed.GET("/projects/:slug/services", app.handleListProjectServices)
 
 			driver := authed.Group("/driver")

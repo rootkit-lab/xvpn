@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–42** em produção. **Fases 43–43.1** (serviços + console XGIT) nesta branch. **Próximo:** Fase 44 — Backups externos. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1** em produção. **Fase 42.1** (Actions GitHub-like) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. **Próximo forge:** Fase 46 — Issues no XGIT (depois PRs GitHub-like, editor Monaco, XCODESPACES). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1121,20 +1121,25 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 
 ---
 
-## Ciclo xadmin (Fases 35–45)
+## Ciclo xadmin (Fases 35–49)
 
-Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §6.14–§6.19. Matriz GitLab → stack ihuull (não instalar GitLab CE):
+Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §6.14–§6.19. Matriz GitLab/GitHub → stack ihuull (não instalar GitLab CE nem GitHub Enterprise):
 
-| Feature GitLab | Onde | Fase |
+| Feature GitLab / GitHub | Onde | Fase |
 |---|---|---|
 | SSO / membros | xauth + IAM + `ProjectMember` | 35, 37 |
-| Issues / boards / activity | XGROUP (grupo por slug) | 37 |
-| Review ao vivo | XCHAT (thread por MR) | 41 |
+| Activity social | XGROUP (grupo por slug) | 37 |
+| Issues (título, labels, estado) | XGIT (`Issue` no Mongo) + thread XCHAT | 46 |
+| Review ao vivo | XCHAT (thread por MR / issue) | 41, 46–47 |
+| Pull request GitHub-like (diff, checks, review) | XGIT (`xgit.corp` + xadmin) | 47 |
+| Editor web + commit (Monaco) | blob `/edit` no XGIT | 48 |
+| Codespaces (IDE no browser) | app `xcodespaces.corp` (Monaco) | 49 |
 | Wiki / LFS / artifacts | XDRIVER `project-<slug>` | 37, 42 |
 | Releases deb/exe | Marketplace | 16 (já), 36 |
 | Git | `xgit.corp` smart HTTP | 40 |
 | MR + protected branches | xadmin + Mongo | 40–41 |
 | CI runners | peers WG `runner` | 42 |
+| Actions (lista, run, aprovação) | XGIT aba Actions | 42.1 |
 | Registry / pages / SAST | backlog | 45+ |
 
 ---
@@ -1245,6 +1250,20 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ---
 
+## Fase 42.1 — Actions (paridade GitHub)
+
+A aba Actions deixa o card “Pipeline” e passa a ser a superfície do GitHub Actions: sidebar de workflows, lista de runs (status, título, evento, branch, duração) e detalhe do run com jobs + aprovação de maintainer.
+
+- [x] Workflow `ci` (`.xvpn-ci.sh`). Lista de runs com ícone (ok / falha / pendente / action required), título do commit, `ci #N` + trigger (push ou pull request), branch, tempo relativo e duração.
+- [x] Detalhe do run: banner **awaiting approval** + **Approve and run**; grafo do job `ci`; Re-run; Cancel; log e artifact.
+- [x] Abrir MR (developer, sem `forge`) enfileira o run em `awaiting_approval`. Maintainer+ ou `forge` aprova → `pending` (runner reclama). Push e merge de maintainer seguem `pending`.
+- [x] Runner **não** reclama `awaiting_approval`. `POST .../approve` e `POST .../rerun`. `GET .../runners` lista peers `role=runner` do projeto (sem token).
+- [x] Sem YAML de múltiplos jobs nesta fase (um job `ci`). Sem Caches/Attestations/métricas.
+
+**Critério de saída:** em `xgit.corp` a aba Actions parece a do GitHub; um MR de developer espera Approve and run; depois o runner da malha executa. Sem porta nova.
+
+---
+
 ## Fase 43 — Serviços orquestrados (local + malha)
 
 xadmin instala e opera **no node local e nos VPS da malha**. Kinds: `mongo`, `redis`, `rabbitmq`, `lb`.
@@ -1266,7 +1285,7 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 - [x] Lista no xadmin: **todos** os repositórios (`scope=all`, viewer+). App em `xgit.corp`: só os do membro (`scope=mine`).
 - [x] Detalhe estilo GitHub: abas **Code** (tree/blob/README/commits/clone), **Merge requests**, **Actions** (CI + serviços do projeto), **Settings** (regras, colaboradores, branches protegidas).
 - [x] Configurações gerais: visibility/network padrão, `allow_member_create`, host de clone `xgit.corp`. Tree/blob/commits na API.
-- [x] `member` no xadmin vai para `xgit.corp` (não o dashboard). Issues no XGROUP; clone só na VPN.
+- [x] `member` no xadmin vai para `xgit.corp` (não o dashboard). Activity social no XGROUP; Issues first-class na Fase 46. Clone só na VPN.
 - [x] App de sistema `xgit` no catálogo (restricted + vpn). Tile no waffle quando o usuário é `ProjectMember` ou tem ACL do app.
 - [x] Home em `xgit.corp` estilo GitHub: Overview (heatmap + timeline), Repositórios, Packages (futuro), Stars. Chat no chrome (XCHAT nas threads de MR).
 
@@ -1291,7 +1310,69 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 - [ ] Pages (Nginx + blob).
 - [ ] Snippets, SAST, feature flags.
 
-Não misturar com 35–44.
+Não misturar com 35–44 nem com 46–49 (Issues / PRs / editor / XCODESPACES).
+
+---
+
+## Fase 46 — Issues no XGIT
+
+Issues deixam de ser só um post no XGROUP. Viram entidade first-class no forge, no estilo GitHub (lista + detalhe), com discussão no XCHAT. XGROUP continua sendo a activity social do projeto — não é o tracker.
+
+- [ ] Modelo `Issue` no Mongo (`project_id`, `number`, título, corpo, estado open/closed, labels, assignees, autor, timestamps). Sem segundo social.
+- [ ] Aba **Issues** no detalhe do repo (`xgit.corp` e xadmin), entre Code e Pull requests. Slug reservado `issues`.
+- [ ] Lista: filtro open/closed, busca, labels, assignees. Criar issue (reporter+). Fechar/reabrir (autor, maintainer+ ou `forge`).
+- [ ] Detalhe `/:slug/issues/:n`: markdown, sidebar (labels/assignees), thread XCHAT (`DirectThread.Kind=issue`) no chrome (skill `chat-chrome` — sem FAB/modal).
+- [ ] Activity no XGROUP: um post por issue aberta (link de volta ao XGIT). Comentários de review ficam no XCHAT, não duplicados no feed.
+- [ ] API: `GET/POST /api/projects/:slug/issues`, `GET/PATCH /api/projects/:slug/issues/:n`. RBAC: guest lê se o projeto for visível; reporter+ cria.
+
+**Critério de saída:** membro abre `#1` em `xgit.corp`, discute no popout do XCHAT e fecha a issue. Fora da VPN a rota não resolve. Sem GitHub Issues import nesta fase.
+
+---
+
+## Fase 47 — Pull requests (paridade GitHub)
+
+A página de MR hoje é um card (título, branches, merge/close). Precisa da superfície de um PR do GitHub para o review valer o fluxo (diff → checks → merge).
+
+- [ ] Renomear a aba **Merge requests** para **Pull requests** na UI do XGIT (API pode continuar `mrs` / `MergeRequest` nesta fase — sem breaking sem necessidade).
+- [ ] Detalhe `/:slug/pulls/:n` (alias da rota `mrs`): header GitHub-like (estado Open/Merged/Closed, `source → target`, autor, reviewers).
+- [ ] Abas do PR: **Conversation** (descrição + timeline + XCHAT), **Commits**, **Files changed** (diff unificado, comentário inline → thread XCHAT).
+- [ ] Checks da Fase 42 no header (pending/success/failure); merge bloqueado se job obrigatório falhar (quando o projeto exigir).
+- [ ] Review: Approve / Request changes / Comment (maintainer+ mergeia; developer abre). Editar título/descrição.
+- [ ] Lista de PRs com filtros (open/closed/merged) e contagem no tab do repo, no estilo da lista de Issues.
+- [ ] Botão **Code** no repo: popover Local (HTTPS/SSH-copy + Download ZIP) — a aba XCODESPACES entra na Fase 49.
+
+**Critério de saída:** abrir um PR mostra diff e commits; comentar uma linha abre o XCHAT; merge respeita protected branch + CI. Sem GitLab.
+
+---
+
+## Fase 48 — Editor web Monaco + commit (fluxo GitHub)
+
+Editar um arquivo no browser e **salvar = commit**, como o lápis do GitHub. Valida o mesmo caminho de protected branch / PR da Fase 47. Não é o IDE completo (isso é XCODESPACES).
+
+- [ ] Ação **Edit** no blob (lápis) e no menu de contexto do arquivo → rota `/:slug/edit/:ref/*path` com [Monaco Editor](https://microsoft.github.io/monaco-editor/).
+- [ ] Linguagem por extensão; tema alinhado ao `shared/ui` (dark). Sem copiar tokens. Limite de tamanho (ex.: 2 MiB) — binário/imagem não abre no editor (viewer já existe no XDRIVER).
+- [ ] **Salvar** abre o diálogo de commit (mensagem obrigatória, descrição opcional). Commit no servidor (`git commit` no bare via worktree), autor = usuário JWE. Nunca gerar chave git no servidor para o humano.
+- [ ] Fluxo GitHub: se a ref for branch protegida e o papel não puder push direto → obrigar **criar branch + abrir PR** (não commitar em `main`/`master` no web). Developer em branch própria commita direto.
+- [ ] Preview do diff antes do commit. Cancelar descarta o buffer (sem commit vazio).
+- [ ] API: `PUT /api/projects/:slug/contents` (path + ref + mensagem + conteúdo). Mesmas regras de protected branch do receive-pack.
+
+**Critério de saída:** editar um `.go` em `xgit.corp`, salvar, ver o commit no histórico; tentativa de salvar em `main` como developer abre PR em vez de push direto.
+
+---
+
+## Fase 49 — XCODESPACES (IDE Monaco na intranet)
+
+App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespaces do botão **Code** do GitHub (“Your workspaces in the cloud” + Create). **Não** é VM/Docker no VPS (sem shell remoto — `PLAN.md` §3). É um IDE web (Monaco) sobre um worktree do forge, só na VPN.
+
+- [ ] Registrar `xcodespaces.corp.ihuull.com` em `PLAN.md` §5.2 + skill `port-domain-registry-check` + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Sem porta nova. Sem landing `xcodespaces.ihuull.com`.
+- [ ] JWE `aud=xcodespaces`. App no catálogo (`slug=xcodespaces`, restricted + vpn). Waffle **Seus apps** se `ProjectMember` ou ACL do app. API no monólito (`/api/xcodespaces/`). Sem segundo binário Go.
+- [ ] Marca em `shared/ui` (lockup XCODESPACES / IDE). Skill `desktop-app-ui` + `chat-chrome` no host. Skill `new-intranet-app`.
+- [ ] Popover **Code** no XGIT: abas **Local** | **XCODESPACES**. Local = clone HTTPS + copiar URL + Download ZIP. XCODESPACES = lista de workspaces do user naquele repo, empty state (“No codespaces”) + **Create codespace on** a branch atual.
+- [ ] Create: worktree em `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` (checkout da branch). Teto de workspaces por user. Disco fora de `/opt/xvpn/data/git/` (bare intocado).
+- [ ] IDE em `https://xcodespaces.corp.ihuull.com/:id`: file tree, Monaco (multi-tab), busca, git (diff + commit + push para o bare via API da Fase 48), abrir PR. Chat no chrome.
+- [ ] Sem terminal/SSH no VPS. Sem bind em `0.0.0.0`. Stop/delete apaga o worktree. Guest/reporter: read-only; developer+: commit/push com as mesmas regras de protected branch.
+
+**Critério de saída:** no repo, Code → XCODESPACES → Create on `main` abre o IDE; editar + commit cria commit no XGIT; Create em `main` como developer abre branch/PR, não push direto. Fora da VPN o host não resolve.
 
 ---
 
@@ -1310,7 +1391,7 @@ Não misturar com 35–44.
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–45):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). 45+ é backlog. Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–49):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → PRs GitHub-like → editor Monaco → XCODESPACES) é o trilho de UX do forge — pode avançar em paralelo à 44, sem misturar na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

@@ -10,7 +10,8 @@ export function XGitLandingPage() {
         <p className="hud-label text-muted-foreground/70">Forge</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">XGIT</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Smart HTTP só na VPN. Usuário e senha da conta ihuull (o mesmo do xadmin). Sem{' '}
+          Smart HTTP só na VPN. Usuário e senha da conta ihuull (o mesmo do xadmin). Merge em{' '}
+          <code className="font-mono text-xs">main</code> via MR no xadmin. Sem{' '}
           <code className="font-mono text-xs">git://</code> público e sem shell SSH.
         </p>
         <pre className="watch-complication overflow-x-auto rounded-[18px] p-4 font-mono text-xs leading-relaxed">

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api, ApiError, getToken, type Project, type ProjectRole, type User } from '@/lib/api'
+import { api, ApiError, getToken, type MergeRequest, type Project, type ProjectRole, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
@@ -15,6 +15,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { StatusBadge } from '@/pages/merge-request-page'
 
 const PROJECT_ROLES: ProjectRole[] = ['guest', 'reporter', 'developer', 'maintainer', 'owner']
 
@@ -49,6 +51,12 @@ export function ProjectDetailPage() {
 
       {canWrite ? <RulesForm project={data} onSaved={reload} /> : <RulesRead project={data} />}
       <GitCard slug={data.slug} username={user?.username ?? ''} canWrite={canWrite} />
+      <MergeRequestsCard
+        slug={data.slug}
+        members={data.members ?? []}
+        userId={user?.id}
+        canWrite={canWrite}
+      />
       {canWrite ? <MembersForm project={data} onSaved={reload} /> : <MembersRead project={data} />}
     </div>
   )
@@ -426,6 +434,169 @@ function GitCard({ slug, username, canWrite }: { slug: string; username: string;
             </form>
           ) : null}
         </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+const PROJECT_ROLE_RANK: Record<ProjectRole, number> = {
+  guest: 0,
+  reporter: 1,
+  developer: 2,
+  maintainer: 3,
+  owner: 4,
+}
+
+function MergeRequestsCard({
+  slug,
+  members,
+  userId,
+  canWrite,
+}: {
+  slug: string
+  members: { user_id: number; role: ProjectRole }[]
+  userId?: number
+  canWrite: boolean
+}) {
+  const fetchMRs = useCallback(() => api.listMergeRequests(slug), [slug])
+  const fetchBranches = useCallback(() => api.listProjectBranches(slug), [slug])
+  const { data, loading, error, reload } = usePollingData(fetchMRs, 20_000)
+  const { data: branchData } = usePollingData(fetchBranches, 20_000)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [source, setSource] = useState('')
+  const [target, setTarget] = useState('main')
+  const [busy, setBusy] = useState(false)
+
+  const myRole = members.find((m) => m.user_id === userId)?.role
+  const canCreate = canWrite || (myRole != null && PROJECT_ROLE_RANK[myRole] >= PROJECT_ROLE_RANK.developer)
+  const branches = branchData?.items ?? []
+
+  useEffect(() => {
+    const heads = branchData?.items
+    if (!heads?.length) return
+    setSource((s) => s || heads.find((b) => b !== 'main' && b !== 'master') || heads[0] || '')
+    setTarget((t) => {
+      if (t && heads.includes(t)) return t
+      if (heads.includes('main')) return 'main'
+      if (heads.includes('master')) return 'master'
+      return heads[0] ?? ''
+    })
+  }, [branchData])
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      const mr = await api.createMergeRequest(slug, {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        source_branch: source,
+        target_branch: target,
+      })
+      toast.success(`MR !${mr.number} aberto`)
+      setTitle('')
+      setDescription('')
+      reload()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao abrir MR')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading || !data) {
+    return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-32 w-full" />
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Merge requests</CardTitle>
+        <CardDescription>
+          Review no XCHAT (uma thread por MR). Comentários de issue no XGROUP. Merge em branch protegida exige
+          maintainer+.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {(data.items ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum MR ainda.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {data.items.map((mr: MergeRequest) => (
+              <Link
+                key={mr.number}
+                to={`/admin/projects/${slug}/mrs/${mr.number}`}
+                className="flex items-center justify-between gap-2 text-sm hover:underline"
+              >
+                <span className="min-w-0 truncate">
+                  !{mr.number} {mr.title}{' '}
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {mr.source_branch} → {mr.target_branch}
+                  </span>
+                </span>
+                <StatusBadge status={mr.status} />
+              </Link>
+            ))}
+          </div>
+        )}
+        {canCreate ? (
+          branches.length < 2 ? (
+            <p className="text-sm text-muted-foreground">Faça push de pelo menos duas branches para abrir um MR.</p>
+          ) : (
+            <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="mr-title">Título</Label>
+                <Input
+                  id="mr-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  maxLength={120}
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="mr-desc">Descrição</Label>
+                <Textarea id="mr-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Source</Label>
+                <Select value={source} onValueChange={setSource}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Target</Label>
+                <Select value={target} onValueChange={setTarget}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Button type="submit" disabled={busy || !source || source === target}>
+                  {busy ? 'Abrindo…' : 'Abrir MR'}
+                </Button>
+              </div>
+            </form>
+          )
+        ) : null}
       </CardContent>
     </Card>
   )

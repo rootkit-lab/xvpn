@@ -680,6 +680,8 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
+**Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/projects/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
+
 ### 6.16 Compute (BitLaunch + malha XVPN)
 
 O VPS `206.189.224.72` já está no BitLaunch. O xadmin lista, rotula e provisiona.

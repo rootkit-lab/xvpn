@@ -335,6 +335,16 @@ export function ChatProvider({
         setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
         openPopoutRef.current(c.key, c)
       }
+      if (detail.dmId) {
+        const c: Contact = {
+          key: contactKey('dm', detail.dmId),
+          kind: 'dm',
+          id: detail.dmId,
+          title: detail.title || `Conversa #${detail.dmId}`,
+        }
+        setContacts((prev) => (prev.some((x) => x.key === c.key) ? prev : [c, ...prev]))
+        openPopoutRef.current(c.key, c)
+      }
     }
     window.addEventListener(OPEN_CHAT_EVENT, onOpen)
     return () => window.removeEventListener(OPEN_CHAT_EVENT, onOpen)

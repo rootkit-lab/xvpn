@@ -166,6 +166,12 @@ var rbacRouteCases = []rbacRouteCase{
 	{"get-project-git", http.MethodGet, "/api/projects/missing/git", nil, "any"},
 	{"init-project-git", http.MethodPost, "/api/projects/missing/git", nil, "adminOnly"},
 	{"set-protected-branches", http.MethodPut, "/api/projects/missing/protected-branches", setProtectedBranchesRequest{Branches: []protectedBranchJSON{{Pattern: "main", MinPushRole: store.ProjectRoleMaintainer}}}, "adminOnly"},
+	{"list-project-branches", http.MethodGet, "/api/projects/missing/branches", nil, "any"},
+	{"list-merge-requests", http.MethodGet, "/api/projects/missing/merge-requests", nil, "any"},
+	{"create-merge-request", http.MethodPost, "/api/projects/missing/merge-requests", createMRRequest{Title: "t", SourceBranch: "feat", TargetBranch: "main"}, "any"},
+	{"get-merge-request", http.MethodGet, "/api/projects/missing/merge-requests/1", nil, "any"},
+	{"merge-merge-request", http.MethodPost, "/api/projects/missing/merge-requests/1/merge", nil, "any"},
+	{"close-merge-request", http.MethodPost, "/api/projects/missing/merge-requests/1/close", nil, "any"},
 
 	{"list-servers", http.MethodGet, "/api/servers", nil, "viewerUp"},
 	{"get-server", http.MethodGet, "/api/servers/1", nil, "viewerUp"},

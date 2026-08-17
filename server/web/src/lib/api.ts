@@ -84,6 +84,34 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return (await res.json()) as T
 }
 
+async function requestText(path: string): Promise<string> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  return res.text()
+}
+
+async function downloadBinary(path: string, filename: string): Promise<void> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 // downloadMarketplaceAsset também não passa por request(): a resposta é o
 // binário do asset, não JSON, e um <a href> simples não anexaria o header
 // Authorization (o token vive em localStorage, não em cookie) — o
@@ -519,8 +547,27 @@ export interface MeshServer {
   account_id?: number
   notes?: string
   protected?: boolean
+  has_runner_token?: boolean
   created_at: string
   enroll_token?: string
+}
+
+export type CiJobStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
+
+export interface CiJob {
+  number: number
+  trigger: string
+  ref: string
+  sha: string
+  merge_request_number?: number
+  status: CiJobStatus
+  runner?: string
+  has_log: boolean
+  has_artifact: boolean
+  error?: string
+  started_at?: string
+  finished_at?: string
+  created_at: string
 }
 
 export interface BitLaunchAccount {
@@ -864,6 +911,14 @@ export const api = {
     request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/merge`, { method: 'POST' }),
   closeMergeRequest: (slug: string, iid: number) =>
     request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/close`, { method: 'POST' }),
+  listCiJobs: (slug: string) => request<{ items: CiJob[] }>(`/projects/${encodeURIComponent(slug)}/jobs`),
+  getCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}`),
+  getCiJobLog: (slug: string, n: number) => requestText(`/projects/${encodeURIComponent(slug)}/jobs/${n}/log`),
+  cancelCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/cancel`, { method: 'POST' }),
+  downloadCiArtifact: (slug: string, n: number) =>
+    downloadBinary(`/projects/${encodeURIComponent(slug)}/jobs/${n}/artifact`, `job-${n}-artifact`),
 
   listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
   getServer: (id: number) => request<MeshServer>(`/servers/${id}`),
@@ -895,6 +950,8 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ user_ids: userIds }),
     }),
+  issueRunnerToken: (id: number) =>
+    request<{ runner_token: string; ci_url: string }>(`/servers/${id}/runner-token`, { method: 'POST' }),
   listServerGroups: () => request<{ items: ServerGroup[] }>('/server-groups'),
   createServerGroup: (name: string, description?: string) =>
     request<ServerGroup>('/server-groups', {

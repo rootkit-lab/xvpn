@@ -1,6 +1,9 @@
 package forge
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMatchProtected(t *testing.T) {
 	cases := []struct {
@@ -30,6 +33,12 @@ func TestValidBranchPattern(t *testing.T) {
 	}
 	if ValidBranchPattern("../etc") || ValidBranchPattern("main;rm") || ValidBranchPattern("") {
 		t.Fatal("padrão perigoso aceito")
+	}
+}
+
+func TestIsZeroOID(t *testing.T) {
+	if !IsZeroOID(strings.Repeat("0", 40)) || IsZeroOID(strings.Repeat("a", 40)) || IsZeroOID("00") {
+		t.Fatal("IsZeroOID")
 	}
 }
 

@@ -172,6 +172,11 @@ var rbacRouteCases = []rbacRouteCase{
 	{"get-merge-request", http.MethodGet, "/api/projects/missing/merge-requests/1", nil, "any"},
 	{"merge-merge-request", http.MethodPost, "/api/projects/missing/merge-requests/1/merge", nil, "any"},
 	{"close-merge-request", http.MethodPost, "/api/projects/missing/merge-requests/1/close", nil, "any"},
+	{"list-ci-jobs", http.MethodGet, "/api/projects/missing/jobs", nil, "any"},
+	{"get-ci-job", http.MethodGet, "/api/projects/missing/jobs/1", nil, "any"},
+	{"get-ci-job-log", http.MethodGet, "/api/projects/missing/jobs/1/log", nil, "any"},
+	{"cancel-ci-job", http.MethodPost, "/api/projects/missing/jobs/1/cancel", nil, "any"},
+	{"issue-runner-token", http.MethodPost, "/api/servers/1/runner-token", nil, "adminOnly"},
 
 	{"list-servers", http.MethodGet, "/api/servers", nil, "viewerUp"},
 	{"get-server", http.MethodGet, "/api/servers/1", nil, "viewerUp"},

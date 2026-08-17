@@ -85,6 +85,16 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | |
 | POST | `/api/projects/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | `git merge --no-ff` no servidor |
 | POST | `/api/projects/:slug/merge-requests/:iid/close` | autor, maintainer+ ou `forge` | |
+| GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI |
+| GET | `/api/projects/:slug/jobs/:n` | sessão + ACL | |
+| GET | `/api/projects/:slug/jobs/:n/log` | sessão + ACL | texto |
+| GET | `/api/projects/:slug/jobs/:n/artifact` | sessão + ACL | blob |
+| POST | `/api/projects/:slug/jobs/:n/cancel` | maintainer+ ou `forge` | |
+| POST | `/api/servers/:id/runner-token` | admin + `compute` | token uma vez; só `role=runner` |
+| GET | `/api/ci/jobs/next` | VPN + token do runner | 204 se vazio |
+| POST | `/api/ci/jobs/:id/log` | VPN + token | |
+| POST | `/api/ci/jobs/:id/finish` | VPN + token | |
+| POST | `/api/ci/jobs/:id/artifact` | VPN + token | multipart `file` |
 
 Outro `Host` nas rotas smart HTTP → 404.
 

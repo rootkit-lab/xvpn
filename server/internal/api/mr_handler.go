@@ -326,6 +326,10 @@ func (a *App) handleMergeMergeRequest(c *gin.Context) {
 	}
 	_ = a.Store.DB.Create(&note).Error
 	_ = a.Store.LogAudit(callerUsername(c), "project.mr.merge", fmt.Sprintf("%s!%d", proj.Slug, mr.Number))
+	if sha, err := forge.RevParse(a.gitDir(), proj.Slug, mr.TargetBranch); err == nil {
+		n := mr.Number
+		a.enqueueCiJob(proj, ciTriggerMR, "refs/heads/"+mr.TargetBranch, sha, &n)
+	}
 	c.JSON(http.StatusOK, a.mrJSON(mr))
 }
 

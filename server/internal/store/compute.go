@@ -48,6 +48,7 @@ type MeshServer struct {
 	Notes           string `gorm:"type:text"`
 	EnrollToken     string
 	EnrollExpiresAt *time.Time
+	RunnerTokenHash string `json:"-"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

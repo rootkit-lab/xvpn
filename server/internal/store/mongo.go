@@ -38,7 +38,7 @@ func allModels() []any {
 		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
 		&SocialAttachment{}, &Story{}, &StoryView{},
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
-		&Project{}, &ProjectMember{}, &ProtectedBranch{}, &MergeRequest{},
+		&Project{}, &ProjectMember{}, &ProtectedBranch{}, &MergeRequest{}, &CiJob{},
 		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
 	}
 }

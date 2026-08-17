@@ -136,6 +136,10 @@ func (a *App) loadGitProject(c *gin.Context, user store.User) (store.Project, st
 }
 
 func (a *App) handleGitSmartHTTP(c *gin.Context) {
+	if runner, ok := a.authenticateGitRunner(c); ok {
+		a.serveGitForRunner(c, runner)
+		return
+	}
 	user, ok := a.authenticateGit(c)
 	if !ok {
 		return
@@ -165,8 +169,50 @@ func (a *App) handleGitSmartHTTP(c *gin.Context) {
 		if !c.Writer.Written() {
 			c.JSON(http.StatusBadGateway, gin.H{"error": "git indisponível"})
 		}
+		return
+	}
+	if push && c.Request.Method == http.MethodPost && c.Writer.Status() < 400 {
+		if raw, ok := c.Get(contextPushUpdates); ok {
+			if updates, ok := raw.([]forge.RefUpdate); ok {
+				a.enqueuePushJobs(proj, updates)
+			}
+		}
 	}
 }
+
+func (a *App) serveGitForRunner(c *gin.Context, runner store.MeshServer) {
+	slug := forge.NormalizeSlug(c.Param("slug"))
+	if !store.ValidProjectSlug(slug) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
+		return
+	}
+	var proj store.Project
+	if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
+		return
+	}
+	if !a.runnerMatchesProject(runner, proj) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
+		return
+	}
+	pathInfo := forge.PathInfo(c.Request.URL.Path, slug)
+	if forge.ServiceName(c.Request.URL.RawQuery, pathInfo) == "git-receive-pack" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "runner só clona"})
+		return
+	}
+	root := a.gitDir()
+	if root == "" || !forge.Exists(root, slug) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
+		return
+	}
+	if err := forge.Serve(c.Writer, c.Request, root, slug, "runner", pathInfo); err != nil {
+		if !c.Writer.Written() {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "git indisponível"})
+		}
+	}
+}
+
+const contextPushUpdates = "git_push_updates"
 
 func (a *App) enforceProtectedPush(c *gin.Context, user store.User, proj store.Project) bool {
 	updates, rest, err := forge.ParseReceivePack(c.Request.Body)
@@ -175,6 +221,7 @@ func (a *App) enforceProtectedPush(c *gin.Context, user store.User, proj store.P
 		return false
 	}
 	c.Request.Body = io.NopCloser(rest)
+	c.Set(contextPushUpdates, updates)
 	rules := a.protectedBranchRules(proj.ID)
 	for _, u := range updates {
 		for _, rule := range rules {

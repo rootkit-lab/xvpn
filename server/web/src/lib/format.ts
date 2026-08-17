@@ -31,5 +31,6 @@ export function formatRelativeTime(iso: string): string {
   const diffHours = Math.floor(diffMinutes / 60)
   if (diffHours < 24) return `há ${diffHours} h`
   const diffDays = Math.floor(diffHours / 24)
+  if (diffDays === 1) return 'ontem'
   return `há ${diffDays} d`
 }

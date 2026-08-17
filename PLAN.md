@@ -314,7 +314,7 @@ Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` s
 | Conteúdo | dispositivos, Marketplace, conta (senha/SSH). XDriver só no waffle se Samba/SFTP ativo | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | **Core VPN** · **Marketplace** (Catálogo ≠ ACL) · **XGIT** · **Compute** · **DNS** · **Serviços** · **XGroup** · **XDriver** · **IAM**. Navegação filtrada pelo escopo `products` |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
-Páginas do membro (`/my`): em `xvpn.ihuull.com` o índice `/my` redireciona para o portal `/`; dispositivos ficam em `/my/devices`. Marketplace (catálogo — o cliente VPN também vive aqui; `/my/download` redireciona), conta (senha + chave SSH). XDriver (`/my/files`) não fica no nav — só no waffle de apps, e só se Samba ou SFTP estiver ligado. Perfil **social** editável vive em `https://xgroup.ihuull.com/<username>` (produto **xgroup**); `/social/u/:username` redireciona. Não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
+Páginas do membro (`/my`): em `xvpn.ihuull.com` o índice `/my` redireciona para o portal `/`; dispositivos ficam em `/my/devices`. Marketplace (catálogo — o cliente VPN também vive aqui; `/my/download` redireciona), conta (senha + chave SSH). XDriver (`/my/files`) não fica no nav — só no waffle de apps, e só se Samba ou SFTP estiver ligado. XGIT no waffle **Seus apps** só se o usuário participa de um projeto ou tem ACL do app `xgit`; a UI do membro é `xgit.corp`, não o xadmin. Perfil **social** editável vive em `https://xgroup.ihuull.com/<username>` (produto **xgroup**); `/social/u/:username` redireciona. Não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
 
 Página admin de papéis: `/admin/rbac`. Usuários: lista paginada `/admin/users` + ficha `/admin/users/:id` (abas), não tabela com cinco ícones por linha.
 
@@ -619,7 +619,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 2. **portal** — hostname público (landing) e/ou `*.corp` (app). Sem A público para `corp`.
 3. **client** — opcional (Wails). Se existir, um `marketplace.yaml`, gate VPN se o app for `network: vpn`.
 
-Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome (XVPN, XGROUP, …) e as ações da direita. Wordmark ihuull não entra no header — título da rota fica no template do app (`PageHeading`). Marks em `shared/ui/brand/` (azul xvpn, verde xchat, magenta xgroup, laranja xdriver, ciano marketplace). Não copiar chrome por SPA.
+Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome (XVPN, XGROUP, …) e as ações da direita. Wordmark ihuull não entra no header — título da rota fica no template do app (`PageHeading`). Marks em `shared/ui/brand/` (azul xvpn, verde xchat, magenta xgroup, laranja xdriver, ciano marketplace, teal xgit). Não copiar chrome por SPA.
 
 **Nomenclatura de produto (obrigatória na UI).** Slug de código (`ProductId`, `marketplace.yaml` `slug`, JWE `aud`, pasta) é **sempre minúsculo**. O lockup do header e o `name` do catálogo usam a caixa do produto:
 
@@ -631,6 +631,7 @@ Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome 
 | `xdriver` | XDRIVER / Drive | XDRIVER Drive | `xdriver.corp` |
 | `marketplace` | Marketplace / Store | Marketplace Store | `marketplace.ihuull.com` |
 | `xadmin` | XADMIN / Console | XADMIN Console | `xadmin.corp` |
+| `xgit` | XGIT / Forge | XGIT Forge | `xgit.corp` — waffle se `ProjectMember` ou ACL do app |
 | `ihuull` | ihuull / plataforma | ihuull | landing da marca |
 
 Fonte: `shared/ui/react/products.ts`. Header autenticado: waffle de apps **sempre** + ícone Settings (prefs **deste** app) + pílula da conta (username + papel). Conta (perfil/senha) fica no menu da pílula, não no Settings. Scrollbar canônica em `shared/ui/scss/_utilities.scss` (`ihuull-scrollbar`) — não reinventar por SPA.
@@ -649,7 +650,7 @@ Sidebar (escopos entre parênteses):
 
 - Core VPN (`core`) — dashboard, devices, waitlist, gerais. DNS **sai** daqui.
 - Marketplace (`marketplace`) — **Catálogo** e **ACL** (duas rotas).
-- XGIT (`forge`) — §6.15. Repositórios + configurações gerais. `member` só vê repos da ACL.
+- XGIT (`forge`) — §6.15. No xadmin: **todos** os repositórios + configurações. O app de sistema mora em `xgit.corp` (waffle **Seus apps**). Tile só com `ProjectMember` ou ACL do app `xgit` no Marketplace — papel viewer+ não libera o app.
 - Compute (`compute`) — §6.16.
 - DNS (`dns`) — intranet (dnsmasq) + público (Route 53-like).
 - Serviços (`managed`) — §6.18.
@@ -678,7 +679,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
 
-**Console XGIT (Fase 43.1).** UI no xadmin em `/admin/xgit` (lista) e `/admin/xgit/:slug` (abas Code / Merge requests / Actions / Settings), no visual do GitHub. Configurações gerais em `/admin/xgit/settings` (`ForgeSettings`: visibility/network padrão, `allow_member_create`). Tree/blob/commits: `GET /api/projects/:slug/tree|blob|commits`. `member` autenticado no xadmin cai em `/admin/xgit` e só lista repos em que é `ProjectMember`. `/admin/projects*` redireciona. Sem GitLab CE.
+**Console XGIT (Fase 43.1).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é o app de sistema (Code / MRs / Actions / Settings) e lista só os do membro (`scope=mine`). App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess`. `member` no xadmin é redirecionado a `xgit.corp`. `/admin/projects*` redireciona. Sem GitLab CE.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 

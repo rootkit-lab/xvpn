@@ -111,10 +111,16 @@ func TestListTreeAndReadBlob(t *testing.T) {
 	for _, e := range ents {
 		if e.Name == "README" && e.Type == "blob" {
 			found = true
+			if e.LastCommit == nil || e.LastCommit.Subject == "" {
+				t.Fatalf("README sem last_commit: %+v", e)
+			}
 		}
 	}
 	if !found {
 		t.Fatalf("README ausente: %+v", ents)
+	}
+	if n, err := CountCommits(root, "lab", "main"); err != nil || n < 1 {
+		t.Fatalf("count: %d %v", n, err)
 	}
 	body, bin, err := ReadBlob(root, "lab", "main", "README")
 	if err != nil || bin || body != "hello\n" {

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { xgitPath } from '@/lib/xgit'
 
 const STATUS_LABEL: Record<CiJobStatus, string> = {
   pending: 'Na fila',
@@ -53,11 +54,11 @@ export function CiJobPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        <Link to="/admin/xgit" className="hover:underline">
+        <Link to={xgitPath()} className="hover:underline">
           XGIT
         </Link>
         <span className="px-1.5">/</span>
-        <Link to={`/admin/xgit/${slug}`} className="hover:underline">
+        <Link to={xgitPath(slug)} className="hover:underline">
           {slug}
         </Link>
         <span className="px-1.5">/</span>

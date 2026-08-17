@@ -69,7 +69,7 @@ func (a *App) handleLogin(c *gin.Context) {
 	if a.Tokens != nil {
 		auth.SetSessionCookie(c, token, a.Tokens.TTL())
 	}
-	c.JSON(http.StatusOK, loginResponse{Token: token, User: toUserResponse(user)})
+	c.JSON(http.StatusOK, loginResponse{Token: token, User: a.toSessionUser(user)})
 }
 
 // handleEstablishSession planta o cookie no host de destino (xvpn,
@@ -223,5 +223,5 @@ func (a *App) handleMe(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	c.JSON(http.StatusOK, toUserResponse(user))
+	c.JSON(http.StatusOK, a.toSessionUser(user))
 }

@@ -124,7 +124,7 @@ export function assignableRoles(actor: Role | undefined): Role[] {
 
 /** Home pós-login: app de produto → `/`; portal XVPN → `/`; console → `/admin`. */
 export function defaultRouteForRole(role: Role): string {
-  if (productKind() === 'xadmin-corp') return role === 'member' ? '/admin/xgit' : '/admin'
+  if (productKind() === 'xadmin-corp') return role === 'member' ? '/' : '/admin'
   if (isProductAppHost()) return '/'
   if (productKind() === 'xvpn') return '/'
   return role === 'member' ? '/my' : '/admin'

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
-import { ALL_ROLES, hasAdminProduct, VIEWER_UP_ROLES, type Product, type Role } from '@/lib/roles'
+import { hasAdminProduct, VIEWER_UP_ROLES, type Product, type Role } from '@/lib/roles'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
 type AdminNavItem = {
@@ -57,7 +57,7 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     label: 'XGIT',
     product: 'forge',
     items: [
-      { to: '/admin/xgit', label: 'Repositórios', icon: GitBranch, roles: ALL_ROLES, always: true, end: true },
+      { to: '/admin/xgit', label: 'Repositórios', icon: GitBranch, roles: VIEWER_UP_ROLES, product: 'forge', end: true },
       { to: '/admin/xgit/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'forge' },
     ],
   },

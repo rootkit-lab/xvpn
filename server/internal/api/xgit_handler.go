@@ -99,13 +99,25 @@ func (a *App) handleListTree(c *gin.Context) {
 	ents, err := forge.ListTree(a.gitDir(), proj.Slug, ref, path)
 	if err != nil {
 		if errors.Is(err, forge.ErrEmptyRepo) || errors.Is(err, forge.ErrBranchMissing) {
-			c.JSON(http.StatusOK, gin.H{"items": []forge.TreeEntry{}, "ref": ref, "path": path})
+			c.JSON(http.StatusOK, gin.H{"items": []forge.TreeEntry{}, "ref": ref, "path": path, "commit_count": 0, "tags": []string{}, "languages": []forge.LangStat{}})
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ref ou path inválido"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": ents, "ref": ref, "path": path})
+	payload := gin.H{"items": ents, "ref": ref, "path": path}
+	if strings.Trim(path, "/") == "" {
+		if n, err := forge.CountCommits(a.gitDir(), proj.Slug, ref); err == nil {
+			payload["commit_count"] = n
+		}
+		if tags, err := forge.ListTags(a.gitDir(), proj.Slug); err == nil {
+			payload["tags"] = tags
+		}
+		if langs, err := forge.LanguageStats(a.gitDir(), proj.Slug, ref); err == nil {
+			payload["languages"] = langs
+		}
+	}
+	c.JSON(http.StatusOK, payload)
 }
 
 func (a *App) handleGetBlob(c *gin.Context) {

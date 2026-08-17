@@ -163,7 +163,13 @@ func (a *App) handleListProjects(c *gin.Context) {
 		return
 	}
 	q := a.Store.DB.Model(&store.Project{}).Where("archived_at IS NULL")
-	if user.Role.Rank() < store.RoleViewer.Rank() {
+	scope := strings.TrimSpace(c.Query("scope"))
+	wantAll := scope == "all" || (scope == "" && user.Role.Rank() >= store.RoleViewer.Rank())
+	if scope == "all" && user.Role.Rank() < store.RoleViewer.Rank() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "lista completa só no xadmin"})
+		return
+	}
+	if scope == "mine" || !wantAll {
 		var ids []uint
 		_ = a.Store.DB.Model(&store.ProjectMember{}).Where("user_id = ?", user.ID).Pluck("project_id", &ids).Error
 		if len(ids) == 0 {

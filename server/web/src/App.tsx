@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
 import {
@@ -8,11 +8,13 @@ import {
   XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
+  XGIT_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
   productKind,
 } from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
+import { StoreShell } from '@/components/layout/store-shell'
 import { UserShell } from '@/components/layout/user-shell'
 import { PublicProfileShell, SocialShell } from '@/components/layout/social-shell'
 import { ChatHost } from '@/components/layout/chat-host'
@@ -51,6 +53,7 @@ const XgitSettingsPage = lazy(() =>
 )
 const XgitRepoLayout = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoLayout })))
 const XgitCodePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCodePage })))
+const XgitCommitsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCommitsPage })))
 const XgitMrsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMrsPage })))
 const XgitActionsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitActionsPage })))
 const XgitRepoSettingsPage = lazy(() =>
@@ -102,7 +105,6 @@ const XChatPublicLanding = lazy(() =>
   import('@/pages/xchat-landing-page').then((m) => ({ default: m.XChatPublicLanding })),
 )
 const CorpHubPage = lazy(() => import('@/pages/corp-hub-page').then((m) => ({ default: m.CorpHubPage })))
-const XGitLandingPage = lazy(() => import('@/pages/xgit-landing-page').then((m) => ({ default: m.XGitLandingPage })))
 
 function XAuthApp() {
   return (
@@ -245,10 +247,39 @@ function XGitCorpApp() {
       <Route path="/login" element={<SSOLoginRedirect />} />
       <Route path="/admin" element={<AdminHostRedirect />} />
       <Route path="/admin/*" element={<AdminHostRedirect />} />
-      <Route index element={<XGitLandingPage />} />
-      <Route path="*" element={<XGitLandingPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<StoreShell kind="xgit" />}>
+          <Route index element={<XgitReposPage />} />
+          <Route path=":slug" element={<XgitRepoLayout />}>
+            <Route index element={<XgitCodePage />} />
+            <Route path="tree/*" element={<XgitCodePage />} />
+            <Route path="blob/*" element={<XgitCodePage />} />
+            <Route path="commits" element={<XgitCommitsPage />} />
+            <Route path="mrs" element={<XgitMrsPage />} />
+            <Route path="mrs/:iid" element={<MergeRequestPage />} />
+            <Route path="actions" element={<XgitActionsPage />} />
+            <Route path="actions/:n" element={<CiJobPage />} />
+            <Route path="settings" element={<XgitRepoSettingsPage />} />
+          </Route>
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
+}
+
+/** Membro usa o app em xgit.corp — o console lista todos os repos. */
+function MemberLeaveXadminXgit() {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  if (user?.role === 'member') {
+    if (pathname === '/admin/xgit/settings' || pathname.startsWith('/admin/xgit/settings/')) {
+      return <HostRedirect to={XGIT_CORP_ORIGIN} />
+    }
+    const rest = pathname.replace(/^\/admin\/xgit\/?/, '')
+    return <HostRedirect to={rest ? `${XGIT_CORP_ORIGIN}/${rest}` : XGIT_CORP_ORIGIN} />
+  }
+  return <Outlet />
 }
 
 function CorpHubApp() {
@@ -275,7 +306,9 @@ function ProjectToXgit() {
 
 function AdminIndex() {
   const { user } = useAuth()
-  if (user?.role === 'member') return <Navigate to="/admin/xgit" replace />
+  if (user?.role === 'member') {
+    return <HostRedirect to={user.xgit_enabled ? XGIT_CORP_ORIGIN : PANEL_ORIGIN} />
+  }
   return <DashboardPage />
 }
 
@@ -319,17 +352,20 @@ function XAdminCorpApp() {
             <Route path="projects/:slug" element={<ProjectToXgit />} />
             <Route path="projects/:slug/mrs/:iid" element={<ProjectToXgit />} />
             <Route path="projects/:slug/jobs/:n" element={<ProjectToXgit />} />
-            <Route path="xgit" element={<XgitReposPage />} />
-            <Route path="xgit/settings" element={<XgitSettingsPage />} />
-            <Route path="xgit/:slug" element={<XgitRepoLayout />}>
-              <Route index element={<XgitCodePage />} />
-              <Route path="tree/*" element={<XgitCodePage />} />
-              <Route path="blob/*" element={<XgitCodePage />} />
-              <Route path="mrs" element={<XgitMrsPage />} />
-              <Route path="mrs/:iid" element={<MergeRequestPage />} />
-              <Route path="actions" element={<XgitActionsPage />} />
-              <Route path="actions/:n" element={<CiJobPage />} />
-              <Route path="settings" element={<XgitRepoSettingsPage />} />
+            <Route element={<MemberLeaveXadminXgit />}>
+              <Route path="xgit" element={<XgitReposPage />} />
+              <Route path="xgit/settings" element={<XgitSettingsPage />} />
+              <Route path="xgit/:slug" element={<XgitRepoLayout />}>
+                <Route index element={<XgitCodePage />} />
+                <Route path="tree/*" element={<XgitCodePage />} />
+                <Route path="blob/*" element={<XgitCodePage />} />
+                <Route path="commits" element={<XgitCommitsPage />} />
+                <Route path="mrs" element={<XgitMrsPage />} />
+                <Route path="mrs/:iid" element={<MergeRequestPage />} />
+                <Route path="actions" element={<XgitActionsPage />} />
+                <Route path="actions/:n" element={<CiJobPage />} />
+                <Route path="settings" element={<XgitRepoSettingsPage />} />
+              </Route>
             </Route>
           </Route>
         </Route>

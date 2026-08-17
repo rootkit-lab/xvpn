@@ -5,6 +5,7 @@ import { api, ApiError, type MarketplaceNetwork, type MarketplaceVisibility } fr
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
+import { xgitPath } from '@/lib/xgit'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,7 +17,7 @@ export function XgitSettingsPage() {
   const { user } = useAuth()
   const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
   const fetchSettings = useCallback(() => api.getXgitSettings(), [])
-  const fetchRepos = useCallback(() => api.listProjects(), [])
+  const fetchRepos = useCallback(() => api.listProjects('all'), [])
   const { data, loading, error, reload } = usePollingData(fetchSettings, 30_000)
   const { data: repos } = usePollingData(fetchRepos, 20_000)
   const [visibility, setVisibility] = useState<MarketplaceVisibility>('global')
@@ -107,8 +108,23 @@ export function XgitSettingsPage() {
       </Card>
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">ACL do app</CardTitle>
+          <CardDescription>
+            Quem vê o tile XGIT no waffle: membros de um projeto (<code className="font-mono text-xs">ProjectMember</code>)
+            ou ACL do app <code className="font-mono text-xs">xgit</code> no Marketplace. Papel viewer+ não libera o app —
+            o console lista todos os repos aqui.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Link to="/admin/marketplace/acl" className="text-sm text-primary hover:underline">
+            Liberar usuários no Marketplace → ACL
+          </Link>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Repositórios</CardTitle>
-          <CardDescription>Tudo que esta conta enxerga pela ACL. Membro só vê os projetos em que participa.</CardDescription>
+          <CardDescription>Catálogo completo no xadmin. Membros do repo entram em Settings de cada um.</CardDescription>
         </CardHeader>
         <CardContent>
           {(repos?.items ?? []).length === 0 ? (
@@ -117,7 +133,7 @@ export function XgitSettingsPage() {
             <ul className="divide-y divide-border/60">
               {repos?.items.map((p) => (
                 <li key={p.slug} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <Link to={`/admin/xgit/${p.slug}`} className="text-primary hover:underline">
+                  <Link to={xgitPath(p.slug)} className="text-primary hover:underline">
                     {p.slug}
                   </Link>
                   <span className="text-xs text-muted-foreground">

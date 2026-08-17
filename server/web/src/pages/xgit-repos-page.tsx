@@ -6,6 +6,7 @@ import { api, ApiError, type Project } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
+import { isXgitAdminHost, xgitPath } from '@/lib/xgit'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -16,7 +17,8 @@ export function XgitReposPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
-  const fetchProjects = useCallback(() => api.listProjects(), [])
+  const adminHost = isXgitAdminHost()
+  const fetchProjects = useCallback(() => api.listProjects(adminHost ? 'all' : 'mine'), [adminHost])
   const fetchSettings = useCallback(() => api.getXgitSettings(), [])
   const { data, loading, reload } = usePollingData(fetchProjects, 20_000)
   const { data: settings } = usePollingData(fetchSettings, 60_000)
@@ -35,7 +37,9 @@ export function XgitReposPage() {
           <p className="hud-label text-muted-foreground/70">XGIT</p>
           <h2 className="font-display text-2xl font-semibold tracking-tight">Repositórios</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Clone em <code className="font-mono text-xs">xgit.corp</code>. Você só vê o que a ACL do projeto libera.
+            {adminHost
+              ? 'Todos os repositórios. ACL do app no Marketplace; membros de cada repo em Settings.'
+              : 'Repositórios em que você participa. Clone só na VPN em xgit.corp.'}
           </p>
         </div>
       </div>
@@ -61,7 +65,7 @@ export function XgitReposPage() {
               <li key={p.slug}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/admin/xgit/${p.slug}`)}
+                  onClick={() => navigate(xgitPath(p.slug))}
                   className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left hover:bg-muted/30"
                 >
                   <div className="min-w-0">
@@ -158,5 +162,5 @@ function CreateRepoForm({ onCreated, useMemberApi }: { onCreated: () => void; us
 }
 
 export function repoHref(p: Project) {
-  return `/admin/xgit/${p.slug}`
+  return xgitPath(p.slug)
 }

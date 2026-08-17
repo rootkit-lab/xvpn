@@ -5,7 +5,7 @@
  * Vitrine / marketplace.yaml `name` = productDisplayName(id).
  */
 
-export const PRODUCT_IDS = ['ihuull', 'xvpn', 'xchat', 'marketplace', 'xgroup', 'xdriver', 'xadmin'] as const
+export const PRODUCT_IDS = ['ihuull', 'xvpn', 'xchat', 'marketplace', 'xgroup', 'xdriver', 'xadmin', 'xgit'] as const
 
 export type ProductId = (typeof PRODUCT_IDS)[number]
 
@@ -17,6 +17,7 @@ export const PRODUCT_META: Record<ProductId, { label: string; kicker: string }> 
   xgroup: { label: 'XGROUP', kicker: 'Social' },
   xdriver: { label: 'XDRIVER', kicker: 'Drive' },
   xadmin: { label: 'XADMIN', kicker: 'Console' },
+  xgit: { label: 'XGIT', kicker: 'Forge' },
 }
 
 /** Nome de vitrine: "XCHAT Client", "Marketplace Store". */

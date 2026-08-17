@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, MessagesSquare, Shield, Store } from 'lucide-react'
+import { GitBranch, HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, MessagesSquare, Shield, Store } from 'lucide-react'
 import { PRODUCT_META } from '@xvpn/ui/react/products'
 import { useAuth } from '@/lib/auth-context'
 import { isViewerUpRole } from '@/lib/roles'
@@ -9,6 +9,7 @@ import {
   XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
+  XGIT_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
   productKind,
 } from '@/lib/product-host'
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-export type LauncherVariant = 'user' | 'admin' | 'social' | 'marketplace' | 'xdriver'
+export type LauncherVariant = 'user' | 'admin' | 'social' | 'marketplace' | 'xdriver' | 'xgit'
 
 type LauncherTile = {
   id: string
@@ -39,6 +40,7 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
   const location = useLocation()
   const showAdmin = isViewerUpRole(user?.role)
   const xdriverOn = Boolean(user?.samba_enabled || user?.sftp_enabled)
+  const xgitOn = Boolean(user?.xgit_enabled)
   const kind = productKind()
   const onPanel = kind === 'xvpn'
   const onMarketplace = kind === 'marketplace' || location.pathname.endsWith('/marketplace')
@@ -87,6 +89,17 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
               : { href: XDRIVER_CORP_ORIGIN }),
             icon: HardDrive,
             current: onXDriver,
+          } satisfies LauncherTile,
+        ]
+      : []),
+    ...(xgitOn
+      ? [
+          {
+            id: 'xgit',
+            label: PRODUCT_META.xgit.label,
+            ...(kind === 'xgit-corp' ? { to: '/' } : { href: XGIT_CORP_ORIGIN }),
+            icon: GitBranch,
+            current: kind === 'xgit-corp',
           } satisfies LauncherTile,
         ]
       : []),

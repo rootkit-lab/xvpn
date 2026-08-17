@@ -7,6 +7,7 @@ import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
 import { XGROUP_CORP_ORIGIN } from '@/lib/product-host'
+import { xgitPath } from '@/lib/xgit'
 import { UserPicker } from '@/components/user-picker'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,7 +45,7 @@ export function ProjectDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        <Link to="/admin/xgit" className="hover:underline">
+        <Link to={xgitPath()} className="hover:underline">
           XGIT
         </Link>
         <span className="px-1.5">/</span>
@@ -530,7 +531,7 @@ export function MergeRequestsCard({
             {data.items.map((mr: MergeRequest) => (
               <Link
                 key={mr.number}
-                to={`/admin/xgit/${slug}/mrs/${mr.number}`}
+                to={xgitPath(`${slug}/mrs/${mr.number}`)}
                 className="flex items-center justify-between gap-2 text-sm hover:underline"
               >
                 <span className="min-w-0 truncate">
@@ -630,7 +631,7 @@ export function CiJobsCard({ slug }: { slug: string }) {
           data.items.map((job) => (
             <Link
               key={job.number}
-              to={`/admin/xgit/${slug}/actions/${job.number}`}
+              to={xgitPath(`${slug}/actions/${job.number}`)}
               className="flex items-center justify-between gap-2 text-sm hover:underline"
             >
               <span className="min-w-0 truncate">

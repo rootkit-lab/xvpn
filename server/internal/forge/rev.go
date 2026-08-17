@@ -45,3 +45,24 @@ func RevParse(root, slug, ref string) (string, error) {
 	}
 	return strings.TrimSpace(string(out)), nil
 }
+
+// RevParseTag resolve refs/tags/<name> até o commit.
+func RevParseTag(root, slug, name string) (string, error) {
+	if !Exists(root, slug) || !ValidBranchName(name) {
+		return "", ErrInvalidBranch
+	}
+	dir, err := RepoPath(root, slug)
+	if err != nil {
+		return "", err
+	}
+	bin, err := LookGit()
+	if err != nil {
+		return "", err
+	}
+	cmd := gitCmd(bin, "--git-dir="+dir, "rev-parse", "--verify", "refs/tags/"+name+"^{commit}")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", ErrBranchMissing
+	}
+	return strings.TrimSpace(string(out)), nil
+}

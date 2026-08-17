@@ -11,6 +11,7 @@ import {
   ssoHandoff,
   ssoHandoffContinueURL,
   ssoLoginURL,
+  loginAudience,
   ssoLogoutURL,
 } from './product-host'
 
@@ -47,6 +48,7 @@ describe('productKind', () => {
     expect(isProductAppHost('xgroup.ihuull.com')).toBe(true)
     expect(isProductAppHost('xgroup.corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('corp.ihuull.com')).toBe(true)
+    expect(isProductAppHost('xgit.corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('xvpn.ihuull.com')).toBe(false)
     expect(isProductAppHost('xchat.ihuull.com')).toBe(false)
   })
@@ -61,7 +63,7 @@ describe('headerProduct', () => {
     expect(headerProduct('xvpn.ihuull.com', '/my')).toBe('xvpn')
     expect(headerProduct('xvpn.ihuull.com', '/admin')).toBe('xvpn')
     expect(headerProduct('xadmin.corp.ihuull.com', '/admin')).toBe('xadmin')
-    expect(headerProduct('xgit.corp.ihuull.com', '/')).toBe('xadmin')
+    expect(headerProduct('xgit.corp.ihuull.com', '/')).toBe('xgit')
     expect(headerProduct('xvpn.ihuull.com', '/social')).toBe('xgroup')
     expect(headerProduct('xvpn.ihuull.com', '/social/messages')).toBe('xchat')
     expect(headerProduct('xvpn.ihuull.com', '/xgroup/groups')).toBe('xgroup')
@@ -73,6 +75,14 @@ describe('headerProduct', () => {
     expect(headerProduct('xchat.ihuull.com', '/')).toBe('xchat')
     expect(headerProduct('xgroup.corp.ihuull.com', '/social')).toBe('xgroup')
     expect(headerProduct('corp.ihuull.com', '/')).toBe('xvpn')
+  })
+})
+
+describe('loginAudience', () => {
+  it('emite aud do host de produto', () => {
+    expect(loginAudience('xgit.corp.ihuull.com')).toBe('xgit')
+    expect(loginAudience('xadmin.corp.ihuull.com')).toBe('xadmin')
+    expect(loginAudience('xvpn.ihuull.com')).toBe('xvpn')
   })
 })
 

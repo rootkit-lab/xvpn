@@ -74,6 +74,9 @@ func openSQLite(path string) (*Store, error) {
 	if err := SeedIntranetDNS(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
 	}
+	if err := SeedXgitApp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando app XGIT: %w", err)
+	}
 	return st, nil
 }
 
@@ -121,6 +124,9 @@ func OpenMongo(uri, sqlitePath string) (*Store, error) {
 	st.registerMongoCallbacks()
 	if err := SeedIntranetDNS(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
+	}
+	if err := SeedXgitApp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando app XGIT: %w", err)
 	}
 	return st, nil
 }

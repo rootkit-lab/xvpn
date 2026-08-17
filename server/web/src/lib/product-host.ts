@@ -91,7 +91,8 @@ export function headerProduct(
   if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'
   if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
   if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
-  if (kind === 'xadmin-corp' || kind === 'xgit-corp') return 'xadmin'
+  if (kind === 'xadmin-corp') return 'xadmin'
+  if (kind === 'xgit-corp') return 'xgit'
   if (kind === 'corp') return 'xvpn'
   const host = hostname.toLowerCase()
   if (
@@ -122,6 +123,7 @@ export function isProductAppHost(hostname = window.location.hostname): boolean {
     kind === 'xchat-corp' ||
     kind === 'xgroup' ||
     kind === 'xgroup-corp' ||
+    kind === 'xgit-corp' ||
     kind === 'corp'
   )
 }
@@ -187,6 +189,7 @@ export function ssoContinueURL(role: string, returnTo?: string | null): string {
 export function loginAudience(hostname = window.location.hostname): string {
   const kind = productKind(hostname)
   if (kind === 'xadmin-corp') return 'xadmin'
+  if (kind === 'xgit-corp') return 'xgit'
   if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
   if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
   if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'

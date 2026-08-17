@@ -39,16 +39,17 @@ var allowedCodespaceImages = map[string]struct{}{
 
 // CsSpec é o JSON do subcomando cs-apply (stdin).
 type CsSpec struct {
-	Action    string `json:"action"`
-	ID        string `json:"id"`
-	Workspace string `json:"workspace"`
-	BarePath  string `json:"bare_path,omitempty"`
-	Branch    string `json:"branch,omitempty"`
-	Image     string `json:"image,omitempty"`
-	Port      uint16 `json:"port,omitempty"`
-	CloneURL  string `json:"clone_url,omitempty"`
-	GitUser   string `json:"git_user,omitempty"`
-	GitToken  string `json:"git_token,omitempty"`
+	Action          string `json:"action"`
+	ID              string `json:"id"`
+	Workspace       string `json:"workspace"`
+	BarePath        string `json:"bare_path,omitempty"`
+	Branch          string `json:"branch,omitempty"`
+	Image           string `json:"image,omitempty"`
+	Port            uint16 `json:"port,omitempty"`
+	CloneURL        string `json:"clone_url,omitempty"`
+	GitUser         string `json:"git_user,omitempty"`
+	GitToken        string `json:"git_token,omitempty"`
+	ConnectionToken string `json:"connection_token,omitempty"`
 }
 
 // CsRunner isola git/docker para ApplyCodespace ser testável sem root.
@@ -138,6 +139,7 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 	spec.CloneURL = strings.TrimSpace(spec.CloneURL)
 	spec.GitUser = strings.TrimSpace(spec.GitUser)
 	spec.GitToken = strings.TrimSpace(spec.GitToken)
+	spec.ConnectionToken = strings.TrimSpace(spec.ConnectionToken)
 	switch spec.Action {
 	case "create", "start", "stop", "rm":
 	default:
@@ -183,9 +185,15 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 		if spec.Port < CodespacePortMin || spec.Port > CodespacePortMax {
 			return CsSpec{}, fmt.Errorf("porta fora da faixa %d–%d", CodespacePortMin, CodespacePortMax)
 		}
+		if !codespaceTokenRe.MatchString(spec.ConnectionToken) {
+			return CsSpec{}, fmt.Errorf("connection_token inválido")
+		}
 	}
 	if spec.GitToken != "" && !codespaceTokenRe.MatchString(spec.GitToken) {
 		return CsSpec{}, fmt.Errorf("token inválido")
+	}
+	if spec.GitToken != "" && spec.Action == "start" && !validCodespaceCloneURL(spec.CloneURL) {
+		return CsSpec{}, fmt.Errorf("clone_url inválida")
 	}
 	if spec.GitUser != "" && !ValidUsername(spec.GitUser) && spec.GitUser != "codespace-"+spec.ID {
 		return CsSpec{}, fmt.Errorf("git_user inválido")
@@ -247,6 +255,11 @@ func ParseDevcontainerImage(raw []byte) (string, error) {
 	return img, nil
 }
 
+func validCodespaceCloneURL(u string) bool {
+	slug, ok := strings.CutPrefix(u, codespaceCloneHost+"/")
+	return ok && store.ValidProjectSlug(slug)
+}
+
 func containerName(id string) string { return "xvpn-cs-" + id }
 
 // ApplyCodespace executa create/start/stop/rm. Nunca monta docker.sock.
@@ -266,6 +279,9 @@ func ApplyCodespace(r CsRunner, stdin io.Reader, codespacesRoot, gitRoot string)
 	case "create":
 		return csCreate(r, spec)
 	case "start":
+		if err := csWriteGitCreds(r, spec); err != nil {
+			return err
+		}
 		return r.Docker("start", containerName(spec.ID))
 	case "stop":
 		return r.Docker("stop", containerName(spec.ID))
@@ -294,14 +310,8 @@ func csCreate(r CsRunner, spec CsSpec) error {
 			return err
 		}
 	}
-	if spec.GitToken != "" && spec.GitUser != "" {
-		cred := spec.CloneURL
-		cred = strings.TrimPrefix(cred, "https://")
-		line := "https://" + spec.GitUser + ":" + spec.GitToken + "@" + cred + "\n"
-		if err := r.WriteFile(filepath.Join(spec.Workspace, ".git", "xvpn-credentials"), line, 0o600); err != nil {
-			return err
-		}
-		_ = r.Git("-C", spec.Workspace, "config", "credential.helper", "store --file=.git/xvpn-credentials")
+	if err := csWriteGitCreds(r, spec); err != nil {
+		return err
 	}
 	if raw, err := r.ReadFile(filepath.Join(spec.Workspace, ".devcontainer", "devcontainer.json")); err == nil {
 		if img, err := ParseDevcontainerImage(raw); err == nil {
@@ -310,6 +320,19 @@ func csCreate(r CsRunner, spec CsSpec) error {
 	}
 	args := dockerRunArgs(spec)
 	return r.Docker(args...)
+}
+
+func csWriteGitCreds(r CsRunner, spec CsSpec) error {
+	if spec.GitToken == "" || spec.GitUser == "" || spec.CloneURL == "" {
+		return nil
+	}
+	cred := strings.TrimPrefix(spec.CloneURL, "https://")
+	line := "https://" + spec.GitUser + ":" + spec.GitToken + "@" + cred + "\n"
+	if err := r.WriteFile(filepath.Join(spec.Workspace, ".git", "xvpn-credentials"), line, 0o600); err != nil {
+		return err
+	}
+	_ = r.Git("-C", spec.Workspace, "config", "credential.helper", "store --file=.git/xvpn-credentials")
+	return nil
 }
 
 func dockerRunArgs(spec CsSpec) []string {
@@ -329,7 +352,7 @@ func dockerRunArgs(spec CsSpec) []string {
 		spec.Image,
 		"--host", "0.0.0.0",
 		"--port", "3000",
-		"--without-connection-token",
+		"--connection-token", spec.ConnectionToken,
 		"--default-folder", "/home/workspace",
 	}
 }

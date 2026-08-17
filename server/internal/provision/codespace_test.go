@@ -61,7 +61,8 @@ func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 		"action":"create","id":"` + id + `","workspace":"` + ws + `",
 		"bare_path":"` + bare + `","branch":"main","port":19000,
 		"clone_url":"https://xgit.corp.ihuull.com/lab",
-		"image":"gitpod/openvscode-server:1.98.2"
+		"image":"gitpod/openvscode-server:1.98.2",
+		"connection_token":"tokentokentoken1"
 	}`
 	if _, err := ParseCsSpec([]byte(ok), csRoot, gitRoot); err != nil {
 		t.Fatalf("payload válido: %v", err)
@@ -96,15 +97,22 @@ func TestParseDevcontainerImage_Allowlist(t *testing.T) {
 
 func TestDockerRunArgs_NoSocketOrPrivileged(t *testing.T) {
 	spec := CsSpec{
-		ID:        "aabbccddeeff",
-		Workspace: "/opt/xvpn/data/codespaces/alice/lab/aabbccddeeff/workspace",
-		Image:     DefaultCodespaceImage,
-		Port:      19000,
+		ID:              "aabbccddeeff",
+		Workspace:       "/opt/xvpn/data/codespaces/alice/lab/aabbccddeeff/workspace",
+		Image:           DefaultCodespaceImage,
+		Port:            19000,
+		ConnectionToken: "tokentokentoken1",
 	}
 	args := dockerRunArgs(spec)
 	joined := strings.Join(args, " ")
 	if strings.Contains(joined, "docker.sock") || strings.Contains(joined, "privileged") || strings.Contains(joined, "network=host") {
 		t.Fatalf("flags proibidas: %s", joined)
+	}
+	if strings.Contains(joined, "without-connection-token") {
+		t.Fatalf("IDE na loopback precisa de connection token: %s", joined)
+	}
+	if !strings.Contains(joined, "--connection-token tokentokentoken1") {
+		t.Fatalf("connection token ausente: %s", joined)
 	}
 	if !strings.Contains(joined, "127.0.0.1:19000:3000") {
 		t.Fatalf("publish deve ser loopback: %s", joined)
@@ -125,7 +133,8 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 		"action":"create","id":"` + id + `","workspace":"` + ws + `",
 		"bare_path":"` + bare + `","branch":"main","port":19003,
 		"clone_url":"https://xgit.corp.ihuull.com/lab",
-		"git_user":"codespace-` + id + `","git_token":"tokentokentoken1"
+		"git_user":"codespace-` + id + `","git_token":"tokentokentoken1",
+		"connection_token":"tokentokentoken1"
 	}`
 	f := newFakeCs()
 	if err := ApplyCodespace(f, strings.NewReader(payload), csRoot, gitRoot); err != nil {
@@ -146,5 +155,31 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	joined := strings.Join(f.docker[0], " ")
 	if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
 		t.Fatalf("container não monta bare nem socket: %s", joined)
+	}
+}
+
+func TestApplyCodespace_StartRewritesCreds(t *testing.T) {
+	root := t.TempDir()
+	csRoot := filepath.Join(root, "codespaces")
+	gitRoot := filepath.Join(root, "git")
+	id := "aabbccddeeff"
+	ws := filepath.Join(csRoot, "alice", "lab", id, "workspace")
+	payload := `{
+		"action":"start","id":"` + id + `","workspace":"` + ws + `",
+		"port":19003,"image":"gitpod/openvscode-server:1.98.2",
+		"clone_url":"https://xgit.corp.ihuull.com/lab",
+		"git_user":"codespace-` + id + `","git_token":"rotatedtoken0001",
+		"connection_token":"tokentokentoken1"
+	}`
+	f := newFakeCs()
+	if err := ApplyCodespace(f, strings.NewReader(payload), csRoot, gitRoot); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.docker) != 1 || f.docker[0][0] != "start" {
+		t.Fatalf("esperava docker start: %v", f.docker)
+	}
+	cred := filepath.Join(ws, ".git", "xvpn-credentials")
+	if !strings.Contains(f.writes[cred], "rotatedtoken0001") {
+		t.Fatalf("credencial não rotacionada: %v", f.writes)
 	}
 }

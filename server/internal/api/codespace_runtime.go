@@ -70,6 +70,11 @@ func newCodespaceToken() (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
+func isCodespaceSSOPath(path string) bool {
+	p := strings.TrimRight(path, "/")
+	return p == "/api/auth/session" || p == "/api/auth/redeem"
+}
+
 func (a *App) maybeCodespaceProxy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := codespaceRuntimeHost(c.Request.Host)
@@ -77,7 +82,7 @@ func (a *App) maybeCodespaceProxy() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+		if isCodespaceSSOPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
@@ -123,7 +128,42 @@ func (a *App) serveCodespaceRuntime(c *gin.Context, id string) {
 		return
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	base := proxy.Director
+	connTok := a.codespaceConnectionToken(id)
+	proxy.Director = func(req *http.Request) {
+		base(req)
+		prepareCodespaceUpstream(req, connTok)
+	}
+	proxy.ModifyResponse = func(resp *http.Response) error {
+		resp.Header.Del("Set-Cookie")
+		return nil
+	}
 	proxy.ServeHTTP(c.Writer, c.Request)
+}
+
+func prepareCodespaceUpstream(req *http.Request, connTok string) {
+	req.Header.Del("Cookie")
+	req.Header.Del("Authorization")
+	if connTok == "" {
+		return
+	}
+	req.Header.Set("X-Connection-Token", connTok)
+	q := req.URL.Query()
+	if q.Get("tkn") == "" {
+		q.Set("tkn", connTok)
+		req.URL.RawQuery = q.Encode()
+	}
+}
+
+func (a *App) codespaceConnectionToken(id string) string {
+	if a == nil || a.Tokens == nil {
+		return ""
+	}
+	sum := a.Tokens.HMACHex("cs-conn:" + id)
+	if len(sum) < 32 {
+		return ""
+	}
+	return sum[:32]
 }
 
 func (a *App) allocateCodespacePort() (int, error) {
@@ -157,7 +197,8 @@ func (a *App) maybeIdleStop(cs *store.CodeSpace) {
 	_ = a.applyCodespace(context.Background(), cs, "stop", 0, "", "")
 	cs.Status = store.CodespaceStopped
 	cs.HostPort = 0
-	_ = a.Store.DB.Model(cs).Updates(map[string]any{"status": cs.Status, "host_port": 0}).Error
+	cs.GitTokenHash = ""
+	_ = a.Store.DB.Model(cs).Updates(map[string]any{"status": cs.Status, "host_port": 0, "git_token_hash": ""}).Error
 }
 
 func (a *App) remoteWorkspace(cs store.CodeSpace) string {
@@ -170,29 +211,35 @@ func (a *App) applyCodespace(ctx context.Context, cs *store.CodeSpace, action st
 	}
 	bare := ""
 	branch := ""
-	if action == "create" {
+	if action == "create" || (action == "start" && token != "") {
 		var proj store.Project
 		if err := a.Store.DB.First(&proj, cs.ProjectID).Error; err != nil {
 			return err
 		}
-		p, err := forge.RepoPath(a.gitDir(), proj.Slug)
-		if err != nil {
-			return err
+		if action == "create" {
+			p, err := forge.RepoPath(a.gitDir(), proj.Slug)
+			if err != nil {
+				return err
+			}
+			bare = p
+			branch = cs.Branch
 		}
-		bare = p
-		branch = cs.Branch
+		if cloneURL == "" {
+			cloneURL = gitCloneHost + "/" + proj.Slug
+		}
 	}
 	spec := provision.CsSpec{
-		Action:    action,
-		ID:        cs.PublicID,
-		Workspace: a.remoteWorkspace(*cs),
-		BarePath:  bare,
-		Branch:    branch,
-		Image:     cs.Image,
-		Port:      uint16(port),
-		CloneURL:  cloneURL,
-		GitUser:   "codespace-" + cs.PublicID,
-		GitToken:  token,
+		Action:          action,
+		ID:              cs.PublicID,
+		Workspace:       a.remoteWorkspace(*cs),
+		BarePath:        bare,
+		Branch:          branch,
+		Image:           cs.Image,
+		Port:            uint16(port),
+		CloneURL:        cloneURL,
+		GitUser:         "codespace-" + cs.PublicID,
+		GitToken:        token,
+		ConnectionToken: a.codespaceConnectionToken(cs.PublicID),
 	}
 	if spec.Image == "" {
 		spec.Image = provision.DefaultCodespaceImage

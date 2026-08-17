@@ -311,8 +311,14 @@ func (a *App) handleStartCodespace(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "sem porta livre"})
 		return
 	}
-	if err := a.applyCodespace(c.Request.Context(), &cs, "start", port, "", ""); err != nil {
-		if err := a.applyCodespace(c.Request.Context(), &cs, "create", port, "", "https://xgit.corp.ihuull.com/"+proj.Slug); err != nil {
+	tok, err := newCodespaceToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	cloneURL := gitCloneHost + "/" + proj.Slug
+	if err := a.applyCodespace(c.Request.Context(), &cs, "start", port, tok, cloneURL); err != nil {
+		if err := a.applyCodespace(c.Request.Context(), &cs, "create", port, tok, cloneURL); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível iniciar o codespace"})
 			return
 		}
@@ -320,8 +326,11 @@ func (a *App) handleStartCodespace(c *gin.Context) {
 	now := time.Now()
 	cs.Status = store.CodespaceRunning
 	cs.HostPort = port
+	cs.GitTokenHash = hashCodespaceToken(tok)
 	cs.LastActiveAt = &now
-	_ = a.Store.DB.Model(&cs).Updates(map[string]any{"status": cs.Status, "host_port": port, "last_active_at": now}).Error
+	_ = a.Store.DB.Model(&cs).Updates(map[string]any{
+		"status": cs.Status, "host_port": port, "git_token_hash": cs.GitTokenHash, "last_active_at": now,
+	}).Error
 	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
 }
 
@@ -341,7 +350,8 @@ func (a *App) handleStopCodespace(c *gin.Context) {
 	_ = a.applyCodespace(c.Request.Context(), &cs, "stop", cs.HostPort, "", "")
 	cs.Status = store.CodespaceStopped
 	cs.HostPort = 0
-	_ = a.Store.DB.Model(&cs).Updates(map[string]any{"status": cs.Status, "host_port": 0}).Error
+	cs.GitTokenHash = ""
+	_ = a.Store.DB.Model(&cs).Updates(map[string]any{"status": cs.Status, "host_port": 0, "git_token_hash": ""}).Error
 	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
 }
 

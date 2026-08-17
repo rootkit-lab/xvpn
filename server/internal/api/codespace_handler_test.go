@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -197,5 +198,39 @@ func TestCodespaceRemoteCreateUsesHelper(t *testing.T) {
 	rec = doJSON(t, router, http.MethodDelete, "/api/xcodespaces/"+cs.ID, nil, adminTok)
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("delete: %d", rec.Code)
+	}
+}
+
+func TestCodespaceHostDoesNotExposeControlAPI(t *testing.T) {
+	_, router, adminTok := setupGitApp(t)
+	host := "cs-aabbccddeeff.corp.ihuull.com"
+
+	rec := doJSONHost(t, router, http.MethodGet, "/api/xcodespaces", nil, adminTok, host)
+	if rec.Code == http.StatusOK && strings.Contains(rec.Body.String(), `"items"`) {
+		t.Fatalf("API de controle vazou no host cs-*: %s", rec.Body.String())
+	}
+	if rec.Code != http.StatusNotFound && rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("host cs-* /api/xcodespaces: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/auth/redeem", nil, "", host)
+	if rec.Code == http.StatusNotFound || rec.Code == http.StatusServiceUnavailable {
+		t.Fatalf("SSO redeem no cs-* deve chegar ao Gin: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPrepareCodespaceUpstreamStripsSession(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:19000/", nil)
+	req.Header.Set("Cookie", "ihuull_session=secreto")
+	req.Header.Set("Authorization", "Bearer jwe")
+	prepareCodespaceUpstream(req, "tokentokentoken1")
+	if req.Header.Get("Cookie") != "" || req.Header.Get("Authorization") != "" {
+		t.Fatal("cookie/authorization não podem ir ao IDE")
+	}
+	if req.Header.Get("X-Connection-Token") != "tokentokentoken1" {
+		t.Fatal("connection token ausente")
+	}
+	if req.URL.Query().Get("tkn") != "tokentokentoken1" {
+		t.Fatal("tkn ausente")
 	}
 }

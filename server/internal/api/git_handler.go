@@ -68,7 +68,8 @@ func (a *App) authenticateGit(c *gin.Context) (store.User, bool) {
 		return user, true
 	}
 	if hasBasic && strings.HasPrefix(basicUser, "codespace-") {
-		if user, ok := a.authenticateCodespaceGit(basicUser, basicPass); ok {
+		if user, cs, ok := a.authenticateCodespaceGit(basicUser, basicPass); ok {
+			c.Set(contextCodespaceGitProject, cs.ProjectID)
 			return user, true
 		}
 	}
@@ -94,23 +95,28 @@ func (a *App) authenticateGit(c *gin.Context) (store.User, bool) {
 	return user, true
 }
 
-func (a *App) authenticateCodespaceGit(basicUser, basicPass string) (store.User, bool) {
+const contextCodespaceGitProject = "codespace_git_project"
+
+func (a *App) authenticateCodespaceGit(basicUser, basicPass string) (store.User, store.CodeSpace, bool) {
 	id := strings.TrimPrefix(basicUser, "codespace-")
 	if !codespaceHostRe.MatchString("cs-" + id + ".corp.ihuull.com") {
-		return store.User{}, false
+		return store.User{}, store.CodeSpace{}, false
 	}
 	var cs store.CodeSpace
 	if err := a.Store.DB.Where("public_id = ?", id).First(&cs).Error; err != nil {
-		return store.User{}, false
+		return store.User{}, store.CodeSpace{}, false
+	}
+	if cs.Kind != store.CodespaceKindRemote || cs.Status != store.CodespaceRunning {
+		return store.User{}, store.CodeSpace{}, false
 	}
 	if cs.GitTokenHash == "" || subtle.ConstantTimeCompare([]byte(cs.GitTokenHash), []byte(hashCodespaceToken(basicPass))) != 1 {
-		return store.User{}, false
+		return store.User{}, store.CodeSpace{}, false
 	}
 	var user store.User
 	if err := a.Store.DB.First(&user, cs.UserID).Error; err != nil {
-		return store.User{}, false
+		return store.User{}, store.CodeSpace{}, false
 	}
-	return user, true
+	return user, cs, true
 }
 
 func (a *App) canGitRead(user store.User, proj store.Project) bool {
@@ -156,6 +162,13 @@ func (a *App) loadGitProject(c *gin.Context, user store.User) (store.Project, st
 	if !a.canGitRead(user, proj) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return store.Project{}, "", false
+	}
+	if raw, ok := c.Get(contextCodespaceGitProject); ok {
+		pid, _ := raw.(uint)
+		if pid != proj.ID {
+			c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
+			return store.Project{}, "", false
+		}
 	}
 	return proj, slug, true
 }

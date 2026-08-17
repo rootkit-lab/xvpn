@@ -1,9 +1,12 @@
 package api
 
 import (
+	"errors"
 	"io"
+	"mime"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,7 +17,10 @@ import (
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
-const maxDriverUpload = 2 << 30 // 2 GiB
+const (
+	maxDriverUpload = 2 << 30 // 2 GiB
+	maxDriverWrite  = 2 << 20 // 2 MiB — editor de texto
+)
 
 func driverHostOK(host string) bool {
 	h, _, err := net.SplitHostPort(host)
@@ -180,8 +186,131 @@ func (a *App) handleDriverDownload(c *gin.Context) {
 	}
 	defer f.Close()
 	name := filepath.Base(full)
-	c.Header("Content-Disposition", `attachment; filename="`+name+`"`)
+	inline := c.Query("inline") == "1"
+	c.Header("Content-Type", driverContentType(name))
+	c.Header("Content-Disposition", driverDisposition(inline, name))
 	http.ServeContent(c.Writer, c.Request, name, time.Time{}, f)
+}
+
+func driverDisposition(inline bool, name string) string {
+	name = strings.ReplaceAll(filepath.Base(name), `"`, "_")
+	kind := "attachment"
+	if inline {
+		kind = "inline"
+	}
+	return kind + `; filename="` + name + `"`
+}
+
+func driverContentType(name string) string {
+	lower := strings.ToLower(name)
+	if strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") {
+		return "application/gzip"
+	}
+	if t := mime.TypeByExtension(filepath.Ext(lower)); t != "" {
+		return t
+	}
+	return "application/octet-stream"
+}
+
+func (a *App) handleDriverWrite(c *gin.Context) {
+	var req struct {
+		Root    string `json:"root"`
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return
+	}
+	if len(req.Content) > maxDriverWrite {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "texto maior que 2 MiB"})
+		return
+	}
+	var user store.User
+	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	full, base, ok := a.driverResolve(c, user, req.Root, req.Path)
+	if !ok {
+		return
+	}
+	parent := filepath.Dir(full)
+	name := filepath.Base(full)
+	dst, err := driver.CreateFileShare(base, parent, name, req.Root, user.Username)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
+		return
+	}
+	defer dst.Close()
+	if _, err := io.WriteString(dst, req.Content); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao gravar"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (a *App) handleDriverExtract(c *gin.Context) {
+	var req struct {
+		Root string `json:"root"`
+		Path string `json:"path"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return
+	}
+	if driver.ArchiveKind(filepath.Base(req.Path)) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "só zip e tar.gz"})
+		return
+	}
+	destName := driver.DestNameForArchive(filepath.Base(req.Path))
+	if destName == "" || destName == "." || strings.ContainsAny(destName, `/\`) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "nome inválido"})
+		return
+	}
+	var user store.User
+	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	full, base, ok := a.driverResolve(c, user, req.Root, req.Path)
+	if !ok {
+		return
+	}
+	rel := strings.Trim(req.Path, "/")
+	parentRel := strings.Trim(strings.TrimSuffix(rel, filepath.Base(rel)), "/")
+	parent, _, ok := a.driverResolve(c, user, req.Root, parentRel)
+	if !ok {
+		return
+	}
+	destFull := filepath.Join(parent, destName)
+	if _, err := os.Lstat(destFull); err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "já existe uma pasta com esse nome"})
+		return
+	}
+	if err := driver.MkdirShare(base, parent, destName, req.Root, user.Username); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao extrair"})
+		return
+	}
+	if err := driver.ExtractArchive(base, full, destFull, req.Root, user.Username); err != nil {
+		_ = driver.RemoveNoFollow(base, destFull)
+		status := http.StatusInternalServerError
+		msg := "falha ao extrair"
+		if errors.Is(err, driver.ErrBadPath) {
+			status = http.StatusBadRequest
+			msg = "arquivo compactado inválido"
+		} else if errors.Is(err, driver.ErrExtractBomb) {
+			status = http.StatusRequestEntityTooLarge
+			msg = "arquivo compactado grande demais"
+		} else if errors.Is(err, driver.ErrNotArchive) {
+			status = http.StatusBadRequest
+			msg = "formato não suportado"
+		}
+		c.JSON(status, gin.H{"error": msg})
+		return
+	}
+	destPath := strings.Trim(parentRel+"/"+destName, "/")
+	c.JSON(http.StatusCreated, gin.H{"ok": true, "path": destPath})
 }
 
 func (a *App) handleDriverDelete(c *gin.Context) {

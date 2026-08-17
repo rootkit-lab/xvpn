@@ -60,6 +60,8 @@ const ProductSettingsPage = lazy(() =>
 )
 const XDriverLayout = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverLayout })))
 const XDriverAppPage = lazy(() => import('@/pages/xdriver-app-page').then((m) => ({ default: m.XDriverAppPage })))
+const XDriverEditPage = lazy(() => import('@/pages/xdriver-edit-page').then((m) => ({ default: m.XDriverEditPage })))
+const XDriverViewPage = lazy(() => import('@/pages/xdriver-view-page').then((m) => ({ default: m.XDriverViewPage })))
 const XvpnProductPortal = lazy(() =>
   import('@/pages/xvpn-portal-page').then((m) => ({ default: m.XvpnProductPortal })),
 )
@@ -121,6 +123,8 @@ function XDriverCorpApp() {
       <Route element={<ProtectedRoute />}>
         <Route element={<XDriverLayout />}>
           <Route index element={<XDriverAppPage />} />
+          <Route path="edit" element={<XDriverEditPage />} />
+          <Route path="view" element={<XDriverViewPage />} />
           <Route path="settings" element={<ProductSettingsPage product="xdriver" />} />
         </Route>
       </Route>

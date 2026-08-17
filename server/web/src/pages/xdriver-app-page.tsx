@@ -1,9 +1,13 @@
-import { useCallback, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
+  Archive,
   ChevronRight,
   Download,
+  Eye,
   File,
+  FilePenLine,
   Folder,
   FolderPlus,
   HardDrive,
@@ -11,7 +15,8 @@ import {
   Upload,
   Users,
 } from 'lucide-react'
-import { api, ApiError, type DriverEntry, type DriverRoot } from '@/lib/api'
+import { api, ApiError, driverFileURL, type DriverEntry, type DriverRoot } from '@/lib/api'
+import { archiveExtractable, driverFileKind, driverItemHref, driverOpenMode } from '@/lib/driver-kind'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { formatBytes } from '@/lib/format'
@@ -31,14 +36,18 @@ const ROOTS: { id: DriverRoot; label: string; hint: string; icon: typeof HardDri
   { id: 'shared', label: 'Compartilhado', hint: 'Todos na VPN', icon: Users },
 ]
 
+type MenuState = { x: number; y: number; item: DriverEntry }
+
 export function XDriverAppPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [root, setRoot] = useState<DriverRoot>('shared')
   const [path, setPath] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [folderName, setFolderName] = useState('')
   const [busy, setBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [menu, setMenu] = useState<MenuState | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const fetchList = useCallback(() => api.listDriver(root, path), [root, path])
@@ -61,6 +70,25 @@ export function XDriverAppPage() {
   function openDir(rel: string) {
     setPath(rel)
     setSelected(null)
+    setMenu(null)
+  }
+
+  function openItem(item: DriverEntry) {
+    const kind = driverFileKind(item.name, item.is_dir)
+    const mode = driverOpenMode(kind)
+    if (mode === 'folder') {
+      openDir(item.path)
+      return
+    }
+    if (mode === 'edit' || mode === 'view') {
+      navigate(driverItemHref(mode, root, item.path))
+      return
+    }
+    if (kind === 'archive' && archiveExtractable(item.name)) {
+      void extractItem(item)
+      return
+    }
+    void downloadItem(item)
   }
 
   async function makeFolder() {
@@ -94,9 +122,8 @@ export function XDriverAppPage() {
     }
   }
 
-  async function downloadSelected() {
-    const item = selectedItem
-    if (!item || item.is_dir) return
+  async function downloadItem(item: DriverEntry) {
+    if (item.is_dir) return
     try {
       await api.downloadDriver(root, item.path, item.name)
     } catch (err) {
@@ -104,11 +131,32 @@ export function XDriverAppPage() {
     }
   }
 
-  async function removeSelected() {
-    const item = selectedItem
-    if (!item) return
+  async function downloadSelected() {
+    if (selectedItem) await downloadItem(selectedItem)
+  }
+
+  async function extractItem(item: DriverEntry) {
+    if (!archiveExtractable(item.name)) {
+      toast.error('Só zip e tar.gz. RAR/7z: baixe e extraia no computador.')
+      return
+    }
+    setBusy(true)
+    setMenu(null)
+    try {
+      const out = await api.extractDriver(root, item.path)
+      toast.success('Extraído')
+      openDir(out.path)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao extrair')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeItem(item: DriverEntry) {
     if (!window.confirm(`Apagar ${item.name}?`)) return
     setBusy(true)
+    setMenu(null)
     try {
       await api.rmDriver(root, item.path)
       setSelected(null)
@@ -120,12 +168,36 @@ export function XDriverAppPage() {
     }
   }
 
+  async function removeSelected() {
+    if (selectedItem) await removeItem(selectedItem)
+  }
+
+  function onContext(e: MouseEvent, item: DriverEntry) {
+    e.preventDefault()
+    setSelected(item.path)
+    setMenu({ x: e.clientX, y: e.clientY, item })
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     setDragOver(false)
     if (homeOff || busy) return
     void onUpload(e.dataTransfer.files)
   }
+
+  useEffect(() => {
+    if (!menu) return
+    const close = () => setMenu(null)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
 
   return (
     <div className="flex h-full min-h-[calc(100svh-8rem)] w-full min-w-0 gap-5 px-4 py-5 md:px-6">
@@ -240,47 +312,167 @@ export function XDriverAppPage() {
               {data.items.map((item) => (
                 <FileTile
                   key={item.path}
+                  root={root}
                   item={item}
                   selected={selected === item.path}
                   onSelect={() => setSelected(item.path)}
-                  onOpen={() => item.is_dir && openDir(item.path)}
+                  onOpen={() => openItem(item)}
+                  onMenu={(e) => onContext(e, item)}
                 />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          item={menu.item}
+          busy={busy}
+          onOpen={() => openItem(menu.item)}
+          onDownload={() => void downloadItem(menu.item)}
+          onExtract={() => void extractItem(menu.item)}
+          onDelete={() => void removeItem(menu.item)}
+        />
+      )}
     </div>
   )
 }
 
 function FileTile({
+  root,
   item,
   selected,
   onSelect,
   onOpen,
+  onMenu,
 }: {
+  root: DriverRoot
   item: DriverEntry
   selected: boolean
   onSelect: () => void
   onOpen: () => void
+  onMenu: (e: MouseEvent) => void
 }) {
-  const Icon = item.is_dir ? Folder : File
+  const kind = driverFileKind(item.name, item.is_dir)
+  const thumb = kind === 'image' ? driverFileURL(root, item.path, true) : null
   return (
     <button
       type="button"
       onClick={() => (item.is_dir ? onOpen() : onSelect())}
       onDoubleClick={onOpen}
+      onContextMenu={onMenu}
       className={cn(
-        'watch-complication flex flex-col items-start gap-3 rounded-[18px] p-4 text-left transition-colors hover:bg-white/6',
+        'watch-complication flex flex-col items-start gap-3 overflow-hidden rounded-[18px] p-3 text-left transition-colors hover:bg-white/6',
         selected && 'ring-2 ring-primary',
       )}
     >
-      <span className="icon-well flex size-11 items-center justify-center rounded-[12px]">
-        <Icon className="size-5" />
+      <span className="relative flex h-28 w-full items-center justify-center overflow-hidden rounded-[14px] bg-black/25">
+        {thumb ? (
+          <img src={thumb} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <KindGlyph kind={kind} />
+        )}
       </span>
       <span className="w-full truncate font-display text-sm font-semibold">{item.name}</span>
-      <span className="text-xs text-muted-foreground">{item.is_dir ? 'Pasta' : formatBytes(item.size)}</span>
+      <span className="text-xs text-muted-foreground">
+        {kind === 'folder' ? 'Pasta' : kind === 'archive' ? `Compactado · ${formatBytes(item.size)}` : formatBytes(item.size)}
+      </span>
+    </button>
+  )
+}
+
+function KindGlyph({ kind }: { kind: ReturnType<typeof driverFileKind> }) {
+  const Icon = kind === 'folder' ? Folder : kind === 'archive' ? Archive : kind === 'text' ? FilePenLine : kind === 'video' || kind === 'audio' || kind === 'pdf' ? Eye : File
+  return (
+    <span className="icon-well flex size-12 items-center justify-center rounded-[14px]">
+      <Icon className="size-5" />
+    </span>
+  )
+}
+
+function ContextMenu({
+  x,
+  y,
+  item,
+  busy,
+  onOpen,
+  onDownload,
+  onExtract,
+  onDelete,
+}: {
+  x: number
+  y: number
+  item: DriverEntry
+  busy: boolean
+  onOpen: () => void
+  onDownload: () => void
+  onExtract: () => void
+  onDelete: () => void
+}) {
+  const kind = driverFileKind(item.name, item.is_dir)
+  const mode = driverOpenMode(kind)
+  const openLabel = mode === 'edit' ? 'Editar' : mode === 'view' ? 'Visualizar' : mode === 'folder' ? 'Abrir' : 'Abrir'
+  const left = Math.min(x, window.innerWidth - 200)
+  const top = Math.min(y, window.innerHeight - 220)
+  return (
+    <div
+      role="menu"
+      className="watch-complication fixed z-50 min-w-44 rounded-[16px] border border-white/8 p-1.5"
+      style={{ left, top }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {(mode || kind === 'archive') && (
+        <MenuBtn onClick={onOpen} disabled={busy}>
+          {mode === 'edit' ? <FilePenLine className="size-4" /> : mode === 'view' ? <Eye className="size-4" /> : <Folder className="size-4" />}
+          {kind === 'archive' && !mode ? 'Extrair' : openLabel}
+        </MenuBtn>
+      )}
+      {!item.is_dir && (
+        <MenuBtn onClick={onDownload} disabled={busy}>
+          <Download className="size-4" />
+          Baixar
+        </MenuBtn>
+      )}
+      {kind === 'archive' && (
+        <MenuBtn onClick={onExtract} disabled={busy}>
+          <Archive className="size-4" />
+          {archiveExtractable(item.name) ? 'Extrair aqui' : 'Formato não extraível'}
+        </MenuBtn>
+      )}
+      <MenuBtn onClick={onDelete} disabled={busy} danger>
+        <Trash2 className="size-4" />
+        Apagar
+      </MenuBtn>
+    </div>
+  )
+}
+
+function MenuBtn({
+  children,
+  onClick,
+  disabled,
+  danger,
+}: {
+  children: ReactNode
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm hover:bg-white/8 disabled:opacity-40',
+        danger && 'text-destructive',
+      )}
+    >
+      {children}
     </button>
   )
 }

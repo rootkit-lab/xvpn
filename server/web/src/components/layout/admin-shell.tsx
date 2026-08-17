@@ -11,12 +11,13 @@ import {
   Store,
   Shield,
   AtSign,
-  FolderKanban,
+  GitBranch,
   Server,
+  Boxes,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
-import { hasAdminProduct, VIEWER_UP_ROLES, type Product, type Role } from '@/lib/roles'
+import { ALL_ROLES, hasAdminProduct, VIEWER_UP_ROLES, type Product, type Role } from '@/lib/roles'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
 type AdminNavItem = {
@@ -53,9 +54,12 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
   },
   {
     id: 'forge',
-    label: 'Projetos',
+    label: 'XGIT',
     product: 'forge',
-    items: [{ to: '/admin/projects', label: 'Projetos', icon: FolderKanban, roles: VIEWER_UP_ROLES, product: 'forge' }],
+    items: [
+      { to: '/admin/xgit', label: 'Repositórios', icon: GitBranch, roles: ALL_ROLES, always: true, end: true },
+      { to: '/admin/xgit/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'forge' },
+    ],
   },
   {
     id: 'compute',
@@ -65,6 +69,12 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
       { to: '/admin/servers', label: 'Servidores', icon: Server, roles: VIEWER_UP_ROLES, product: 'compute' },
       { to: '/admin/compute/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'compute' },
     ],
+  },
+  {
+    id: 'managed',
+    label: 'Serviços',
+    product: 'managed',
+    items: [{ to: '/admin/services', label: 'Instâncias', icon: Boxes, roles: VIEWER_UP_ROLES, product: 'managed' }],
   },
   {
     id: 'marketplace',

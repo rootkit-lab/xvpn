@@ -47,11 +47,11 @@ export function MergeRequestPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        <Link to="/admin/projects" className="hover:underline">
-          Projetos
+        <Link to="/admin/xgit" className="hover:underline">
+          XGIT
         </Link>
         <span className="px-1.5">/</span>
-        <Link to={`/admin/projects/${slug}`} className="hover:underline">
+        <Link to={`/admin/xgit/${slug}`} className="hover:underline">
           {slug}
         </Link>
         <span className="px-1.5">/</span>

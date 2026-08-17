@@ -76,6 +76,12 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/:slug/git-upload-pack` | idem | |
 | GET | `/:slug/info/refs?service=git-receive-pack` | idem | push: developer+; branch protegida = maintainer+ |
 | POST | `/:slug/git-receive-pack` | idem | |
+| GET | `/api/xgit/settings` | sessão | defaults do forge + `clone_host` |
+| PATCH | `/api/xgit/settings` | admin + `forge` | visibility/network padrão, `allow_member_create` |
+| POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | mesmo create de `/api/projects` |
+| GET | `/api/projects/:slug/tree` | sessão + ACL | `?ref=&path=` |
+| GET | `/api/projects/:slug/blob` | sessão + ACL | `?path=` obrigatório, `?ref=` |
+| GET | `/api/projects/:slug/commits` | sessão + ACL | `?ref=&path=&n=` |
 | GET | `/api/projects/:slug/git` | sessão | `clone_url`, `exists`, `protected_branches` |
 | POST | `/api/projects/:slug/git` | admin + `forge` | cria o bare se faltar |
 | PUT | `/api/projects/:slug/protected-branches` | admin + `forge` | substitui a lista |
@@ -95,6 +101,17 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/api/ci/jobs/:id/log` | VPN + token | |
 | POST | `/api/ci/jobs/:id/finish` | VPN + token | |
 | POST | `/api/ci/jobs/:id/artifact` | VPN + token | multipart `file` |
+| GET | `/api/services` | viewer+ | lista; `?project=` |
+| GET | `/api/services/:slug` | viewer+ | sem senha |
+| POST | `/api/services` | admin + `managed` | senha uma vez; DNS `svc-<slug>.corp` se bind wg0 |
+| POST | `/api/services/:slug/apply` | admin + `managed` | reaplica (local) ou marca pending (malha) |
+| POST | `/api/services/:slug/stop` | admin + `managed` | |
+| POST | `/api/services/:slug/rotate` | admin + `managed` | senha uma vez |
+| DELETE | `/api/services/:slug` | admin + `managed` | para + apaga DNS |
+| GET | `/api/projects/:slug/services` | sessão + ACL | sem senha |
+| POST | `/api/servers/:id/agent-token` | admin + `compute` | token uma vez; `mesh` ou `runner` |
+| GET | `/api/svc/desired` | VPN + token do agent | estado a aplicar no peer |
+| POST | `/api/svc/:id/status` | VPN + token | `ready` / `error` / `stopped` |
 
 Outro `Host` nas rotas smart HTTP → 404.
 

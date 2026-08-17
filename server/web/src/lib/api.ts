@@ -548,8 +548,33 @@ export interface MeshServer {
   notes?: string
   protected?: boolean
   has_runner_token?: boolean
+  has_agent_token?: boolean
   created_at: string
   enroll_token?: string
+}
+
+export type ServiceKind = 'mongo' | 'redis' | 'rabbitmq' | 'lb'
+export type ServiceBind = 'wg0' | 'loopback'
+export type ServiceHost = 'local' | 'mesh'
+export type ServiceStatus = 'pending' | 'ready' | 'error' | 'stopped'
+
+export interface ManagedService {
+  id: number
+  slug: string
+  kind: ServiceKind
+  project_slug?: string
+  host: ServiceHost
+  mesh_server_id?: number
+  mesh_hostname?: string
+  bind: ServiceBind
+  listen: string
+  port: number
+  hostname?: string
+  endpoint: string
+  status: ServiceStatus
+  error?: string
+  created_at: string
+  password?: string
 }
 
 export type CiJobStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
@@ -624,6 +649,22 @@ export interface ProjectGit {
   clone_url: string
   exists: boolean
   protected_branches: ProtectedBranch[]
+}
+
+export interface GitTreeEntry {
+  name: string
+  path: string
+  type: 'blob' | 'tree' | string
+  mode: string
+  size: number
+  sha: string
+}
+
+export interface GitCommit {
+  sha: string
+  subject: string
+  author: string
+  date: string
 }
 
 export type MergeRequestStatus = 'open' | 'merged' | 'closed'
@@ -857,6 +898,49 @@ export const api = {
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 
   listProjects: () => request<{ items: Project[] }>('/projects'),
+  createXgitRepo: (body: { slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
+    request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
+  getXgitSettings: () =>
+    request<{
+      default_visibility: MarketplaceVisibility
+      default_network: MarketplaceNetwork
+      allow_member_create: boolean
+      clone_host: string
+    }>('/xgit/settings'),
+  updateXgitSettings: (body: {
+    default_visibility?: MarketplaceVisibility
+    default_network?: MarketplaceNetwork
+    allow_member_create?: boolean
+  }) =>
+    request<{
+      default_visibility: MarketplaceVisibility
+      default_network: MarketplaceNetwork
+      allow_member_create: boolean
+      clone_host: string
+    }>('/xgit/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  listProjectTree: (slug: string, ref?: string, path?: string) => {
+    const q = new URLSearchParams()
+    if (ref) q.set('ref', ref)
+    if (path) q.set('path', path)
+    const qs = q.toString()
+    return request<{ items: GitTreeEntry[]; ref: string; path: string }>(
+      `/projects/${encodeURIComponent(slug)}/tree${qs ? `?${qs}` : ''}`,
+    )
+  },
+  getProjectBlob: (slug: string, path: string, ref?: string) => {
+    const q = new URLSearchParams({ path })
+    if (ref) q.set('ref', ref)
+    return request<{ path: string; ref: string; binary: boolean; content: string }>(
+      `/projects/${encodeURIComponent(slug)}/blob?${q}`,
+    )
+  },
+  listProjectCommits: (slug: string, ref?: string, path?: string) => {
+    const q = new URLSearchParams()
+    if (ref) q.set('ref', ref)
+    if (path) q.set('path', path)
+    const qs = q.toString()
+    return request<{ items: GitCommit[] }>(`/projects/${encodeURIComponent(slug)}/commits${qs ? `?${qs}` : ''}`)
+  },
   getProject: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}`),
   createProject: (body: {
     slug: string
@@ -952,6 +1036,30 @@ export const api = {
     }),
   issueRunnerToken: (id: number) =>
     request<{ runner_token: string; ci_url: string }>(`/servers/${id}/runner-token`, { method: 'POST' }),
+  issueAgentToken: (id: number) =>
+    request<{ agent_token: string; svc_url: string }>(`/servers/${id}/agent-token`, { method: 'POST' }),
+  listServices: (project?: string) =>
+    request<{ items: ManagedService[] }>(project ? `/services?project=${encodeURIComponent(project)}` : '/services'),
+  getService: (slug: string) => request<ManagedService>(`/services/${encodeURIComponent(slug)}`),
+  createService: (body: {
+    slug: string
+    kind: ServiceKind
+    project_slug?: string
+    host: ServiceHost
+    mesh_server_id?: number
+    bind: ServiceBind
+    port?: number
+    backends?: string[]
+  }) => request<ManagedService>('/services', { method: 'POST', body: JSON.stringify(body) }),
+  applyService: (slug: string) =>
+    request<ManagedService>(`/services/${encodeURIComponent(slug)}/apply`, { method: 'POST' }),
+  stopService: (slug: string) =>
+    request<ManagedService>(`/services/${encodeURIComponent(slug)}/stop`, { method: 'POST' }),
+  rotateService: (slug: string) =>
+    request<ManagedService>(`/services/${encodeURIComponent(slug)}/rotate`, { method: 'POST' }),
+  deleteService: (slug: string) => request<{ ok: boolean }>(`/services/${encodeURIComponent(slug)}`, { method: 'DELETE' }),
+  listProjectServices: (slug: string) =>
+    request<{ items: ManagedService[] }>(`/projects/${encodeURIComponent(slug)}/services`),
   listServerGroups: () => request<{ items: ServerGroup[] }>('/server-groups'),
   createServerGroup: (name: string, description?: string) =>
     request<ServerGroup>('/server-groups', {

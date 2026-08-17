@@ -60,10 +60,12 @@ operações, invocado via `sudo -n` com escopo restrito:
   ```
   Sem wildcard de argumento — o `sudo` só aceita o caminho exato do
   binário, sem argumentos. Os subcomandos (`create`, `enable-sftp`,
-  `enable-samba`, `disable`, `disable-sftp`, `disable-samba`, `dns-apply`)
+  `enable-samba`, `disable`, `disable-sftp`, `disable-samba`, `dns-apply`,
+  `svc-apply`)
   são parseados pelo próprio binário. Username vai por regex
   `^[a-z][a-z0-9_-]{2,31}$` antes de qualquer syscall; `dns-apply` lê JSON
-  no stdin e só grava dnsmasq com `listen-address=10.66.66.1`.
+  no stdin e só grava dnsmasq com `listen-address=10.66.66.1`. `svc-apply`
+  só aceita bind `127.0.0.1` ou `10.66.66.0/24` — nunca `0.0.0.0`.
 - **Validação de config antes de reload**: o binário roda `sshd -t`,
   `testparm -s` e `dnsmasq --test` antes de recarregar os serviços; se a
   config gerada for inválida, o reload não acontece e o binário devolve erro.

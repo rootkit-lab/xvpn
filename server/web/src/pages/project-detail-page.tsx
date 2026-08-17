@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, ApiError, getToken, type MergeRequest, type Project, type ProjectRole, type User } from '@/lib/api'
+import { ServiceStatusBadge } from '@/pages/services-page'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
@@ -43,8 +44,8 @@ export function ProjectDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        <Link to="/admin/projects" className="hover:underline">
-          Projetos
+        <Link to="/admin/xgit" className="hover:underline">
+          XGIT
         </Link>
         <span className="px-1.5">/</span>
         <span className="text-foreground">{data.slug}</span>
@@ -59,12 +60,13 @@ export function ProjectDetailPage() {
         canWrite={canWrite}
       />
       <CiJobsCard slug={data.slug} />
+      <ProjectServicesCard slug={data.slug} />
       {canWrite ? <MembersForm project={data} onSaved={reload} /> : <MembersRead project={data} />}
     </div>
   )
 }
 
-function RulesRead({ project }: { project: Project }) {
+export function RulesRead({ project }: { project: Project }) {
   return (
     <Card>
       <CardHeader>
@@ -84,7 +86,7 @@ function RulesRead({ project }: { project: Project }) {
   )
 }
 
-function RulesForm({ project, onSaved }: { project: Project; onSaved: () => void }) {
+export function RulesForm({ project, onSaved }: { project: Project; onSaved: () => void }) {
   const [name, setName] = useState(project.name)
   const [description, setDescription] = useState(project.description)
   const [visibility, setVisibility] = useState(project.visibility)
@@ -188,7 +190,7 @@ function RulesForm({ project, onSaved }: { project: Project; onSaved: () => void
   )
 }
 
-function MembersRead({ project }: { project: Project }) {
+export function MembersRead({ project }: { project: Project }) {
   return (
     <Card>
       <CardHeader>
@@ -206,7 +208,7 @@ function MembersRead({ project }: { project: Project }) {
   )
 }
 
-function MembersForm({ project, onSaved }: { project: Project; onSaved: () => void }) {
+export function MembersForm({ project, onSaved }: { project: Project; onSaved: () => void }) {
   const [users, setUsers] = useState<User[]>([])
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [roles, setRoles] = useState<Record<number, ProjectRole>>({})
@@ -308,7 +310,7 @@ function MembersForm({ project, onSaved }: { project: Project; onSaved: () => vo
   )
 }
 
-function GitCard({ slug, username, canWrite }: { slug: string; username: string; canWrite: boolean }) {
+export function GitCard({ slug, username, canWrite }: { slug: string; username: string; canWrite: boolean }) {
   const fetchGit = useCallback(() => api.getProjectGit(slug), [slug])
   const { data, loading, error, reload } = usePollingData(fetchGit, 20_000)
   const [pattern, setPattern] = useState('main')
@@ -449,7 +451,7 @@ const PROJECT_ROLE_RANK: Record<ProjectRole, number> = {
   owner: 4,
 }
 
-function MergeRequestsCard({
+export function MergeRequestsCard({
   slug,
   members,
   userId,
@@ -528,7 +530,7 @@ function MergeRequestsCard({
             {data.items.map((mr: MergeRequest) => (
               <Link
                 key={mr.number}
-                to={`/admin/projects/${slug}/mrs/${mr.number}`}
+                to={`/admin/xgit/${slug}/mrs/${mr.number}`}
                 className="flex items-center justify-between gap-2 text-sm hover:underline"
               >
                 <span className="min-w-0 truncate">
@@ -604,7 +606,7 @@ function MergeRequestsCard({
   )
 }
 
-function CiJobsCard({ slug }: { slug: string }) {
+export function CiJobsCard({ slug }: { slug: string }) {
   const fetchJobs = useCallback(() => api.listCiJobs(slug), [slug])
   const { data, loading, error } = usePollingData(fetchJobs, 10_000)
 
@@ -628,7 +630,7 @@ function CiJobsCard({ slug }: { slug: string }) {
           data.items.map((job) => (
             <Link
               key={job.number}
-              to={`/admin/projects/${slug}/jobs/${job.number}`}
+              to={`/admin/xgit/${slug}/actions/${job.number}`}
               className="flex items-center justify-between gap-2 text-sm hover:underline"
             >
               <span className="min-w-0 truncate">
@@ -636,6 +638,49 @@ function CiJobsCard({ slug }: { slug: string }) {
                 <span className="font-mono text-xs text-muted-foreground">{job.ref.replace('refs/heads/', '')}</span>
               </span>
               <CiJobStatusBadge status={job.status} />
+            </Link>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+export function ProjectServicesCard({ slug }: { slug: string }) {
+  const fetchServices = useCallback(() => api.listProjectServices(slug), [slug])
+  const { data, loading, error } = usePollingData(fetchServices, 15_000)
+
+  if (loading || !data) {
+    return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-24 w-full" />
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Serviços</CardTitle>
+        <CardDescription>
+          Instâncias orquestradas para este projeto. DNS <code className="font-mono text-xs">svc-*.corp</code> só com
+          bind wg0. Senha não aparece aqui.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {(data.items ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhum serviço ligado. Crie em{' '}
+            <Link to="/admin/services" className="hover:underline">
+              Serviços
+            </Link>
+            .
+          </p>
+        ) : (
+          data.items.map((svc) => (
+            <Link
+              key={svc.slug}
+              to={`/admin/services/${svc.slug}`}
+              className="flex items-center justify-between gap-2 text-sm hover:underline"
+            >
+              <span className="min-w-0 truncate font-mono text-xs">{svc.endpoint || svc.slug}</span>
+              <ServiceStatusBadge status={svc.status} />
             </Link>
           ))
         )}

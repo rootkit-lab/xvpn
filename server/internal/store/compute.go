@@ -49,8 +49,10 @@ type MeshServer struct {
 	EnrollToken     string
 	EnrollExpiresAt *time.Time
 	RunnerTokenHash string `json:"-"`
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// AgentTokenHash autentica o xvpn-svc-agent (Fase 43) neste peer.
+	AgentTokenHash string `json:"-"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // BitLaunchAccount é uma API/e-mail BitLaunch (Fase 38.1).

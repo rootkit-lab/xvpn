@@ -106,7 +106,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
-		&store.PanelSettings{},
+		&store.PanelSettings{}, &store.ForgeSettings{},
 		&store.DNSSettings{}, &store.DNSRecord{},
 		&store.CloudflareAccount{}, &store.PublicZone{}, &store.PublicRecord{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
@@ -115,6 +115,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.SocialPost{}, &store.SocialPostStar{}, &store.SocialPostComment{},
 		&store.Project{}, &store.ProjectMember{}, &store.ProtectedBranch{}, &store.MergeRequest{}, &store.CiJob{},
 		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
+		&store.ServiceInstance{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}

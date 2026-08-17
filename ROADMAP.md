@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–41** em produção. **Fase 42** (CI) nesta branch. **Próximo:** Fase 43 — Serviços orquestrados. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–42** em produção. **Fases 43–43.1** (serviços + console XGIT) nesta branch. **Próximo:** Fase 44 — Backups externos. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1249,12 +1249,26 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 xadmin instala e opera **no node local e nos VPS da malha**. Kinds: `mongo`, `redis`, `rabbitmq`, `lb`.
 
-- [ ] `ServiceInstance` + agent no host alvo (SSH wg0 / cloud-init).
-- [ ] Bind só `wg0` (ou `127.0.0.1` local-only). DNS `svc-<slug>.corp`.
-- [ ] Mongo do control-plane (`127.0.0.1:27017`) **intocável** nesta UI.
-- [ ] Redis/Rabbit **não** viram hub do XCHAT (`PLAN.md` §6.11).
+- [x] `ServiceInstance` + agent no host alvo (`xvpn-svc-agent` na malha; local via `xvpn-user-provision svc-apply`).
+- [x] Bind só `wg0` (ou `127.0.0.1` local-only). DNS `svc-<slug>.corp`.
+- [x] Mongo do control-plane (`127.0.0.1:27017`) **intocável** nesta UI.
+- [x] Redis/Rabbit **não** viram hub do XCHAT (`PLAN.md` §6.11).
 
 **Critério de saída:** provisionar Redis no local e noutro peer; projeto resolve `svc-*.corp`; `ss` não mostra 6379/5672/27017 em `0.0.0.0`.
+
+---
+
+## Fase 43.1 — Console XGIT (GitLab-like no xadmin)
+
+O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** — mesma superfície de um GitHub/GitLab (lista, Code, MRs, Actions, Settings), sem instalar GitLab CE. Mapeamento das features: `PLAN.md` §6.15.
+
+- [x] Nav **XGIT** no xadmin: Repositórios (`/admin/xgit`) e Configurações (`/admin/xgit/settings`). `/admin/projects*` redireciona.
+- [x] Lista de repositórios filtrada pela ACL (`ProjectMember`). `member` só vê os seus; `viewer+` com escopo `forge` vê o catálogo admin.
+- [x] Detalhe estilo GitHub: abas **Code** (tree/blob/README/commits/clone), **Merge requests**, **Actions** (CI + serviços do projeto), **Settings** (regras, colaboradores, branches protegidas).
+- [x] Configurações gerais: visibility/network padrão, `allow_member_create`, host de clone `xgit.corp`. Tree/blob/commits na API.
+- [x] `member` no xadmin cai em `/admin/xgit` (não no dashboard). Issues continuam no XGROUP; clone só na VPN.
+
+**Critério de saída:** um membro abre só os repos em que participa; admin com `forge` cria, lista e configura o forge; `git clone https://xgit.corp.ihuull.com/<slug>` continua o único caminho de git. Sem GitLab CE.
 
 ---
 
@@ -1294,7 +1308,7 @@ Não misturar com 35–44.
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–45):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 44 (backups). 45+ é backlog. Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–45):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). 45+ é backlog. Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

@@ -94,6 +94,41 @@ func write(t *testing.T, path, body string) {
 	}
 }
 
+func TestListTreeAndReadBlob(t *testing.T) {
+	if _, err := LookGit(); err != nil {
+		t.Skip("git não está no PATH")
+	}
+	root := t.TempDir()
+	if err := InitBare(root, "lab"); err != nil {
+		t.Fatal(err)
+	}
+	seedTwoBranches(t, root, "lab")
+	ents, err := ListTree(root, "lab", "main", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range ents {
+		if e.Name == "README" && e.Type == "blob" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("README ausente: %+v", ents)
+	}
+	body, bin, err := ReadBlob(root, "lab", "main", "README")
+	if err != nil || bin || body != "hello\n" {
+		t.Fatalf("blob: %q bin=%v err=%v", body, bin, err)
+	}
+	if _, err := ListTree(root, "lab", "main", "../etc"); err == nil {
+		t.Fatal("path traversal deveria falhar")
+	}
+	logs, err := ListCommits(root, "lab", "main", "", 5)
+	if err != nil || len(logs) == 0 {
+		t.Fatalf("log: %v %v", logs, err)
+	}
+}
+
 func contains(xs []string, want string) bool {
 	for _, x := range xs {
 		if x == want {

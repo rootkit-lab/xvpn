@@ -167,3 +167,28 @@ func (c *Client) ApplyDNS(ctx context.Context, payload string) error {
 	}
 	return nil
 }
+
+// ApplySvc aplica ou para um serviço gerenciado (Fase 43). payload é
+// o JSON validado pelo painel (provision.SvcSpec).
+func (c *Client) ApplySvc(ctx context.Context, payload string) error {
+	if c.binaryPath == "" {
+		return ErrBinaryMissing
+	}
+	args := []string{"-n", c.binaryPath, "svc-apply"}
+	out, err := c.executor(ctx, "sudo", args, payload)
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				msg = fmt.Sprintf("xvpn-user-provision svc-apply falhou (exit %d)", exitErr.ExitCode())
+			}
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if strings.Contains(err.Error(), "no such file") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return ErrBinaryMissing
+		}
+		return fmt.Errorf("executando sudo: %w", err)
+	}
+	return nil
+}

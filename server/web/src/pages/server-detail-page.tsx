@@ -55,6 +55,9 @@ export function ServerDetailPage() {
       ) : null}
       {canWrite ? <ServerForm server={data} onSaved={reload} /> : <ServerRead server={data} />}
       {canWrite && data.role === 'runner' ? <RunnerTokenCard server={data} onSaved={reload} /> : null}
+      {canWrite && (data.role === 'mesh' || data.role === 'runner') ? (
+        <AgentTokenCard server={data} onSaved={reload} />
+      ) : null}
       {canWrite ? <AccessForm server={data} onSaved={reload} /> : null}
       {canWrite && !data.protected && data.role !== 'control' ? <DangerZone server={data} /> : null}
     </div>
@@ -273,6 +276,52 @@ function RunnerTokenCard({ server, onSaved }: { server: MeshServer; onSaved: () 
         {token ? (
           <pre className="watch-complication overflow-x-auto rounded-[18px] p-4 font-mono text-xs">
             {`XVPN_CI_URL=${ciURL}\nXVPN_RUNNER_TOKEN=${token}`}
+          </pre>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function AgentTokenCard({ server, onSaved }: { server: MeshServer; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [token, setToken] = useState('')
+  const [svcURL, setSvcURL] = useState('')
+
+  async function issue() {
+    setBusy(true)
+    try {
+      const out = await api.issueAgentToken(server.id)
+      setToken(out.agent_token)
+      setSvcURL(out.svc_url)
+      toast.success('Token gerado — copie agora; não aparece de novo')
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao gerar token')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Agent de serviços</CardTitle>
+        <CardDescription>
+          Instale <code className="font-mono text-xs">xvpn-svc-agent</code> neste peer (root). Ele fala com{' '}
+          <code className="font-mono text-xs">10.66.66.1:8080</code> e aplica Redis/Mongo/Rabbit/LB com bind só wg0.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          {server.has_agent_token ? 'Já existe um token (gere de novo para rotacionar).' : 'Ainda sem token.'}
+        </p>
+        <Button type="button" disabled={busy} onClick={() => void issue()}>
+          {busy ? 'Gerando…' : 'Gerar token'}
+        </Button>
+        {token ? (
+          <pre className="watch-complication overflow-x-auto rounded-[18px] p-4 font-mono text-xs">
+            {`XVPN_SVC_URL=${svcURL}\nXVPN_SVC_TOKEN=${token}`}
           </pre>
         ) : null}
       </CardContent>

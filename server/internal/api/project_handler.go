@@ -199,7 +199,11 @@ func (a *App) handleCreateProject(c *gin.Context) {
 	if name == "" {
 		name = slug
 	}
+	defaults := a.loadForgeSettings()
 	vis := req.Visibility
+	if vis == "" {
+		vis = defaults.DefaultVisibility
+	}
 	if vis == "" {
 		vis = store.AppVisibilityGlobal
 	}
@@ -208,6 +212,9 @@ func (a *App) handleCreateProject(c *gin.Context) {
 		return
 	}
 	net := req.Network
+	if net == "" {
+		net = defaults.DefaultNetwork
+	}
 	if net == "" {
 		net = store.AppNetworkVPN
 	}

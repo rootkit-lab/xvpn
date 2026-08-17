@@ -1,0 +1,15 @@
+[Unit]
+Description=XVPN managed-service agent (peer da malha)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Root: apt-get + systemctl das units xvpn-svc-*. Não instala o deploy-xvpn-server.
+EnvironmentFile=-/etc/xvpn/xvpn-svc-agent.env
+ExecStart=/opt/xvpn/bin/xvpn-svc-agent
+Restart=on-failure
+RestartSec=8
+
+[Install]
+WantedBy=multi-user.target

@@ -42,6 +42,9 @@ type mergeRequestJSON struct {
 	MergedBy     string                   `json:"merged_by,omitempty"`
 	CreatedAt    time.Time                `json:"created_at"`
 	UpdatedAt    time.Time                `json:"updated_at"`
+	CanMerge     bool                     `json:"can_merge,omitempty"`
+	CanEdit      bool                     `json:"can_edit,omitempty"`
+	ChecksBlock  string                   `json:"checks_block,omitempty"`
 }
 
 func (a *App) canCreateMR(user store.User, proj store.Project) bool {
@@ -170,7 +173,13 @@ func (a *App) handleGetMergeRequest(c *gin.Context) {
 		return
 	}
 	a.ensureMRThreadMember(proj, user, mr.ThreadID)
-	c.JSON(http.StatusOK, a.mrJSON(mr))
+	out := a.mrJSON(mr)
+	out.CanEdit = mr.Status == store.MROpen && (user.ID == mr.AuthorID || a.canMaintainerWrite(user, proj))
+	if mr.Status == store.MROpen {
+		out.CanMerge = a.canMergeOnto(user, proj, mr.TargetBranch)
+		out.ChecksBlock = a.mrChecksBlock(proj, mr)
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 func (a *App) handleCreateMergeRequest(c *gin.Context) {
@@ -217,62 +226,7 @@ func (a *App) handleCreateMergeRequest(c *gin.Context) {
 		return
 	}
 
-	var mr store.MergeRequest
-	err := a.Store.DB.Transaction(func(tx *gorm.DB) error {
-		var last store.MergeRequest
-		number := uint(1)
-		if err := tx.Where("project_id = ?", proj.ID).Order("number desc").First(&last).Error; err == nil {
-			number = last.Number + 1
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		th := store.DirectThread{Kind: store.ThreadKindMR, Title: fmt.Sprintf("!%d %s", number, title)}
-		if err := tx.Create(&th).Error; err != nil {
-			return err
-		}
-		seen := map[uint]struct{}{user.ID: {}}
-		if err := tx.Create(&store.DirectThreadMember{ThreadID: th.ID, UserID: user.ID}).Error; err != nil {
-			return err
-		}
-		var members []store.ProjectMember
-		if err := tx.Where("project_id = ?", proj.ID).Find(&members).Error; err != nil {
-			return err
-		}
-		for _, m := range members {
-			if _, ok := seen[m.UserID]; ok {
-				continue
-			}
-			seen[m.UserID] = struct{}{}
-			if err := tx.Create(&store.DirectThreadMember{ThreadID: th.ID, UserID: m.UserID}).Error; err != nil {
-				return err
-			}
-		}
-		body := fmt.Sprintf("MR !%d aberto: %s → %s", number, source, target)
-		msg := store.Message{ThreadKind: store.ThreadKindDM, ThreadID: th.ID, AuthorID: user.ID, Kind: "text", Body: body}
-		if err := tx.Create(&msg).Error; err != nil {
-			return err
-		}
-		slug := proj.Slug
-		postBody := truncateRunes(fmt.Sprintf("MR !%d: %s (%s → %s)", number, title, source, target), maxPostRunes)
-		post := store.SocialPost{AuthorID: user.ID, Body: postBody, Kind: "text", ProjectSlug: &slug}
-		if err := tx.Create(&post).Error; err != nil {
-			return err
-		}
-		postID := post.ID
-		mr = store.MergeRequest{
-			ProjectID:    proj.ID,
-			Number:       number,
-			Title:        title,
-			Description:  desc,
-			SourceBranch: source,
-			TargetBranch: target,
-			AuthorID:     user.ID,
-			Status:       store.MROpen,
-			ThreadID:     th.ID,
-			SocialPostID: &postID,
-		}
-		return tx.Create(&mr).Error
-	})
+	mr, err := a.insertMergeRequest(proj, user, title, desc, source, target)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -300,6 +254,10 @@ func (a *App) handleMergeMergeRequest(c *gin.Context) {
 	}
 	if !a.canMergeOnto(user, proj, mr.TargetBranch) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para merge nesta branch"})
+		return
+	}
+	if reason := a.mrChecksBlock(proj, mr); reason != "" {
+		c.JSON(http.StatusConflict, gin.H{"error": reason})
 		return
 	}
 	msg := fmt.Sprintf("Merge !%d: %s into %s", mr.Number, mr.SourceBranch, mr.TargetBranch)
@@ -377,6 +335,215 @@ func (a *App) ensureMRThreadMember(proj store.Project, user store.User, threadID
 		return
 	}
 	_ = a.Store.DB.Create(&store.DirectThreadMember{ThreadID: threadID, UserID: user.ID}).Error
+}
+
+func (a *App) mrChecksBlock(proj store.Project, mr store.MergeRequest) string {
+	var jobs []store.CiJob
+	if err := a.Store.DB.Where("project_id = ? AND merge_request_number = ?", proj.ID, mr.Number).Order("number desc").Find(&jobs).Error; err != nil {
+		return ""
+	}
+	if len(jobs) == 0 {
+		return ""
+	}
+	for _, j := range jobs {
+		if j.Status == store.CiFailed {
+			return "CI falhou — o merge fica bloqueado"
+		}
+	}
+	return ""
+}
+
+func (a *App) handlePatchMergeRequest(c *gin.Context) {
+	proj, user, mr, ok := a.loadMR(c)
+	if !ok {
+		return
+	}
+	if mr.Status != store.MROpen {
+		c.JSON(http.StatusConflict, gin.H{"error": "MR não está aberto"})
+		return
+	}
+	if user.ID != mr.AuthorID && !a.canMaintainerWrite(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para editar"})
+		return
+	}
+	var req struct {
+		Title       *string `json:"title"`
+		Description *string `json:"description"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	if req.Title != nil {
+		title := strings.TrimSpace(*req.Title)
+		if title == "" || utf8.RuneCountInString(title) > maxMRTitleRunes {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "título inválido"})
+			return
+		}
+		mr.Title = title
+	}
+	if req.Description != nil {
+		desc := strings.TrimSpace(*req.Description)
+		if utf8.RuneCountInString(desc) > maxMRDescRunes {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "descrição longa demais"})
+			return
+		}
+		mr.Description = desc
+	}
+	if err := a.Store.DB.Save(&mr).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	c.JSON(http.StatusOK, a.mrJSON(mr))
+}
+
+func (a *App) handleListMRCommits(c *gin.Context) {
+	proj, _, mr, ok := a.loadMR(c)
+	if !ok {
+		return
+	}
+	items, err := forge.CompareCommits(a.gitDir(), proj.Slug, mr.TargetBranch, mr.SourceBranch, 80)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"items": []forge.CommitInfo{}})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (a *App) handleGetMRDiff(c *gin.Context) {
+	proj, _, mr, ok := a.loadMR(c)
+	if !ok {
+		return
+	}
+	diff, err := forge.DiffUnified(a.gitDir(), proj.Slug, mr.TargetBranch, mr.SourceBranch)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"diff": ""})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"diff": diff})
+}
+
+func (a *App) handleListMRReviews(c *gin.Context) {
+	_, _, mr, ok := a.loadMR(c)
+	if !ok {
+		return
+	}
+	var rows []store.MergeRequestReview
+	_ = a.Store.DB.Where("merge_request_id = ?", mr.ID).Order("id desc").Limit(50).Find(&rows).Error
+	items := make([]gin.H, 0, len(rows))
+	for _, r := range rows {
+		name := ""
+		var u store.User
+		if a.Store.DB.First(&u, r.AuthorID).Error == nil {
+			name = u.Username
+		}
+		items = append(items, gin.H{
+			"id": r.ID, "author": name, "state": r.State, "body": r.Body, "created_at": r.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (a *App) handleCreateMRReview(c *gin.Context) {
+	proj, user, mr, ok := a.loadMR(c)
+	if !ok {
+		return
+	}
+	if mr.Status != store.MROpen {
+		c.JSON(http.StatusConflict, gin.H{"error": "MR não está aberto"})
+		return
+	}
+	if !a.canGitPush(user, proj) && !a.canReporterWrite(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para review"})
+		return
+	}
+	var req struct {
+		State string `json:"state"`
+		Body  string `json:"body"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	st := store.MRReviewState(strings.TrimSpace(req.State))
+	if !st.Valid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "state inválido"})
+		return
+	}
+	if (st == store.MRReviewApprove || st == store.MRReviewRequestChanges) && !a.canMaintainerWrite(user, proj) && user.ID == mr.AuthorID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "autor não aprova o próprio PR"})
+		return
+	}
+	if st == store.MRReviewApprove && !a.canMaintainerWrite(user, proj) && !a.canGitPush(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para aprovar"})
+		return
+	}
+	body := strings.TrimSpace(req.Body)
+	if utf8.RuneCountInString(body) > 2000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "comentário longo demais"})
+		return
+	}
+	row := store.MergeRequestReview{MergeRequestID: mr.ID, AuthorID: user.ID, State: st, Body: body}
+	if err := a.Store.DB.Create(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if body != "" || st != store.MRReviewComment {
+		note := store.Message{
+			ThreadKind: store.ThreadKindDM, ThreadID: mr.ThreadID, AuthorID: user.ID, Kind: "text",
+			Body: reviewNote(st, body),
+		}
+		_ = a.Store.DB.Create(&note).Error
+	}
+	c.JSON(http.StatusCreated, gin.H{"id": row.ID, "author": user.Username, "state": row.State, "body": row.Body, "created_at": row.CreatedAt})
+}
+
+func reviewNote(st store.MRReviewState, body string) string {
+	label := "comentou"
+	switch st {
+	case store.MRReviewApprove:
+		label = "aprovou"
+	case store.MRReviewRequestChanges:
+		label = "pediu alterações"
+	}
+	if body == "" {
+		return "Review: " + label
+	}
+	return "Review: " + label + " — " + body
+}
+
+func (a *App) insertMergeRequest(proj store.Project, user store.User, title, desc, source, target string) (store.MergeRequest, error) {
+	var mr store.MergeRequest
+	err := a.Store.DB.Transaction(func(tx *gorm.DB) error {
+		var last store.MergeRequest
+		number := uint(1)
+		if err := tx.Where("project_id = ?", proj.ID).Order("number desc").First(&last).Error; err == nil {
+			number = last.Number + 1
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		thID, postID, err := a.createProjectThread(tx, proj, user, store.ThreadKindMR,
+			fmt.Sprintf("!%d %s", number, title),
+			fmt.Sprintf("MR !%d aberto: %s → %s", number, source, target),
+			fmt.Sprintf("MR !%d: %s (%s → %s)", number, title, source, target))
+		if err != nil {
+			return err
+		}
+		mr = store.MergeRequest{
+			ProjectID:    proj.ID,
+			Number:       number,
+			Title:        title,
+			Description:  desc,
+			SourceBranch: source,
+			TargetBranch: target,
+			AuthorID:     user.ID,
+			Status:       store.MROpen,
+			ThreadID:     thID,
+			SocialPostID: &postID,
+		}
+		return tx.Create(&mr).Error
+	})
+	return mr, err
 }
 
 func truncateRunes(s string, n int) string {

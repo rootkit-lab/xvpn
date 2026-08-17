@@ -34,8 +34,8 @@ func (r ProjectRole) Rank() int {
 }
 
 // Project é um slug do forge (Fase 37). Pode espelhar um App do
-// marketplace ou existir só como metadado. Issues/activity vivem no
-// SocialGroup apontado por SocialGroupID — sem segundo social.
+// marketplace ou existir só como metadado. Issues first-class (Fase 46);
+// activity social continua no SocialGroup — sem segundo social.
 type Project struct {
 	ID            uint   `gorm:"primaryKey"`
 	Slug          string `gorm:"uniqueIndex;not null"`
@@ -124,6 +124,65 @@ type MergeRequest struct {
 	Author User `gorm:"foreignKey:AuthorID"`
 }
 
+// IssueStatus é o ciclo de uma issue (Fase 46).
+type IssueStatus string
+
+const (
+	IssueOpen   IssueStatus = "open"
+	IssueClosed IssueStatus = "closed"
+)
+
+func (s IssueStatus) Valid() bool {
+	return s == IssueOpen || s == IssueClosed
+}
+
+// Issue é o tracker do XGIT. ThreadID é DirectThread Kind=issue;
+// SocialPostID anuncia no XGROUP (não é o tracker).
+type Issue struct {
+	ID           uint        `gorm:"primaryKey"`
+	ProjectID    uint        `gorm:"uniqueIndex:idx_project_issue;not null"`
+	Number       uint        `gorm:"uniqueIndex:idx_project_issue;not null"`
+	Title        string      `gorm:"not null"`
+	Body         string      `gorm:"type:text"`
+	Status       IssueStatus `gorm:"not null;default:open;index"`
+	Labels       []string    `gorm:"serializer:json"`
+	AssigneeIDs  []uint      `gorm:"serializer:json"`
+	AuthorID     uint        `gorm:"not null;index"`
+	ThreadID     uint        `gorm:"not null;index"`
+	SocialPostID *uint
+	ClosedAt     *time.Time
+	ClosedByID   *uint
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+
+	Author User `gorm:"foreignKey:AuthorID"`
+}
+
+// MRReviewState é o veredito de um review (Fase 47).
+type MRReviewState string
+
+const (
+	MRReviewApprove        MRReviewState = "approve"
+	MRReviewRequestChanges MRReviewState = "request_changes"
+	MRReviewComment        MRReviewState = "comment"
+)
+
+func (s MRReviewState) Valid() bool {
+	return s == MRReviewApprove || s == MRReviewRequestChanges || s == MRReviewComment
+}
+
+// MergeRequestReview é um review no PR.
+type MergeRequestReview struct {
+	ID             uint          `gorm:"primaryKey"`
+	MergeRequestID uint          `gorm:"index;not null"`
+	AuthorID       uint          `gorm:"not null;index"`
+	State          MRReviewState `gorm:"not null"`
+	Body           string        `gorm:"type:text"`
+	CreatedAt      time.Time
+
+	Author User `gorm:"foreignKey:AuthorID"`
+}
+
 // CiJobStatus é o ciclo de um job (Fase 42).
 type CiJobStatus string
 
@@ -193,7 +252,7 @@ func ValidProjectSlug(s string) bool {
 // ReservedProjectSlug são rotas da home em xgit.corp (não podem ser slug).
 func ReservedProjectSlug(s string) bool {
 	switch s {
-	case "repositories", "packages", "stars", "overview", "settings", "login", "admin":
+	case "repositories", "packages", "stars", "overview", "settings", "login", "admin", "issues", "pulls", "edit":
 		return true
 	default:
 		return false

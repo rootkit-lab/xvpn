@@ -444,7 +444,7 @@ func (a *App) handleSocialListThreads(c *gin.Context) {
 		_ = a.Store.DB.Where("thread_id = ? AND user_id <> ?", m.ThreadID, me).Find(&others).Error
 		title := "DM"
 		var peer uint
-		if th.Kind == store.ThreadKindMR && strings.TrimSpace(th.Title) != "" {
+		if (th.Kind == store.ThreadKindMR || th.Kind == store.ThreadKindIssue) && strings.TrimSpace(th.Title) != "" {
 			title = th.Title
 		} else if len(others) > 0 {
 			peer = others[0].UserID

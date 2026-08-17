@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -348,6 +349,14 @@ func (a *App) handleListCiJobs(c *gin.Context) {
 		return
 	}
 	q := a.Store.DB.Where("project_id = ?", proj.ID)
+	if raw := strings.TrimSpace(c.Query("mr")); raw != "" {
+		n, err := strconv.ParseUint(raw, 10, 32)
+		if err != nil || n == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "mr inválido"})
+			return
+		}
+		q = q.Where("merge_request_number = ?", n)
+	}
 	if wf := strings.TrimSpace(c.Query("workflow")); wf != "" && wf != ciWorkflow {
 		c.JSON(http.StatusOK, gin.H{
 			"items":     []ciJobJSON{},

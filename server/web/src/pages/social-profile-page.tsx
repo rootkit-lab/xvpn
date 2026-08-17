@@ -9,13 +9,16 @@ import { toast } from 'sonner'
 import { api, ApiError, type SocialProfile } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
+import { livePresence, presenceLabel } from '@/lib/social-presence'
 import { PostCard } from '@/pages/social-feed-page'
 import { SocialAvatar } from '@/components/social-avatar'
+import { SocialStoriesRail } from '@/components/social-stories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 
 /** `/:username` no host público — só se o slug for um membro. */
 export function SocialProfileGate() {
@@ -51,6 +54,7 @@ export function SocialProfilePage() {
   const profile = data
   const isMe = user?.username === profile.username
   const display = profile.display_name || profile.username
+  const presence = livePresence(profile.user_id, profile.presence, chat?.presence)
 
   async function toggleFollow() {
     try {
@@ -63,29 +67,62 @@ export function SocialProfilePage() {
   }
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-6">
-      <section className="overflow-hidden rounded-[22px] watch-complication">
-        <div className={`h-36 w-full md:h-48 ${bannerClass(profile.username)}`} />
-        <div className="px-5 pb-6 md:px-8">
-          <div className="-mt-14 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
-              <SocialAvatar
-                name={display}
-                className="size-28 shrink-0 border-4 border-background text-3xl shadow-lg md:size-32"
-              />
-              <div className="min-w-0 pb-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="font-display text-3xl font-semibold tracking-tight">{display}</h1>
-                  {isMe && (
-                    <span className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Você
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-sm text-muted-foreground">@{profile.username}</p>
+    <div className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+      <aside className="flex min-w-0 flex-col gap-4">
+        <section className="overflow-hidden rounded-[22px] watch-complication">
+          <div className={`relative h-28 w-full md:h-32 ${bannerClass(profile.username)}`}>
+            <span
+              className={cn(
+                'absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-medium',
+                presence === 'online' ? 'power-safe' : 'bg-black/40 text-white/80',
+              )}
+            >
+              {presenceLabel(presence)}
+            </span>
+          </div>
+          <div className="px-5 pb-5">
+            <SocialAvatar
+              name={display}
+              presence={presence}
+              className="-mt-12 size-[5.5rem] border-4 border-background text-2xl shadow-lg"
+            />
+            <div className="mt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl font-semibold tracking-tight">{display}</h1>
+                {isMe && (
+                  <span className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Você
+                  </span>
+                )}
               </div>
+              <p className="mt-0.5 text-sm text-muted-foreground">@{profile.username}</p>
             </div>
-            <div className="flex flex-wrap gap-2 lg:mb-1">
+            {profile.bio ? (
+              <p className="mt-3 text-sm leading-relaxed">{profile.bio}</p>
+            ) : isMe ? (
+              <p className="mt-3 text-sm text-muted-foreground">Sem bio ainda. Edite o perfil para se apresentar.</p>
+            ) : null}
+
+            <dl className="mt-4 flex flex-wrap gap-2">
+              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
+                <dt className="sr-only">Seguindo</dt>
+                <dd>
+                  <span className="font-semibold text-foreground">{profile.following_count ?? 0}</span>
+                  <span className="ml-1 text-muted-foreground">seguindo</span>
+                </dd>
+              </div>
+              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
+                <dt className="sr-only">Seguidores</dt>
+                <dd>
+                  <span className="font-semibold text-foreground">{profile.followers}</span>
+                  <span className="ml-1 text-muted-foreground">
+                    seguidor{profile.followers === 1 ? '' : 'es'}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+
+            <div className="mt-4 flex flex-wrap gap-2">
               {isMe ? (
                 <Button variant="outline" className="rounded-full" onClick={() => setEditing((v) => !v)}>
                   {editing ? 'Fechar' : 'Editar perfil'}
@@ -115,66 +152,41 @@ export function SocialProfilePage() {
               )}
             </div>
           </div>
+        </section>
 
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="min-w-0">
-              {profile.bio ? (
-                <p className="max-w-3xl text-sm leading-relaxed">{profile.bio}</p>
-              ) : isMe ? (
-                <p className="text-sm text-muted-foreground">Sem bio ainda. Edite o perfil para se apresentar.</p>
-              ) : null}
-            </div>
-            <dl className="flex flex-wrap gap-2">
-              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
-                <dt className="sr-only">Seguindo</dt>
-                <dd>
-                  <span className="font-semibold text-foreground">{profile.following_count ?? 0}</span>
-                  <span className="ml-1 text-muted-foreground">seguindo</span>
-                </dd>
-              </div>
-              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
-                <dt className="sr-only">Seguidores</dt>
-                <dd>
-                  <span className="font-semibold text-foreground">{profile.followers}</span>
-                  <span className="ml-1 text-muted-foreground">
-                    seguidor{profile.followers === 1 ? '' : 'es'}
-                  </span>
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-      </section>
-
-      {isMe && editing && (
-        <EditSocialProfile
-          profile={profile}
-          onSaved={() => {
-            setEditing(false)
-            reload()
-          }}
-        />
-      )}
-
-      <section>
-        <p className="hud-label mb-3 text-muted-foreground/70">Atividade</p>
-        {postsLoading || !posts ? (
-          <Skeleton className="h-32 w-full rounded-[22px]" />
-        ) : posts.items.length === 0 ? (
-          <div className="watch-complication rounded-[22px] px-5 py-10 text-center">
-            <p className="font-display text-sm font-semibold">Ainda sem posts</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {isMe ? 'Publique no início para aparecer aqui.' : `${display} ainda não publicou.`}
-            </p>
-          </div>
-        ) : (
-          <div className="watch-complication divide-y divide-white/8 overflow-hidden rounded-[22px] px-4 md:px-6">
-            {posts.items.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
-          </div>
+        {isMe && editing && (
+          <EditSocialProfile
+            profile={profile}
+            onSaved={() => {
+              setEditing(false)
+              reload()
+            }}
+          />
         )}
-      </section>
+      </aside>
+
+      <div className="flex min-w-0 flex-col gap-4">
+        <SocialStoriesRail filterAuthorId={profile.user_id} />
+        <section>
+          <p className="hud-label mb-3 text-muted-foreground/70">Atividade</p>
+          {postsLoading || !posts ? (
+            <Skeleton className="h-32 w-full rounded-[22px]" />
+          ) : posts.items.length === 0 ? (
+            <div className="watch-complication rounded-[22px] px-5 py-10 text-center">
+              <p className="font-display text-sm font-semibold">Ainda sem posts</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isMe ? 'Publique no início para aparecer aqui.' : `${display} ainda não publicou.`}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {posts.items.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   )
 }
@@ -205,13 +217,13 @@ function EditSocialProfile({ profile, onSaved }: { profile: SocialProfile; onSav
   }
 
   return (
-    <form className="watch-complication grid gap-4 rounded-[22px] p-5 md:grid-cols-2 md:p-6" onSubmit={handleSubmit}>
-      <p className="hud-label text-muted-foreground/70 md:col-span-2">Editar</p>
-      <div className="flex flex-col gap-2">
+    <form className="watch-complication flex flex-col gap-3 rounded-[22px] p-4" onSubmit={handleSubmit}>
+      <p className="hud-label text-muted-foreground/70">Editar</p>
+      <div className="flex flex-col gap-1.5">
         <Label htmlFor="display-name">Nome</Label>
         <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       </div>
-      <div className="flex flex-col gap-2 md:col-span-2">
+      <div className="flex flex-col gap-1.5">
         <Label htmlFor="bio">Bio</Label>
         <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} />
       </div>

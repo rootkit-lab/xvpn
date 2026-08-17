@@ -21,6 +21,7 @@ type socialPostResponse struct {
 	DisplayName string    `json:"display_name"`
 	AvatarURL   string    `json:"avatar_url"`
 	Body        string    `json:"body"`
+	Presence    string    `json:"presence"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -40,6 +41,7 @@ func (a *App) postResponse(p store.SocialPost, author store.User, prof store.Soc
 		DisplayName: name,
 		AvatarURL:   prof.AvatarURL,
 		Body:        p.Body,
+		Presence:    a.presenceOf(p.AuthorID),
 		CreatedAt:   p.CreatedAt,
 	}
 }

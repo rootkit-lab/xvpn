@@ -97,7 +97,7 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
       id: 'marketplace',
       label: PRODUCT_META.marketplace.label,
       ...(variant === 'admin'
-        ? { to: '/admin/marketplace' }
+        ? { to: '/admin/marketplace/catalog' }
         : kind === 'marketplace'
           ? { to: '/' }
           : { href: MARKETPLACE_ORIGIN }),

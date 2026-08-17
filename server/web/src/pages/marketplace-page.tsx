@@ -9,6 +9,7 @@ import {
   type MarketplaceChannel,
   type MarketplacePlatform,
   type MarketplaceVersion,
+  type MarketplaceKind,
   type MarketplaceNetwork,
   type MarketplaceVisibility,
   type User,
@@ -57,6 +58,16 @@ const NETWORK_LABELS: Record<MarketplaceNetwork, string> = {
   vpn: 'Só VPN / *.corp',
 }
 
+const KIND_LABELS: Record<MarketplaceKind, string> = {
+  desktop: 'Desktop',
+  web: 'Web',
+  service: 'Serviço',
+  library: 'Biblioteca',
+  infra: 'Infra',
+  docs: 'Docs',
+  container: 'Container',
+}
+
 const CHANNEL_LABELS: Record<MarketplaceChannel, string> = {
   stable: 'Estável',
   beta: 'Beta',
@@ -64,10 +75,17 @@ const CHANNEL_LABELS: Record<MarketplaceChannel, string> = {
 
 const GITHUB_APPS_BASE = 'https://github.com/rootkit-lab/xvpn/tree/main/'
 
-export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' | 'manage' }) {
+export function MarketplacePage({
+  variant = 'consume',
+  section = 'catalog',
+}: {
+  variant?: 'consume' | 'manage'
+  section?: 'catalog' | 'acl'
+}) {
   const { user: caller } = useAuth()
   const isManage =
     variant === 'manage' && isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'marketplace')
+  const isACL = section === 'acl'
   const fetchApps = useCallback(() => api.listMarketplaceApps(), [])
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
   const [q, setQ] = useState('')
@@ -93,7 +111,7 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
           setQ(next)
           setPage(1)
         }}
-        placeholder="Buscar no Marketplace"
+        placeholder={isACL ? 'Buscar na ACL' : 'Buscar no catálogo'}
       />
 
       {loading || !apps ? (
@@ -102,7 +120,7 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
         isManage ? (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Catálogo ainda vazio</CardTitle>
+              <CardTitle className="text-base">{isACL ? 'Nenhum app para ACL' : 'Catálogo ainda vazio'}</CardTitle>
               <CardDescription>
                 O painel só espelha o que o CI publicou. Nada aparece aqui até existir uma release GitHub
                 compatível com o manifesto e um sync bem-sucedido.
@@ -167,7 +185,7 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
           {slice
             .filter((app) => app.id === openId)
             .map((app) => (
-              <AppCard key={app.id} app={app} isAdmin={isManage} onChanged={reload} />
+              <AppCard key={app.id} app={app} isAdmin={isManage} section={section} onChanged={reload} />
             ))}
           <PaginationBar page={page} perPage={perPage} total={total} onPageChange={setPage} />
         </div>
@@ -176,7 +194,17 @@ export function MarketplacePage({ variant = 'consume' }: { variant?: 'consume' |
   )
 }
 
-function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: boolean; onChanged: () => void }) {
+function AppCard({
+  app,
+  isAdmin,
+  section,
+  onChanged,
+}: {
+  app: MarketplaceApp
+  isAdmin: boolean
+  section: 'catalog' | 'acl'
+  onChanged: () => void
+}) {
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
@@ -191,6 +219,9 @@ function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: bo
               <Badge variant={app.network === 'vpn' ? 'secondary' : 'outline'}>
                 {NETWORK_LABELS[app.network] ?? NETWORK_LABELS.public}
               </Badge>
+              {app.kind && (
+                <Badge variant="outline">{KIND_LABELS[app.kind] ?? app.kind}</Badge>
+              )}
               {app.source_path && (
                 <a
                   href={`${GITHUB_APPS_BASE}${app.source_path}`}
@@ -207,14 +238,16 @@ function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: bo
             {app.description && <CardDescription>{app.description}</CardDescription>}
           </div>
         </div>
-        {isAdmin && <ManageAccessDialog app={app} onChanged={onChanged} />}
+        {isAdmin && section === 'acl' && <ManageAccessDialog app={app} onChanged={onChanged} />}
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {app.versions.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão sincronizada ainda.</p>}
-        {app.versions.map((version) => (
-          <VersionBlock key={version.id} version={version} />
-        ))}
-      </CardContent>
+      {section === 'catalog' && (
+        <CardContent className="flex flex-col gap-3">
+          {app.versions.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão sincronizada ainda.</p>}
+          {app.versions.map((version) => (
+            <VersionBlock key={version.id} version={version} />
+          ))}
+        </CardContent>
+      )}
     </Card>
   )
 }

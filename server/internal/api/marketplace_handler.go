@@ -50,6 +50,7 @@ type marketplaceAppResponse struct {
 	IconURL     string                       `json:"icon_url,omitempty"`
 	Visibility  string                       `json:"visibility"`
 	Network     string                       `json:"network"`
+	Kind        string                       `json:"kind"`
 	Source      string                       `json:"source,omitempty"`
 	SourcePath  string                       `json:"source_path,omitempty"`
 	CreatedAt   time.Time                    `json:"created_at"`
@@ -104,6 +105,7 @@ func toMarketplaceAppResponse(app store.App) marketplaceAppResponse {
 		IconURL:     app.IconURL,
 		Visibility:  string(app.Visibility),
 		Network:     string(appNetworkOrDefault(app.Network)),
+		Kind:        string(appKindOrDefault(app.Kind)),
 		Source:      app.Source,
 		SourcePath:  app.SourcePath,
 		CreatedAt:   app.CreatedAt,
@@ -121,6 +123,13 @@ func isMarketplaceAdmin(role store.Role) bool {
 
 // appNetworkOrDefault trata linhas antigas (coluna vazia) como public —
 // o default do AutoMigrate só vale para INSERT novo.
+func appKindOrDefault(k store.AppKind) store.AppKind {
+	if k == "" {
+		return store.AppKindDesktop
+	}
+	return k
+}
+
 func appNetworkOrDefault(n store.AppNetwork) store.AppNetwork {
 	if n == "" {
 		return store.AppNetworkPublic
@@ -244,6 +253,9 @@ func (a *App) handleListMarketplaceApps(c *gin.Context) {
 		// Admin do catálogo precisa ver network:vpn fora do túnel
 		// (/admin/marketplace em host público). A loja (member) continua
 		// filtrada por origem na wg0.
+		if !admin && !appKindOrDefault(app.Kind).IsStoreKind() {
+			continue
+		}
 		if !admin && !a.canSeeAppNetwork(c, app.Network) {
 			continue
 		}
@@ -441,6 +453,10 @@ func (a *App) handleDownloadMarketplaceAsset(c *gin.Context) {
 	}
 	if app.ArchivedAt != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "asset não encontrado"})
+		return
+	}
+	if !isMarketplaceAdmin(callerRole(c)) && !appKindOrDefault(app.Kind).IsStoreKind() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "este app não está na loja"})
 		return
 	}
 	if !a.canSeeAppNetwork(c, app.Network) {

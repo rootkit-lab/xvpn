@@ -14,9 +14,10 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[2]
 APPS = ROOT / "apps"
-REQUIRED = ("slug", "name", "description", "visibility", "network", "source", "channel", "assets")
+REQUIRED = ("slug", "name", "description", "visibility", "network", "kind", "source", "channel", "assets")
 VISIBILITY = {"global", "restricted"}
 NETWORKS = {"public", "vpn"}
+KINDS = {"desktop", "web", "service", "library", "infra", "docs", "container"}
 SOURCES = {"build", "external"}
 CHANNELS = {"stable", "beta"}
 PLATFORMS = {"linux", "windows", "android"}
@@ -48,6 +49,8 @@ def main() -> None:
             fail(f"{path}: visibility inválida")
         if data["network"] not in NETWORKS:
             fail(f"{path}: network inválida (use public ou vpn)")
+        if data["kind"] not in KINDS:
+            fail(f"{path}: kind inválido (use desktop, web, service, library, infra, docs ou container)")
         if data["source"] not in SOURCES:
             fail(f"{path}: source inválido")
         if data["channel"] not in CHANNELS:

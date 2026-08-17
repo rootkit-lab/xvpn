@@ -29,6 +29,7 @@ describe('documentTitle', () => {
     expect(documentTitle({ hostname: 'xvpn.ihuull.com', pathname: '/admin/users' })).toBe('Usuários · XVPN')
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/users' })).toBe('Usuários · XADMIN')
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/projects' })).toBe('Projetos · XADMIN')
+    expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/servers' })).toBe('Servidores · XADMIN')
     expect(documentTitle({ hostname: 'xvpn.ihuull.com', pathname: '/my/profile' })).toBe('Perfil · XVPN')
     expect(documentTitle({ hostname: 'xauth.ihuull.com', pathname: '/login' })).toBe('Entrar · ihuull')
   })

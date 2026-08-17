@@ -142,6 +142,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/servers',
+    meta: {
+      kicker: 'Compute',
+      title: 'Servidores',
+      description: 'Malha BitLaunch. Importa o VPS atual; create gera chave WireGuard no host novo.',
+    },
+  },
+  {
     prefix: '/admin/marketplace/acl',
     meta: {
       kicker: 'Marketplace',

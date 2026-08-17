@@ -199,20 +199,32 @@ func (a *App) handleApplyDNS(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "provisionamento privilegiado não configurado neste servidor"})
 		return
 	}
+	if err := a.pushIntranetDNS(c.Request.Context()); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	_ = a.Store.LogAudit(actorString(actor), "dns.apply", "")
+	c.JSON(http.StatusOK, a.dnsResponse())
+}
+
+// pushIntranetDNS grava o dnsmasq via provisioner. Sem provisioner (testes)
+// é no-op — o registro já está no banco para o próximo apply.
+func (a *App) pushIntranetDNS(ctx context.Context) error {
+	if a.UserProvisioner == nil {
+		return nil
+	}
 	settings, err := a.loadOrInitDNSSettings()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
+		return err
 	}
 	var records []store.DNSRecord
 	if err := a.Store.DB.Where("enabled = ?", true).Order("hostname ASC").Find(&records).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
+		return err
 	}
 	fwd, err := corpdns.ParseForwarders(settings.Forwarders)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return err
 	}
 	payload := corpdns.ApplyPayload{
 		Forwarders: fwd,
@@ -225,26 +237,18 @@ func (a *App) handleApplyDNS(c *gin.Context) {
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
+		return err
 	}
-	applyErr := a.UserProvisioner.ApplyDNS(c.Request.Context(), string(raw))
+	applyErr := a.UserProvisioner.ApplyDNS(ctx, string(raw))
 	now := time.Now()
 	settings.LastAppliedAt = &now
 	if applyErr != nil {
 		settings.LastApplyError = provisionerErrMsg(applyErr)
 		_ = a.Store.DB.Save(&settings).Error
-		c.JSON(http.StatusInternalServerError, gin.H{"error": settings.LastApplyError})
-		return
+		return errors.New(settings.LastApplyError)
 	}
 	settings.LastApplyError = ""
-	if err := a.Store.DB.Save(&settings).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "aplicado, mas falha ao persistir estado"})
-		return
-	}
-	actor, _ := c.Get(auth.ContextUsernameKey)
-	_ = a.Store.LogAudit(actorString(actor), "dns.apply", "")
-	c.JSON(http.StatusOK, a.dnsResponse())
+	return a.Store.DB.Save(&settings).Error
 }
 
 func (a *App) parseDNSRecord(req upsertDNSRecordRequest, system bool) (store.DNSRecord, error) {

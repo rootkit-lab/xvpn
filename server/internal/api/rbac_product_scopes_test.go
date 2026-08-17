@@ -84,6 +84,14 @@ func TestAdminWithDNSScopeCanWriteDNS(t *testing.T) {
 	}
 }
 
+func TestAdminWithoutComputeScopeCannotCreateServerGroup(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/server-groups", createServerGroupRequest{Name: "edge"}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-core não deveria criar grupo compute, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestUnrestrictedAdminStillWritesAllProducts(t *testing.T) {
 	// Lista vazia = admin da Fase 10. Garante que o middleware novo não
 	// quebrou o papel admin da matriz existente.

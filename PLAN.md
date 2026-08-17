@@ -683,8 +683,8 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 O VPS `206.189.224.72` já está no BitLaunch. O xadmin lista, rotula e provisiona.
 
 - API [BitLaunch](https://developers.bitlaunch.io/) (`POST /servers`, options, destroy, rebuild). Token `XVPN_BITLAUNCH_TOKEN` só no VPS (`chmod 600`), nunca no Git.
-- Modelo: `Server` (id BitLaunch, IPv4, IP `wg0`, labels) + `ServerGroup` + `ServerAccess` (user/papel → servidor ou grupo).
-- Após create: cloud-init instala WireGuard, gera chave **no host novo**, envia só a pública (invariante 1), ganha IP em `10.66.66.0/24`. Teto ~250 IPs (clientes + VPS + runners). Faixa `10.66.67.0/24` **só** se `ip route` no VPS confirmar que está livre. **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`.
+- Modelo: `MeshServer` (id BitLaunch, IPv4, IP `wg0`, labels) + `ServerGroup` + `ServerAccess` (user/papel → servidor ou grupo). UI em `/admin/servers` (`xadmin.corp`).
+- Após create: cloud-init instala WireGuard, gera chave **no host novo**, envia só a pública em `POST /api/servers/enroll` (público, rate-limit, em `xvpn.ihuull.com` — o host ainda não tem `wg0`). IP em `10.66.66.0/24`. Teto ~250 IPs (clientes + VPS + runners). Faixa `10.66.67.0/24` **só** se `ip route` no VPS confirmar que está livre. **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`. Sem porta nova no §5.
 - DNS intranet: A `nome.corp` → IP wg0 (apply dnsmasq). DNS público: A do IPv4 via §6.17 se for edge.
 - SSH de operação nos hosts **novos**: preferir só `wg0`. ufw público do node atual permanece até cutover documentado.
 - Acesso: VPN + `ServerAccess`. Sem permissão, a política barra — resolver o nome não basta.

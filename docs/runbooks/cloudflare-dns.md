@@ -75,7 +75,7 @@ dig +short xchat.corp.ihuull.com @10.66.66.1
 
 ## xadmin (Fase 39+)
 
-A zona pública passa a ser gerida no console (`xadmin.corp` → DNS público). Adapter v1 = API Cloudflare (token que já existe para DNS-01). Este runbook vira **fallback** quando o painel estiver fora. `ldpops.appapisip.com` **não** entra nesse painel. Intranet (`*.corp`, inclusive `xadmin` e `xgit`) **continua só no dnsmasq** — nunca crie A público para esses nomes.
+O dia a dia é o console: **DNS → Configurações** (token) e **DNS → Zonas** (adicionar domínio, ver NS do stack, criar A). Este runbook vira **fallback**. Ao adicionar um domínio, aponte o registrador para os NS que o painel mostrar (Cloudflare). Sem `:53` na `eth0`. `ldpops.appapisip.com` **não** entra. Intranet (`*.corp`) **continua só no dnsmasq**. Record com visão interna (`intranet_ipv4`) também responde em `10.66.66.1`.
 
 ## Checklist rápido (agente / humano)
 

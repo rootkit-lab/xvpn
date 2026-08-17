@@ -293,6 +293,33 @@ export interface DNSResponse {
   records: DNSRecord[]
 }
 
+export interface CloudflareAccount {
+  id: number
+  name: string
+  email: string
+  token_hint: string
+}
+
+export interface PublicZone {
+  id: number
+  account_id: number
+  name: string
+  status: string
+  name_servers: string[]
+  intranet: boolean
+}
+
+export interface PublicRecord {
+  id: number
+  type: string
+  name: string
+  content: string
+  ttl: number
+  proxied: boolean
+  intranet_ipv4?: string
+  comment?: string
+}
+
 // Espelha store.Platform/store.AppVisibility (server/internal/store/models.go)
 // — Fase 11, ver PLAN.md §6.8.
 export type MarketplacePlatform = 'linux' | 'windows' | 'android'
@@ -693,6 +720,33 @@ export const api = {
   ) => request<DNSResponse>(`/dns/records/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteDNSRecord: (id: number) => request<DNSResponse>(`/dns/records/${id}`, { method: 'DELETE' }),
   applyDNS: () => request<DNSResponse>('/dns/apply', { method: 'POST' }),
+  getPublicDNSSettings: () =>
+    request<{ accounts: CloudflareAccount[]; cloudflare: boolean }>('/dns/public/settings'),
+  createCloudflareAccount: (body: { name: string; email: string; token: string }) =>
+    request<CloudflareAccount>('/dns/public/settings/accounts', { method: 'POST', body: JSON.stringify(body) }),
+  deleteCloudflareAccount: (id: number) =>
+    request<void>(`/dns/public/settings/accounts/${id}`, { method: 'DELETE' }),
+  listPublicZones: () => request<{ items: PublicZone[]; cloudflare: boolean }>('/dns/public/zones'),
+  importPublicZones: () => request<{ items: PublicZone[]; cloudflare: boolean }>('/dns/public/zones/import', { method: 'POST' }),
+  createPublicZone: (body: { name: string; account_id?: number; intranet?: boolean }) =>
+    request<PublicZone>('/dns/public/zones', { method: 'POST', body: JSON.stringify(body) }),
+  getPublicZone: (id: number) => request<PublicZone>(`/dns/public/zones/${id}`),
+  listPublicRecords: (zoneId: number) =>
+    request<{ items: PublicRecord[]; zone: PublicZone }>(`/dns/public/zones/${zoneId}/records`),
+  createPublicRecord: (
+    zoneId: number,
+    body: {
+      type: string
+      name: string
+      content: string
+      ttl?: number
+      proxied?: boolean
+      intranet_ipv4?: string
+      comment?: string
+    },
+  ) => request<PublicRecord>(`/dns/public/zones/${zoneId}/records`, { method: 'POST', body: JSON.stringify(body) }),
+  deletePublicRecord: (zoneId: number, id: number) =>
+    request<void>(`/dns/public/zones/${zoneId}/records/${id}`, { method: 'DELETE' }),
 
   // joinWaitlist é o único endpoint de escrita público (sem
   // autenticação) de toda a API — chamado da landing page em "/". Ver

@@ -108,6 +108,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
 		&store.PanelSettings{},
 		&store.DNSSettings{}, &store.DNSRecord{},
+		&store.CloudflareAccount{}, &store.PublicZone{}, &store.PublicRecord{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
 		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
 		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},

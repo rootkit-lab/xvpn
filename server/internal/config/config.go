@@ -131,6 +131,11 @@ type Config struct {
 	// Compute → Configurações (várias contas). Vazio e sem contas =
 	// só import do node local; create/rebuild devolvem 503.
 	BitLaunchToken string
+
+	// CloudflareToken (Fase 39) só no VPS. Semeia a primeira
+	// CloudflareAccount se o banco estiver vazio. Caminho normal:
+	// DNS → Configurações.
+	CloudflareToken string
 }
 
 func getEnv(key, fallback string) string {
@@ -178,6 +183,7 @@ func Load() (*Config, error) {
 		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
 		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
 		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
+		CloudflareToken:         os.Getenv("XVPN_CLOUDFLARE_TOKEN"),
 	}
 
 	var err error

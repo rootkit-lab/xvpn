@@ -235,6 +235,8 @@ func (a *App) pushIntranetDNS(ctx context.Context) error {
 	for _, r := range records {
 		payload.Records = append(payload.Records, corpdns.Record{Hostname: r.Hostname, IPv4: r.IPv4})
 	}
+	payload.StackRecords = a.stackIntranetRecords()
+	payload.SplitSuffixes = a.publicSplitSuffixes()
 	raw, err := json.Marshal(payload)
 	if err != nil {
 		return err

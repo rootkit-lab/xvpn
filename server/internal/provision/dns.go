@@ -27,7 +27,8 @@ func ApplyDNS(r Runner, stdin io.Reader) error {
 	if err := corpdns.AssertSafeMain(main); err != nil {
 		return err
 	}
-	hosts := corpdns.RenderHosts(p.Records)
+	all := append(append([]corpdns.Record{}, p.Records...), p.StackRecords...)
+	hosts := corpdns.RenderHosts(all)
 	if err := r.WriteFile(dnsmasqMainPath, main, 0644); err != nil {
 		return fmt.Errorf("gravando %s: %w", dnsmasqMainPath, err)
 	}

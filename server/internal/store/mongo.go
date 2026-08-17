@@ -33,6 +33,7 @@ func allModels() []any {
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
 		&PanelSettings{},
 		&DNSSettings{}, &DNSRecord{},
+		&CloudflareAccount{}, &PublicZone{}, &PublicRecord{},
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
 		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
 		&SocialAttachment{}, &Story{}, &StoryView{},

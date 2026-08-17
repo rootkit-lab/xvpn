@@ -21,6 +21,7 @@ type socialProfileResponse struct {
 	Following   bool   `json:"following"`
 	Followers   int64  `json:"followers"`
 	FollowingN  int64  `json:"following_count"`
+	Presence    string `json:"presence"`
 }
 
 type socialGroupResponse struct {
@@ -87,7 +88,15 @@ func (a *App) profileResponse(p store.SocialProfile, username string, viewerID u
 		Following:   n > 0 && viewerID != p.UserID,
 		Followers:   followers,
 		FollowingN:  followingN,
+		Presence:    a.presenceOf(p.UserID),
 	}
+}
+
+func (a *App) presenceOf(userID uint) string {
+	if a.Hub == nil {
+		return "offline"
+	}
+	return a.Hub.statusOf(userID)
 }
 
 func (a *App) handleSocialPeople(c *gin.Context) {

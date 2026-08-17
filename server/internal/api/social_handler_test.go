@@ -150,3 +150,34 @@ func TestSocialMessages_Pagination(t *testing.T) {
 		t.Fatalf("última página deveria ter 2 items, obtido %d total=%d", len(items), env.Total)
 	}
 }
+
+func TestSocialProfile_ExposesVisiblePresence(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Hub = newHub()
+	bob := createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	app.Hub.setStatus(bob.ID, "online")
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodGet, "/api/social/u/bob", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var got socialProfileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("perfil: %v", err)
+	}
+	if got.Presence != "online" {
+		t.Fatalf("bob online deveria aparecer no perfil, obtido %q", got.Presence)
+	}
+
+	app.Hub.setStatus(bob.ID, "invisible")
+	rec = doJSON(t, router, http.MethodGet, "/api/social/u/bob", nil, token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("perfil invisível: %v", err)
+	}
+	if got.Presence != "offline" {
+		t.Fatalf("invisible deve vazar como offline, obtido %q", got.Presence)
+	}
+}

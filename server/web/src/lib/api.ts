@@ -129,6 +129,29 @@ async function uploadDriverFile(root: DriverRoot, path: string, file: File): Pro
   return (await res.json()) as { ok: boolean; name: string }
 }
 
+async function uploadSocialAttachment(file: File): Promise<SocialAttachment> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch('/api/social/attachments', { method: 'POST', headers, body: fd, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized('/social/attachments')
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  return (await res.json()) as SocialAttachment
+}
+
+async function fetchSocialAttachment(id: number): Promise<Blob> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const path = `/social/attachments/${id}`
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  return res.blob()
+}
+
 async function downloadDriverFile(root: DriverRoot, path: string, filename: string): Promise<void> {
   const headers = new Headers()
   const token = getToken()
@@ -351,6 +374,8 @@ export interface PageParams {
   samba?: string
 }
 
+export type PresenceStatus = 'online' | 'away' | 'dnd' | 'invisible' | 'offline'
+
 export interface SocialProfile {
   user_id: number
   username: string
@@ -360,6 +385,7 @@ export interface SocialProfile {
   following: boolean
   followers: number
   following_count: number
+  presence?: PresenceStatus
 }
 
 export interface SocialPost {
@@ -369,7 +395,36 @@ export interface SocialPost {
   display_name: string
   avatar_url: string
   body: string
+  presence?: PresenceStatus
   created_at: string
+}
+
+export interface SocialStoryItem {
+  id: number
+  author_id: number
+  username: string
+  kind: 'text' | 'image' | string
+  body: string
+  attachment_id?: number
+  mime?: string
+  viewed: boolean
+  expires_at: string
+  created_at: string
+}
+
+export interface SocialStoryAuthor {
+  author_id: number
+  username: string
+  unseen: boolean
+  items: SocialStoryItem[]
+}
+
+export interface SocialAttachment {
+  id: number
+  filename: string
+  mime: string
+  size_bytes: number
+  kind: string
 }
 
 export type DriverRoot = 'home' | 'shared'
@@ -600,6 +655,16 @@ export const api = {
   createSocialPost: (body: string) =>
     request<SocialPost>('/social/posts', { method: 'POST', body: JSON.stringify({ body }) }),
   deleteSocialPost: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
+  listSocialStories: () => request<{ items: SocialStoryAuthor[] }>('/social/stories'),
+  createSocialStory: (body: string, extra?: { kind?: string; attachment_id?: number }) =>
+    request<SocialStoryItem>('/social/stories', {
+      method: 'POST',
+      body: JSON.stringify({ body, kind: extra?.kind ?? 'text', attachment_id: extra?.attachment_id }),
+    }),
+  viewSocialStory: (id: number) =>
+    request<{ ok: boolean }>(`/social/stories/${id}/view`, { method: 'POST', body: JSON.stringify({}) }),
+  uploadSocialAttachment: (file: File) => uploadSocialAttachment(file),
+  fetchSocialAttachment: (id: number) => fetchSocialAttachment(id),
 
   listDriver: (root: DriverRoot, path = '') => {
     const sp = new URLSearchParams({ root })

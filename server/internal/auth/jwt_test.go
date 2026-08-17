@@ -43,7 +43,10 @@ func TestNormalizeAudience(t *testing.T) {
 		t.Fatalf("xadmin: %s", got)
 	}
 	if got := NormalizeAudience("xgit"); got != AudXgit {
-		t.Fatalf("xgit: %s", got)
+		t.Fatalf("xgit: %q", got)
+	}
+	if got := NormalizeAudience("xcodespaces"); got != AudXcodespaces {
+		t.Fatalf("xcodespaces: %s", got)
 	}
 	if got := NormalizeAudience("desconhecido"); got != AudXvpn {
 		t.Fatalf("default: %s", got)

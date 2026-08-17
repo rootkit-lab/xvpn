@@ -35,6 +35,8 @@ type userResponse struct {
 	DiskQuotaMB  uint64 `json:"disk_quota_mb"`
 	// XgitEnabled: waffle "Seus apps" — ProjectMember ou ACL do app xgit.
 	XgitEnabled bool `json:"xgit_enabled"`
+	// XcodespacesEnabled: waffle — ProjectMember ou ACL do app xcodespaces.
+	XcodespacesEnabled bool `json:"xcodespaces_enabled"`
 }
 
 func toUserResponse(u store.User) userResponse {
@@ -73,9 +75,23 @@ func (a *App) userHasXgit(user store.User) bool {
 	return access > 0
 }
 
+func (a *App) userHasAppACL(user store.User, slug string) bool {
+	var app store.App
+	if err := a.Store.DB.Where("slug = ? AND archived_at IS NULL", slug).First(&app).Error; err != nil {
+		return false
+	}
+	if app.Visibility == store.AppVisibilityGlobal {
+		return true
+	}
+	var access int64
+	_ = a.Store.DB.Model(&store.AppAccess{}).Where("app_id = ? AND user_id = ?", app.ID, user.ID).Count(&access).Error
+	return access > 0
+}
+
 func (a *App) toSessionUser(user store.User) userResponse {
 	resp := toUserResponse(user)
 	resp.XgitEnabled = a.userHasXgit(user)
+	resp.XcodespacesEnabled = a.userHasXgit(user) || a.userHasAppACL(user, "xcodespaces")
 	return resp
 }
 

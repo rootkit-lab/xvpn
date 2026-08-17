@@ -1,4 +1,4 @@
-import { ExternalLink, GitBranch, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
+import { Code2, ExternalLink, GitBranch, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import {
   PANEL_ORIGIN,
@@ -6,6 +6,7 @@ import {
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
   XGIT_CORP_ORIGIN,
+  XCODESPACES_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
 } from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
@@ -51,6 +52,13 @@ const APPS = [
     icon: GitBranch,
     needXgit: true,
   },
+  {
+    href: XCODESPACES_CORP_ORIGIN,
+    label: 'XCODESPACES',
+    description: 'IDE Monaco',
+    icon: Code2,
+    needCs: true,
+  },
 ] as const
 
 export function CorpHubPage() {
@@ -81,7 +89,11 @@ export function CorpHubPage() {
           <code className="font-mono text-xs">xadmin.corp.ihuull.com</code> — não neste endereço.
         </p>
         <ul className="grid gap-3">
-          {APPS.filter((app) => !('needXgit' in app && app.needXgit) || user?.xgit_enabled).map(
+          {APPS.filter((app) => {
+            if ('needXgit' in app && app.needXgit) return Boolean(user?.xgit_enabled)
+            if ('needCs' in app && app.needCs) return Boolean(user?.xcodespaces_enabled)
+            return true
+          }).map(
             ({ href, label, description, icon: Icon }) => (
               <li key={href}>
                 <a

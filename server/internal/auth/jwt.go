@@ -16,12 +16,13 @@ const (
 	IssuerURL       = "https://xauth.ihuull.com"
 	LegacyIssuerURL = "https://xvpn.ihuull.com"
 
-	AudXvpn    = "xvpn"
-	AudXchat   = "xchat"
-	AudXgroup  = "xgroup"
-	AudXdriver = "xdriver"
-	AudXadmin  = "xadmin"
-	AudXgit    = "xgit"
+	AudXvpn        = "xvpn"
+	AudXchat       = "xchat"
+	AudXgroup      = "xgroup"
+	AudXdriver     = "xdriver"
+	AudXadmin      = "xadmin"
+	AudXgit        = "xgit"
+	AudXcodespaces = "xcodespaces"
 )
 
 // Claims são as informações do token de sessão (payload do JWE).
@@ -140,6 +141,8 @@ func NormalizeAudience(aud string) string {
 		return AudXadmin
 	case AudXgit:
 		return AudXgit
+	case AudXcodespaces:
+		return AudXcodespaces
 	default:
 		return AudXvpn
 	}

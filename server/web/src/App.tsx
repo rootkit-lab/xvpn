@@ -15,6 +15,7 @@ import {
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { XgitShell } from '@/components/layout/xgit-shell'
+import { XcodespacesShell } from '@/components/layout/xcodespaces-shell'
 import { UserShell } from '@/components/layout/user-shell'
 import { PublicProfileShell, SocialShell } from '@/components/layout/social-shell'
 import { ChatHost } from '@/components/layout/chat-host'
@@ -77,6 +78,12 @@ const XgitEditPage = lazy(() => import('@/pages/xgit-edit-page').then((m) => ({ 
 const XgitActionsPage = lazy(() => import('@/pages/xgit-actions-page').then((m) => ({ default: m.XgitActionsPage })))
 const XgitRepoSettingsPage = lazy(() =>
   import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoSettingsPage })),
+)
+const XcodespacesHomePage = lazy(() =>
+  import('@/pages/xcodespaces-home-page').then((m) => ({ default: m.XcodespacesHomePage })),
+)
+const XcodespacesIdePage = lazy(() =>
+  import('@/pages/xcodespaces-ide-page').then((m) => ({ default: m.XcodespacesIdePage })),
 )
 const MergeRequestPage = lazy(() =>
   import('@/pages/merge-request-page').then((m) => ({ default: m.MergeRequestPage })),
@@ -304,6 +311,25 @@ function XGitCorpApp() {
   )
 }
 
+function XcodespacesCorpApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<XcodespacesShell />}>
+            <Route index element={<XcodespacesHomePage />} />
+            <Route path=":id" element={<XcodespacesIdePage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
+
 /** Membro usa o app em xgit.corp — o console lista todos os repos. */
 function MemberLeaveXadminXgit() {
   const { user } = useAuth()
@@ -512,6 +538,8 @@ export default function App() {
               <XAdminCorpApp />
             ) : kind === 'xgit-corp' ? (
               <XGitCorpApp />
+            ) : kind === 'xcodespaces-corp' ? (
+              <XcodespacesCorpApp />
             ) : kind === 'xvpn' ? (
               <PanelApp />
             ) : (

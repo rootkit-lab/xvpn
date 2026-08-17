@@ -2,11 +2,12 @@ import { useCallback, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BookOpen, ChevronRight, Clock, Code2, Copy, Download, File, Folder, GitBranch, Lock, Pencil, Scale, Shield, Tag } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, type GitLangStat, type GitTreeEntry, type Project } from '@/lib/api'
+import { api, ApiError, type GitLangStat, type GitTreeEntry, type Project } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
+import { XCODESPACES_CORP_ORIGIN } from '@/lib/product-host'
 import { xgitPath, xgitReposPath } from '@/lib/xgit'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -135,6 +136,10 @@ export function XgitCodePage() {
   const branches = branchData?.items ?? []
   const [ref, setRef] = useState('')
   const [goTo, setGoTo] = useState('')
+  const [codeTab, setCodeTab] = useState<'local' | 'cs'>('local')
+  const [csBusy, setCsBusy] = useState(false)
+  const fetchSpaces = useCallback(() => api.listCodespaces(slug), [slug])
+  const { data: spaces, reload: reloadSpaces } = usePollingData(fetchSpaces, 20_000)
   const activeRef = ref || (branches.includes('main') ? 'main' : branches[0] || 'HEAD')
 
   const filePath = useMemo(() => {
@@ -276,35 +281,80 @@ export function XgitCodePage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Local</DropdownMenuLabel>
-                <p className="px-2 pb-1 text-xs text-muted-foreground">Clone HTTPS</p>
-                <div className="flex items-center gap-2 px-2 pb-2">
-                  <code className="min-w-0 flex-1 truncate font-mono text-[11px]">{git.clone_url}</code>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(git.clone_url)
-                      toast.success('URL de clone copiada')
-                    }}
-                  >
-                    <Copy className="size-3.5" />
+                <div className="flex gap-1 px-2 pb-2">
+                  <Button type="button" size="sm" variant={codeTab === 'local' ? 'default' : 'ghost'} onClick={() => setCodeTab('local')}>
+                    Local
+                  </Button>
+                  <Button type="button" size="sm" variant={codeTab === 'cs' ? 'default' : 'ghost'} onClick={() => setCodeTab('cs')}>
+                    XCODESPACES
                   </Button>
                 </div>
-                <p className="px-2 pb-2 font-mono text-[11px] text-muted-foreground">git clone {git.clone_url}</p>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => {
-                    void api.downloadProjectArchive(slug, activeRef).then(
-                      () => toast.success('Download iniciado'),
-                      (err: unknown) => toast.error(err instanceof Error ? err.message : 'Falha no ZIP'),
-                    )
-                  }}
-                >
-                  <Download className="size-3.5" />
-                  Download ZIP
-                </DropdownMenuItem>
+                {codeTab === 'local' ? (
+                  <>
+                    <DropdownMenuLabel>Local</DropdownMenuLabel>
+                    <p className="px-2 pb-1 text-xs text-muted-foreground">Clone HTTPS</p>
+                    <div className="flex items-center gap-2 px-2 pb-2">
+                      <code className="min-w-0 flex-1 truncate font-mono text-[11px]">{git.clone_url}</code>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(git.clone_url)
+                          toast.success('URL de clone copiada')
+                        }}
+                      >
+                        <Copy className="size-3.5" />
+                      </Button>
+                    </div>
+                    <p className="px-2 pb-2 font-mono text-[11px] text-muted-foreground">git clone {git.clone_url}</p>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        void api.downloadProjectArchive(slug, activeRef).then(
+                          () => toast.success('Download iniciado'),
+                          (err: unknown) => toast.error(err instanceof Error ? err.message : 'Falha no ZIP'),
+                        )
+                      }}
+                    >
+                      <Download className="size-3.5" />
+                      Download ZIP
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuLabel>Your workspaces</DropdownMenuLabel>
+                    {(spaces?.items ?? []).length === 0 ? (
+                      <p className="px-2 pb-2 text-xs text-muted-foreground">No codespaces</p>
+                    ) : (
+                      (spaces?.items ?? []).map((cs) => (
+                        <DropdownMenuItem key={cs.id} asChild>
+                          <a href={`${XCODESPACES_CORP_ORIGIN}/${cs.id}`}>
+                            {cs.branch} · {cs.id}
+                          </a>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={csBusy}
+                      onClick={() => {
+                        setCsBusy(true)
+                        void api
+                          .createCodespace({ slug, branch: activeRef === 'HEAD' ? 'main' : activeRef })
+                          .then((cs) => {
+                            toast.success('Codespace criado')
+                            reloadSpaces()
+                            window.location.href = `${XCODESPACES_CORP_ORIGIN}/${cs.id}`
+                          })
+                          .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Falha ao criar'))
+                          .finally(() => setCsBusy(false))
+                      }}
+                    >
+                      Create codespace on {activeRef === 'HEAD' ? 'main' : activeRef}
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}

@@ -116,6 +116,14 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/projects/:slug/merge-requests/:iid/diff` | sessão + ACL | unified, teto 1 MiB |
 | GET | `/api/projects/:slug/merge-requests/:iid/reviews` | sessão + ACL | |
 | POST | `/api/projects/:slug/merge-requests/:iid/reviews` | reporter+ | `approve` / `request_changes` / `comment` |
+| GET | `/api/xcodespaces` | sessão | `?slug=` lista workspaces do user |
+| POST | `/api/xcodespaces` | sessão + ACL do repo | `slug`, `branch`. Worktree em `/opt/xvpn/data/codespaces/…` |
+| GET | `/api/xcodespaces/:id` | dono ou `forge` | |
+| DELETE | `/api/xcodespaces/:id` | dono ou `forge` | apaga worktree |
+| GET | `/api/xcodespaces/:id/tree` | dono | `?path=` |
+| GET | `/api/xcodespaces/:id/blob` | dono | `?path=` teto 2 MiB |
+| PUT | `/api/xcodespaces/:id/contents` | developer+ | grava arquivo no worktree |
+| POST | `/api/xcodespaces/:id/commit` | developer+ | commit no worktree; branch protegida → nova branch + PR |
 | PUT | `/api/projects/:slug/contents` | developer+ | commit no bare; branch protegida sem push → nova branch + PR |
 | GET | `/api/projects/:slug/archive` | sessão + ACL | ZIP da ref (`?ref=`) |
 | GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI. `?workflow=ci&mr=N`. Inclui `workflows` |

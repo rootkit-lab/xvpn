@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1 e 46–48** em produção. **Fase 46.1** (Issues GitHub-like + Projects) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. **Próximo forge:** Fase 49 — XCODESPACES. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1 e 46–48** em produção. **Fase 49** (XCODESPACES) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1380,13 +1380,13 @@ Editar um arquivo no browser e **salvar = commit**, como o lápis do GitHub. Val
 
 App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespaces do botão **Code** do GitHub (“Your workspaces in the cloud” + Create). **Não** é VM/Docker no VPS (sem shell remoto — `PLAN.md` §3). É um IDE web (Monaco) sobre um worktree do forge, só na VPN.
 
-- [ ] Registrar `xcodespaces.corp.ihuull.com` em `PLAN.md` §5.2 + skill `port-domain-registry-check` + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Sem porta nova. Sem landing `xcodespaces.ihuull.com`.
-- [ ] JWE `aud=xcodespaces`. App no catálogo (`slug=xcodespaces`, restricted + vpn). Waffle **Seus apps** se `ProjectMember` ou ACL do app. API no monólito (`/api/xcodespaces/`). Sem segundo binário Go.
-- [ ] Marca em `shared/ui` (lockup XCODESPACES / IDE). Skill `desktop-app-ui` + `chat-chrome` no host. Skill `new-intranet-app`.
-- [ ] Popover **Code** no XGIT: abas **Local** | **XCODESPACES**. Local = clone HTTPS + copiar URL + Download ZIP. XCODESPACES = lista de workspaces do user naquele repo, empty state (“No codespaces”) + **Create codespace on** a branch atual.
-- [ ] Create: worktree em `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` (checkout da branch). Teto de workspaces por user. Disco fora de `/opt/xvpn/data/git/` (bare intocado).
-- [ ] IDE em `https://xcodespaces.corp.ihuull.com/:id`: file tree, Monaco (multi-tab), busca, git (diff + commit + push para o bare via API da Fase 48), abrir PR. Chat no chrome.
-- [ ] Sem terminal/SSH no VPS. Sem bind em `0.0.0.0`. Stop/delete apaga o worktree. Guest/reporter: read-only; developer+: commit/push com as mesmas regras de protected branch.
+- [x] Registrar `xcodespaces.corp.ihuull.com` em `PLAN.md` §5.2 + skill `port-domain-registry-check` + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Sem porta nova. Sem landing `xcodespaces.ihuull.com`.
+- [x] JWE `aud=xcodespaces`. App no catálogo (`slug=xcodespaces`, restricted + vpn). Waffle **Seus apps** se `ProjectMember` ou ACL do app. API no monólito (`/api/xcodespaces/`). Sem segundo binário Go.
+- [x] Marca em `shared/ui` (lockup XCODESPACES / IDE). Skill `desktop-app-ui` + `chat-chrome` no host. Skill `new-intranet-app`.
+- [x] Popover **Code** no XGIT: abas **Local** | **XCODESPACES**. Local = clone HTTPS + copiar URL + Download ZIP. XCODESPACES = lista de workspaces do user naquele repo, empty state (“No codespaces”) + **Create codespace on** a branch atual.
+- [x] Create: worktree em `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` (checkout da branch). Teto de workspaces por user. Disco fora de `/opt/xvpn/data/git/` (bare intocado).
+- [x] IDE em `https://xcodespaces.corp.ihuull.com/:id`: file tree, Monaco, commit no worktree (branch protegida → nova branch + PR). Chat no chrome.
+- [x] Sem terminal/SSH no VPS. Sem bind em `0.0.0.0`. Delete apaga o worktree. Guest/reporter: read-only; developer+: commit com as mesmas regras de protected branch.
 
 **Critério de saída:** no repo, Code → XCODESPACES → Create on `main` abre o IDE; editar + commit cria commit no XGIT; Create em `main` como developer abre branch/PR, não push direto. Fora da VPN o host não resolve.
 

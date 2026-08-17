@@ -11,6 +11,7 @@ describe('titleBrand', () => {
     expect(titleBrand('xvpn.ihuull.com', '/admin/users')).toBe('XVPN')
     expect(titleBrand('xadmin.corp.ihuull.com', '/admin/users')).toBe('XADMIN')
     expect(titleBrand('xgit.corp.ihuull.com', '/')).toBe('XGIT')
+    expect(titleBrand('xcodespaces.corp.ihuull.com', '/')).toBe('XCODESPACES')
   })
 
   it('no painel, a rota social vira XGROUP/XCHAT', () => {

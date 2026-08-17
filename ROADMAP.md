@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1** em produção. **Fases 46–48** (Issues, PRs GitHub-like, editor Monaco) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. **Próximo forge:** Fase 49 — XCODESPACES. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1 e 46–48** em produção. **Fase 46.1** (Issues GitHub-like + Projects) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. **Próximo forge:** Fase 49 — XCODESPACES. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1329,6 +1329,22 @@ Issues deixam de ser só um post no XGROUP. Viram entidade first-class no forge,
 
 ---
 
+## Fase 46.1 — Issues (paridade GitHub) e Projects
+
+A Fase 46 entregou o tracker. A lista ainda é um formulário no mesmo ecrã. O GitHub separa **lista** (filtros + New issue), **criar** (Write/Preview + sidebar) e **Projects** (board/table ligado a issues). `WorkProject` não é o `Project` do forge (o repositório).
+
+- [x] Lista de Issues no estilo GitHub: sidebar (Issues, Assigned to me, Created by me, Mentioned), Open/Closed com contagem, filtros Author/Labels/Assignees/Milestone, Sort, empty state. Botão **New issue** vai para `/:slug/issues/new`.
+- [x] Criar issue: título, Write/Preview, sidebar Assignees / Labels / Milestone. Create / Cancel. Sem segundo editor (não é Monaco).
+- [x] `Milestone` no Mongo (número por repo, open/closed, due opcional). Views **Milestones** e **Labels** no sidebar das Issues. Slugs reservados `milestones`, `labels`, `projects`.
+- [x] Aba **Projects** no detalhe do repo (entre Pull requests e Actions). Lista Open/Closed, busca, **New project**.
+- [x] Create project: templates Table, Board (Kanban), Bug tracker. Layout table ou board; colunas padrão Todo / In Progress / Done (Bug: Triage / In Progress / Done).
+- [x] Detalhe `/:slug/projects/:n`: table ou board; item = issue existente, PR ou draft. Mover de coluna. Guest lê; reporter+ cria item; maintainer+ fecha o project.
+- [x] API: filtros extras em `GET .../issues` (`author`, `assignee`, `label`, `mentioned`, `milestone`, `sort`); `GET/POST/PATCH .../milestones`; `GET/POST/PATCH .../work-projects` + `.../items`. Sem Insights, Workflows, Roadmap com datas, sem import GitHub.
+
+**Critério de saída:** em `xgit.corp` o membro cria uma issue pela página New, filtra Assigned to me, cria um Project Kanban e arrasta `#1` para In Progress. Fora da VPN a rota não resolve.
+
+---
+
 ## Fase 47 — Pull requests (paridade GitHub)
 
 A página de MR hoje é um card (título, branches, merge/close). Precisa da superfície de um PR do GitHub para o review valer o fluxo (diff → checks → merge).
@@ -1391,7 +1407,7 @@ App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespace
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–49):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → PRs GitHub-like → editor Monaco → XCODESPACES) é o trilho de UX do forge — pode avançar em paralelo à 44, sem misturar na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–49):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → XCODESPACES) é o trilho de UX do forge — pode avançar em paralelo à 44, sem misturar na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

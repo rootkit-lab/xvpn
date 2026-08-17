@@ -115,3 +115,101 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 		t.Fatalf("reopened: %+v", issue)
 	}
 }
+
+func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
+	app, router, adminTok := setupGitApp(t)
+	reporter := createTestUserWithRole(t, app, "rep", "senha-rep-ok-1", store.RoleMember)
+	repTok := loginAndGetToken(t, app, router, "rep", "senha-rep-ok-1")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created projectResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+		Members: []projectMemberIn{
+			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
+			{UserID: reporter.ID, Role: store.ProjectRoleReporter},
+		},
+	}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/milestones", createMilestoneRequest{Title: "v1"}, repTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("milestone: %d %s", rec.Code, rec.Body.String())
+	}
+	var ms milestoneJSON
+	if err := json.Unmarshal(rec.Body.Bytes(), &ms); err != nil {
+		t.Fatal(err)
+	}
+	if ms.Number != 1 {
+		t.Fatalf("milestone number: %+v", ms)
+	}
+
+	one := uint(1)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{
+		Title: "Bug no login", Body: "ping @rep", Labels: []string{"bug"}, Assignee: []string{"rep"}, Milestone: &one,
+	}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("issue1: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{
+		Title: "Docs", Body: "sem menção", Labels: []string{"docs"},
+	}, repTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("issue2: %d %s", rec.Code, rec.Body.String())
+	}
+
+	type listed struct {
+		Items       []issueJSON `json:"items"`
+		OpenCount   int         `json:"open_count"`
+		ClosedCount int         `json:"closed_count"`
+	}
+	get := func(qs string) listed {
+		t.Helper()
+		r := doJSON(t, router, http.MethodGet, "/api/projects/lab/issues"+qs, nil, repTok)
+		if r.Code != http.StatusOK {
+			t.Fatalf("list %s: %d %s", qs, r.Code, r.Body.String())
+		}
+		var out listed
+		if err := json.Unmarshal(r.Body.Bytes(), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+
+	all := get("")
+	if len(all.Items) != 2 || all.OpenCount != 2 {
+		t.Fatalf("all: %+v", all)
+	}
+	assigned := get("?assignee=me")
+	if len(assigned.Items) != 1 || assigned.Items[0].Title != "Bug no login" {
+		t.Fatalf("assignee: %+v", assigned.Items)
+	}
+	authored := get("?author=rep")
+	if len(authored.Items) != 1 || authored.Items[0].Title != "Docs" {
+		t.Fatalf("author: %+v", authored.Items)
+	}
+	labeled := get("?label=bug")
+	if len(labeled.Items) != 1 {
+		t.Fatalf("label: %+v", labeled.Items)
+	}
+	mentioned := get("?mentioned=me")
+	if len(mentioned.Items) != 1 || mentioned.Items[0].Number != 1 {
+		t.Fatalf("mentioned: %+v", mentioned.Items)
+	}
+	byMS := get("?milestone=1")
+	if len(byMS.Items) != 1 || byMS.Items[0].Milestone == nil || *byMS.Items[0].Milestone != 1 {
+		t.Fatalf("milestone filter: %+v", byMS.Items)
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/labels", nil, repTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("labels: %d %s", rec.Code, rec.Body.String())
+	}
+}

@@ -34,6 +34,7 @@ const TABS = [
   { to: '', label: 'Code', end: true },
   { to: 'issues', label: 'Issues', end: false },
   { to: 'pulls', label: 'Pull requests', end: false },
+  { to: 'projects', label: 'Projects', end: false },
   { to: 'actions', label: 'Actions', end: false },
   { to: 'settings', label: 'Settings', end: false },
 ] as const
@@ -44,11 +45,14 @@ export function XgitRepoLayout() {
   const fetchProject = useCallback(() => api.getProject(slug), [slug])
   const fetchMRs = useCallback(() => api.listMergeRequests(slug, 'open'), [slug])
   const fetchIssues = useCallback(() => api.listIssues(slug, { status: 'open' }), [slug])
+  const fetchWork = useCallback(() => api.listWorkProjects(slug, { status: 'open' }), [slug])
   const { data, loading, error } = usePollingData(fetchProject, 20_000)
   const { data: mrs } = usePollingData(fetchMRs, 20_000)
   const { data: issues } = usePollingData(fetchIssues, 20_000)
+  const { data: work } = usePollingData(fetchWork, 20_000)
   const openCount = mrs?.items?.length ?? 0
-  const issueCount = issues?.items?.length ?? 0
+  const issueCount = issues?.open_count ?? issues?.items?.length ?? 0
+  const projectCount = work?.items?.length ?? 0
 
   if (loading || !data) {
     return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-48 w-full" />
@@ -90,7 +94,12 @@ export function XgitRepoLayout() {
                   path.startsWith(`${base}/commits`))
               const pullsOn =
                 tab.to === 'pulls' && (path.includes('/pulls') || path.includes('/mrs'))
-              const on = tab.to === '' ? codeOn : tab.to === 'pulls' ? pullsOn : isActive
+              const issuesOn =
+                tab.to === 'issues' &&
+                (path.includes('/issues') || path.includes('/milestones') || path.includes('/labels'))
+              const projectsOn = tab.to === 'projects' && path.includes('/projects')
+              const on =
+                tab.to === '' ? codeOn : tab.to === 'pulls' ? pullsOn : tab.to === 'issues' ? issuesOn : tab.to === 'projects' ? projectsOn : isActive
               return cn(
                 'border-b-2 px-3 py-2 text-sm',
                 on ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -103,6 +112,9 @@ export function XgitRepoLayout() {
             ) : null}
             {tab.to === 'pulls' && openCount > 0 ? (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 text-xs">{openCount}</span>
+            ) : null}
+            {tab.to === 'projects' && projectCount > 0 ? (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 text-xs">{projectCount}</span>
             ) : null}
           </NavLink>
         ))}
@@ -597,6 +609,9 @@ export function XgitCommitsPage() {
 
 export { XgitIssuesPage, XgitIssuePage, XgitPullsPage } from '@/pages/xgit-issues-page'
 export { XgitMrsPage } from '@/pages/xgit-issues-page'
+export { XgitIssueNewPage } from '@/pages/xgit-issue-new-page'
+export { XgitMilestonesPage, XgitLabelsPage } from '@/pages/xgit-milestones-page'
+export { XgitProjectsPage, XgitProjectBoardPage } from '@/pages/xgit-projects-page'
 
 export { XgitActionsPage } from '@/pages/xgit-actions-page'
 

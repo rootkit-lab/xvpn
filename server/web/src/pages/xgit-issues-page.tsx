@@ -1,5 +1,5 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { openChat } from '@chat/messenger/open-chat'
 import { api, ApiError, type IssueStatus, type ProjectRole } from '@/lib/api'
@@ -14,6 +14,13 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { XgitTrackerNav, type TrackerView } from '@/pages/xgit-tracker-nav'
 
 const ROLE_RANK: Record<ProjectRole, number> = {
   guest: 0,
@@ -23,123 +30,215 @@ const ROLE_RANK: Record<ProjectRole, number> = {
   owner: 4,
 }
 
+const ISSUE_VIEWS = new Set<TrackerView>(['issues', 'assigned', 'created', 'mentioned', 'recent'])
+
+function issueQueryHint(view: TrackerView, status: IssueStatus | '') {
+  const parts = ['is:issue']
+  if (status) parts.push(`state:${status}`)
+  if (view === 'assigned') parts.push('assignee:@me')
+  if (view === 'created') parts.push('author:@me')
+  if (view === 'mentioned') parts.push('mentions:@me')
+  if (view === 'recent') parts.push('sort:updated')
+  return parts.join(' ')
+}
+
 export function XgitIssuesPage() {
   const { slug = '' } = useParams()
   const { user } = useAuth()
-  const [status, setStatus] = useState<IssueStatus | ''>('open')
-  const [q, setQ] = useState('')
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [busy, setBusy] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const viewRaw = params.get('view') ?? 'issues'
+  const view: TrackerView = ISSUE_VIEWS.has(viewRaw as TrackerView) ? (viewRaw as TrackerView) : 'issues'
+  const status = (params.get('status') as IssueStatus | null) ?? 'open'
+  const q = params.get('q') ?? ''
+  const author = params.get('author') ?? ''
+  const assignee = params.get('assignee') ?? ''
+  const label = params.get('label') ?? ''
+  const milestone = params.get('milestone')
+  const sort = (params.get('sort') as 'newest' | 'oldest' | 'updated' | null) ?? (view === 'recent' ? 'updated' : 'newest')
+
+  const setFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(params)
+    if (value) next.set(key, value)
+    else next.delete(key)
+    if (key === 'view' && value === 'issues') next.delete('view')
+    setParams(next, { replace: true })
+  }
+
   const fetchProject = useCallback(() => api.getProject(slug), [slug])
+  const fetchLabels = useCallback(() => api.listIssueLabels(slug), [slug])
+  const fetchMilestones = useCallback(() => api.listMilestones(slug, 'open'), [slug])
   const fetchIssues = useCallback(
-    () => api.listIssues(slug, { status: status || undefined, q: q.trim() || undefined }),
-    [slug, status, q],
+    () =>
+      api.listIssues(slug, {
+        status: status || undefined,
+        q: q.trim() || undefined,
+        author: view === 'created' ? 'me' : author || undefined,
+        assignee: view === 'assigned' ? 'me' : assignee || undefined,
+        mentioned: view === 'mentioned' ? 'me' : undefined,
+        label: label || undefined,
+        milestone: milestone ? Number(milestone) : undefined,
+        sort,
+      }),
+    [slug, status, q, view, author, assignee, label, milestone, sort],
   )
   const { data: project } = usePollingData(fetchProject, 30_000)
-  const { data, loading, error, reload } = usePollingData(fetchIssues, 15_000)
+  const { data: labelData } = usePollingData(fetchLabels, 30_000)
+  const { data: msData } = usePollingData(fetchMilestones, 30_000)
+  const { data, loading, error } = usePollingData(fetchIssues, 15_000)
   const myRole = project?.members?.find((m) => m.user_id === user?.id)?.role
   const canCreate =
     (isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')) ||
     (myRole != null && ROLE_RANK[myRole] >= ROLE_RANK.reporter)
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    try {
-      const issue = await api.createIssue(slug, { title: title.trim(), body: body.trim() || undefined })
-      toast.success(`Issue #${issue.number} aberta`)
-      setTitle('')
-      setBody('')
-      reload()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Falha ao abrir issue')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const authors = useMemo(() => {
+    const names = new Set((project?.members ?? []).map((m) => m.username))
+    return [...names]
+  }, [project])
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex gap-1">
-          {(['open', 'closed', ''] as const).map((st) => (
-            <Button
-              key={st || 'all'}
-              type="button"
-              size="sm"
-              variant={status === st ? 'default' : 'ghost'}
-              onClick={() => setStatus(st)}
-            >
-              {st === 'open' ? 'Open' : st === 'closed' ? 'Closed' : 'All'}
+    <div className="flex flex-col gap-6 lg:flex-row">
+      <XgitTrackerNav slug={slug} active={view} />
+      <div className="min-w-0 flex-1">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-xl font-semibold">All issues</h2>
+          {canCreate ? (
+            <Button asChild className="btn-glow">
+              <Link to={xgitPath(`${slug}/issues/new`)}>New issue</Link>
             </Button>
-          ))}
+          ) : null}
         </div>
         <Input
-          className="field-glass h-8 max-w-xs"
+          className="field-glass mb-3 h-9 font-mono text-xs"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar issues"
-          aria-label="Buscar issues"
+          onChange={(e) => setFilter('q', e.target.value)}
+          placeholder={issueQueryHint(view, status)}
+          aria-label="Filtrar issues"
         />
-      </div>
-      <div className="watch-complication overflow-hidden rounded-[18px]">
-        {loading || !data ? (
-          error ? <p className="p-5 text-sm text-destructive">{error}</p> : <p className="p-5 text-sm text-muted-foreground">Carregando…</p>
-        ) : (data.items ?? []).length === 0 ? (
-          <p className="p-5 text-sm text-muted-foreground">Nenhuma issue neste filtro.</p>
-        ) : (
-          <ul className="divide-y divide-border/60">
-            {data.items.map((it) => (
-              <li key={it.number}>
-                <Link
-                  to={xgitPath(`${slug}/issues/${it.number}`)}
-                  className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 hover:bg-muted/20"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {it.title} <span className="text-muted-foreground">#{it.number}</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {it.author} · {formatRelativeTime(it.created_at)}
-                      {it.assignees.length > 0 ? ` · ${it.assignees.join(', ')}` : ''}
-                    </p>
-                    {it.labels.length > 0 ? (
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {it.labels.map((lb) => (
-                          <Badge key={lb} variant="outline">
-                            {lb}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                  <Badge variant={it.status === 'open' ? 'default' : 'outline'}>
-                    {it.status === 'open' ? 'Open' : 'Closed'}
-                  </Badge>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      {canCreate ? (
-        <form onSubmit={submit} className="watch-complication flex flex-col gap-3 rounded-[18px] p-4">
-          <p className="hud-label text-muted-foreground/70">Nova issue</p>
-          <div className="space-y-1.5">
-            <Label htmlFor="issue-title">Título</Label>
-            <Input id="issue-title" value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={120} />
+        <div className="watch-complication overflow-hidden rounded-[18px]">
+          <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-3 py-2">
+            <Button type="button" size="sm" variant={status === 'open' ? 'default' : 'ghost'} onClick={() => setFilter('status', 'open')}>
+              Open {data?.open_count ?? 0}
+            </Button>
+            <Button type="button" size="sm" variant={status === 'closed' ? 'default' : 'ghost'} onClick={() => setFilter('status', 'closed')}>
+              Closed {data?.closed_count ?? 0}
+            </Button>
+            <div className="ml-auto flex flex-wrap gap-1">
+              <FilterMenu
+                label="Author"
+                value={author}
+                items={authors.map((name) => ({ value: name, label: name }))}
+                onChange={(v) => setFilter('author', v)}
+              />
+              <FilterMenu
+                label="Labels"
+                value={label}
+                items={(labelData?.items ?? []).map((name) => ({ value: name, label: name }))}
+                onChange={(v) => setFilter('label', v)}
+              />
+              <FilterMenu
+                label="Milestones"
+                value={milestone ?? ''}
+                items={(msData?.items ?? []).map((m) => ({ value: String(m.number), label: m.title }))}
+                onChange={(v) => setFilter('milestone', v)}
+              />
+              <FilterMenu
+                label="Assignees"
+                value={assignee}
+                items={authors.map((name) => ({ value: name, label: name }))}
+                onChange={(v) => setFilter('assignee', v)}
+              />
+              <FilterMenu
+                label="Sort"
+                value={sort}
+                allowEmpty={false}
+                items={[
+                  { value: 'newest', label: 'Newest' },
+                  { value: 'oldest', label: 'Oldest' },
+                  { value: 'updated', label: 'Recently updated' },
+                ]}
+                onChange={(v) => setFilter('sort', v)}
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="issue-body">Descrição</Label>
-            <Textarea id="issue-body" value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
-          </div>
-          <Button type="submit" disabled={busy || !title.trim()}>
-            {busy ? 'Abrindo…' : 'Abrir issue'}
-          </Button>
-        </form>
-      ) : null}
+          {loading || !data ? (
+            error ? <p className="p-5 text-sm text-destructive">{error}</p> : <p className="p-5 text-sm text-muted-foreground">Carregando…</p>
+          ) : (data.items ?? []).length === 0 ? (
+            <div className="px-4 py-16 text-center">
+              <p className="text-sm font-medium">No results</p>
+              <p className="mt-1 text-xs text-muted-foreground">Try adjusting your search filters</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {data.items.map((it) => (
+                <li key={it.number}>
+                  <Link
+                    to={xgitPath(`${slug}/issues/${it.number}`)}
+                    className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 hover:bg-muted/20"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {it.title} <span className="text-muted-foreground">#{it.number}</span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {it.author} · {formatRelativeTime(it.created_at)}
+                        {it.assignees.length > 0 ? ` · ${it.assignees.join(', ')}` : ''}
+                        {it.milestone_title ? ` · ${it.milestone_title}` : ''}
+                      </p>
+                      {it.labels.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {it.labels.map((lb) => (
+                            <Badge key={lb} variant="outline">
+                              {lb}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Badge variant={it.status === 'open' ? 'default' : 'outline'}>
+                      {it.status === 'open' ? 'Open' : 'Closed'}
+                    </Badge>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
+  )
+}
+
+function FilterMenu({
+  label,
+  value,
+  items,
+  onChange,
+  allowEmpty = true,
+}: {
+  label: string
+  value: string
+  items: { value: string; label: string }[]
+  onChange: (v: string) => void
+  allowEmpty?: boolean
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
+          {label}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {allowEmpty ? (
+          <DropdownMenuItem onClick={() => onChange('')}>Qualquer</DropdownMenuItem>
+        ) : null}
+        {items.map((it) => (
+          <DropdownMenuItem key={it.value} onClick={() => onChange(it.value)}>
+            {it.value === value ? '✓ ' : ''}
+            {it.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -238,6 +337,14 @@ export function XgitIssuePage() {
                 <li key={name}>{name}</li>
               ))}
             </ul>
+          )}
+        </div>
+        <div>
+          <p className="hud-label mb-2 text-muted-foreground/70">Milestone</p>
+          {data.milestone_title ? (
+            <p>{data.milestone_title}</p>
+          ) : (
+            <p className="text-muted-foreground">Nenhum</p>
           )}
         </div>
       </aside>

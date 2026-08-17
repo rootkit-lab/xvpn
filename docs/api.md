@@ -90,10 +90,22 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/api/projects/:slug/git` | admin + `forge` | cria o bare se faltar |
 | PUT | `/api/projects/:slug/protected-branches` | admin + `forge` | substitui a lista |
 | GET | `/api/projects/:slug/branches` | sessão + ACL do projeto | heads do bare |
-| GET | `/api/projects/:slug/issues` | sessão + ACL | `?status=open\|closed&q=` |
-| POST | `/api/projects/:slug/issues` | reporter+ ou `forge` | abre issue + thread XCHAT + post XGROUP |
+| GET | `/api/projects/:slug/issues` | sessão + ACL | `?status=&q=&author=&assignee=&label=&mentioned=&milestone=&sort=` (`me` em author/assignee/mentioned). Resposta: `items`, `open_count`, `closed_count` |
+| POST | `/api/projects/:slug/issues` | reporter+ ou `forge` | abre issue + thread XCHAT + post XGROUP. `milestone` = número |
 | GET | `/api/projects/:slug/issues/:n` | sessão + ACL | |
-| PATCH | `/api/projects/:slug/issues/:n` | autor, maintainer+ ou `forge` | título, corpo, labels, assignees, open/closed |
+| PATCH | `/api/projects/:slug/issues/:n` | autor, maintainer+ ou `forge` | título, corpo, labels, assignees, milestone, open/closed |
+| GET | `/api/projects/:slug/labels` | sessão + ACL | labels distintas das issues |
+| GET | `/api/projects/:slug/milestones` | sessão + ACL | `?status=open\|closed` |
+| POST | `/api/projects/:slug/milestones` | reporter+ ou `forge` | `title`, `description`, `due_on` (YYYY-MM-DD) |
+| PATCH | `/api/projects/:slug/milestones/:n` | autor, maintainer+ ou `forge` | título, due, open/closed |
+| GET | `/api/projects/:slug/work-projects` | sessão + ACL | boards do repo. `?status=&q=` |
+| POST | `/api/projects/:slug/work-projects` | reporter+ ou `forge` | `template`: `kanban`/`board`/`table`/`bug`/`roadmap` |
+| GET | `/api/projects/:slug/work-projects/:n` | sessão + ACL | inclui `items` |
+| PATCH | `/api/projects/:slug/work-projects/:n` | autor, maintainer+ ou `forge` | título, open/closed |
+| GET | `/api/projects/:slug/work-projects/:n/items` | sessão + ACL | |
+| POST | `/api/projects/:slug/work-projects/:n/items` | reporter+ | draft (`title`) ou `issue`/`mr` |
+| PATCH | `/api/projects/:slug/work-projects/:n/items/:id` | reporter+ | `column`, `position`, `title` |
+| DELETE | `/api/projects/:slug/work-projects/:n/items/:id` | autor do item ou maintainer+ | |
 | GET | `/api/projects/:slug/merge-requests` | sessão + ACL | `?status=open\|merged\|closed` |
 | POST | `/api/projects/:slug/merge-requests` | developer+ ou `forge` | abre MR + thread XCHAT + post XGROUP |
 | GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | `can_merge`, `checks_block` |

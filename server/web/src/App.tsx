@@ -64,7 +64,14 @@ const XgitCodePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ 
 const XgitCommitsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCommitsPage })))
 const XgitMrsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMrsPage })))
 const XgitIssuesPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssuesPage })))
+const XgitIssueNewPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssueNewPage })))
 const XgitIssuePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssuePage })))
+const XgitMilestonesPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMilestonesPage })))
+const XgitLabelsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitLabelsPage })))
+const XgitProjectsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitProjectsPage })))
+const XgitProjectBoardPage = lazy(() =>
+  import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitProjectBoardPage })),
+)
 const XgitPullsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitPullsPage })))
 const XgitEditPage = lazy(() => import('@/pages/xgit-edit-page').then((m) => ({ default: m.XgitEditPage })))
 const XgitActionsPage = lazy(() => import('@/pages/xgit-actions-page').then((m) => ({ default: m.XgitActionsPage })))
@@ -275,7 +282,12 @@ function XGitCorpApp() {
               <Route path="edit/:ref/*" element={<XgitEditPage />} />
               <Route path="commits" element={<XgitCommitsPage />} />
               <Route path="issues" element={<XgitIssuesPage />} />
+              <Route path="issues/new" element={<XgitIssueNewPage />} />
               <Route path="issues/:n" element={<XgitIssuePage />} />
+              <Route path="milestones" element={<XgitMilestonesPage />} />
+              <Route path="labels" element={<XgitLabelsPage />} />
+              <Route path="projects" element={<XgitProjectsPage />} />
+              <Route path="projects/:n" element={<XgitProjectBoardPage />} />
               <Route path="pulls" element={<XgitPullsPage />} />
               <Route path="pulls/:iid" element={<MergeRequestPage />} />
               <Route path="mrs" element={<XgitMrsPage />} />
@@ -386,7 +398,12 @@ function XAdminCorpApp() {
                 <Route path="edit/:ref/*" element={<XgitEditPage />} />
                 <Route path="commits" element={<XgitCommitsPage />} />
                 <Route path="issues" element={<XgitIssuesPage />} />
+                <Route path="issues/new" element={<XgitIssueNewPage />} />
                 <Route path="issues/:n" element={<XgitIssuePage />} />
+                <Route path="milestones" element={<XgitMilestonesPage />} />
+                <Route path="labels" element={<XgitLabelsPage />} />
+                <Route path="projects" element={<XgitProjectsPage />} />
+                <Route path="projects/:n" element={<XgitProjectBoardPage />} />
                 <Route path="pulls" element={<XgitPullsPage />} />
                 <Route path="pulls/:iid" element={<MergeRequestPage />} />
                 <Route path="mrs" element={<XgitMrsPage />} />

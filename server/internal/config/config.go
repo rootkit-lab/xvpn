@@ -125,6 +125,10 @@ type Config struct {
 	// (Fase 37 — /opt/xvpn/data/projects/<slug>). Sem FileBrowser e
 	// sem Samba [project-*] nesta fase; só o Drive web em xdriver.corp.
 	DriverProjectsDir string
+
+	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Vazio = compute
+	// lista/importa o node local, mas create/destroy/rebuild devolvem 503.
+	BitLaunchToken string
 }
 
 func getEnv(key, fallback string) string {
@@ -171,6 +175,7 @@ func Load() (*Config, error) {
 		DriverSharedDir:         getEnv("XVPN_DRIVER_SHARED_DIR", "/srv/xvpn/shared"),
 		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
 		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
+		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
 	}
 
 	var err error

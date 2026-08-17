@@ -1,0 +1,248 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/rootkit-lab/xvpn/server/internal/bitlaunch"
+	"github.com/rootkit-lab/xvpn/server/internal/store"
+)
+
+type fakeBitLaunch struct {
+	list    []bitlaunch.Server
+	created bitlaunch.Server
+	opts    bitlaunch.CreateOpts
+	nuked   []string
+	err     error
+}
+
+func (f *fakeBitLaunch) List() ([]bitlaunch.Server, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.list, nil
+}
+
+func (f *fakeBitLaunch) Create(opts bitlaunch.CreateOpts) (bitlaunch.Server, error) {
+	if f.err != nil {
+		return bitlaunch.Server{}, f.err
+	}
+	f.opts = opts
+	return f.created, nil
+}
+
+func (f *fakeBitLaunch) Destroy(id string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.nuked = append(f.nuked, id)
+	return nil
+}
+
+func (f *fakeBitLaunch) Rebuild(id string, _ bitlaunch.RebuildOpts) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.nuked = append(f.nuked, "rebuild:"+id)
+	return nil
+}
+
+func TestImportCreatesControlPlaneWithoutBitLaunch(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/servers/import", nil, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import: %d %s", rec.Code, rec.Body.String())
+	}
+	var listed struct {
+		Items     []meshServerResponse `json:"items"`
+		BitLaunch bool                 `json:"bitlaunch"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if listed.BitLaunch || len(listed.Items) != 1 {
+		t.Fatalf("esperado só o node local: %+v", listed)
+	}
+	got := listed.Items[0]
+	if got.Role != store.ServerRoleControl || got.IPv4 != controlPlaneIPv4 || got.WgIP != controlPlaneWgIP {
+		t.Fatalf("control: %+v", got)
+	}
+	var recDNS store.DNSRecord
+	if err := app.Store.DB.Where("hostname = ?", "control.corp.ihuull.com").First(&recDNS).Error; err != nil {
+		t.Fatalf("A corp: %v", err)
+	}
+	if recDNS.IPv4 != controlPlaneWgIP {
+		t.Fatalf("A deveria apontar para wg0, veio %s", recDNS.IPv4)
+	}
+
+	rec = doJSON(t, router, http.MethodDelete, "/api/servers/"+strconv.FormatUint(uint64(got.ID), 10), nil, tok)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("destroy control deveria 409, veio %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCreateMeshServerAndEnroll(t *testing.T) {
+	app, wg := newTestApp(t)
+	fake := &fakeBitLaunch{created: bitlaunch.Server{
+		ID: "bl-mesh", Name: "lab-a", IPv4: "203.0.113.40", Region: "ams", Size: "1gb", Status: "launching",
+	}}
+	app.BitLaunch = fake
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/servers", createMeshServerRequest{
+		Name: "Lab A", Hostname: "laba", HostID: 4, HostImageID: "img", SizeID: "sz", RegionID: "ams",
+		Labels: []string{"edge"}, Role: store.ServerRoleMesh,
+	}, tok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if created.EnrollToken == "" || created.Hostname != "laba" || fake.opts.InitScript == "" {
+		t.Fatalf("create resp: %+v script=%q", created, fake.opts.InitScript)
+	}
+	if !strings.Contains(fake.opts.InitScript, "wg genkey") || strings.Contains(fake.opts.InitScript, "PrivateKey = "+created.EnrollToken) {
+		t.Fatalf("cloud-init deveria gerar chave no host: %s", fake.opts.InitScript)
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/servers/enroll", meshEnrollRequest{
+		EnrollToken: created.EnrollToken, PublicKey: testPublicKey, Hostname: "laba",
+	}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("enroll: %d %s", rec.Code, rec.Body.String())
+	}
+	var enrolled struct {
+		AssignedIP string `json:"assigned_ip"`
+		Hostname   string `json:"hostname"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &enrolled); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(enrolled.AssignedIP, "10.66.66.") || strings.HasPrefix(enrolled.AssignedIP, "10.10.") || strings.HasPrefix(enrolled.AssignedIP, "10.136.") {
+		t.Fatalf("IP fora da malha: %s", enrolled.AssignedIP)
+	}
+	if enrolled.Hostname != "laba.corp.ihuull.com" {
+		t.Fatalf("hostname: %s", enrolled.Hostname)
+	}
+	if _, ok := wg.peers[testPublicKey]; !ok {
+		t.Fatal("peer não entrou no wg")
+	}
+	var recDNS store.DNSRecord
+	if err := app.Store.DB.Where("hostname = ?", "laba.corp.ihuull.com").First(&recDNS).Error; err != nil {
+		t.Fatalf("A corp do mesh: %v", err)
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/servers/"+strconv.FormatUint(uint64(created.ID), 10), nil, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get: %d %s", rec.Code, rec.Body.String())
+	}
+	var after meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.EnrollToken != "" || after.WgIP == "" || after.Status != "ok" {
+		t.Fatalf("após enroll: %+v", after)
+	}
+
+	rec = doJSON(t, router, http.MethodDelete, "/api/servers/"+strconv.FormatUint(uint64(created.ID), 10), nil, tok)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("destroy: %d %s", rec.Code, rec.Body.String())
+	}
+	if len(fake.nuked) != 1 || fake.nuked[0] != "bl-mesh" {
+		t.Fatalf("bitlaunch destroy: %v", fake.nuked)
+	}
+	if _, ok := wg.peers[testPublicKey]; ok {
+		t.Fatal("peer deveria ter saído")
+	}
+}
+
+func TestCreateMeshServerWithoutTokenIsUnavailable(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec := doJSON(t, router, http.MethodPost, "/api/servers", createMeshServerRequest{
+		Hostname: "laba", HostID: 4, HostImageID: "img", SizeID: "sz", RegionID: "ams",
+	}, tok)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("sem token deveria 503, veio %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithoutComputeScopeCannotImport(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/servers/import", nil, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-core não deveria importar, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithComputeScopeCanImport(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCompute})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/servers/import", nil, f.token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin compute deveria importar, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestServerGroupAndAccess(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	member := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/server-groups", createServerGroupRequest{Name: "edge"}, tok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("group: %d %s", rec.Code, rec.Body.String())
+	}
+	var g serverGroupResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &g); err != nil {
+		t.Fatal(err)
+	}
+
+	rec = doJSON(t, router, http.MethodPut, "/api/server-groups/"+strconv.FormatUint(uint64(g.ID), 10)+"/access",
+		setServerAccessRequest{UserIDs: []uint{member.ID}}, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("group access: %d %s", rec.Code, rec.Body.String())
+	}
+
+	exp := time.Now().Add(time.Hour)
+	row := store.MeshServer{
+		BitLaunchID: "local-lab", Name: "lab", Hostname: "labx", Role: store.ServerRoleMesh,
+		Status: "ok", EnrollToken: "tok", EnrollExpiresAt: &exp,
+	}
+	if err := app.Store.DB.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodPatch, "/api/servers/"+strconv.FormatUint(uint64(row.ID), 10),
+		updateMeshServerRequest{Labels: &[]string{"runner"}, GroupID: &g.ID}, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("patch: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPut, "/api/servers/"+strconv.FormatUint(uint64(row.ID), 10)+"/access",
+		setServerAccessRequest{UserIDs: []uint{member.ID}}, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("server access: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/servers/"+strconv.FormatUint(uint64(row.ID), 10), nil, tok)
+	var got meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.GroupID == nil || *got.GroupID != g.ID || len(got.AccessUserIDs) != 1 {
+		t.Fatalf("get: %+v", got)
+	}
+}

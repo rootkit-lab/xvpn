@@ -159,6 +159,18 @@ var rbacRouteCases = []rbacRouteCase{
 	{"update-project", http.MethodPatch, "/api/projects/missing", updateProjectRequest{}, "adminOnly"},
 	{"set-project-members", http.MethodPut, "/api/projects/missing/members", setProjectMembersRequest{Members: []projectMemberIn{{UserID: 1, Role: store.ProjectRoleOwner}}}, "adminOnly"},
 
+	{"list-servers", http.MethodGet, "/api/servers", nil, "viewerUp"},
+	{"get-server", http.MethodGet, "/api/servers/1", nil, "viewerUp"},
+	{"import-servers", http.MethodPost, "/api/servers/import", nil, "adminOnly"},
+	{"create-server", http.MethodPost, "/api/servers", createMeshServerRequest{Hostname: "rbac"}, "adminOnly"},
+	{"update-server", http.MethodPatch, "/api/servers/1", updateMeshServerRequest{}, "adminOnly"},
+	{"destroy-server", http.MethodDelete, "/api/servers/1", nil, "adminOnly"},
+	{"rebuild-server", http.MethodPost, "/api/servers/1/rebuild", nil, "adminOnly"},
+	{"set-server-access", http.MethodPut, "/api/servers/1/access", setServerAccessRequest{}, "adminOnly"},
+	{"list-server-groups", http.MethodGet, "/api/server-groups", nil, "viewerUp"},
+	{"create-server-group", http.MethodPost, "/api/server-groups", createServerGroupRequest{Name: "rbac-edge"}, "adminOnly"},
+	{"set-group-access", http.MethodPut, "/api/server-groups/1/access", setServerAccessRequest{}, "adminOnly"},
+
 	{"social-people", http.MethodGet, "/api/social/people", nil, "any"},
 	{"social-profile-me", http.MethodGet, "/api/social/profile", nil, "any"},
 	{"social-profile-patch", http.MethodPatch, "/api/social/profile", patchSocialProfileRequest{DisplayName: strPtr("Caller")}, "any"},

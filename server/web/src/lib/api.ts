@@ -472,6 +472,34 @@ export interface ProjectMember {
   role: ProjectRole
 }
 
+export type MeshServerRole = 'control' | 'mesh' | 'runner'
+
+export interface MeshServer {
+  id: number
+  bitlaunch_id: string
+  name: string
+  hostname: string
+  role: MeshServerRole | string
+  ipv4: string
+  wg_ip: string
+  region: string
+  size: string
+  status: string
+  labels: string[]
+  group_id?: number
+  device_id?: number
+  access_user_ids?: number[]
+  created_at: string
+  enroll_token?: string
+}
+
+export interface ServerGroup {
+  id: number
+  name: string
+  description: string
+  created_at: string
+}
+
 export interface Project {
   slug: string
   name: string
@@ -698,6 +726,47 @@ export const api = {
     request<Project>(`/projects/${encodeURIComponent(slug)}/members`, {
       method: 'PUT',
       body: JSON.stringify({ members }),
+    }),
+
+  listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean }>('/servers'),
+  getServer: (id: number) => request<MeshServer>(`/servers/${id}`),
+  importServers: () => request<{ items: MeshServer[]; bitlaunch: boolean }>('/servers/import', { method: 'POST' }),
+  createServer: (body: {
+    name?: string
+    hostname: string
+    host_id: number
+    host_image_id: string
+    size_id: string
+    region_id: string
+    ssh_keys?: string[]
+    labels?: string[]
+    role?: MeshServerRole
+  }) => request<MeshServer>('/servers', { method: 'POST', body: JSON.stringify(body) }),
+  updateServer: (
+    id: number,
+    body: { name?: string; labels?: string[]; role?: MeshServerRole; group_id?: number },
+  ) => request<MeshServer>(`/servers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  destroyServer: (id: number) => request<void>(`/servers/${id}`, { method: 'DELETE' }),
+  rebuildServer: (id: number, hostImageId: string, imageDescription?: string) =>
+    request<MeshServer>(`/servers/${id}/rebuild`, {
+      method: 'POST',
+      body: JSON.stringify({ host_image_id: hostImageId, image_description: imageDescription }),
+    }),
+  setServerAccess: (id: number, userIds: number[]) =>
+    request<{ ok: boolean }>(`/servers/${id}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+  listServerGroups: () => request<{ items: ServerGroup[] }>('/server-groups'),
+  createServerGroup: (name: string, description?: string) =>
+    request<ServerGroup>('/server-groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+  setServerGroupAccess: (id: number, userIds: number[]) =>
+    request<{ ok: boolean; access_user_ids: number[] }>(`/server-groups/${id}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
     }),
 
   listSocialPeople: (params?: PageParams) =>

@@ -1178,10 +1178,10 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ## Fase 38 — Compute (BitLaunch)
 
-- [ ] Cliente BitLaunch; token só no VPS.
-- [ ] Importar o VPS atual (`206.189.224.72`); labels; `ServerGroup`; `ServerAccess`.
-- [ ] Create/destroy/rebuild; cloud-init + enroll WireGuard (chave no host novo).
-- [ ] A corp no apply dnsmasq. SSH novo preferir `wg0`.
+- [x] Cliente BitLaunch; token só no VPS.
+- [x] Importar o VPS atual (`206.189.224.72`); labels; `ServerGroup`; `ServerAccess`.
+- [x] Create/destroy/rebuild; cloud-init + enroll WireGuard (chave no host novo).
+- [x] A corp no apply dnsmasq. SSH novo preferir `wg0`.
 
 **Critério de saída:** criar um VPS no xadmin resulta em peer na `10.66.66.0/24` + nome `*.corp` resolvendo. Sem `10.10`/`10.136`.
 

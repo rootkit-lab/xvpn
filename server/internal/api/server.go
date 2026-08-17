@@ -87,6 +87,9 @@ type App struct {
 	// store content-addressed do marketplace, raiz distinta.
 	SocialMedia *marketplace.Store
 
+	// BitLaunch (Fase 38). Nil = sem token: só import do node local.
+	BitLaunch BitLaunchAPI
+
 	// fetchAsset baixa um asset por URL durante o sync (Fase 16). Nil =
 	// marketplace.FetchAndPut. Os testes injetam um fake sem rede.
 	fetchAsset func(context.Context, *marketplace.Store, string, string) (marketplace.PutResult, string, error)
@@ -214,6 +217,7 @@ func NewRouter(app *App) *gin.Engine {
 		apiGroup.GET("/auth/redeem", rateLimit(app.loginLimiter), app.handleRedeemHandoff)
 		apiGroup.POST("/auth/logout", app.handleLogout)
 		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
+		apiGroup.POST("/servers/enroll", rateLimit(app.enrollLimiter), app.handleMeshServerEnroll)
 		apiGroup.GET("/status", app.handleStatus)
 		// Escritas públicas: login, session (handoff SSO), enroll, waitlist.
 		// Qualquer superfície pública nova precisa de justificativa (AGENTS.md).
@@ -325,6 +329,9 @@ func NewRouter(app *App) *gin.Engine {
 			// que member precise pra navegar o catálogo) nem adminOnly
 			// (não escreve nada).
 			viewerUp.GET("/marketplace/stats", app.handleMarketplaceStats)
+			viewerUp.GET("/servers", app.handleListMeshServers)
+			viewerUp.GET("/servers/:id", app.handleGetMeshServer)
+			viewerUp.GET("/server-groups", app.handleListServerGroups)
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.
@@ -391,6 +398,20 @@ func NewRouter(app *App) *gin.Engine {
 				forgeWrite.POST("/projects", app.handleCreateProject)
 				forgeWrite.PATCH("/projects/:slug", app.handleUpdateProject)
 				forgeWrite.PUT("/projects/:slug/members", app.handleSetProjectMembers)
+			}
+
+			// Compute (Fase 38): malha BitLaunch. Token só no VPS.
+			computeWrite := adminOnly.Group("")
+			computeWrite.Use(auth.RequireProduct(store.ProductCompute))
+			{
+				computeWrite.POST("/servers/import", app.handleImportMeshServers)
+				computeWrite.POST("/servers", app.handleCreateMeshServer)
+				computeWrite.PATCH("/servers/:id", app.handleUpdateMeshServer)
+				computeWrite.DELETE("/servers/:id", app.handleDestroyMeshServer)
+				computeWrite.POST("/servers/:id/rebuild", app.handleRebuildMeshServer)
+				computeWrite.PUT("/servers/:id/access", app.handleSetServerAccess)
+				computeWrite.POST("/server-groups", app.handleCreateServerGroup)
+				computeWrite.PUT("/server-groups/:id/access", app.handleSetGroupAccess)
 			}
 		}
 

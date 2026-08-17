@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AuthProvider } from '@/lib/auth-context'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
 import {
   MARKETPLACE_ORIGIN,
@@ -45,9 +45,16 @@ const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ def
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
 const XGroupAdminPage = lazy(() => import('@/pages/xgroup-admin-page').then((m) => ({ default: m.XGroupAdminPage })))
-const ProjectsPage = lazy(() => import('@/pages/projects-page').then((m) => ({ default: m.ProjectsPage })))
-const ProjectDetailPage = lazy(() =>
-  import('@/pages/project-detail-page').then((m) => ({ default: m.ProjectDetailPage })),
+const XgitReposPage = lazy(() => import('@/pages/xgit-repos-page').then((m) => ({ default: m.XgitReposPage })))
+const XgitSettingsPage = lazy(() =>
+  import('@/pages/xgit-settings-page').then((m) => ({ default: m.XgitSettingsPage })),
+)
+const XgitRepoLayout = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoLayout })))
+const XgitCodePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCodePage })))
+const XgitMrsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMrsPage })))
+const XgitActionsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitActionsPage })))
+const XgitRepoSettingsPage = lazy(() =>
+  import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoSettingsPage })),
 )
 const MergeRequestPage = lazy(() =>
   import('@/pages/merge-request-page').then((m) => ({ default: m.MergeRequestPage })),
@@ -59,6 +66,10 @@ const ServerDetailPage = lazy(() =>
 )
 const ComputeSettingsPage = lazy(() =>
   import('@/pages/compute-settings-page').then((m) => ({ default: m.ComputeSettingsPage })),
+)
+const ServicesPage = lazy(() => import('@/pages/services-page').then((m) => ({ default: m.ServicesPage })))
+const ServiceDetailPage = lazy(() =>
+  import('@/pages/service-detail-page').then((m) => ({ default: m.ServiceDetailPage })),
 )
 const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
@@ -254,6 +265,20 @@ function CorpHubApp() {
   )
 }
 
+function ProjectToXgit() {
+  const { slug = '', iid, n } = useParams()
+  const { pathname } = useLocation()
+  if (iid) return <Navigate to={`/admin/xgit/${slug}/mrs/${iid}`} replace />
+  if (n && pathname.includes('/jobs/')) return <Navigate to={`/admin/xgit/${slug}/actions/${n}`} replace />
+  return <Navigate to={`/admin/xgit/${slug}`} replace />
+}
+
+function AdminIndex() {
+  const { user } = useAuth()
+  if (user?.role === 'member') return <Navigate to="/admin/xgit" replace />
+  return <DashboardPage />
+}
+
 function XAdminCorpApp() {
   return (
     <ChatHost>
@@ -262,34 +287,50 @@ function XAdminCorpApp() {
         <Route path="/login" element={<SSOLoginRedirect />} />
         <Route path="/admin/login" element={<SSOLoginRedirect />} />
 
-        <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+        <Route element={<ProtectedRoute />}>
           <Route path="/admin" element={<AdminShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="users/new" element={<UserCreatePage />} />
-            <Route path="users/:id" element={<UserDetailPage />} />
-            <Route path="rbac" element={<RbacPage />} />
-            <Route path="devices" element={<DevicesPage />} />
-            <Route path="shares" element={<SharesPage />} />
-            <Route path="waitlist" element={<WaitlistPage />} />
-            <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
-            <Route path="marketplace" element={<Navigate to="/admin/marketplace/catalog" replace />} />
-            <Route path="marketplace/catalog" element={<MarketplacePage variant="manage" section="catalog" />} />
-            <Route path="marketplace/acl" element={<MarketplacePage variant="manage" section="acl" />} />
-            <Route path="xgroup" element={<XGroupAdminPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="projects/:slug" element={<ProjectDetailPage />} />
-            <Route path="projects/:slug/mrs/:iid" element={<MergeRequestPage />} />
-            <Route path="projects/:slug/jobs/:n" element={<CiJobPage />} />
-            <Route path="servers" element={<ServersPage />} />
-            <Route path="servers/:id" element={<ServerDetailPage />} />
-            <Route path="compute/settings" element={<ComputeSettingsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="dns/settings" element={<DNSSettingsPage />} />
-            <Route path="dns/public/:id" element={<PublicDNSZonePage />} />
-            <Route path="dns/public" element={<PublicDNSPage />} />
-            <Route path="dns" element={<DNSPage />} />
-            <Route path="audit" element={<AuditPage />} />
+            <Route index element={<AdminIndex />} />
+            <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+              <Route path="users" element={<UsersPage />} />
+              <Route path="users/new" element={<UserCreatePage />} />
+              <Route path="users/:id" element={<UserDetailPage />} />
+              <Route path="rbac" element={<RbacPage />} />
+              <Route path="devices" element={<DevicesPage />} />
+              <Route path="shares" element={<SharesPage />} />
+              <Route path="waitlist" element={<WaitlistPage />} />
+              <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
+              <Route path="marketplace" element={<Navigate to="/admin/marketplace/catalog" replace />} />
+              <Route path="marketplace/catalog" element={<MarketplacePage variant="manage" section="catalog" />} />
+              <Route path="marketplace/acl" element={<MarketplacePage variant="manage" section="acl" />} />
+              <Route path="xgroup" element={<XGroupAdminPage />} />
+              <Route path="servers" element={<ServersPage />} />
+              <Route path="servers/:id" element={<ServerDetailPage />} />
+              <Route path="compute/settings" element={<ComputeSettingsPage />} />
+              <Route path="services" element={<ServicesPage />} />
+              <Route path="services/:slug" element={<ServiceDetailPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="dns/settings" element={<DNSSettingsPage />} />
+              <Route path="dns/public/:id" element={<PublicDNSZonePage />} />
+              <Route path="dns/public" element={<PublicDNSPage />} />
+              <Route path="dns" element={<DNSPage />} />
+              <Route path="audit" element={<AuditPage />} />
+            </Route>
+            <Route path="projects" element={<Navigate to="/admin/xgit" replace />} />
+            <Route path="projects/:slug" element={<ProjectToXgit />} />
+            <Route path="projects/:slug/mrs/:iid" element={<ProjectToXgit />} />
+            <Route path="projects/:slug/jobs/:n" element={<ProjectToXgit />} />
+            <Route path="xgit" element={<XgitReposPage />} />
+            <Route path="xgit/settings" element={<XgitSettingsPage />} />
+            <Route path="xgit/:slug" element={<XgitRepoLayout />}>
+              <Route index element={<XgitCodePage />} />
+              <Route path="tree/*" element={<XgitCodePage />} />
+              <Route path="blob/*" element={<XgitCodePage />} />
+              <Route path="mrs" element={<XgitMrsPage />} />
+              <Route path="mrs/:iid" element={<MergeRequestPage />} />
+              <Route path="actions" element={<XgitActionsPage />} />
+              <Route path="actions/:n" element={<CiJobPage />} />
+              <Route path="settings" element={<XgitRepoSettingsPage />} />
+            </Route>
           </Route>
         </Route>
 

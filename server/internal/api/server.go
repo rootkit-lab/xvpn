@@ -257,6 +257,13 @@ func NewRouter(app *App) *gin.Engine {
 			ci.POST("/jobs/:id/artifact", app.handleCiArtifact)
 		}
 
+		// Agent de serviços (Fase 43): só wg0. Token do MeshServer mesh/runner.
+		svcAgent := apiGroup.Group("/svc", app.RequireVPN())
+		{
+			svcAgent.GET("/desired", app.handleSvcDesired)
+			svcAgent.POST("/:id/status", app.handleSvcAgentStatus)
+		}
+
 		// authed: qualquer papel autenticado (inclusive member) — só
 		// identidade própria, sem telas de admin (ver PLAN.md §6.7,
 		// tabela de papéis: "member: sem telas de admin, portal
@@ -315,8 +322,13 @@ func NewRouter(app *App) *gin.Engine {
 			// Forge (Fase 37): listagem e detalhe para o picker do feed
 			// e o XDRIVER. Member só vê projetos em que participa.
 			authed.GET("/projects", app.handleListProjects)
+			authed.POST("/xgit/repos", app.handleCreateProjectAuthed)
 			authed.GET("/projects/:slug", app.handleGetProject)
 			authed.GET("/projects/:slug/git", app.handleGetProjectGit)
+			authed.GET("/projects/:slug/tree", app.handleListTree)
+			authed.GET("/projects/:slug/blob", app.handleGetBlob)
+			authed.GET("/projects/:slug/commits", app.handleListCommits)
+			authed.GET("/xgit/settings", app.handleGetForgeSettings)
 			authed.GET("/projects/:slug/branches", app.handleListProjectBranches)
 			authed.GET("/projects/:slug/merge-requests", app.handleListMergeRequests)
 			authed.POST("/projects/:slug/merge-requests", app.handleCreateMergeRequest)
@@ -328,6 +340,7 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/projects/:slug/jobs/:n/log", app.handleGetCiJobLog)
 			authed.GET("/projects/:slug/jobs/:n/artifact", app.handleGetCiJobArtifact)
 			authed.POST("/projects/:slug/jobs/:n/cancel", app.handleCancelCiJob)
+			authed.GET("/projects/:slug/services", app.handleListProjectServices)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())
@@ -366,6 +379,8 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/servers/:id", app.handleGetMeshServer)
 			viewerUp.GET("/server-groups", app.handleListServerGroups)
 			viewerUp.GET("/compute/settings", app.handleGetComputeSettings)
+			viewerUp.GET("/services", app.handleListServices)
+			viewerUp.GET("/services/:slug", app.handleGetService)
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.
@@ -437,6 +452,7 @@ func NewRouter(app *App) *gin.Engine {
 			{
 				forgeWrite.POST("/projects", app.handleCreateProject)
 				forgeWrite.PATCH("/projects/:slug", app.handleUpdateProject)
+				forgeWrite.PATCH("/xgit/settings", app.handleUpdateForgeSettings)
 				forgeWrite.PUT("/projects/:slug/members", app.handleSetProjectMembers)
 				forgeWrite.POST("/projects/:slug/git", app.handleInitProjectGit)
 				forgeWrite.PUT("/projects/:slug/protected-branches", app.handleSetProtectedBranches)
@@ -459,6 +475,18 @@ func NewRouter(app *App) *gin.Engine {
 				computeWrite.PATCH("/compute/settings/accounts/:id", app.handleUpdateBitLaunchAccount)
 				computeWrite.DELETE("/compute/settings/accounts/:id", app.handleDeleteBitLaunchAccount)
 				computeWrite.POST("/compute/settings/accounts/:id/topup", app.handleCreateBitLaunchTopUp)
+				computeWrite.POST("/servers/:id/agent-token", app.handleIssueAgentToken)
+			}
+
+			// Serviços gerenciados (Fase 43 — PLAN.md §6.18).
+			managedWrite := adminOnly.Group("")
+			managedWrite.Use(auth.RequireProduct(store.ProductManaged))
+			{
+				managedWrite.POST("/services", app.handleCreateService)
+				managedWrite.POST("/services/:slug/apply", app.handleApplyService)
+				managedWrite.POST("/services/:slug/stop", app.handleStopService)
+				managedWrite.POST("/services/:slug/rotate", app.handleRotateServiceSecret)
+				managedWrite.DELETE("/services/:slug", app.handleDeleteService)
 			}
 		}
 

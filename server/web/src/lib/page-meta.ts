@@ -134,11 +134,27 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/xgit/settings',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Configurações',
+      description: 'Visibility/network padrão, quem cria repositório e clone só em xgit.corp.',
+    },
+  },
+  {
+    prefix: '/admin/xgit',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Repositórios',
+      description: 'Forge GitLab-like: Code, MRs, Actions e Settings. Lista filtrada pela ACL do projeto.',
+    },
+  },
+  {
     prefix: '/admin/projects',
     meta: {
-      kicker: 'Forge',
-      title: 'Projetos',
-      description: 'Um slug, membros, git em xgit.corp, MRs e branches protegidas. Issues no XGROUP.',
+      kicker: 'XGIT',
+      title: 'Repositórios',
+      description: 'Redireciona para /admin/xgit. Um slug, membros, git em xgit.corp, MRs e branches protegidas.',
     },
   },
   {
@@ -147,6 +163,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
       kicker: 'Compute',
       title: 'Configurações',
       description: 'Contas BitLaunch (e-mail + API), saldo e recarga cripto. Token só no VPS.',
+    },
+  },
+  {
+    prefix: '/admin/services',
+    meta: {
+      kicker: 'Serviços',
+      title: 'Instâncias',
+      description: 'Mongo, Redis, Rabbit e LB no local ou na malha. Bind só wg0/loopback. Sem 27017 do control-plane.',
     },
   },
   {

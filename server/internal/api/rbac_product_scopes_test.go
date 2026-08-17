@@ -67,6 +67,26 @@ func TestAdminWithoutCoreScopeCannotPatchConfig(t *testing.T) {
 	}
 }
 
+func TestAdminWithoutManagedScopeCannotCreateService(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/services", createServiceRequest{Slug: "cache", Kind: "redis"}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin sem managed não deveria criar serviço, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithManagedScopeCanCreateService(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductManaged})
+	f.app.UserProvisioner = &fakeUserProvisioner{}
+	rec := doJSON(t, f.router, http.MethodPost, "/api/services", createServiceRequest{Slug: "cache", Kind: "redis", Host: "local", Bind: "wg0"}, f.token)
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("admin com managed foi barrado: %s", rec.Body.String())
+	}
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("esperado 201, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAdminWithoutDNSScopeCannotWriteDNS(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
 	rec := doJSON(t, f.router, http.MethodPatch, "/api/dns", updateDNSSettingsRequest{CacheSize: intPtr(200)}, f.token)

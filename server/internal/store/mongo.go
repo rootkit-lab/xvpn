@@ -31,7 +31,7 @@ func allModels() []any {
 	return []any{
 		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
-		&PanelSettings{},
+		&PanelSettings{}, &ForgeSettings{},
 		&DNSSettings{}, &DNSRecord{},
 		&CloudflareAccount{}, &PublicZone{}, &PublicRecord{},
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
@@ -40,6 +40,7 @@ func allModels() []any {
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
 		&Project{}, &ProjectMember{}, &ProtectedBranch{}, &MergeRequest{}, &CiJob{},
 		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
+		&ServiceInstance{},
 	}
 }
 

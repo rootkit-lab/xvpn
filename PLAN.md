@@ -253,7 +253,7 @@ Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também n
 | `PATCH /api/dns` / `POST /api/dns/records` / `POST /api/dns/apply` | Admin+ com escopo `core` (Fase 35+: `dns`). Apply recarrega dnsmasq via provisioner. Zona pública (§6.17) é outra API |
 
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
-Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **Projetos**, **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44.
+Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44.
 
 **Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS) — inclusive a landing `/`. Preto profundo, `watch-face`, cards `watch-complication`, `icon-well`, `field-glass`, Outfit, acento `--safe` / `power-safe`. Não há paleta navy/Workspace nem marketing paralela. Ver [§6.12](#612-design-system-e-color-system).
 
@@ -311,7 +311,7 @@ Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` s
 | Login | `/my/login` | mesmo JWE; entra autenticado | `/admin/login` |
 | Shell | `UserShell` / MyShell | `SocialShell` | `AdminShell` |
 | Destino pós-login | `member` → `/` (portal) | atalho no waffle | `viewer+` → `xadmin.corp` `/admin` |
-| Conteúdo | dispositivos, Marketplace, conta (senha/SSH). XDriver só no waffle se Samba/SFTP ativo | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | **Core VPN** · **Marketplace** (Catálogo ≠ ACL) · **Projetos** · **Compute** · **DNS** · **Serviços** · **XGroup** · **XDriver** · **IAM**. Navegação filtrada pelo escopo `products` |
+| Conteúdo | dispositivos, Marketplace, conta (senha/SSH). XDriver só no waffle se Samba/SFTP ativo | **rede social:** perfis, follow, grupos (páginas). Chat não é o produto — ver §6.11 | **Core VPN** · **Marketplace** (Catálogo ≠ ACL) · **XGIT** · **Compute** · **DNS** · **Serviços** · **XGroup** · **XDriver** · **IAM**. Navegação filtrada pelo escopo `products` |
 | Autosserviço | `GET/DELETE /api/me/devices`, `PUT /api/me/ssh-public-key`, `PATCH /api/me/password` | perfil social próprio | reset de senha de *outros* via `POST /api/users/:id/reset-password` |
 
 Páginas do membro (`/my`): em `xvpn.ihuull.com` o índice `/my` redireciona para o portal `/`; dispositivos ficam em `/my/devices`. Marketplace (catálogo — o cliente VPN também vive aqui; `/my/download` redireciona), conta (senha + chave SSH). XDriver (`/my/files`) não fica no nav — só no waffle de apps, e só se Samba ou SFTP estiver ligado. Perfil **social** editável vive em `https://xgroup.ihuull.com/<username>` (produto **xgroup**); `/social/u/:username` redireciona. Não mistura com SSH/cota. Chat autenticado: **contatos** no rail direito (lista RTL), **conversas abertas** em janelas no rodapé (estilo Facebook, sem overlay), gatilho na status bar do `SystemChrome` (Fase 20).
@@ -389,7 +389,7 @@ O share Samba `[home-<username>]` aponta para essa mesma subpasta `files/` — u
 
 **Provisionamento privilegiado — binário fixo, não sudoers genérico:** dar ao `xvpn-server` (hoje só `CAP_NET_ADMIN`) permissão irrestrita de `sudo useradd`/`passwd` seria uma porta de injeção de argumento (sudoers com wildcard casa string, não valida semântica). Em vez disso:
 
-- Binário Go dedicado e mínimo, `/opt/xvpn/bin/xvpn-user-provision`, com subcomandos fechados (`create <username>`, `enable-sftp <username>`, `enable-samba <username>`, `disable <username>`, `disable-sftp <username>`, `disable-samba <username>`, `dns-apply`) — os `disable-*` granulares existem porque os toggles SFTP/Samba do painel são independentes, e `disable` (ambos) é atalho pra "desliga tudo". `dns-apply` lê JSON no stdin e só escreve dnsmasq com bind `10.66.66.1`. Valida o username via regex (`^[a-z][a-z0-9_-]{2,31}$`) **antes** de qualquer chamada de sistema, nunca repassa string livre para `os/exec`/shell. A chave pública SSH em `enable-sftp` é lida do stdin (não de argumento) pra não vazar em `ps`/`/proc`.
+- Binário Go dedicado e mínimo, `/opt/xvpn/bin/xvpn-user-provision`, com subcomandos fechados (`create <username>`, `enable-sftp <username>`, `enable-samba <username>`, `disable <username>`, `disable-sftp <username>`, `disable-samba <username>`, `dns-apply`, `svc-apply`) — os `disable-*` granulares existem porque os toggles SFTP/Samba do painel são independentes, e `disable` (ambos) é atalho pra "desliga tudo". `dns-apply` lê JSON no stdin e só escreve dnsmasq com bind `10.66.66.1`. `svc-apply` (Fase 43) lê JSON e só faz bind em `127.0.0.1` ou `10.66.66.0/24`. Valida o username via regex (`^[a-z][a-z0-9_-]{2,31}$`) **antes** de qualquer chamada de sistema, nunca repassa string livre para `os/exec`/shell. A chave pública SSH em `enable-sftp` é lida do stdin (não de argumento) pra não vazar em `ps`/`/proc`.
 - `/etc/sudoers.d/xvpn-user-provision`: `xvpn ALL=(root) NOPASSWD: /opt/xvpn/bin/xvpn-user-provision` — caminho exato, **sem wildcard de argumento**. O binário decide internamente o que é seguro fazer.
 - `xvpn-server` chama esse binário via `os/exec` (nunca via `sh -c` com concatenação de string) quando o admin liga um toggle.
 
@@ -596,7 +596,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 
 **SSO: `xauth.ihuull.com` (mesmo processo).** Login central emite o JWE já existente (`aud` por app, issuer `https://xauth.ihuull.com`; `https://xvpn.ihuull.com` ainda é aceito na leitura). Cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax) cobre os públicos e também `*.corp.ihuull.com`. Depois do login o xauth faz POST `/api/auth/session` no host de destino (form, return allowlist) para plantar o cookie lá — senão o painel vê `/auth/me` 401 e devolve ao xauth. "Continuar como" no xauth navega para `GET /api/auth/handoff-continue` (só nesse host, só `Sec-Fetch-Dest: document`), que emite um ticket opaco de 60s e redireciona a `/api/auth/redeem` no destino — o JWE não vai no corpo nem no `localStorage`. Portais sem permissão recebem 403, não um segundo cadastro. Enroll WireGuard **continua** em `xvpn.ihuull.com`. Desktop: token só em memória, sem cookie. Sem processo/porta novos.
 
-**`/admin` (Fase 35+) mora só em `xadmin.corp.ihuull.com`.** A SPA monta `AdminShell` **apenas** nesse host. `xvpn.ihuull.com/admin` redireciona ao corp (enroll/portal continuam públicos). A SPA **não** monta admin em `xchat.corp`, `xgroup.corp`, `corp`, marketplace, xdriver nem nas landings — `/admin` nesses hosts também vai ao xadmin. Alias legado `vpn.ihuull.com` vira `xvpn.ihuull.com` no return do SSO. Não nascer `admin.marketplace` público. A UI se parte: Core, Marketplace (Catálogo ≠ ACL), Projetos, Compute, DNS, Serviços, XGroup, XDriver, IAM. Papéis ganham *escopo de produto* — um admin da loja não mexe em peers WireGuard. `super_admin` vê tudo. Operar o console **exige VPN**.
+**`/admin` (Fase 35+) mora só em `xadmin.corp.ihuull.com`.** A SPA monta `AdminShell` **apenas** nesse host. `xvpn.ihuull.com/admin` redireciona ao corp (enroll/portal continuam públicos). A SPA **não** monta admin em `xchat.corp`, `xgroup.corp`, `corp`, marketplace, xdriver nem nas landings — `/admin` nesses hosts também vai ao xadmin. Alias legado `vpn.ihuull.com` vira `xvpn.ihuull.com` no return do SSO. Não nascer `admin.marketplace` público. A UI se parte: Core, Marketplace (Catálogo ≠ ACL), XGIT, Compute, DNS, Serviços, XGroup, XDriver, IAM. Papéis ganham *escopo de produto* — um admin da loja não mexe em peers WireGuard. `super_admin` vê tudo. Operar o console **exige VPN**.
 
 **Mapa de hosts (o que está certo / o que falta):**
 
@@ -649,7 +649,7 @@ Sidebar (escopos entre parênteses):
 
 - Core VPN (`core`) — dashboard, devices, waitlist, gerais. DNS **sai** daqui.
 - Marketplace (`marketplace`) — **Catálogo** e **ACL** (duas rotas).
-- Projetos (`forge`) — §6.15.
+- XGIT (`forge`) — §6.15. Repositórios + configurações gerais. `member` só vê repos da ACL.
 - Compute (`compute`) — §6.16.
 - DNS (`dns`) — intranet (dnsmasq) + público (Route 53-like).
 - Serviços (`managed`) — §6.18.
@@ -678,11 +678,15 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
 
+**Console XGIT (Fase 43.1).** UI no xadmin em `/admin/xgit` (lista) e `/admin/xgit/:slug` (abas Code / Merge requests / Actions / Settings), no visual do GitHub. Configurações gerais em `/admin/xgit/settings` (`ForgeSettings`: visibility/network padrão, `allow_member_create`). Tree/blob/commits: `GET /api/projects/:slug/tree|blob|commits`. `member` autenticado no xadmin cai em `/admin/xgit` e só lista repos em que é `ProjectMember`. `/admin/projects*` redireciona. Sem GitLab CE.
+
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
-**Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/projects/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
+**Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/xgit/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
 
 **CI (Fase 42).** Push (receive-pack) e merge de MR enfileiram um `CiJob`. O agent `xvpn-runner` (binário separado, systemd no peer `role=runner`) reclama o job em `http://10.66.66.1:8080/api/ci/*` — só VPN (`RequireVPN`); Nginx público (127.0.0.1) cai. Token do runner gerado no detalhe do MeshServer, uma vez. Clone no agent com Basic `runner:<token>` (só fetch). Script: `.xvpn-ci.sh` no repo (senão `echo ok`). Log/artifact em `/opt/xvpn/data/projects/<slug>/ci/<n>/` (XDRIVER). Sem porta nova. Sem job no PID do `xvpn-server`.
+
+**Serviços gerenciados (Fase 43).** `ServiceInstance` no xadmin (`/admin/services`, produto `managed`). Local: `xvpn-user-provision svc-apply` (JSON stdin) instala pacote/unit com bind só `10.66.66.1` ou `127.0.0.1`. Malha: `xvpn-svc-agent` (root no peer `mesh`/`runner`) polla `GET /api/svc/desired` em `10.66.66.1:8080` — `RequireVPN` + token do host. DNS `svc-<slug>.corp.ihuull.com` no apply. Mongo gerenciado usa porta ≠ 27017. Redis/Rabbit **não** reabrem o hub do XCHAT (§6.11). LB só intranet (sem porta pública nova no §5). `deploy-xvpn-server` não instala o agent.
 
 ### 6.16 Compute (BitLaunch + malha XVPN)
 
@@ -713,15 +717,16 @@ O VPS `206.189.224.72` já está no BitLaunch. O xadmin lista, rotula e provisio
 
 ### 6.18 Serviços gerenciados (orquestrador)
 
-O xadmin **orquestra** bancos e filas no **node local** (este VPS) **e** nos servidores da malha. Não é o processo do banco: um agent no host alvo (SSH pela wg0 / cloud-init) instala pacote, unit, auth e bind.
+O xadmin **orquestra** bancos e filas no **node local** (este VPS) **e** nos servidores da malha. Não é o processo do banco: o apply privilegiado (`svc-apply`) ou o agent no host alvo instala pacote, unit, auth e bind. Sem SSH a partir do control-plane (§3).
 
 - Kinds iniciais: `mongo`, `redis`, `rabbitmq`, `lb`. Extensível (postgres, minio…).
 - `ServiceInstance`: kind, projeto dono, host (`local` ou peer), bind **só `wg0`** (ou `127.0.0.1` se o consumidor for o próprio host), DNS `svc-<slug>.corp.ihuull.com`.
-- Mongo do **control-plane** (`127.0.0.1:27017`) é outra instância — a UI de serviços não o edita nem o publica.
+- Local: `sudo xvpn-user-provision svc-apply` (mesmo sudoers da Fase 13). Malha: `xvpn-svc-agent` + token em Compute → detalhe do peer (`role=mesh` ou `runner`).
+- Mongo do **control-plane** (`127.0.0.1:27017`) é outra instância — a UI de serviços não o edita nem o publica. Gerenciado default `27018`.
 - **Redis/Rabbit gerenciados ≠ hub do XCHAT.** §6.11 rejeitou broker para o messenger (hub in-process). Isso **não reabre**. Estes serviços são para *outros* projetos (cache, fila, dados).
-- Sem 27017 / 6379 / 5672 na `eth0` / ufw público.
-- LB: Nginx/HAProxy gerado; porta pública nova só com linha no §5.
-- Depende de Compute (qual host) + DNS intranet (nome).
+- Sem 27017 / 6379 / 5672 na `eth0` / ufw público. Bind validado: só `127.0.0.1` ou `10.66.66.0/24`.
+- LB: Nginx isolado na unit `xvpn-svc-<slug>`; porta pública nova só com linha no §5.
+- Depende de Compute (qual host) + DNS intranet (nome). Senha só na criação/rotação (nunca no GET).
 
 ### 6.19 Backups externos (Settings)
 

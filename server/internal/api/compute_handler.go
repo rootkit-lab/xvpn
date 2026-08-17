@@ -55,6 +55,7 @@ type meshServerResponse struct {
 	Notes          string    `json:"notes"`
 	Protected      bool      `json:"protected"`
 	HasRunnerToken bool      `json:"has_runner_token"`
+	HasAgentToken  bool      `json:"has_agent_token"`
 	CreatedAt      time.Time `json:"created_at"`
 	EnrollToken    string    `json:"enroll_token,omitempty"`
 }
@@ -112,7 +113,7 @@ func (a *App) meshServerJSON(s store.MeshServer, includeToken bool) meshServerRe
 		Role: s.Role, IPv4: s.IPv4, WgIP: s.WgIP, Region: s.Region, Size: s.Size,
 		Status: s.Status, Labels: labels, GroupID: s.GroupID, DeviceID: s.DeviceID,
 		AccountID: s.AccountID, Notes: s.Notes, Protected: meshProtected(s),
-		HasRunnerToken: s.RunnerTokenHash != "", CreatedAt: s.CreatedAt,
+		HasRunnerToken: s.RunnerTokenHash != "", HasAgentToken: s.AgentTokenHash != "", CreatedAt: s.CreatedAt,
 	}
 	if includeToken && s.EnrollToken != "" {
 		out.EnrollToken = s.EnrollToken

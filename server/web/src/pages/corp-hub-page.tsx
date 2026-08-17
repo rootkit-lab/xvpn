@@ -5,7 +5,6 @@ import {
   XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
-  XGIT_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
 } from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
@@ -45,9 +44,9 @@ const APPS = [
     icon: LayoutDashboard,
   },
   {
-    href: XGIT_CORP_ORIGIN,
+    href: `${XADMIN_CORP_ORIGIN}/admin/xgit`,
     label: 'XGIT',
-    description: 'Git smart HTTP',
+    description: 'Repositórios',
     icon: GitBranch,
   },
 ] as const

@@ -53,6 +53,9 @@ func (f *fakeUserProvisioner) SetQuota(_ context.Context, username string, quota
 func (f *fakeUserProvisioner) ApplyDNS(_ context.Context, payload string) error {
 	return f.record("ApplyDNS(" + payload + ")")
 }
+func (f *fakeUserProvisioner) ApplySvc(_ context.Context, payload string) error {
+	return f.record("ApplySvc(" + payload + ")")
+}
 
 // withProvisioner retorna um App de teste com o provisioner fake injetado.
 // Reuso do newTestApp existente, só sobrescrevendo o campo novo.

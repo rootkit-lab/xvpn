@@ -28,8 +28,12 @@ describe('documentTitle', () => {
   it('página admin e portal', () => {
     expect(documentTitle({ hostname: 'xvpn.ihuull.com', pathname: '/admin/users' })).toBe('Usuários · XVPN')
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/users' })).toBe('Usuários · XADMIN')
-    expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/projects' })).toBe('Projetos · XADMIN')
+    expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/xgit' })).toBe('Repositórios · XADMIN')
+    expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/xgit/settings' })).toBe(
+      'Configurações · XADMIN',
+    )
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/servers' })).toBe('Servidores · XADMIN')
+    expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/services' })).toBe('Instâncias · XADMIN')
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/compute/settings' })).toBe(
       'Configurações · XADMIN',
     )

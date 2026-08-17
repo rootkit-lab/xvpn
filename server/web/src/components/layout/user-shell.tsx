@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Laptop, Store } from 'lucide-react'
-import { MARKETPLACE_ORIGIN } from '@/lib/product-host'
+import { GitBranch, Home, Laptop, Store } from 'lucide-react'
+import { MARKETPLACE_ORIGIN, XADMIN_CORP_ORIGIN } from '@/lib/product-host'
 import { cn } from '@/lib/utils'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
@@ -19,6 +19,10 @@ export function UserShell() {
             <Laptop className="size-4" />
             Dispositivos
           </NavLink>
+          <a href={`${XADMIN_CORP_ORIGIN}/admin/xgit`} className="nav-link">
+            <GitBranch className="size-4" />
+            XGIT
+          </a>
           <a href={MARKETPLACE_ORIGIN} className="nav-link" target="_blank" rel="noreferrer">
             <Store className="size-4" />
             Marketplace

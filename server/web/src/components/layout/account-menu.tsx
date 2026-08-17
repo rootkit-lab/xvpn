@@ -2,7 +2,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { LogOut, Settings2, UserRound } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
-import { PANEL_ORIGIN, XGROUP_CORP_ORIGIN, productKind, ssoLogoutURL } from '@/lib/product-host'
+import { PANEL_ORIGIN, productKind, ssoLogoutURL } from '@/lib/product-host'
+import { profileLocation } from '@/lib/social-profile'
 import { Badge } from '@/components/ui/badge'
 import {
   DropdownMenu,
@@ -22,8 +23,7 @@ export function AccountMenu({ variant: _variant }: { variant: 'user' | 'admin' |
 
   const kind = productKind()
   const onPanel = kind === 'xvpn'
-  const onGroup = kind === 'xgroup-corp'
-  const profilePath = `/social/u/${user.username}`
+  const profile = profileLocation(user.username)
   const accountPath = '/my/account'
 
   return (
@@ -37,16 +37,16 @@ export function AccountMenu({ variant: _variant }: { variant: 'user' | 'admin' |
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Conta</DropdownMenuLabel>
         <DropdownMenuItem asChild>
-          {onGroup || onPanel ? (
-            <Link to={profilePath}>
-              <UserRound className="size-4" />
-              Perfil social
-            </Link>
-          ) : (
-            <a href={`${XGROUP_CORP_ORIGIN}${profilePath}`}>
+          {profile.external ? (
+            <a href={profile.href}>
               <UserRound className="size-4" />
               Perfil social
             </a>
+          ) : (
+            <Link to={profile.href}>
+              <UserRound className="size-4" />
+              Perfil social
+            </Link>
           )}
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

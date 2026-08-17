@@ -56,7 +56,7 @@ export function SocialGroupsPage() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,20rem)_1fr]">
+    <div className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)]">
       <div className="flex flex-col gap-4">
         <form className="flex flex-col gap-2" onSubmit={createGroup}>
           <Label htmlFor="group-name">Novo grupo</Label>

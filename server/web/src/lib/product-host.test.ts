@@ -40,6 +40,7 @@ describe('productKind', () => {
     expect(isStoreHost('xvpn.ihuull.com')).toBe(false)
     expect(isStoreHost('xgroup.ihuull.com')).toBe(false)
     expect(isProductAppHost('xchat.corp.ihuull.com')).toBe(true)
+    expect(isProductAppHost('xgroup.ihuull.com')).toBe(true)
     expect(isProductAppHost('xgroup.corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('xvpn.ihuull.com')).toBe(false)

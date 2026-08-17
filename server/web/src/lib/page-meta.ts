@@ -1,3 +1,5 @@
+import { profileUsernameFromPath } from '@/lib/social-profile'
+
 export type PageMeta = {
   kicker: string
   title: string
@@ -238,7 +240,11 @@ function matchMeta(pathname: string, table: { prefix: string; exact?: boolean; m
   return null
 }
 
-export function pageMetaForPath(pathname: string): PageMeta {
+export function pageMetaForPath(pathname: string, hostname?: string): PageMeta {
+  const profile = profileUsernameFromPath(pathname, hostname)
+  if (profile) {
+    return { kicker: 'XGROUP', title: profile, description: 'Página do membro no XGROUP.' }
+  }
   if (pathname.startsWith('/admin')) {
     return (
       matchMeta(pathname, ADMIN_PAGES) ?? {

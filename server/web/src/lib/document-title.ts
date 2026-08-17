@@ -1,6 +1,7 @@
 import { PRODUCT_META } from '@xvpn/ui/react/products'
 import { headerProduct } from '@/lib/product-host'
 import { pageMetaForPath } from '@/lib/page-meta'
+import { profileUsernameFromPath } from '@/lib/social-profile'
 
 export function titleBrand(hostname: string, pathname: string): string {
   return PRODUCT_META[headerProduct(hostname, pathname)].label
@@ -32,7 +33,7 @@ export function titlePage(opts: {
   if (path === '/login' || path === '/my/login' || path === '/admin/login') {
     return 'Entrar'
   }
-  const profile = lastPathSegment(path, /\/(?:social|xgroup)\/u\/([^/]+)/)
+  const profile = profileUsernameFromPath(path, opts.hostname)
   if (profile) return profile
   const app = lastPathSegment(path, /^\/app\/([^/]+)/)
   if (app) return app

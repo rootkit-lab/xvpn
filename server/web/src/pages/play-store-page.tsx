@@ -79,7 +79,7 @@ export function PlayStoreHome() {
   const featured = filtered[0]
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-6 md:px-8">
+    <div className="flex w-full min-w-0 flex-col gap-8 px-4 py-6 md:px-8">
       <PlayStoreSearch q={q} onQ={setQ} />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -112,7 +112,7 @@ export function PlayStoreHome() {
           ) : (
             <section>
               <h2 className="font-display mb-4 text-lg font-semibold">Recomendados para você</h2>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
                 {filtered.map((app) => (
                   <AppTile key={app.id} app={app} />
                 ))}
@@ -180,7 +180,7 @@ export function PlayStoreDetail() {
 
   if (loading || !apps) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="w-full px-4 py-8 md:px-8">
         <Skeleton className="h-40 w-full rounded-[22px]" />
       </div>
     )
@@ -192,7 +192,7 @@ export function PlayStoreDetail() {
 
   if (!app) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-8">
+      <div className="w-full px-4 py-8 md:px-8">
         <EmptyState title="App não encontrado." />
         <div className="mt-4 text-center">
           <Link to="/" className="text-sm underline underline-offset-4">
@@ -206,7 +206,7 @@ export function PlayStoreDetail() {
   const version = latestVersion(app)
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 md:px-8">
+    <div className="flex w-full min-w-0 flex-col gap-6 px-4 py-6 md:px-8">
       <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" />
         Loja

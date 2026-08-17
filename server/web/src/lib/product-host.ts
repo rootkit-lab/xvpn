@@ -109,6 +109,7 @@ export function isProductAppHost(hostname = window.location.hostname): boolean {
     kind === 'marketplace' ||
     kind === 'xdriver-corp' ||
     kind === 'xchat-corp' ||
+    kind === 'xgroup' ||
     kind === 'xgroup-corp' ||
     kind === 'corp'
   )

@@ -79,7 +79,7 @@ export function XvpnProductPortal() {
         }
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-4 py-10 md:px-8">
+      <main className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-8 px-4 py-10 md:px-8">
         <section className="flex flex-col gap-3">
           <p className="hud-label text-muted-foreground/70">Portal</p>
           <h1 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
@@ -156,7 +156,7 @@ export function XvpnProductPortal() {
 
         <section>
           <h2 className="hud-label mb-3 text-muted-foreground/70">Atalhos</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {isAuthenticated && (
               <Link to="/my/devices" className="watch-complication-lift watch-complication block rounded-[18px] p-4">
                 <Laptop className="mb-3 size-5 text-muted-foreground" />

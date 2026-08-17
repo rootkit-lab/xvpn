@@ -66,6 +66,22 @@ Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` 
 
 Qualquer outro `Host` → 404. `xdriver.ihuull.com` não serve estas rotas.
 
+## Forge git (`xgit.corp.ihuull.com` apenas)
+
+Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
+
+| Método | Path | Auth | Notas |
+|---|---|---|---|
+| GET | `/:slug/info/refs?service=git-upload-pack` | Basic (usuário + JWE) ou Bearer | clone/fetch |
+| POST | `/:slug/git-upload-pack` | idem | |
+| GET | `/:slug/info/refs?service=git-receive-pack` | idem | push: developer+; branch protegida = maintainer+ |
+| POST | `/:slug/git-receive-pack` | idem | |
+| GET | `/api/projects/:slug/git` | sessão | `clone_url`, `exists`, `protected_branches` |
+| POST | `/api/projects/:slug/git` | admin + `forge` | cria o bare se faltar |
+| PUT | `/api/projects/:slug/protected-branches` | admin + `forge` | substitui a lista |
+
+Outro `Host` nas rotas smart HTTP → 404.
+
 ## Marketplace (`marketplace.ihuull.com`)
 
 | Método | Path | Auth |

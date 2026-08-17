@@ -90,7 +90,7 @@ function CreateProjectForm({ onCreated }: { onCreated: () => void }) {
       <CardHeader>
         <CardTitle className="text-base">Novo projeto</CardTitle>
         <CardDescription>
-          Um slug, um grupo no XGROUP. Sem git nesta fase — membros e regras ficam aqui.
+          Um slug, um grupo no XGROUP e um bare em xgit.corp. Membros e regras ficam no detalhe.
         </CardDescription>
       </CardHeader>
       <CardContent>

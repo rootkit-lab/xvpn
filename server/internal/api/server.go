@@ -306,6 +306,7 @@ func NewRouter(app *App) *gin.Engine {
 			// e o XDRIVER. Member só vê projetos em que participa.
 			authed.GET("/projects", app.handleListProjects)
 			authed.GET("/projects/:slug", app.handleGetProject)
+			authed.GET("/projects/:slug/git", app.handleGetProjectGit)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())
@@ -409,13 +410,15 @@ func NewRouter(app *App) *gin.Engine {
 				marketWrite.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
 			}
 
-			// Forge (Fase 37): projeto, regras e membros. Git é Fase 40.
+			// Forge (Fase 37+40): projeto, membros, bare repo e protected branches.
 			forgeWrite := adminOnly.Group("")
 			forgeWrite.Use(auth.RequireProduct(store.ProductForge))
 			{
 				forgeWrite.POST("/projects", app.handleCreateProject)
 				forgeWrite.PATCH("/projects/:slug", app.handleUpdateProject)
 				forgeWrite.PUT("/projects/:slug/members", app.handleSetProjectMembers)
+				forgeWrite.POST("/projects/:slug/git", app.handleInitProjectGit)
+				forgeWrite.PUT("/projects/:slug/protected-branches", app.handleSetProtectedBranches)
 			}
 
 			// Compute (Fase 38): malha BitLaunch. Token só no VPS.
@@ -449,6 +452,15 @@ func NewRouter(app *App) *gin.Engine {
 		if app.Config != nil && app.Config.XbotToken != "" {
 			apiGroup.POST("/hooks/chat/broadcast", app.handleHooksChatBroadcast)
 		}
+	}
+
+	// Smart HTTP (Fase 40): só xgit.corp. Fora da VPN o Nginx recusa.
+	git := r.Group("")
+	git.Use(app.RequireGitHost())
+	{
+		git.GET("/:slug/info/refs", app.handleGitSmartHTTP)
+		git.POST("/:slug/git-upload-pack", app.handleGitSmartHTTP)
+		git.POST("/:slug/git-receive-pack", app.handleGitSmartHTTP)
 	}
 
 	registerWebUI(r)

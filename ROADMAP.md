@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–38.2** em produção. **Fase 39** (DNS do stack: zonas + NS + visão interna) nesta branch. **Próximo:** Fase 40 — Git smart HTTP. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–39** em produção. **Fase 40** (Git smart HTTP em `xgit.corp`) nesta branch. **Próximo:** Fase 41 — Merge requests. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1219,9 +1219,9 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ## Fase 40 — Git smart HTTP
 
-- [ ] Repos bare em `/opt/xvpn/data/git/<slug>.git`.
-- [ ] Smart HTTP em `xgit.corp` (JWE). Sem `git://` público. Sem shell SSH.
-- [ ] Protected branches no modelo do projeto.
+- [x] Repos bare em `/opt/xvpn/data/git/<slug>.git` (`XVPN_GIT_DIR`). Create do projeto inicia o bare.
+- [x] Smart HTTP em `xgit.corp` (`git-http-backend`, JWE via Basic/Bearer). Sem `git://` público. Sem shell SSH. Nginx só `10.66.66.1:443`.
+- [x] Protected branches no modelo do projeto (`main`/`master` no create; UI no detalhe).
 
 **Critério de saída:** `git clone https://xgit.corp.ihuull.com/<slug>` com VPN + JWE; fora da VPN falha.
 

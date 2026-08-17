@@ -568,6 +568,17 @@ export interface Project {
   updated_at: string
 }
 
+export interface ProtectedBranch {
+  pattern: string
+  min_push_role: ProjectRole
+}
+
+export interface ProjectGit {
+  clone_url: string
+  exists: boolean
+  protected_branches: ProtectedBranch[]
+}
+
 export interface DriverEntry {
   name: string
   path: string
@@ -805,6 +816,14 @@ export const api = {
     request<Project>(`/projects/${encodeURIComponent(slug)}/members`, {
       method: 'PUT',
       body: JSON.stringify({ members }),
+    }),
+  getProjectGit: (slug: string) => request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`),
+  initProjectGit: (slug: string) =>
+    request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`, { method: 'POST' }),
+  setProtectedBranches: (slug: string, branches: ProtectedBranch[]) =>
+    request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/protected-branches`, {
+      method: 'PUT',
+      body: JSON.stringify({ branches }),
     }),
 
   listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),

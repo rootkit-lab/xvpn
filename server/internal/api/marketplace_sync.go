@@ -314,6 +314,10 @@ func (a *App) syncOneMarketplaceApp(ctx context.Context, in marketplaceSyncAppIn
 		}
 	}
 
+	if err := a.ensureProjectForApp(app); err != nil {
+		return "", err
+	}
+
 	if created {
 		return "created", nil
 	}

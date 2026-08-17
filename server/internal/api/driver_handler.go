@@ -38,6 +38,7 @@ func (a *App) RequireDriverHost() gin.HandlerFunc {
 func (a *App) driverRoots() driver.Roots {
 	shared := "/srv/xvpn/shared"
 	home := "/home"
+	projects := ""
 	if a.Config != nil {
 		if a.Config.DriverSharedDir != "" {
 			shared = a.Config.DriverSharedDir
@@ -45,11 +46,30 @@ func (a *App) driverRoots() driver.Roots {
 		if a.Config.DriverHomeRoot != "" {
 			home = a.Config.DriverHomeRoot
 		}
+		projects = a.Config.DriverProjectsDir
 	}
-	return driver.Roots{SharedDir: shared, HomeRoot: home}
+	return driver.Roots{SharedDir: shared, HomeRoot: home, ProjectsDir: projects}
+}
+
+func parseDriverProjectRoot(root, slugHint string) (ok bool, slug string) {
+	root = strings.TrimSpace(root)
+	if strings.HasPrefix(root, "project:") {
+		return true, strings.TrimPrefix(root, "project:")
+	}
+	if root == "project" {
+		return true, strings.TrimSpace(slugHint)
+	}
+	return false, ""
 }
 
 func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string) (full, base string, ok bool) {
+	return a.driverResolveSlug(c, user, root, rel, c.Query("slug"))
+}
+
+func (a *App) driverResolveSlug(c *gin.Context, user store.User, root, rel, slugHint string) (full, base string, ok bool) {
+	if isProject, slug := parseDriverProjectRoot(root, slugHint); isProject {
+		return a.driverResolveProject(c, user, slug, rel)
+	}
 	if root == "home" && !user.SambaEnabled && !user.SFTPEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Meu Drive desligado nesta conta"})
 		return "", "", false
@@ -61,6 +81,38 @@ func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string) (
 		return "", "", false
 	}
 	base, err = roots.Resolve(user.Username, root, "")
+	if err != nil || driver.RejectSymlinks(base, full) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return "", "", false
+	}
+	return full, base, true
+}
+
+func (a *App) driverResolveProject(c *gin.Context, user store.User, slug, rel string) (full, base string, ok bool) {
+	if !store.ValidProjectSlug(slug) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return "", "", false
+	}
+	var proj store.Project
+	if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
+		return "", "", false
+	}
+	if !proj.FilesEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"error": "arquivos deste projeto estão desligados"})
+		return "", "", false
+	}
+	if !a.canSeeProject(user, proj) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
+		return "", "", false
+	}
+	roots := a.driverRoots()
+	full, err := roots.ResolveProject(slug, rel)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return "", "", false
+	}
+	base, err = roots.ResolveProject(slug, "")
 	if err != nil || driver.RejectSymlinks(base, full) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return "", "", false

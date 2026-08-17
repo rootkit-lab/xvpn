@@ -1167,10 +1167,10 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ## Fase 37 — Projeto + regras + membros
 
-- [ ] 1 projeto por `App.Slug` (ou metadado sem manifesto).
-- [ ] `ProjectMember` (guest/reporter/developer/maintainer/owner) + regras (visibility/network/runners).
-- [ ] Issues/activity no XGROUP (grupo por slug). Sem segundo social.
-- [ ] Share `project-<slug>` no XDRIVER quando o projeto precisar de wiki/arquivos. Sem FileBrowser.
+- [x] 1 projeto por `App.Slug` (ou metadado sem manifesto).
+- [x] `ProjectMember` (guest/reporter/developer/maintainer/owner) + regras (visibility/network/runners).
+- [x] Issues/activity no XGROUP (grupo por slug). Sem segundo social.
+- [x] Share `project-<slug>` no XDRIVER quando o projeto precisar de wiki/arquivos. Sem FileBrowser.
 
 **Critério de saída:** um slug tem membros e regras no xadmin; post no XGROUP liga ao projeto. Sem git ainda.
 

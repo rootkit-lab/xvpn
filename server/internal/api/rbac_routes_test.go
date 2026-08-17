@@ -153,6 +153,12 @@ var rbacRouteCases = []rbacRouteCase{
 
 	{"set-marketplace-app-access", http.MethodPut, "/api/marketplace/apps/{marketApp}/access", setMarketplaceAppAccessRequest{}, "adminOnly"},
 
+	{"list-projects", http.MethodGet, "/api/projects", nil, "any"},
+	{"get-project", http.MethodGet, "/api/projects/missing", nil, "any"},
+	{"create-project", http.MethodPost, "/api/projects", createProjectRequest{Slug: "rbac-proj", Name: "RBAC"}, "adminOnly"},
+	{"update-project", http.MethodPatch, "/api/projects/missing", updateProjectRequest{}, "adminOnly"},
+	{"set-project-members", http.MethodPut, "/api/projects/missing/members", setProjectMembersRequest{Members: []projectMemberIn{{UserID: 1, Role: store.ProjectRoleOwner}}}, "adminOnly"},
+
 	{"social-people", http.MethodGet, "/api/social/people", nil, "any"},
 	{"social-profile-me", http.MethodGet, "/api/social/profile", nil, "any"},
 	{"social-profile-patch", http.MethodPatch, "/api/social/profile", patchSocialProfileRequest{DisplayName: strPtr("Caller")}, "any"},

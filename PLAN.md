@@ -203,6 +203,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | ~~FileBrowser / :8081~~ | **retirado** | XDriver nativo no `xvpn-server`. Porta 8081 livre — não reusar sem linha nova |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via `127.0.0.1:8080` em `marketplace.ihuull.com` (e xadmin) | Sem porta nova. JWE. Nunca anônimo na internet |
 | Forge (git bare) | Disco `/opt/xvpn/data/git/` · smart HTTP em `xgit.corp` | Só VPN. Sem `git://` público. Fase 40 |
+| Forge (arquivos de projeto) | Disco `/opt/xvpn/data/projects/<slug>` · XDRIVER `root=project:<slug>` | Só VPN. Sem FileBrowser. Samba `[project-*]` fica para depois. Fase 37 |
 | Serviços gerenciados | Mongo/Redis/Rabbit/LB no host alvo · bind **só `wg0`** (ou `127.0.0.1` se local-only) | xadmin orquestra (§6.18). **Não** é o Mongo `127.0.0.1:27017` do control-plane. Sem 6379/5672/27017 na `eth0` |
 | WebSocket xchat | `wss://xchat.corp.ihuull.com/api/ws` → `127.0.0.1:8080` | Upgrade **só** neste path. Auth no primeiro frame. App desktop não abre listener |
 | Mídia do chat | Disco `/opt/xvpn/data/social/` · `POST /api/social/attachments` | Location Nginx `40m`. WebRTC P2P; sem TURN/porta |
@@ -675,7 +676,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Pages | Nginx gerado + blob; hostname `*.corp` ou A público via §6.17 |
 | Container / npm / pypi, snippets, SAST, feature flags | Fases 45+ |
 
-Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox.
+Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
 
 ### 6.16 Compute (BitLaunch + malha XVPN)
 

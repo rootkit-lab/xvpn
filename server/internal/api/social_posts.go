@@ -24,25 +24,29 @@ type socialPostOriginal struct {
 }
 
 type socialPostResponse struct {
-	ID          uint                `json:"id"`
-	AuthorID    uint                `json:"author_id"`
-	Username    string              `json:"username"`
-	DisplayName string              `json:"display_name"`
-	AvatarURL   string              `json:"avatar_url"`
-	Body        string              `json:"body"`
-	Kind        string              `json:"kind"`
-	Presence    string              `json:"presence"`
-	Starred     bool                `json:"starred"`
-	Stars       int64               `json:"stars"`
-	Comments    int64               `json:"comments"`
-	Reposts     int64               `json:"reposts"`
-	Reposted    bool                `json:"reposted"`
-	Original    *socialPostOriginal `json:"original,omitempty"`
-	CreatedAt   time.Time           `json:"created_at"`
+	ID            uint                `json:"id"`
+	AuthorID      uint                `json:"author_id"`
+	Username      string              `json:"username"`
+	DisplayName   string              `json:"display_name"`
+	AvatarURL     string              `json:"avatar_url"`
+	Body          string              `json:"body"`
+	Kind          string              `json:"kind"`
+	Presence      string              `json:"presence"`
+	Starred       bool                `json:"starred"`
+	Stars         int64               `json:"stars"`
+	Comments      int64               `json:"comments"`
+	Reposts       int64               `json:"reposts"`
+	Reposted      bool                `json:"reposted"`
+	Original      *socialPostOriginal `json:"original,omitempty"`
+	ProjectSlug   *string             `json:"project_slug,omitempty"`
+	ProjectName   string              `json:"project_name,omitempty"`
+	SocialGroupID uint                `json:"social_group_id,omitempty"`
+	CreatedAt     time.Time           `json:"created_at"`
 }
 
 type createPostRequest struct {
-	Body string `json:"body"`
+	Body        string  `json:"body"`
+	ProjectSlug *string `json:"project_slug"`
 }
 
 func postKind(p store.SocialPost) string {
@@ -91,6 +95,23 @@ func (a *App) handleSocialCreatePost(c *gin.Context) {
 		return
 	}
 	post := store.SocialPost{AuthorID: user.ID, Body: body, Kind: "text"}
+	if req.ProjectSlug != nil {
+		slug := strings.ToLower(strings.TrimSpace(*req.ProjectSlug))
+		if slug == "" {
+			req.ProjectSlug = nil
+		} else {
+			var proj store.Project
+			if err := a.Store.DB.Where("slug = ? AND archived_at IS NULL", slug).First(&proj).Error; err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "projeto inválido"})
+				return
+			}
+			if !a.canSeeProject(user, proj) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "projeto inválido"})
+				return
+			}
+			post.ProjectSlug = &slug
+		}
+	}
 	if err := a.Store.DB.Create(&post).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -202,6 +223,7 @@ func (a *App) hydratePosts(posts []store.SocialPost, viewer uint) []socialPostRe
 	starred := a.viewerPostSet(&store.SocialPostStar{}, engageIDs, viewer)
 	reposted := a.viewerRepostSet(engageIDs, viewer)
 	originals := a.loadOriginals(origIDs)
+	projects := a.loadProjectsBySlug(posts)
 
 	for _, post := range posts {
 		var user store.User
@@ -228,6 +250,13 @@ func (a *App) hydratePosts(posts []store.SocialPost, viewer uint) []socialPostRe
 		if post.OriginalID != nil {
 			if orig, ok := originals[*post.OriginalID]; ok {
 				item.Original = &orig
+			}
+		}
+		if post.ProjectSlug != nil {
+			if proj, ok := projects[*post.ProjectSlug]; ok {
+				item.ProjectSlug = post.ProjectSlug
+				item.ProjectName = proj.Name
+				item.SocialGroupID = proj.SocialGroupID
 			}
 		}
 		out = append(out, item)
@@ -317,6 +346,32 @@ func (a *App) loadOriginals(ids []uint) map[uint]socialPostOriginal {
 			ID: p.ID, Username: user.Username, DisplayName: name,
 			AvatarURL: prof.AvatarURL, Body: p.Body, CreatedAt: p.CreatedAt,
 		}
+	}
+	return out
+}
+
+func (a *App) loadProjectsBySlug(posts []store.SocialPost) map[string]store.Project {
+	out := map[string]store.Project{}
+	slugs := make([]string, 0)
+	seen := map[string]struct{}{}
+	for _, p := range posts {
+		if p.ProjectSlug == nil {
+			continue
+		}
+		s := *p.ProjectSlug
+		if _, ok := seen[s]; ok {
+			continue
+		}
+		seen[s] = struct{}{}
+		slugs = append(slugs, s)
+	}
+	if len(slugs) == 0 {
+		return out
+	}
+	var rows []store.Project
+	_ = a.Store.DB.Where("slug IN ?", slugs).Find(&rows).Error
+	for _, row := range rows {
+		out[row.Slug] = row
 	}
 	return out
 }

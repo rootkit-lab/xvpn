@@ -35,7 +35,7 @@ export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
   marketplace: 'ACL da loja (quem vê app restrito).',
   xgroup: 'Operação da rede social.',
   xdriver: 'Shares Samba, SFTP e cota de disco.',
-  forge: 'Repositórios git e merge requests (Fases 40–41).',
+  forge: 'Projetos, membros e regras. Git e MR nas Fases 40–41.',
   compute: 'VPS da malha e labels (Fase 38).',
   dns: 'Zona corp (dnsmasq) e DNS público (Fase 39).',
   managed: 'Mongo, Redis, Rabbit e LB na malha (Fase 43).',
@@ -78,6 +78,7 @@ export const ROLE_CAPABILITIES: RoleCapability[] = [
   { id: 'admin-write', label: 'Criar usuários, convites e resetar senhas', roles: ['super_admin', 'admin'] },
   { id: 'file-access', label: 'Ligar SFTP/Samba e cota (escopo xdriver)', roles: ['super_admin', 'admin'] },
   { id: 'marketplace-acl', label: 'Gerenciar ACL da loja (escopo marketplace)', roles: ['super_admin', 'admin'] },
+  { id: 'forge-write', label: 'Criar projetos e membros (escopo forge)', roles: ['super_admin', 'admin'] },
   { id: 'product-scope', label: 'Restringir admin a products: [core, marketplace, xgroup, xdriver, forge, compute, dns, managed]', roles: ['super_admin', 'admin'] },
   { id: 'super', label: 'Promover ou rebaixar super admin', roles: ['super_admin'] },
 ]

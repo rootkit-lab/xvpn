@@ -22,8 +22,9 @@ var (
 )
 
 type Roots struct {
-	SharedDir string
-	HomeRoot  string
+	SharedDir   string
+	HomeRoot    string
+	ProjectsDir string
 }
 
 type Entry struct {
@@ -64,6 +65,42 @@ func (r Roots) Resolve(username, root, rel string) (string, error) {
 	if root == "home" {
 		base = filepath.Clean(filepath.Join(r.HomeRoot, username, "files"))
 	}
+	full := filepath.Clean(filepath.Join(base, rel))
+	if full != base && !strings.HasPrefix(full, base+string(os.PathSeparator)) {
+		return "", ErrBadPath
+	}
+	return full, nil
+}
+
+func validProjectSlug(slug string) bool {
+	if len(slug) < 2 || len(slug) > 20 {
+		return false
+	}
+	if slug[0] == '-' || slug[len(slug)-1] == '-' {
+		return false
+	}
+	for i := 0; i < len(slug); i++ {
+		c := slug[i]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// ResolveProject devolve o path absoluto em ProjectsDir/<slug>/<rel>.
+// Não mistura com home/shared — root "project" não passa por Resolve.
+func (r Roots) ResolveProject(slug, rel string) (string, error) {
+	if r.ProjectsDir == "" || !validProjectSlug(slug) {
+		return "", ErrBadRoot
+	}
+	rel = strings.TrimSpace(strings.ReplaceAll(rel, "\\", "/"))
+	rel = strings.TrimPrefix(rel, "/")
+	if strings.Contains(rel, "..") {
+		return "", ErrBadPath
+	}
+	base := filepath.Clean(filepath.Join(r.ProjectsDir, slug))
 	full := filepath.Clean(filepath.Join(base, rel))
 	if full != base && !strings.HasPrefix(full, base+string(os.PathSeparator)) {
 		return "", ErrBadPath

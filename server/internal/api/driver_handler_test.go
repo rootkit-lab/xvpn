@@ -65,6 +65,38 @@ func TestDriverListRequiresCorpHost(t *testing.T) {
 	}
 }
 
+func TestDriverProjectRootRequiresMembership(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Config.DriverSharedDir = t.TempDir()
+	app.Config.DriverHomeRoot = t.TempDir()
+	app.Config.DriverProjectsDir = t.TempDir()
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	createTestUserWithRole(t, app, "bob", "senha-bob-okxx", store.RoleMember)
+	router := NewRouter(app)
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-okxx")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{
+		Slug: "xchat", Name: "XCHAT", FilesEnabled: true,
+	}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create project: %d %s", rec.Code, rec.Body.String())
+	}
+	if err := os.WriteFile(filepath.Join(app.Config.DriverProjectsDir, "xchat", "readme.md"), []byte("wiki"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xchat", nil, bobTok, "xdriver.corp.ihuull.com")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("não-membro deveria 404, veio %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xchat", nil, adminTok, "xdriver.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("owner/admin: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDriverRejectsEmptyDelete(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Config.DriverSharedDir = t.TempDir()

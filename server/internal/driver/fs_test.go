@@ -29,6 +29,28 @@ func TestResolveRejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestResolveProjectRejectsTraversal(t *testing.T) {
+	dir := t.TempDir()
+	r := Roots{ProjectsDir: filepath.Join(dir, "projects")}
+	if err := os.MkdirAll(filepath.Join(r.ProjectsDir, "xchat"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.ResolveProject("xchat", "../etc/passwd"); err != ErrBadPath {
+		t.Fatalf("esperava ErrBadPath, veio %v", err)
+	}
+	if _, err := r.Resolve("alice", "project", "xchat"); err != ErrBadRoot {
+		t.Fatalf("Resolve home/shared não aceita project, veio %v", err)
+	}
+	got, err := r.ResolveProject("xchat", "wiki/a.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(r.ProjectsDir, "xchat", "wiki", "a.md")
+	if got != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}
+
 func TestChownShare_RejectsBadUser(t *testing.T) {
 	if err := ChownShare("/tmp", "home", "../root"); err != ErrBadUser {
 		t.Fatalf("esperava ErrBadUser, veio %v", err)

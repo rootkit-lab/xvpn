@@ -88,6 +88,11 @@ export function PostCard({ post, onChanged }: { post: SocialPost; onChanged?: ()
                 <span className="text-xs text-muted-foreground">· {formatRelativeTime(post.created_at)}</span>
               </div>
               <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed">{post.body}</p>
+              {post.project_slug && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Projeto <span className="font-medium text-foreground/80">{post.project_name || post.project_slug}</span>
+                </p>
+              )}
             </>
           )}
 

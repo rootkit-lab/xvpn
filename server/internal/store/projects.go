@@ -66,6 +66,21 @@ type ProjectMember struct {
 	User User `gorm:"foreignKey:UserID"`
 }
 
+// ProtectedBranch impede push direto (Fase 40). Merge via MR é Fase 41.
+type ProtectedBranch struct {
+	ID          uint        `gorm:"primaryKey"`
+	ProjectID   uint        `gorm:"uniqueIndex:idx_project_protected;not null"`
+	Pattern     string      `gorm:"uniqueIndex:idx_project_protected;not null"`
+	MinPushRole ProjectRole `gorm:"not null;default:maintainer"`
+	CreatedAt   time.Time
+}
+
+// DefaultProtectedBranches são as regras criadas com o projeto.
+var DefaultProtectedBranches = []ProtectedBranch{
+	{Pattern: "main", MinPushRole: ProjectRoleMaintainer},
+	{Pattern: "master", MinPushRole: ProjectRoleMaintainer},
+}
+
 // ValidProjectSlug aceita [a-z0-9][a-z0-9-]{0,18}[a-z0-9] (2–20), sem
 // hífen nas pontas — a mesma chave de App.Slug no catálogo.
 func ValidProjectSlug(s string) bool {

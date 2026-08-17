@@ -163,6 +163,9 @@ var rbacRouteCases = []rbacRouteCase{
 	{"create-project", http.MethodPost, "/api/projects", createProjectRequest{Slug: "rbac-proj", Name: "RBAC"}, "adminOnly"},
 	{"update-project", http.MethodPatch, "/api/projects/missing", updateProjectRequest{}, "adminOnly"},
 	{"set-project-members", http.MethodPut, "/api/projects/missing/members", setProjectMembersRequest{Members: []projectMemberIn{{UserID: 1, Role: store.ProjectRoleOwner}}}, "adminOnly"},
+	{"get-project-git", http.MethodGet, "/api/projects/missing/git", nil, "any"},
+	{"init-project-git", http.MethodPost, "/api/projects/missing/git", nil, "adminOnly"},
+	{"set-protected-branches", http.MethodPut, "/api/projects/missing/protected-branches", setProtectedBranchesRequest{Branches: []protectedBranchJSON{{Pattern: "main", MinPushRole: store.ProjectRoleMaintainer}}}, "adminOnly"},
 
 	{"list-servers", http.MethodGet, "/api/servers", nil, "viewerUp"},
 	{"get-server", http.MethodGet, "/api/servers/1", nil, "viewerUp"},

@@ -670,13 +670,15 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Wiki, LFS, artifacts, job logs | XDRIVER share `project-<slug>` (só VPN) |
 | Releases / deb-exe-apk | Marketplace (`AppVersion` / `AppAsset`) |
 | Audit | IAM `/admin/audit` |
-| Git | `internal/forge`: bare em `/opt/xvpn/data/git/<slug>.git`; smart HTTP só em `xgit.corp`. Sem `git://` público. Sem shell SSH (Fase 13 rejeitou bash na 22). Push por SSH, se um dia, só `git-shell` + `Match User git` |
-| MR + protected branches | Modelo no Mongo; UI no xadmin |
+| Git | `internal/forge`: bare em `/opt/xvpn/data/git/<slug>.git`; smart HTTP só em `xgit.corp` (`git-http-backend`). Auth: Basic (usuário + JWE) ou Bearer. Sem `git://` público. Sem shell SSH (Fase 13 rejeitou bash na 22). Push por SSH, se um dia, só `git-shell` + `Match User git` |
+| Protected branches | Modelo `ProtectedBranch` no projeto (`main`/`master` no create). Developer faz push; maintainer+ em branch protegida. MR (Fase 41) é o caminho de merge |
 | CI/CD | Pipeline no xadmin; **runners** = peers WG com label `runner` (não no PID do `xvpn-server`). Artifacts → XDRIVER |
 | Pages | Nginx gerado + blob; hostname `*.corp` ou A público via §6.17 |
 | Container / npm / pypi, snippets, SAST, feature flags | Fases 45+ |
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
+
+**Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI não manda cookie: a senha HTTP é o JWE da sessão (`username` + token). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
 ### 6.16 Compute (BitLaunch + malha XVPN)
 

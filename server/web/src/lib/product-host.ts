@@ -13,6 +13,7 @@ export const XCHAT_CORP_ORIGIN = 'https://xchat.corp.ihuull.com'
 export const XCHAT_ORIGIN = 'https://xchat.ihuull.com'
 export const CORP_ORIGIN = 'https://corp.ihuull.com'
 export const XAUTH_ORIGIN = 'https://xauth.ihuull.com'
+export const XGIT_CORP_ORIGIN = 'https://xgit.corp.ihuull.com'
 
 export type ProductKind =
   | 'marketplace'
@@ -25,6 +26,7 @@ export type ProductKind =
   | 'corp'
   | 'xvpn'
   | 'xadmin-corp'
+  | 'xgit-corp'
   | 'xauth'
   | 'core'
 
@@ -71,6 +73,7 @@ export function productKind(hostname = window.location.hostname): ProductKind {
   if (host === 'xchat.ihuull.com' || host === 'xchat.localhost') return 'xchat'
   if (host === 'corp.ihuull.com' || host === 'corp.localhost') return 'corp'
   if (host === 'xadmin.corp.ihuull.com' || host === 'xadmin.corp.localhost') return 'xadmin-corp'
+  if (host === 'xgit.corp.ihuull.com' || host === 'xgit.corp.localhost') return 'xgit-corp'
   if (host === 'xvpn.ihuull.com' || host === 'xvpn.localhost' || host === 'localhost' || host === '127.0.0.1') {
     return 'xvpn'
   }
@@ -88,7 +91,7 @@ export function headerProduct(
   if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'
   if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
   if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
-  if (kind === 'xadmin-corp') return 'xadmin'
+  if (kind === 'xadmin-corp' || kind === 'xgit-corp') return 'xadmin'
   if (kind === 'corp') return 'xvpn'
   const host = hostname.toLowerCase()
   if (

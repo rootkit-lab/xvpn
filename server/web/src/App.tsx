@@ -87,6 +87,7 @@ const XChatPublicLanding = lazy(() =>
   import('@/pages/xchat-landing-page').then((m) => ({ default: m.XChatPublicLanding })),
 )
 const CorpHubPage = lazy(() => import('@/pages/corp-hub-page').then((m) => ({ default: m.CorpHubPage })))
+const XGitLandingPage = lazy(() => import('@/pages/xgit-landing-page').then((m) => ({ default: m.XGitLandingPage })))
 
 function XAuthApp() {
   return (
@@ -220,6 +221,18 @@ function XGroupCorpApp() {
         <Route path="*" element={<Navigate to="/social" replace />} />
       </Routes>
     </ChatHost>
+  )
+}
+
+function XGitCorpApp() {
+  return (
+    <Routes>
+      <Route path="/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
+      <Route index element={<XGitLandingPage />} />
+      <Route path="*" element={<XGitLandingPage />} />
+    </Routes>
   )
 }
 
@@ -368,6 +381,8 @@ export default function App() {
               <CorpHubApp />
             ) : kind === 'xadmin-corp' ? (
               <XAdminCorpApp />
+            ) : kind === 'xgit-corp' ? (
+              <XGitCorpApp />
             ) : kind === 'xvpn' ? (
               <PanelApp />
             ) : (

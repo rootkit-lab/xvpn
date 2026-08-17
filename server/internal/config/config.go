@@ -126,6 +126,10 @@ type Config struct {
 	// sem Samba [project-*] nesta fase; só o Drive web em xdriver.corp.
 	DriverProjectsDir string
 
+	// GitDir é a raiz dos bare repos do forge (Fase 40 —
+	// /opt/xvpn/data/git/<slug>.git). Smart HTTP só em xgit.corp.
+	GitDir string
+
 	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Se o banco estiver
 	// vazio, semeia a primeira BitLaunchAccount. O caminho normal é
 	// Compute → Configurações (várias contas). Vazio e sem contas =
@@ -182,6 +186,7 @@ func Load() (*Config, error) {
 		DriverSharedDir:         getEnv("XVPN_DRIVER_SHARED_DIR", "/srv/xvpn/shared"),
 		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
 		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
+		GitDir:                  getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
 		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
 		CloudflareToken:         os.Getenv("XVPN_CLOUDFLARE_TOKEN"),
 	}

@@ -1,10 +1,11 @@
-import { ExternalLink, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
+import { ExternalLink, GitBranch, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import {
   PANEL_ORIGIN,
   XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
+  XGIT_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
 } from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
@@ -42,6 +43,12 @@ const APPS = [
     label: 'XADMIN',
     description: 'Console',
     icon: LayoutDashboard,
+  },
+  {
+    href: XGIT_CORP_ORIGIN,
+    label: 'XGIT',
+    description: 'Git smart HTTP',
+    icon: GitBranch,
   },
 ] as const
 

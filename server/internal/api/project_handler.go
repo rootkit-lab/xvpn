@@ -395,6 +395,8 @@ func (a *App) createProject(ownerID uint, slug, name, desc string, vis store.App
 	if files {
 		_ = a.ensureProjectFilesDir(slug)
 	}
+	a.ensureDefaultProtected(proj.ID)
+	_ = a.ensureGitRepo(slug)
 	return proj, nil
 }
 

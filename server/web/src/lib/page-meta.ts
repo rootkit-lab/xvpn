@@ -138,7 +138,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Forge',
       title: 'Projetos',
-      description: 'Um slug, membros e regras. Issues e activity no XGROUP. Sem git nesta fase.',
+      description: 'Um slug, membros, git em xgit.corp e branches protegidas. Issues no XGROUP.',
     },
   },
   {

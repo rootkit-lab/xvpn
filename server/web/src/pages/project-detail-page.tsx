@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { api, ApiError, type Project, type ProjectRole, type User } from '@/lib/api'
+import { api, ApiError, getToken, type Project, type ProjectRole, type User } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
@@ -48,6 +48,7 @@ export function ProjectDetailPage() {
       </p>
 
       {canWrite ? <RulesForm project={data} onSaved={reload} /> : <RulesRead project={data} />}
+      <GitCard slug={data.slug} username={user?.username ?? ''} canWrite={canWrite} />
       {canWrite ? <MembersForm project={data} onSaved={reload} /> : <MembersRead project={data} />}
     </div>
   )
@@ -292,6 +293,139 @@ function MembersForm({ project, onSaved }: { project: Project; onSaved: () => vo
             {busy ? 'Salvando…' : 'Salvar membros'}
           </Button>
         </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function GitCard({ slug, username, canWrite }: { slug: string; username: string; canWrite: boolean }) {
+  const fetchGit = useCallback(() => api.getProjectGit(slug), [slug])
+  const { data, loading, error, reload } = usePollingData(fetchGit, 20_000)
+  const [pattern, setPattern] = useState('main')
+  const [busy, setBusy] = useState(false)
+
+  async function initRepo() {
+    setBusy(true)
+    try {
+      await api.initProjectGit(slug)
+      toast.success('Repositório criado')
+      reload()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao criar o repo')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copyClone() {
+    if (!data) return
+    const token = getToken()
+    const url =
+      username && token
+        ? data.clone_url.replace('https://', `https://${encodeURIComponent(username)}@`)
+        : data.clone_url
+    const cmd = `git clone ${url}`
+    try {
+      await navigator.clipboard.writeText(cmd)
+      toast.success(token ? 'Comando copiado — a senha é o JWE da sessão' : 'URL copiada')
+    } catch {
+      toast.error('Não foi possível copiar')
+    }
+  }
+
+  async function addProtected(e: FormEvent) {
+    e.preventDefault()
+    if (!data) return
+    const next = pattern.trim()
+    if (!next) return
+    setBusy(true)
+    try {
+      await api.setProtectedBranches(slug, [...data.protected_branches, { pattern: next, min_push_role: 'maintainer' }])
+      setPattern('')
+      toast.success('Branch protegida')
+      reload()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao proteger')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeProtected(patternName: string) {
+    if (!data) return
+    setBusy(true)
+    try {
+      await api.setProtectedBranches(
+        slug,
+        data.protected_branches.filter((b) => b.pattern !== patternName),
+      )
+      toast.success('Proteção removida')
+      reload()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao remover')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading || !data) {
+    return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-32 w-full" />
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Git</CardTitle>
+        <CardDescription>
+          Clone só em <code className="font-mono text-xs">xgit.corp</code> com VPN. Senha HTTP = JWE. Guest/reporter
+          leem; developer faz push; maintainer em branch protegida.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="font-mono text-xs">{data.clone_url}</code>
+          <Badge variant={data.exists ? 'secondary' : 'outline'}>{data.exists ? 'bare ok' : 'sem repo'}</Badge>
+          <Button type="button" variant="outline" size="sm" onClick={() => void copyClone()}>
+            Copiar clone
+          </Button>
+          {canWrite && !data.exists ? (
+            <Button type="button" size="sm" disabled={busy} onClick={() => void initRepo()}>
+              {busy ? 'Criando…' : 'Criar repositório'}
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium">Branches protegidas</p>
+          {(data.protected_branches ?? []).map((b) => (
+            <div key={b.pattern} className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-mono text-xs">
+                {b.pattern}{' '}
+                <span className="text-muted-foreground">({b.min_push_role}+)</span>
+              </span>
+              {canWrite ? (
+                <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => void removeProtected(b.pattern)}>
+                  Remover
+                </Button>
+              ) : null}
+            </div>
+          ))}
+          {canWrite ? (
+            <form onSubmit={addProtected} className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="protect">Padrão</Label>
+                <Input
+                  id="protect"
+                  value={pattern}
+                  onChange={(e) => setPattern(e.target.value)}
+                  placeholder="release/*"
+                />
+              </div>
+              <Button type="submit" disabled={busy}>
+                Proteger
+              </Button>
+            </form>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   )

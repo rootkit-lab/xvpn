@@ -35,7 +35,7 @@ export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
   marketplace: 'ACL da loja (quem vê app restrito).',
   xgroup: 'Operação da rede social.',
   xdriver: 'Shares Samba, SFTP e cota de disco.',
-  forge: 'Projetos, membros e regras. Git e MR nas Fases 40–41.',
+  forge: 'Projetos, membros, git em xgit.corp e branches protegidas.',
   compute: 'VPS da malha, contas BitLaunch, saldo e console (Fase 38).',
   dns: 'Zona corp (dnsmasq) e DNS público (Fase 39).',
   managed: 'Mongo, Redis, Rabbit e LB na malha (Fase 43).',

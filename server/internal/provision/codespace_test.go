@@ -48,7 +48,8 @@ func (f *fakeCsRunner) RemoveAll(string) error { return nil }
 func (f *fakeCsRunner) FileExists(string) (bool, error) {
 	return false, nil
 }
-func (f *fakeCsRunner) ReadFile(string) ([]byte, error) { return nil, os.ErrNotExist }
+func (f *fakeCsRunner) ReadFile(string) ([]byte, error)       { return nil, os.ErrNotExist }
+func (f *fakeCsRunner) ChownRecursive(string, int, int) error { return nil }
 
 func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 	root := t.TempDir()
@@ -110,6 +111,9 @@ func TestDockerRunArgs_NoSocketOrPrivileged(t *testing.T) {
 	}
 	if strings.Contains(joined, "without-connection-token") {
 		t.Fatalf("IDE na loopback precisa de connection token: %s", joined)
+	}
+	if !strings.Contains(joined, "--entrypoint "+openvscodeServerBin) {
+		t.Fatalf("entrypoint da imagem conflita com o token: %s", joined)
 	}
 	if !strings.Contains(joined, "--connection-token tokentokentoken1") {
 		t.Fatalf("connection token ausente: %s", joined)

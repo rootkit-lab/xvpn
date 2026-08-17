@@ -62,6 +62,7 @@ type CsRunner interface {
 	RemoveAll(path string) error
 	FileExists(path string) (bool, error)
 	ReadFile(path string) ([]byte, error)
+	ChownRecursive(path string, uid, gid int) error
 }
 
 type osCsRunner struct{}
@@ -117,6 +118,15 @@ func (osCsRunner) FileExists(path string) (bool, error) {
 }
 
 func (osCsRunner) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
+func (osCsRunner) ChownRecursive(path string, uid, gid int) error {
+	return filepath.WalkDir(path, func(p string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Chown(p, uid, gid)
+	})
+}
 
 // ParseCsSpec valida o JSON antes de qualquer syscall.
 func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
@@ -318,6 +328,9 @@ func csCreate(r CsRunner, spec CsSpec) error {
 			spec.Image = img
 		}
 	}
+	if err := r.ChownRecursive(spec.Workspace, 1000, 1000); err != nil {
+		return err
+	}
 	args := dockerRunArgs(spec)
 	return r.Docker(args...)
 }
@@ -335,9 +348,11 @@ func csWriteGitCreds(r CsRunner, spec CsSpec) error {
 	return nil
 }
 
+const openvscodeServerBin = "/home/.openvscode-server/bin/openvscode-server"
+
 func dockerRunArgs(spec CsSpec) []string {
 	name := containerName(spec.ID)
-	return []string{
+	args := []string{
 		"run", "-d",
 		"--name", name,
 		"--memory", codespaceMem,
@@ -349,10 +364,16 @@ func dockerRunArgs(spec CsSpec) []string {
 		"-p", "127.0.0.1:" + strconv.Itoa(int(spec.Port)) + ":3000",
 		"-v", spec.Workspace + ":/home/workspace:rw",
 		"--label", "xvpn.codespace=" + spec.ID,
-		spec.Image,
+	}
+	if strings.HasPrefix(spec.Image, "gitpod/openvscode-server") {
+		// A imagem injeta --without-connection-token no ENTRYPOINT.
+		args = append(args, "--entrypoint", openvscodeServerBin)
+	}
+	args = append(args, spec.Image,
 		"--host", "0.0.0.0",
 		"--port", "3000",
 		"--connection-token", spec.ConnectionToken,
 		"--default-folder", "/home/workspace",
-	}
+	)
+	return args
 }

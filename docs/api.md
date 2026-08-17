@@ -1,8 +1,8 @@
 # API do xvpn-server
 
-Issuer SSO: `https://xauth.ihuull.com` (leitura ainda aceita o issuer legado `https://xvpn.ihuull.com`). Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`). JWT HMAC é rejeitado.
+Issuer SSO: `https://xauth.ihuull.com` (leitura ainda aceita o issuer legado `https://xvpn.ihuull.com`). Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`, `xadmin`). JWT HMAC é rejeitado.
 
-Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Login web: `https://xauth.ihuull.com`. Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` operação). Loja: `https://marketplace.ihuull.com`. Drive: `https://xdriver.corp.ihuull.com` (só VPN; `xdriver.ihuull.com` não serve). Marketing xgroup: `https://xgroup.ihuull.com` (landing + perfil `/:user` com JWE; sem WS). App: `https://xgroup.corp.ihuull.com`.
+Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Login web: `https://xauth.ihuull.com`. Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` → xadmin). Console: `https://xadmin.corp.ihuull.com` (só VPN; Fases 35+). Loja: `https://marketplace.ihuull.com` — schema em [`marketplace.md`](./marketplace.md). Drive: `https://xdriver.corp.ihuull.com` (só VPN; `xdriver.ihuull.com` não serve). Marketing xgroup: `https://xgroup.ihuull.com` (landing + perfil `/:user` com JWE; sem WS). App: `https://xgroup.corp.ihuull.com`.
 
 Auth no browser: cookie `ihuull_session` (`Domain=.ihuull.com`, Secure, HttpOnly, SameSite=Lax), emitido só em `xauth.ihuull.com`. Desktop: `Authorization: Bearer <token>` em memória, sem cookie. Nunca na query do WebSocket.
 
@@ -27,7 +27,7 @@ Auth no browser: cookie `ihuull_session` (`Domain=.ihuull.com`, Secure, HttpOnly
 
 CRUD em `/api/users`, convite, reset de senha, file-access, devices — `viewer+` lê, `admin+` escreve. Ver `PLAN.md` §6.7.
 
-`User.products` (`core` \| `marketplace` \| `xgroup` \| `xdriver`): escopo de um `admin`. Lista vazia = irrestrito. `super_admin` ignora. Escritas de produto exigem o id na lista (`PUT /marketplace/apps/:id/access` → `marketplace`; `DELETE /devices/:id` e waitlist/config → `core`; file-access → `xdriver`). IAM (users/roles) não é produto.
+`User.products` (`core` \| `marketplace` \| `xgroup` \| `xdriver` \| `forge` \| `compute` \| `dns` \| `managed`): escopo de um `admin` (Fase 35+). Lista vazia = irrestrito. `super_admin` ignora. Escritas de produto exigem o id na lista (`PUT /marketplace/apps/:id/access` → `marketplace`; `DELETE /devices/:id` e waitlist/config → `core`; file-access → `xdriver`). IAM (users/roles) não é produto.
 
 ## xchat / xgroup (`/api/social/*`)
 
@@ -76,7 +76,7 @@ Qualquer outro `Host` → 404. `xdriver.ihuull.com` não serve estas rotas.
 
 `visibility` (quem, ACL) ≠ `network` (onde). App `network: vpn` não lista nem baixa em `marketplace.ihuull.com` sem túnel; aparece quando o peer está na VPN (`10.66.66.0/24`). Host `*.corp` sozinho não basta. `network: public` aparece na loja pública com JWE (nunca anônimo).
 
-ACL admin: `PUT /api/marketplace/apps/:id/access` no painel (`xvpn.ihuull.com/admin/marketplace`), só com escopo `marketplace` (ou admin irrestrito / `super_admin`).
+ACL admin: `PUT /api/marketplace/apps/:id/access` no xadmin (tela **ACL**, não a vitrine), só com escopo `marketplace` (ou admin irrestrito / `super_admin`). Catálogo e ACL são telas distintas (`PLAN.md` §6.8, [`marketplace.md`](./marketplace.md)).
 
 ## Hooks (xbot)
 

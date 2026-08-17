@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–32) em código. **Fase 33** (próxima) — chrome/SSO/admin por produto, monólito modular (`PLAN.md` §6.13). Painel: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Próximo:** Fases 35–45 — xadmin intranet, catálogo≠ACL, forge, compute, DNS público, serviços orquestrados, backups (`PLAN.md` §6.14–§6.19). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1121,6 +1121,144 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 
 ---
 
+## Ciclo xadmin (Fases 35–45)
+
+Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §6.14–§6.19. Matriz GitLab → stack ihuull (não instalar GitLab CE):
+
+| Feature GitLab | Onde | Fase |
+|---|---|---|
+| SSO / membros | xauth + IAM + `ProjectMember` | 35, 37 |
+| Issues / boards / activity | XGROUP (grupo por slug) | 37 |
+| Review ao vivo | XCHAT (thread por MR) | 41 |
+| Wiki / LFS / artifacts | XDRIVER `project-<slug>` | 37, 42 |
+| Releases deb/exe | Marketplace | 16 (já), 36 |
+| Git | `xgit.corp` smart HTTP | 40 |
+| MR + protected branches | xadmin + Mongo | 40–41 |
+| CI runners | peers WG `runner` | 42 |
+| Registry / pages / SAST | backlog | 45+ |
+
+---
+
+## Fase 35 — xadmin na intranet
+
+Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com` **não** mudam. Decisão: `PLAN.md` §6.14 (inverte a “fonte única pública” da Fase 33).
+
+- [ ] Registrar `xadmin.corp` e `xgit.corp` em `PLAN.md` §5.2 (já nesta PR de docs) + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Skill `port-domain-registry-check`.
+- [ ] JWE `aud=xadmin`; login via `xauth.ihuull.com`; cookie `.ihuull.com`.
+- [ ] `AdminShell` só nesse host. `xvpn.ihuull.com/admin` e `/admin` nos outros hosts → redirect ao xadmin.
+- [ ] Marca XADMIN / Console em `shared/ui` (mark + `products.ts`).
+- [ ] Escopos `forge` / `compute` / `dns` / `managed` no RBAC (flags; UI das seções nas fases seguintes).
+- [ ] DNS intranet sai do grupo Core e vai para o grupo DNS (mesmo handler).
+
+**Critério de saída:** sem VPN, `xadmin.corp` não resolve na internet; com túnel, `viewer+` abre o console; `xvpn.ihuull.com/` e enroll continuam públicos.
+
+---
+
+## Fase 36 — Marketplace: catálogo ≠ ACL + kinds
+
+- [ ] Nav: **Catálogo** e **ACL** (duas rotas). Backend já separa sync vs `PUT .../access`.
+- [ ] `marketplace.yaml`: campo `kind` (`desktop|web|service|library|infra|docs|container`). Validador CI + [`docs/marketplace.md`](./docs/marketplace.md).
+- [ ] Loja pública lista só `desktop`/`web` com `network: public`.
+- [ ] Sem inventário de `/home/wiz/Projects` no servidor/PLAN. Projeto nasce no xadmin quando existir.
+
+**Critério de saída:** admin da loja gerencia ACL sem misturar com a vitrine; manifesto sem `kind` reprova o CI.
+
+---
+
+## Fase 37 — Projeto + regras + membros
+
+- [ ] 1 projeto por `App.Slug` (ou metadado sem manifesto).
+- [ ] `ProjectMember` (guest/reporter/developer/maintainer/owner) + regras (visibility/network/runners).
+- [ ] Issues/activity no XGROUP (grupo por slug). Sem segundo social.
+- [ ] Share `project-<slug>` no XDRIVER quando o projeto precisar de wiki/arquivos. Sem FileBrowser.
+
+**Critério de saída:** um slug tem membros e regras no xadmin; post no XGROUP liga ao projeto. Sem git ainda.
+
+---
+
+## Fase 38 — Compute (BitLaunch)
+
+- [ ] Cliente BitLaunch; token só no VPS.
+- [ ] Importar o VPS atual (`206.189.224.72`); labels; `ServerGroup`; `ServerAccess`.
+- [ ] Create/destroy/rebuild; cloud-init + enroll WireGuard (chave no host novo).
+- [ ] A corp no apply dnsmasq. SSH novo preferir `wg0`.
+
+**Critério de saída:** criar um VPS no xadmin resulta em peer na `10.66.66.0/24` + nome `*.corp` resolvendo. Sem `10.10`/`10.136`.
+
+---
+
+## Fase 39 — DNS público (Route 53-like)
+
+- [ ] UI zonas `ihuull.com` / `ihuu.com`. Adapter `DNSProvider` = Cloudflare v1.
+- [ ] Recursor nos hosts da malha (`*.corp` → `10.66.66.1`). Sem `:53` na `eth0` do node de controle.
+- [ ] `ldpops.appapisip.com` fora. Runbook Cloudflare = fallback.
+
+**Critério de saída:** criar um A no xadmin aparece no Cloudflare; `dig` público confirma; corp continua só no dnsmasq.
+
+---
+
+## Fase 40 — Git smart HTTP
+
+- [ ] Repos bare em `/opt/xvpn/data/git/<slug>.git`.
+- [ ] Smart HTTP em `xgit.corp` (JWE). Sem `git://` público. Sem shell SSH.
+- [ ] Protected branches no modelo do projeto.
+
+**Critério de saída:** `git clone https://xgit.corp.ihuull.com/<slug>` com VPN + JWE; fora da VPN falha.
+
+---
+
+## Fase 41 — Merge requests
+
+- [ ] MR no Mongo; UI no xadmin.
+- [ ] Thread XCHAT por MR (skill `chat-chrome`). Comentários de issue no XGROUP.
+
+**Critério de saída:** abrir MR cria thread no XCHAT; merge respeita protected branch.
+
+---
+
+## Fase 42 — CI
+
+- [ ] Pipeline no xadmin. Runners = peers com label `runner` (não no PID do `xvpn-server`).
+- [ ] Artifacts no XDRIVER do projeto.
+
+**Critério de saída:** push/MR dispara job num runner da malha; log/artifact só na VPN.
+
+---
+
+## Fase 43 — Serviços orquestrados (local + malha)
+
+xadmin instala e opera **no node local e nos VPS da malha**. Kinds: `mongo`, `redis`, `rabbitmq`, `lb`.
+
+- [ ] `ServiceInstance` + agent no host alvo (SSH wg0 / cloud-init).
+- [ ] Bind só `wg0` (ou `127.0.0.1` local-only). DNS `svc-<slug>.corp`.
+- [ ] Mongo do control-plane (`127.0.0.1:27017`) **intocável** nesta UI.
+- [ ] Redis/Rabbit **não** viram hub do XCHAT (`PLAN.md` §6.11).
+
+**Critério de saída:** provisionar Redis no local e noutro peer; projeto resolve `svc-*.corp`; `ss` não mostra 6379/5672/27017 em `0.0.0.0`.
+
+---
+
+## Fase 44 — Backups externos (Settings)
+
+- [ ] Destinos: SFTP, Google Drive (rclone), Backblaze B2, S3/MinIO, WebDAV, XDRIVER (extra).
+- [ ] Motor restic + rclone. Credenciais só no VPS.
+- [ ] UI Settings: retenção, o que entra (Mongo CP, marketplace, git, social), dry-run, último job.
+- [ ] `backup.sh` local permanece; off-site é adicional.
+
+**Critério de saída:** um job restic chega a um SFTP ou B2 de teste; restore documentado; nenhum token no Git.
+
+---
+
+## Fase 45+ — Forge tardio (backlog)
+
+- [ ] Container / npm / pypi registry (bind wg0).
+- [ ] Pages (Nginx + blob).
+- [ ] Snippets, SAST, feature flags.
+
+Não misturar com 35–44.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1136,6 +1274,7 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
+- **Parte XIV (35–45):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 44 (backups). 45+ é backlog. Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

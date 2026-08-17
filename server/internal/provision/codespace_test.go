@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -185,5 +186,37 @@ func TestApplyCodespace_StartRewritesCreds(t *testing.T) {
 	cred := filepath.Join(ws, ".git", "xvpn-credentials")
 	if !strings.Contains(f.writes[cred], "rotatedtoken0001") {
 		t.Fatalf("credencial não rotacionada: %v", f.writes)
+	}
+}
+
+func TestChownRecursive_DoesNotFollowSymlink(t *testing.T) {
+	if os.Geteuid() != 0 {
+		t.Skip("lchown para outro uid exige root")
+	}
+	root := t.TempDir()
+	outside := filepath.Join(root, "outside")
+	if err := os.WriteFile(outside, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ws := filepath.Join(root, "workspace")
+	if err := os.Mkdir(ws, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(ws, "link")); err != nil {
+		t.Fatal(err)
+	}
+	if err := (osCsRunner{}).ChownRecursive(ws, 1000, 1000); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Fatal("stat")
+	}
+	if st.Uid == 1000 {
+		t.Fatal("chown seguiu o symlink e alterou o alvo")
 	}
 }

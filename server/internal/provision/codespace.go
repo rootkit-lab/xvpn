@@ -124,7 +124,7 @@ func (osCsRunner) ChownRecursive(path string, uid, gid int) error {
 		if err != nil {
 			return err
 		}
-		return os.Chown(p, uid, gid)
+		return os.Lchown(p, uid, gid)
 	})
 }
 

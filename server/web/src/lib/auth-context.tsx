@@ -1,5 +1,6 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError, api, clearToken, setToken, type User } from '@/lib/api'
+import { loginAudience } from '@/lib/product-host'
 
 interface AuthContextValue {
   isAuthenticated: boolean
@@ -56,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = useCallback(async (username: string, password: string) => {
-    const { token, user: loggedInUser } = await api.login(username, password)
+    const { token, user: loggedInUser } = await api.login(username, password, loginAudience())
     if (token) setToken(token)
     setUser(loggedInUser)
     setIsLoadingUser(false)

@@ -28,6 +28,8 @@ describe('productKind', () => {
     expect(productKind('xchat.ihuull.com')).toBe('xchat')
     expect(productKind('xchat.corp.ihuull.com')).toBe('xchat-corp')
     expect(productKind('corp.ihuull.com')).toBe('corp')
+    expect(productKind('xadmin.corp.ihuull.com')).toBe('xadmin-corp')
+    expect(productKind('xadmin.corp.localhost')).toBe('xadmin-corp')
     expect(productKind('xauth.ihuull.com')).toBe('xauth')
     expect(productKind('xauth.localhost')).toBe('xauth')
     expect(productKind('ihuull.com')).toBe('core')
@@ -56,6 +58,7 @@ describe('headerProduct', () => {
     expect(headerProduct('xvpn.ihuull.com', '/')).toBe('xvpn')
     expect(headerProduct('xvpn.ihuull.com', '/my')).toBe('xvpn')
     expect(headerProduct('xvpn.ihuull.com', '/admin')).toBe('xvpn')
+    expect(headerProduct('xadmin.corp.ihuull.com', '/admin')).toBe('xadmin')
     expect(headerProduct('xvpn.ihuull.com', '/social')).toBe('xgroup')
     expect(headerProduct('xvpn.ihuull.com', '/social/messages')).toBe('xchat')
     expect(headerProduct('xvpn.ihuull.com', '/xgroup/groups')).toBe('xgroup')
@@ -73,19 +76,20 @@ describe('headerProduct', () => {
 describe('safeReturnURL', () => {
   it('aceita só hosts ihuull conhecidos', () => {
     expect(safeReturnURL('https://marketplace.ihuull.com/')).toBe('https://marketplace.ihuull.com/')
-    expect(safeReturnURL('https://xvpn.ihuull.com/admin')).toContain('xvpn.ihuull.com')
+    expect(safeReturnURL('https://xvpn.ihuull.com/admin')).toBe('https://xadmin.corp.ihuull.com/admin')
+    expect(safeReturnURL('https://xadmin.corp.ihuull.com/admin')).toBe('https://xadmin.corp.ihuull.com/admin')
     expect(safeReturnURL('https://xchat.corp.ihuull.com/social/messages')).toContain('xchat.corp.ihuull.com')
     expect(safeReturnURL('https://evil.example/phish')).toBeNull()
     expect(safeReturnURL('javascript:alert(1)')).toBeNull()
     expect(safeReturnURL('http://xvpn.ihuull.com/admin')).toBeNull()
-    expect(safeReturnURL('http://localhost/admin')).toBe('http://localhost/admin')
+    expect(safeReturnURL('http://localhost/admin')).toBe('https://xadmin.corp.ihuull.com/admin')
   })
 
-  it('reescreve o alias legado vpn.ihuull.com e tira /admin de host que não é o painel', () => {
+  it('reescreve o alias legado vpn.ihuull.com e tira /admin de host que não é o console', () => {
     expect(safeReturnURL('https://vpn.ihuull.com/social')).toBe('https://xvpn.ihuull.com/social')
-    expect(safeReturnURL('https://xchat.corp.ihuull.com/admin')).toBe('https://xvpn.ihuull.com/admin')
-    expect(safeReturnURL('https://xgroup.ihuull.com/admin/users')).toBe('https://xvpn.ihuull.com/admin')
-    expect(safeReturnURL('https://marketplace.ihuull.com/admin')).toBe('https://xvpn.ihuull.com/admin')
+    expect(safeReturnURL('https://xchat.corp.ihuull.com/admin')).toBe('https://xadmin.corp.ihuull.com/admin')
+    expect(safeReturnURL('https://xgroup.ihuull.com/admin/users')).toBe('https://xadmin.corp.ihuull.com/admin')
+    expect(safeReturnURL('https://marketplace.ihuull.com/admin')).toBe('https://xadmin.corp.ihuull.com/admin')
   })
 })
 
@@ -107,7 +111,8 @@ describe('ssoLoginURL', () => {
 describe('ssoContinueURL', () => {
   it('ignora return de login e manda member ao portal', () => {
     expect(ssoContinueURL('member', 'https://xvpn.ihuull.com/my/login')).toBe('https://xvpn.ihuull.com/')
-    expect(ssoContinueURL('admin', 'https://xvpn.ihuull.com/admin')).toBe('https://xvpn.ihuull.com/admin')
+    expect(ssoContinueURL('admin', 'https://xvpn.ihuull.com/admin')).toBe('https://xadmin.corp.ihuull.com/admin')
+    expect(ssoContinueURL('admin')).toBe('https://xadmin.corp.ihuull.com/admin')
   })
 
   it('reconhece paths de autenticação', () => {
@@ -131,11 +136,11 @@ describe('ssoHandoff', () => {
   it('posta o JWE no host de destino em vez de só redirecionar', () => {
     const submit = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
     ssoHandoff('admin', 'https://xvpn.ihuull.com/admin', 'jwe-token')
-    const form = document.querySelector('form[action="https://xvpn.ihuull.com/api/auth/session"]')
+    const form = document.querySelector('form[action="https://xadmin.corp.ihuull.com/api/auth/session"]')
     expect(form).toBeTruthy()
     const fields = Object.fromEntries(new FormData(form as HTMLFormElement))
     expect(fields.token).toBe('jwe-token')
-    expect(fields.return).toBe('https://xvpn.ihuull.com/admin')
+    expect(fields.return).toBe('https://xadmin.corp.ihuull.com/admin')
     expect(submit).toHaveBeenCalledOnce()
     submit.mockRestore()
     form?.remove()

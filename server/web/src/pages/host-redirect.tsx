@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { PANEL_ORIGIN } from '@/lib/product-host'
+import { XADMIN_CORP_ORIGIN } from '@/lib/product-host'
 import { PageFallback } from '@/components/layout/page-fallback'
 
 /** Manda o browser para o host de produto (origem diferente — não é <Navigate>). */
@@ -11,10 +11,10 @@ export function HostRedirect({ to }: { to: string }) {
   return <PageFallback />
 }
 
-/** `/admin` só existe em xvpn.ihuull.com — PLAN.md §6.13. */
+/** `/admin` só existe em xadmin.corp — PLAN.md §6.14. */
 export function AdminHostRedirect() {
   const path = `${window.location.pathname}${window.location.search}`
-  return <HostRedirect to={`${PANEL_ORIGIN}${path.startsWith('/admin') ? path : '/admin'}`} />
+  return <HostRedirect to={`${XADMIN_CORP_ORIGIN}${path.startsWith('/admin') ? path : '/admin'}`} />
 }
 
 export function HostRedirectJoin({ to }: { to: string }) {

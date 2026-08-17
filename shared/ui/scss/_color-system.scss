@@ -46,6 +46,7 @@ $dark: (
   product-xgroup: oklch(0.72 0.18 330),
   product-xdriver: oklch(0.78 0.16 55),
   product-marketplace: oklch(0.78 0.13 210),
+  product-xadmin: oklch(0.74 0.16 280),
 );
 
 $light: (
@@ -83,6 +84,7 @@ $light: (
   product-xgroup: oklch(0.55 0.18 330),
   product-xdriver: oklch(0.62 0.16 55),
   product-marketplace: oklch(0.58 0.13 210),
+  product-xadmin: oklch(0.52 0.16 280),
 );
 
 // Opcional no messenger — nunca identidade de produto.
@@ -122,6 +124,7 @@ $icq: (
   product-xgroup: oklch(0.72 0.18 330),
   product-xdriver: oklch(0.78 0.16 55),
   product-marketplace: oklch(0.78 0.13 210),
+  product-xadmin: oklch(0.74 0.16 280),
 );
 
 @mixin apply-palette($palette) {

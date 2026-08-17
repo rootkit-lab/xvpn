@@ -6,13 +6,14 @@ func TestSafeReturnURL(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
-		{"https://xvpn.ihuull.com/admin", "https://xvpn.ihuull.com/admin"},
+		{"https://xvpn.ihuull.com/admin", AdminOrigin + "/admin"},
+		{"https://xadmin.corp.ihuull.com/admin", "https://xadmin.corp.ihuull.com/admin"},
 		{"https://xchat.corp.ihuull.com/social/messages", "https://xchat.corp.ihuull.com/social/messages"},
 		{"https://vpn.ihuull.com/social", "https://xvpn.ihuull.com/social"},
-		{"https://xchat.corp.ihuull.com/admin", PanelOrigin + "/admin"},
+		{"https://xchat.corp.ihuull.com/admin", AdminOrigin + "/admin"},
 		{"https://evil.example/phish", ""},
 		{"http://xvpn.ihuull.com/admin", ""},
-		{"http://localhost/admin", "http://localhost/admin"},
+		{"http://localhost/admin", AdminOrigin + "/admin"},
 		{"javascript:alert(1)", ""},
 		{"", ""},
 	}

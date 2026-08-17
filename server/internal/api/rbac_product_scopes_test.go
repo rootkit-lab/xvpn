@@ -67,6 +67,23 @@ func TestAdminWithoutCoreScopeCannotPatchConfig(t *testing.T) {
 	}
 }
 
+func TestAdminWithoutDNSScopeCannotWriteDNS(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPatch, "/api/dns", updateDNSSettingsRequest{CacheSize: intPtr(200)}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-core não deveria escrever DNS, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithDNSScopeCanWriteDNS(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductDNS})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/dns/records",
+		upsertDNSRecordRequest{Hostname: "lab.corp.ihuull.com", IPv4: "10.66.66.9"}, f.token)
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("admin com escopo dns foi barrado: %s", rec.Body.String())
+	}
+}
+
 func TestUnrestrictedAdminStillWritesAllProducts(t *testing.T) {
 	// Lista vazia = admin da Fase 10. Garante que o middleware novo não
 	// quebrou o papel admin da matriz existente.

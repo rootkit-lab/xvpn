@@ -64,7 +64,7 @@ O enrollment devolve `dns: ["10.66.66.1"]` e `intranet_hosts`. O helper:
 
 Fonte da verdade da zona. Depois do deploy do `xvpn-server` + `xvpn-user-provision` com o subcomando `dns-apply`:
 
-1. Abra `https://xvpn.ihuull.com/admin/dns`
+1. Abra `https://xadmin.corp.ihuull.com/admin/dns`
 2. Confira bind `10.66.66.1:53` e a consulta de `corp.ihuull.com`
 3. Ajuste forwarders se precisar (só IPv4 públicos)
 4. Crie A extras (`app.corp.ihuull.com` → `10.66.66.x`)

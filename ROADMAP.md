@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Próximo:** Fases 35–45 — xadmin intranet, catálogo≠ACL, forge, compute, DNS público, serviços orquestrados, backups (`PLAN.md` §6.14–§6.19). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fase 35** (host xadmin) nesta branch. **Próximo:** Fases 36–45 — catálogo≠ACL, forge, compute, DNS público, serviços orquestrados, backups (`PLAN.md` §6.14–§6.19). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1143,12 +1143,12 @@ Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §
 
 Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com` **não** mudam. Decisão: `PLAN.md` §6.14 (inverte a “fonte única pública” da Fase 33).
 
-- [ ] Registrar `xadmin.corp` e `xgit.corp` em `PLAN.md` §5.2 (já nesta PR de docs) + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Skill `port-domain-registry-check`.
-- [ ] JWE `aud=xadmin`; login via `xauth.ihuull.com`; cookie `.ihuull.com`.
-- [ ] `AdminShell` só nesse host. `xvpn.ihuull.com/admin` e `/admin` nos outros hosts → redirect ao xadmin.
-- [ ] Marca XADMIN / Console em `shared/ui` (mark + `products.ts`).
-- [ ] Escopos `forge` / `compute` / `dns` / `managed` no RBAC (flags; UI das seções nas fases seguintes).
-- [ ] DNS intranet sai do grupo Core e vai para o grupo DNS (mesmo handler).
+- [x] Registrar `xadmin.corp` e `xgit.corp` em `PLAN.md` §5.2 (já nesta PR de docs) + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Skill `port-domain-registry-check`.
+- [x] JWE `aud=xadmin`; login via `xauth.ihuull.com`; cookie `.ihuull.com`.
+- [x] `AdminShell` só nesse host. `xvpn.ihuull.com/admin` e `/admin` nos outros hosts → redirect ao xadmin.
+- [x] Marca XADMIN / Console em `shared/ui` (mark + `products.ts`).
+- [x] Escopos `forge` / `compute` / `dns` / `managed` no RBAC (flags; UI das seções nas fases seguintes).
+- [x] DNS intranet sai do grupo Core e vai para o grupo DNS (mesmo handler).
 
 **Critério de saída:** sem VPN, `xadmin.corp` não resolve na internet; com túnel, `viewer+` abre o console; `xvpn.ihuull.com/` e enroll continuam públicos.
 

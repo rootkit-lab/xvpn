@@ -5,7 +5,7 @@ describe('loginCopy', () => {
   it('SSO fala ihuull, admin fala painel', () => {
     expect(loginCopy('sso').product).toBe('ihuull')
     expect(loginCopy('sso').title).toMatch(/ihuull/i)
-    expect(loginCopy('admin').product).toBe('xvpn')
+    expect(loginCopy('admin').product).toBe('xadmin')
     expect(loginCopy('admin').title).toMatch(/administração/i)
     expect(loginCopy('store').product).toBe('marketplace')
     expect(loginCopy('user').product).toBe('xvpn')

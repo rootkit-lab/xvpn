@@ -8,6 +8,7 @@ import { usePollingData } from '@/hooks/use-polling-data'
 import { isViewerUpRole } from '@/lib/roles'
 import {
   MARKETPLACE_ORIGIN,
+  XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
@@ -127,10 +128,10 @@ export function XvpnProductPortal() {
           </div>
           {showAdmin && (
             <Button size="sm" variant="outline" className="hidden rounded-full sm:inline-flex" asChild>
-              <Link to="/admin">
+              <a href={`${XADMIN_CORP_ORIGIN}/admin`}>
                 <Shield className="size-4" />
                 Admin
-              </Link>
+              </a>
             </Button>
           )}
         </section>
@@ -183,9 +184,12 @@ export function XvpnProductPortal() {
 
       <footer className="chrome-bar relative z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-3 text-center text-[11px] text-muted-foreground/70">
         {showAdmin && (
-          <Link to="/admin" className="underline-offset-4 hover:text-foreground hover:underline">
+          <a
+            href={`${XADMIN_CORP_ORIGIN}/admin`}
+            className="underline-offset-4 hover:text-foreground hover:underline"
+          >
             Administração
-          </Link>
+          </a>
         )}
         <a
           href={MARKETPLACE_ORIGIN}

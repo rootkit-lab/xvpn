@@ -32,6 +32,10 @@
   --product: var(--product-marketplace);
 }
 
+[data-product="xadmin"] {
+  --product: var(--product-xadmin);
+}
+
 [data-product="ihuull"] {
   --product: var(--product-xvpn);
 }

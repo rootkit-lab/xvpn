@@ -38,6 +38,15 @@ func TestTokenManager_RejectsExpiredToken(t *testing.T) {
 	}
 }
 
+func TestNormalizeAudience(t *testing.T) {
+	if got := NormalizeAudience("XADMIN"); got != AudXadmin {
+		t.Fatalf("xadmin: %s", got)
+	}
+	if got := NormalizeAudience("desconhecido"); got != AudXvpn {
+		t.Fatalf("default: %s", got)
+	}
+}
+
 func TestTokenManager_IssueForAudience(t *testing.T) {
 	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
 	token, err := tm.IssueFor(7, "bob", store.RoleMember, AudXchat)

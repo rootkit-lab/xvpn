@@ -3,6 +3,7 @@ import type { ProductId } from '@xvpn/ui/react/products'
 /** Hosts de produto ihuull — PLAN.md §5.1. */
 
 export const PANEL_ORIGIN = 'https://xvpn.ihuull.com'
+export const XADMIN_CORP_ORIGIN = 'https://xadmin.corp.ihuull.com'
 export const MARKETPLACE_ORIGIN = 'https://marketplace.ihuull.com'
 export const XDRIVER_ORIGIN = 'https://xdriver.ihuull.com'
 export const XDRIVER_CORP_ORIGIN = 'https://xdriver.corp.ihuull.com'
@@ -23,6 +24,7 @@ export type ProductKind =
   | 'xchat-corp'
   | 'corp'
   | 'xvpn'
+  | 'xadmin-corp'
   | 'xauth'
   | 'core'
 
@@ -37,10 +39,14 @@ const SAFE_RETURN_HOSTS = new Set([
   'xchat.ihuull.com',
   'xchat.corp.ihuull.com',
   'corp.ihuull.com',
+  'xadmin.corp.ihuull.com',
+  'xgit.corp.ihuull.com',
   'www.ihuull.com',
   'ihuull.com',
   'xauth.localhost',
   'xvpn.localhost',
+  'xadmin.corp.localhost',
+  'xgit.corp.localhost',
   'marketplace.localhost',
   'xdriver.localhost',
   'xdriver.corp.localhost',
@@ -64,6 +70,7 @@ export function productKind(hostname = window.location.hostname): ProductKind {
   if (host === 'xchat.corp.ihuull.com' || host === 'xchat.corp.localhost') return 'xchat-corp'
   if (host === 'xchat.ihuull.com' || host === 'xchat.localhost') return 'xchat'
   if (host === 'corp.ihuull.com' || host === 'corp.localhost') return 'corp'
+  if (host === 'xadmin.corp.ihuull.com' || host === 'xadmin.corp.localhost') return 'xadmin-corp'
   if (host === 'xvpn.ihuull.com' || host === 'xvpn.localhost' || host === 'localhost' || host === '127.0.0.1') {
     return 'xvpn'
   }
@@ -81,6 +88,7 @@ export function headerProduct(
   if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'
   if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
   if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
+  if (kind === 'xadmin-corp') return 'xadmin'
   if (kind === 'corp') return 'xvpn'
   const host = hostname.toLowerCase()
   if (
@@ -143,8 +151,8 @@ export function safeReturnURL(raw: string | null | undefined): string | null {
     }
     if (!SAFE_RETURN_HOSTS.has(u.hostname.toLowerCase())) return null
     const kind = productKind(u.hostname)
-    if (kind !== 'xvpn' && u.pathname.startsWith('/admin')) {
-      return `${PANEL_ORIGIN}/admin`
+    if (kind !== 'xadmin-corp' && u.pathname.startsWith('/admin')) {
+      return `${XADMIN_CORP_ORIGIN}/admin`
     }
     return u.toString()
   } catch {
@@ -169,7 +177,17 @@ export function ssoContinueURL(role: string, returnTo?: string | null): string {
       // cai no default
     }
   }
-  return `${PANEL_ORIGIN}${role === 'member' ? '/' : '/admin'}`
+  return role === 'member' ? `${PANEL_ORIGIN}/` : `${XADMIN_CORP_ORIGIN}/admin`
+}
+
+/** aud do JWE no login deste host — PLAN.md §6.14. */
+export function loginAudience(hostname = window.location.hostname): string {
+  const kind = productKind(hostname)
+  if (kind === 'xadmin-corp') return 'xadmin'
+  if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
+  if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
+  if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'
+  return 'xvpn'
 }
 
 /** Navegação top-level no xauth: o servidor POSTA o cookie, sem JSON. */

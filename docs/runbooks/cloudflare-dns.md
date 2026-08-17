@@ -36,7 +36,7 @@ Certificado `*.corp.ihuull.com`: **DNS-01** com o plugin Cloudflare do Certbot. 
 
 ## Zona `ihuull.com` — NÃO criar
 
-- A/AAAA `corp`, `*.corp`, `xchat.corp`, `xgroup.corp`, `xdriver.corp` (o A público `xdriver` é o **portal**, não o FileBrowser)
+- A/AAAA `corp`, `*.corp`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`, `xadmin.corp`, `xgit.corp` (o A público `xdriver` é residual 444, não o Drive)
 - A `*.ihuull.com` apontando para o VPS **se** isso fizer `corp.ihuull.com` resolver na internet. Se o wildcard já existir: ou apague, ou deixe só como catch-all de nomes **públicos** e cubra `corp` com o TXT acima (mais específico que o wildcard para aquele rótulo)
 - Proxy laranja em `xvpn` ou em qualquer hostname que faça upgrade WebSocket
 - Registro que publique `10.66.66.1` na internet (não ajuda o cliente fora do túnel e vaza a topologia)
@@ -72,6 +72,10 @@ dig +short xchat.corp.ihuull.com @1.1.1.1
 # Dentro da VPN — deve ser 10.66.66.1
 dig +short xchat.corp.ihuull.com @10.66.66.1
 ```
+
+## xadmin (Fase 39+)
+
+A zona pública passa a ser gerida no console (`xadmin.corp` → DNS público). Adapter v1 = API Cloudflare (token que já existe para DNS-01). Este runbook vira **fallback** quando o painel estiver fora. `ldpops.appapisip.com` **não** entra nesse painel. Intranet (`*.corp`, inclusive `xadmin` e `xgit`) **continua só no dnsmasq** — nunca crie A público para esses nomes.
 
 ## Checklist rápido (agente / humano)
 

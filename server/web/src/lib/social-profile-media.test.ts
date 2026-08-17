@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   attachmentRef,
-  fallbackBannerClass,
+  fallbackTheme,
   parseAttachmentId,
   parseBannerTone,
+  resolveProfileTheme,
 } from './social-profile-media'
 
 describe('parseAttachmentId', () => {
@@ -16,16 +17,18 @@ describe('parseAttachmentId', () => {
 })
 
 describe('parseBannerTone', () => {
-  it('aceita tons do design system', () => {
+  it('mapeia tons antigos para a paleta', () => {
     expect(parseBannerTone('tone:primary')).toBe('primary')
+    expect(parseBannerTone('tone:chart-2')).toBe('safe')
     expect(parseBannerTone('tone:rainbow')).toBeNull()
     expect(parseBannerTone('attachment:1')).toBeNull()
   })
 })
 
-describe('fallbackBannerClass', () => {
-  it('é estável por username', () => {
-    expect(fallbackBannerClass('rootkit')).toBe(fallbackBannerClass('rootkit'))
-    expect(fallbackBannerClass('rootkit')).toMatch(/^bg-/)
+describe('resolveProfileTheme', () => {
+  it('prefere theme gravado, depois capa, depois hash do user', () => {
+    expect(resolveProfileTheme('xgroup', 'tone:primary', 'rootkit')).toBe('xgroup')
+    expect(resolveProfileTheme('', 'tone:chart-3', 'rootkit')).toBe('xgroup')
+    expect(fallbackTheme('rootkit')).toBe(resolveProfileTheme('', '', 'rootkit'))
   })
 })

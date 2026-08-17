@@ -153,6 +153,7 @@ type Profile struct {
 	Bio         string `json:"bio"`
 	AvatarURL   string `json:"avatar_url"`
 	BannerURL   string `json:"banner_url"`
+	Theme       string `json:"theme"`
 	Following   bool   `json:"following"`
 	Followers   int64  `json:"followers"`
 }

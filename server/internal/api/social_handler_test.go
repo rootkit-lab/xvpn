@@ -208,6 +208,30 @@ func TestSocialProfile_PatchMediaRefs(t *testing.T) {
 	if got.BannerURL != "tone:primary" {
 		t.Fatalf("banner_url: %q", got.BannerURL)
 	}
+	if got.Theme != "primary" {
+		t.Fatalf("theme deveria resolver o tom da capa, got %q", got.Theme)
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{Theme: strPtr("xgroup")}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tema válido deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Theme != "xgroup" {
+		t.Fatalf("theme: %q", got.Theme)
+	}
+	if got.BannerURL != "" {
+		t.Fatalf("tom da capa deveria limpar ao gravar theme, got %q", got.BannerURL)
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{Theme: strPtr("rainbow")}, aliceTok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("tema inventado deveria 400, obtido %d: %s", rec.Code, rec.Body.String())
+	}
 
 	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d}
 	attID := uploadSocialFile(t, router, aliceTok, "avatar.png", "image/png", png)

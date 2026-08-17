@@ -25,8 +25,8 @@ func TestNormalizeAvatarRef(t *testing.T) {
 func TestNormalizeBannerRef(t *testing.T) {
 	t.Parallel()
 	ok, err := normalizeBannerRef("tone:chart-2")
-	if err != nil || ok != "tone:chart-2" {
-		t.Fatalf("tom: got %q %v", ok, err)
+	if err != nil || ok != "tone:safe" {
+		t.Fatalf("tom legado: got %q %v", ok, err)
 	}
 	if _, err := normalizeBannerRef("tone:rainbow"); err == nil {
 		t.Fatal("tom inventado deveria ser rejeitado")
@@ -34,5 +34,20 @@ func TestNormalizeBannerRef(t *testing.T) {
 	ok, err = normalizeBannerRef("attachment:3")
 	if err != nil || ok != "attachment:3" {
 		t.Fatalf("anexo: got %q %v", ok, err)
+	}
+}
+
+func TestNormalizeTheme(t *testing.T) {
+	t.Parallel()
+	ok, err := normalizeTheme("xgroup")
+	if err != nil || ok != "xgroup" {
+		t.Fatalf("tema: got %q %v", ok, err)
+	}
+	ok, err = normalizeTheme("chart-3")
+	if err != nil || ok != "xgroup" {
+		t.Fatalf("legado: got %q %v", ok, err)
+	}
+	if _, err := normalizeTheme("rainbow"); err == nil {
+		t.Fatal("tema inventado deveria ser rejeitado")
 	}
 }

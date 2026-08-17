@@ -18,6 +18,7 @@ import { EditSocialProfileDialog } from '@/components/edit-social-profile-dialog
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { profileThemeStyle, resolveProfileTheme } from '@/lib/social-profile-media'
 
 /** `/:username` no host público — só se o slug for um membro. */
 export function SocialProfileGate() {
@@ -55,6 +56,7 @@ export function SocialProfilePage() {
   const display = profile.display_name || profile.username
   const presence = livePresence(profile.user_id, profile.presence, chat?.presence)
   const postCount = posts?.items.length ?? 0
+  const theme = resolveProfileTheme(profile.theme, profile.banner_url, profile.username)
 
   async function toggleFollow() {
     try {
@@ -67,14 +69,20 @@ export function SocialProfilePage() {
   }
 
   return (
-    <div className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
+    <div
+      className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]"
+      style={profileThemeStyle(theme)}
+    >
       <aside className="flex min-w-0 flex-col gap-4">
-        <section className="overflow-hidden rounded-[22px] watch-complication">
-          <SocialBanner
-            username={profile.username}
-            bannerUrl={profile.banner_url}
-            className="h-28 w-full md:h-32"
-          >
+        <section
+          className="overflow-hidden rounded-[22px] border watch-complication"
+          style={{
+            borderColor: 'var(--profile-accent-strong)',
+            boxShadow:
+              'inset 0 1px 0 color-mix(in oklch, var(--profile-accent) 28%, transparent), 0 0 42px -18px var(--profile-accent)',
+          }}
+        >
+          <SocialBanner bannerUrl={profile.banner_url} className="h-28 w-full md:h-32">
             <span
               className={cn(
                 'absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-medium',
@@ -89,7 +97,7 @@ export function SocialProfilePage() {
               name={display}
               src={profile.avatar_url}
               presence={presence}
-              className="-mt-12 size-[5.5rem] border-4 border-background text-2xl shadow-lg"
+              className="-mt-12 size-[5.5rem] border-4 border-background text-2xl shadow-lg ring-2 ring-[var(--profile-accent)]"
             />
             <div className="mt-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -109,14 +117,20 @@ export function SocialProfilePage() {
             ) : null}
 
             <dl className="mt-4 flex flex-wrap gap-2">
-              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
+              <div
+                className="rounded-full px-3 py-1.5 text-sm"
+                style={{ background: 'var(--profile-accent-soft)' }}
+              >
                 <dt className="sr-only">Seguindo</dt>
                 <dd>
                   <span className="font-semibold text-foreground">{profile.following_count ?? 0}</span>
                   <span className="ml-1 text-muted-foreground">seguindo</span>
                 </dd>
               </div>
-              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
+              <div
+                className="rounded-full px-3 py-1.5 text-sm"
+                style={{ background: 'var(--profile-accent-soft)' }}
+              >
                 <dt className="sr-only">Seguidores</dt>
                 <dd>
                   <span className="font-semibold text-foreground">{profile.followers}</span>
@@ -185,7 +199,7 @@ export function SocialProfilePage() {
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 [&_article]:border [&_article]:border-[color-mix(in_oklch,var(--profile-accent)_24%,transparent)]">
               {posts.items.map((post) => (
                 <PostCard key={post.id} post={post} />
               ))}

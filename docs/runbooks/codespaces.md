@@ -27,5 +27,5 @@
 - Host fora da VPN não resolve `cs-*`
 - `docker.sock` **não** deve existir dentro do container
 - Host `cs-*` não serve a API de controle (`/api/xcodespaces`, `/api/projects`); só SSO (`/api/auth/session`, `/api/auth/redeem`) passa no Gin
-- openvscode exige connection token; o proxy injeta e remove `Cookie`/`Authorization` antes do container
+- openvscode exige connection token; o proxy injeta o cookie `vscode-tkn` (não `?tkn=` — isso 302-loop) e remove `ihuull_session`/`Authorization` antes do container
 - Token Git do codespace vale só para o slug daquele workspace e some no stop/idle-stop

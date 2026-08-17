@@ -220,17 +220,43 @@ func TestCodespaceHostDoesNotExposeControlAPI(t *testing.T) {
 }
 
 func TestPrepareCodespaceUpstreamStripsSession(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:19000/", nil)
-	req.Header.Set("Cookie", "ihuull_session=secreto")
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:19000/?tkn=old", nil)
+	req.Header.Set("Cookie", "ihuull_session=secreto; vscode-session=keep")
 	req.Header.Set("Authorization", "Bearer jwe")
 	prepareCodespaceUpstream(req, "tokentokentoken1")
-	if req.Header.Get("Cookie") != "" || req.Header.Get("Authorization") != "" {
-		t.Fatal("cookie/authorization não podem ir ao IDE")
+	if req.Header.Get("Authorization") != "" {
+		t.Fatal("authorization não pode ir ao IDE")
+	}
+	if strings.Contains(req.Header.Get("Cookie"), "ihuull_session") {
+		t.Fatal("cookie de sessão não pode ir ao IDE")
+	}
+	if !strings.Contains(req.Header.Get("Cookie"), "vscode-session=keep") {
+		t.Fatal("cookie do IDE foi descartado")
+	}
+	if !strings.Contains(req.Header.Get("Cookie"), "vscode-tkn=tokentokentoken1") {
+		t.Fatal("vscode-tkn ausente")
 	}
 	if req.Header.Get("X-Connection-Token") != "tokentokentoken1" {
 		t.Fatal("connection token ausente")
 	}
-	if req.URL.Query().Get("tkn") != "tokentokentoken1" {
-		t.Fatal("tkn ausente")
+	if req.URL.Query().Get("tkn") != "" {
+		t.Fatal("tkn na query causa redirect loop no openvscode")
+	}
+}
+
+func TestFilterCodespaceSetCookie(t *testing.T) {
+	resp := &http.Response{Header: make(http.Header)}
+	resp.Header.Add("Set-Cookie", "vscode-tkn=abc; Path=/")
+	resp.Header.Add("Set-Cookie", "ihuull_session=jwe; Path=/")
+	resp.Header.Add("Set-Cookie", "evil=1; Path=/")
+	if err := filterCodespaceSetCookie(resp); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(resp.Header.Values("Set-Cookie"), "\n")
+	if !strings.Contains(got, "vscode-tkn=") {
+		t.Fatalf("vscode-tkn sumiu: %s", got)
+	}
+	if strings.Contains(got, "ihuull_session") || strings.Contains(got, "evil=") {
+		t.Fatalf("cookie estranho vazou: %s", got)
 	}
 }

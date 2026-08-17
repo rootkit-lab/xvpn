@@ -38,6 +38,16 @@ func TestGitSmartHTTPHostAndAuth(t *testing.T) {
 		t.Fatalf("user Basic divergente deveria 401, veio %d", rec.Code)
 	}
 
+	rec = doGitBasic(t, router, http.MethodGet, "/lab/info/refs?service=git-upload-pack", nil, "admin", "senha-admin-ok")
+	if rec.Code != http.StatusOK && rec.Code != http.StatusNotFound {
+		t.Fatalf("basic senha da conta: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doGitBasic(t, router, http.MethodGet, "/lab/info/refs?service=git-upload-pack", nil, "admin", "senha-errada")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("senha errada deveria 401, veio %d", rec.Code)
+	}
+
 	_ = app
 }
 

@@ -41,36 +41,49 @@ func (a *App) gitDir() string {
 	return strings.TrimSpace(a.Config.GitDir)
 }
 
+func (a *App) gitUnauthorized(c *gin.Context) (store.User, bool) {
+	c.Header("WWW-Authenticate", `Basic realm="xgit"`)
+	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "credenciais inválidas"})
+	return store.User{}, false
+}
+
 func (a *App) authenticateGit(c *gin.Context) (store.User, bool) {
 	token := auth.TokenFromRequest(c)
-	var basicUser string
+	basicUser, basicPass, hasBasic := c.Request.BasicAuth()
+	if token == "" && hasBasic {
+		token = basicPass
+	}
 	if token == "" {
-		u, pass, ok := c.Request.BasicAuth()
-		if ok {
-			basicUser = u
-			token = pass
+		return a.gitUnauthorized(c)
+	}
+	if claims, err := a.Tokens.Parse(token); err == nil {
+		if basicUser != "" && !strings.EqualFold(basicUser, claims.Username) {
+			return a.gitUnauthorized(c)
 		}
+		var user store.User
+		if err := a.Store.DB.First(&user, claims.UserID).Error; err != nil {
+			return a.gitUnauthorized(c)
+		}
+		return user, true
 	}
-	if token == "" {
-		c.Header("WWW-Authenticate", `Basic realm="xgit"`)
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "credenciais ausentes"})
-		return store.User{}, false
+	// Git CLI pede a senha da conta — JWE no prompt é inviável.
+	if !hasBasic || basicUser == "" || basicPass == "" {
+		return a.gitUnauthorized(c)
 	}
-	claims, err := a.Tokens.Parse(token)
-	if err != nil {
-		c.Header("WWW-Authenticate", `Basic realm="xgit"`)
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
-		return store.User{}, false
-	}
-	if basicUser != "" && !strings.EqualFold(basicUser, claims.Username) {
-		c.Header("WWW-Authenticate", `Basic realm="xgit"`)
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
+	if a.loginLimiter != nil && !a.loginLimiter.allow(c.ClientIP()) {
+		c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "muitas tentativas, tente novamente mais tarde"})
 		return store.User{}, false
 	}
 	var user store.User
-	if err := a.Store.DB.First(&user, claims.UserID).Error; err != nil {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
-		return store.User{}, false
+	if err := a.Store.DB.Where("username = ?", basicUser).First(&user).Error; err != nil {
+		return a.gitUnauthorized(c)
+	}
+	if user.Role == store.RoleBot || user.Username == "xbot" {
+		return a.gitUnauthorized(c)
+	}
+	ok, err := auth.VerifyPassword(user.PasswordHash, basicPass)
+	if err != nil || !ok {
+		return a.gitUnauthorized(c)
 	}
 	return user, true
 }

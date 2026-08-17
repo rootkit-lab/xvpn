@@ -20,7 +20,8 @@ import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
 import { SSOLoginRedirect } from '@/pages/sso-login-redirect'
-import { AdminHostRedirect, HostRedirect, HostRedirectJoin } from '@/pages/host-redirect'
+import { AdminHostRedirect, HostRedirect } from '@/pages/host-redirect'
+import { CanonicalProfileRedirect } from '@/pages/canonical-profile-redirect'
 
 const DashboardPage = lazy(() => import('@/pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
 const UsersPage = lazy(() => import('@/pages/users-page').then((m) => ({ default: m.UsersPage })))
@@ -42,8 +43,8 @@ const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) =>
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
 )
-const SocialProfilePage = lazy(() =>
-  import('@/pages/social-profile-page').then((m) => ({ default: m.SocialProfilePage })),
+const SocialProfileGate = lazy(() =>
+  import('@/pages/social-profile-page').then((m) => ({ default: m.SocialProfileGate })),
 )
 const SocialMessagesPage = lazy(() =>
   import('@/pages/social-messages-page').then((m) => ({ default: m.SocialMessagesPage })),
@@ -130,12 +131,22 @@ function XDriverCorpApp() {
 
 function XGroupPublicApp() {
   return (
-    <Routes>
-      <Route path="/" element={<XGroupPublicLanding />} />
-      <Route path="/admin" element={<AdminHostRedirect />} />
-      <Route path="/admin/*" element={<AdminHostRedirect />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <ChatHost>
+      <Routes>
+        <Route path="/" element={<XGroupPublicLanding />} />
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route path="/social/u/:username" element={<CanonicalProfileRedirect />} />
+        <Route path="/social/*" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social`} />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<SocialShell />}>
+            <Route path=":username" element={<SocialProfileGate />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatHost>
   )
 }
 
@@ -162,7 +173,7 @@ function XChatCorpApp() {
             <Route path="explore" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social/explore`} />} />
             <Route path="messages" element={<SocialMessagesPage />} />
             <Route path="groups" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social/groups`} />} />
-            <Route path="u/:username" element={<HostRedirectJoin to={`${XGROUP_CORP_ORIGIN}/social/u`} />} />
+            <Route path="u/:username" element={<CanonicalProfileRedirect />} />
           </Route>
         </Route>
         <Route path="/admin" element={<AdminHostRedirect />} />
@@ -179,11 +190,12 @@ function XGroupCorpApp() {
       <Routes>
         <Route path="/login" element={<SSOLoginRedirect />} />
         <Route path="/" element={<Navigate to="/social" replace />} />
+        <Route path="/social/u/:username" element={<CanonicalProfileRedirect />} />
+        <Route path="/:username" element={<CanonicalProfileRedirect />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/social" element={<SocialShell />}>
             <Route index element={<SocialFeedPage />} />
             <Route path="explore" element={<SocialDirectoryPage />} />
-            <Route path="u/:username" element={<SocialProfilePage />} />
             <Route path="messages" element={<HostRedirect to={`${XCHAT_CORP_ORIGIN}/social/messages`} />} />
             <Route path="groups" element={<SocialGroupsPage />} />
           </Route>
@@ -233,6 +245,8 @@ function PanelApp() {
 
         <Route path="/my/login" element={<SSOLoginRedirect />} />
         <Route path="/admin/login" element={<SSOLoginRedirect />} />
+        <Route path="/social/u/:username" element={<CanonicalProfileRedirect />} />
+        <Route path="/xgroup/u/:username" element={<CanonicalProfileRedirect />} />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/my" element={<UserShell />}>
@@ -247,14 +261,12 @@ function PanelApp() {
           <Route path="/social" element={<SocialShell />}>
             <Route index element={<SocialFeedPage />} />
             <Route path="explore" element={<SocialDirectoryPage />} />
-            <Route path="u/:username" element={<SocialProfilePage />} />
             <Route path="messages" element={<SocialMessagesPage />} />
             <Route path="groups" element={<SocialGroupsPage />} />
           </Route>
           <Route path="/xgroup" element={<SocialShell />}>
             <Route index element={<SocialFeedPage />} />
             <Route path="explore" element={<SocialDirectoryPage />} />
-            <Route path="u/:username" element={<SocialProfilePage />} />
             <Route path="messages" element={<SocialMessagesPage />} />
             <Route path="groups" element={<SocialGroupsPage />} />
           </Route>

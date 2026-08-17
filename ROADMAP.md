@@ -783,7 +783,7 @@ Rede **fechada da organização** — só usuário autenticado do XVPN, não red
 - [x] REST para CRUD/histórico paginado: perfil próprio e público, follow/unfollow, grupos, threads, `GET .../messages?page=`.
 - [x] **WebSocket** `/api/ws`: auth no **primeiro frame** (`{"type":"auth","token":"..."}`) — token na query string vaza em access log do Nginx. Eventos: `message.new`, `message.ack`, `typing`, `presence`, `group.updated`. Hub in-process (escala atual 1–15 usuários; sem Redis).
 - [x] Nginx: `location /api/ws` com `Upgrade`/`Connection` — **só nesse path**, não no catch-all (Upgrade global quebra keep-alive). Sem porta nova. Já registrado em `PLAN.md` §5; esta linha é aplicar no VPS na janela de deploy da 19.3.
-- [x] Shell `/social/*`: feed/diretório de pessoas, `/social/u/:username` (perfil + seguir), `/social/messages` (DMs), `/social/groups`. Edição do perfil social **não** mistura com `/my/account` (senha/SSH ficam no Meu espaço).
+- [x] Shell `/social/*`: feed/diretório de pessoas, perfil canônico `xgroup.ihuull.com/<username>` (`/social/u/:username` redireciona), `/social/messages` (DMs), `/social/groups`. Edição do perfil social **não** mistura com `/my/account` (senha/SSH ficam no Meu espaço).
 - [x] Rate limit de conexões WS e de mensagens por usuário; audit `social.message` **sem** corpo da mensagem; member não lê audit.
 - [x] Testes: auth WS rejeita token na query; DM só entre usuários existentes; grupo não vaza pra não-membro; paginação do histórico.
 
@@ -860,7 +860,7 @@ Substituir abas Pessoas/Mensagens/Grupos e a DataTable de threads por um clone c
 
 ### 20.3 Dock global no domínio + integração no Social
 
-O Social **não vira o chat**. `/social` permanece rede (diretório, `/social/u/:username`, follow, páginas de grupo). O chat entra de dois jeitos: **botão na status bar** (rail direito de contatos RTL + janelas de conversa no rodapé, estilo Facebook), e **página cheia** em `/social/messages`.
+O Social **não vira o chat**. `/social` permanece rede (diretório, perfil em `xgroup.ihuull.com/<user>`, follow, páginas de grupo). O chat entra de dois jeitos: **botão na status bar** (rail direito de contatos RTL + janelas de conversa no rodapé, estilo Facebook), e **página cheia** em `/social/messages`.
 
 - [x] **`ChatSidebar` no `SystemChrome`:** visível em `/my/*`, `/admin/*` e `/social/*` com JWT. O botão Chat vive na **status bar** (à direita); o **aside direito opaco** mostra só contatos (RTL). Clicar um contato abre uma **janela no rodapé** (`ChatPopouts`) — várias ao mesmo tempo, minimizar vira bolha, sem overlay sobre o `/my`. Tema `inherit`. **Não desmontar** na troca de rota.
 - [x] **Fora do chrome de chat:** landing, `/my/login`, `/admin/login`. Sem token na query do WS. 401 → `/my/login` (ou `/admin/login` se o path for admin).

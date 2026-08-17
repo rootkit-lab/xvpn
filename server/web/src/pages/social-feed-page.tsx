@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { ProfileLink } from '@/components/profile-link'
 import { toast } from 'sonner'
 import { api, ApiError, type SocialPost, type SocialProfile } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -38,7 +39,7 @@ export function SocialFeedPage() {
   const suggestions = (people?.items ?? []).filter((p) => p.username !== user?.username && !p.following).slice(0, 4)
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+    <div className="grid w-full min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex flex-col">
         <form onSubmit={publish} className="watch-complication mb-4 rounded-[22px] p-4">
           <Textarea
@@ -69,7 +70,7 @@ export function SocialFeedPage() {
         )}
       </div>
 
-      <aside className="hidden lg:block">
+      <aside className="hidden xl:block">
         <div className="watch-complication sticky top-0 rounded-[22px] p-4">
           <p className="hud-label text-muted-foreground/70">Quem seguir</p>
           <div className="mt-3 flex flex-col gap-3">
@@ -90,14 +91,17 @@ export function SocialFeedPage() {
 export function PostCard({ post }: { post: SocialPost }) {
   return (
     <article className="flex gap-3 px-1 py-4">
-      <Link to={`/social/u/${post.username}`} className="icon-well flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold">
+      <ProfileLink
+        username={post.username}
+        className="icon-well flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+      >
         {(post.display_name || post.username).slice(0, 1).toUpperCase()}
-      </Link>
+      </ProfileLink>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <Link to={`/social/u/${post.username}`} className="font-display text-sm font-semibold hover:underline">
+          <ProfileLink username={post.username} className="font-display text-sm font-semibold hover:underline">
             {post.display_name || post.username}
-          </Link>
+          </ProfileLink>
           <span className="text-xs text-muted-foreground">@{post.username}</span>
           <span className="text-xs text-muted-foreground">· {formatRelativeTime(post.created_at)}</span>
         </div>
@@ -122,10 +126,10 @@ function FollowHint({ profile, onChanged }: { profile: SocialProfile; onChanged:
   }
   return (
     <div className="flex items-center gap-2">
-      <Link to={`/social/u/${profile.username}`} className="min-w-0 flex-1">
+      <ProfileLink username={profile.username} className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{profile.display_name || profile.username}</p>
         <p className="truncate text-xs text-muted-foreground">@{profile.username}</p>
-      </Link>
+      </ProfileLink>
       <Button size="sm" className="rounded-full" disabled={busy} onClick={follow}>
         Seguir
       </Button>

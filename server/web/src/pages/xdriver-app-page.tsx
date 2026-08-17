@@ -128,7 +128,7 @@ export function XDriverAppPage() {
   }
 
   return (
-    <div className="mx-auto flex h-full min-h-[calc(100svh-8rem)] w-full max-w-6xl gap-5 px-4 py-5 md:px-6">
+    <div className="flex h-full min-h-[calc(100svh-8rem)] w-full min-w-0 gap-5 px-4 py-5 md:px-6">
       <aside className="hidden w-56 shrink-0 flex-col gap-1 md:flex">
         <p className="hud-label px-3 pb-2 text-muted-foreground/70">Locais</p>
         {ROOTS.map(({ id, label, hint, icon: Icon }) => (

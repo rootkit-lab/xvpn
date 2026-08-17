@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
+import { isProfileUsername } from '@/lib/social-profile'
 import { MessageCircle, UserPlus, UserMinus } from 'lucide-react'
 import { openChat } from '@chat/messenger/open-chat'
 import { toast } from 'sonner'
@@ -13,6 +14,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+
+/** `/:username` no host público — só se o slug for um membro. */
+export function SocialProfileGate() {
+  const { username } = useParams()
+  if (!username || !isProfileUsername(username)) {
+    return <Navigate to="/" replace />
+  }
+  return <SocialProfilePage />
+}
 
 export function SocialProfilePage() {
   const { username } = useParams()
@@ -31,7 +41,7 @@ export function SocialProfilePage() {
     return error ? (
       <p className="text-sm text-destructive">{error}</p>
     ) : (
-      <Skeleton className="h-64 w-full rounded-[22px]" />
+      <Skeleton className="h-72 w-full rounded-[22px]" />
     )
   }
 
@@ -50,16 +60,29 @@ export function SocialProfilePage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
+    <div className="flex w-full min-w-0 flex-col gap-6">
       <section className="overflow-hidden rounded-[22px] watch-complication">
-        <div className={`h-28 w-full md:h-36 ${bannerClass(profile.username)}`} />
-        <div className="px-5 pb-6">
-          <div className="-mt-11 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <SocialAvatar
-              name={display}
-              className="size-[5.5rem] border-4 border-background text-2xl shadow-lg"
-            />
-            <div className="flex flex-wrap gap-2 sm:mb-1">
+        <div className={`h-36 w-full md:h-48 ${bannerClass(profile.username)}`} />
+        <div className="px-5 pb-6 md:px-8">
+          <div className="-mt-14 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-end">
+              <SocialAvatar
+                name={display}
+                className="size-28 shrink-0 border-4 border-background text-3xl shadow-lg md:size-32"
+              />
+              <div className="min-w-0 pb-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-display text-3xl font-semibold tracking-tight">{display}</h1>
+                  {isMe && (
+                    <span className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      Você
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-sm text-muted-foreground">@{profile.username}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 lg:mb-1">
               {isMe ? (
                 <Button variant="outline" className="rounded-full" onClick={() => setEditing((v) => !v)}>
                   {editing ? 'Fechar' : 'Editar perfil'}
@@ -87,41 +110,33 @@ export function SocialProfilePage() {
             </div>
           </div>
 
-          <div className="mt-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-semibold tracking-tight">{display}</h1>
-              {isMe && (
-                <span className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  Você
-                </span>
-              )}
+          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+            <div className="min-w-0">
+              {profile.bio ? (
+                <p className="max-w-3xl text-sm leading-relaxed">{profile.bio}</p>
+              ) : isMe ? (
+                <p className="text-sm text-muted-foreground">Sem bio ainda. Edite o perfil para se apresentar.</p>
+              ) : null}
             </div>
-            <p className="mt-0.5 text-sm text-muted-foreground">@{profile.username}</p>
-            {profile.bio ? (
-              <p className="mt-3 max-w-lg text-sm leading-relaxed">{profile.bio}</p>
-            ) : isMe ? (
-              <p className="mt-3 text-sm text-muted-foreground">Sem bio ainda. Edite o perfil para se apresentar.</p>
-            ) : null}
+            <dl className="flex flex-wrap gap-2">
+              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
+                <dt className="sr-only">Seguindo</dt>
+                <dd>
+                  <span className="font-semibold text-foreground">{profile.following_count ?? 0}</span>
+                  <span className="ml-1 text-muted-foreground">seguindo</span>
+                </dd>
+              </div>
+              <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
+                <dt className="sr-only">Seguidores</dt>
+                <dd>
+                  <span className="font-semibold text-foreground">{profile.followers}</span>
+                  <span className="ml-1 text-muted-foreground">
+                    seguidor{profile.followers === 1 ? '' : 'es'}
+                  </span>
+                </dd>
+              </div>
+            </dl>
           </div>
-
-          <dl className="mt-5 flex flex-wrap gap-2">
-            <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
-              <dt className="sr-only">Seguindo</dt>
-              <dd>
-                <span className="font-semibold text-foreground">{profile.following_count ?? 0}</span>
-                <span className="ml-1 text-muted-foreground">seguindo</span>
-              </dd>
-            </div>
-            <div className="rounded-full bg-white/6 px-3 py-1.5 text-sm">
-              <dt className="sr-only">Seguidores</dt>
-              <dd>
-                <span className="font-semibold text-foreground">{profile.followers}</span>
-                <span className="ml-1 text-muted-foreground">
-                  seguidor{profile.followers === 1 ? '' : 'es'}
-                </span>
-              </dd>
-            </div>
-          </dl>
         </div>
       </section>
 
@@ -147,7 +162,7 @@ export function SocialProfilePage() {
             </p>
           </div>
         ) : (
-          <div className="watch-complication divide-y divide-white/8 overflow-hidden rounded-[22px] px-4">
+          <div className="watch-complication divide-y divide-white/8 overflow-hidden rounded-[22px] px-4 md:px-6">
             {posts.items.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}
@@ -184,13 +199,13 @@ function EditSocialProfile({ profile, onSaved }: { profile: SocialProfile; onSav
   }
 
   return (
-    <form className="watch-complication flex flex-col gap-4 rounded-[22px] p-5" onSubmit={handleSubmit}>
-      <p className="hud-label text-muted-foreground/70">Editar</p>
+    <form className="watch-complication grid gap-4 rounded-[22px] p-5 md:grid-cols-2 md:p-6" onSubmit={handleSubmit}>
+      <p className="hud-label text-muted-foreground/70 md:col-span-2">Editar</p>
       <div className="flex flex-col gap-2">
         <Label htmlFor="display-name">Nome</Label>
         <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 md:col-span-2">
         <Label htmlFor="bio">Bio</Label>
         <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={3} />
       </div>

@@ -13,9 +13,10 @@ export function XGroupPublicLanding() {
         <p className="hud-label text-muted-foreground/70">Social</p>
         <h1 className="font-display text-3xl font-semibold tracking-tight">A rede social fica na VPN</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          O app abre só em <code className="font-mono text-xs">xgroup.corp.ihuull.com</code> (e em{' '}
-          <code className="font-mono text-xs">/social</code> no painel), dentro do túnel. Este endereço
-          público não serve feed, API nem WebSocket.
+          Perfil amigável: <code className="font-mono text-xs">xgroup.ihuull.com/&lt;user&gt;</code> (com
+          login). Feed, explorar e grupos abrem em{' '}
+          <code className="font-mono text-xs">xgroup.corp.ihuull.com</code> — só na VPN. Sem WebSocket
+          neste host.
         </p>
         <div className="watch-complication flex items-start gap-3 rounded-[18px] p-4">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-muted-foreground" />

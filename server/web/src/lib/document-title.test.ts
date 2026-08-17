@@ -48,6 +48,7 @@ describe('documentTitle', () => {
     expect(documentTitle({ hostname: 'xgroup.corp.ihuull.com', pathname: '/social/u/rootkit' })).toBe(
       'rootkit · XGROUP',
     )
+    expect(documentTitle({ hostname: 'xgroup.ihuull.com', pathname: '/rootkit' })).toBe('rootkit · XGROUP')
   })
 
   it('mostra não-lidas no prefixo', () => {

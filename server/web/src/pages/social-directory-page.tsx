@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { ProfileLink } from '@/components/profile-link'
 import { Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, ApiError, type SocialProfile } from '@/lib/api'
@@ -19,7 +19,7 @@ export function SocialDirectoryPage() {
   const pages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.per_page ?? 24)))
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="flex w-full min-w-0 flex-col gap-6">
       <FilterBar
         q={q}
         onQChange={(next) => {
@@ -37,7 +37,7 @@ export function SocialDirectoryPage() {
           <p className="text-sm text-muted-foreground">Tente outro nome ou limpe a busca.</p>
         </div>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {data.items.map((p) => (
             <li key={p.user_id}>
               <ExploreRow profile={p} isMe={p.username === user?.username} onChanged={reload} />
@@ -89,14 +89,14 @@ function ExploreRow({
 
   return (
     <div className="watch-complication flex items-center gap-3 rounded-[18px] p-3.5">
-      <Link to={`/social/u/${profile.username}`} className="shrink-0">
+      <ProfileLink username={profile.username} className="shrink-0">
         <SocialAvatar name={display} className="size-12 text-sm" />
-      </Link>
-      <Link to={`/social/u/${profile.username}`} className="min-w-0 flex-1">
+      </ProfileLink>
+      <ProfileLink username={profile.username} className="min-w-0 flex-1">
         <p className="truncate font-display text-sm font-semibold">{display}</p>
         <p className="truncate text-xs text-muted-foreground">@{profile.username}</p>
         {profile.bio && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{profile.bio}</p>}
-      </Link>
+      </ProfileLink>
       {isMe ? (
         <span className="rounded-full border border-white/12 px-2.5 py-1 text-[11px] text-muted-foreground">
           Você

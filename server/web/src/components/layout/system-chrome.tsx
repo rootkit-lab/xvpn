@@ -5,6 +5,7 @@ import { ChatPopouts } from '@chat/messenger/ChatPopouts'
 import { ChatSidebar } from '@chat/messenger/ChatSidebar'
 import { cn } from '@/lib/utils'
 import { headerProduct } from '@/lib/product-host'
+import { isSocialProfilePath } from '@/lib/social-profile'
 import { PanelHeader } from '@/components/layout/panel-header'
 import { PageHeading } from '@/components/layout/page-heading'
 import { PanelStatusBar } from '@/components/layout/panel-status-bar'
@@ -31,6 +32,7 @@ export function SystemChrome({
   const showPopouts = Boolean(session?.loggedIn && !hidden)
   const product = headerProduct()
   const fillMain = /\/(social|xgroup)\/messages/.test(location.pathname)
+  const hideNav = variant === 'social' && isSocialProfilePath(location.pathname)
 
   return (
     <div
@@ -40,20 +42,22 @@ export function SystemChrome({
       <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
       <PanelHeader variant={variant} />
       <div className="relative z-10 flex min-h-0 flex-1">
-        <aside
-          className={cn(
-            'relative z-20 flex h-full w-60 shrink-0 flex-col border-r border-white/8',
-            variant === 'admin' ? 'w-64' : '',
-            'watch-complication',
-            asideClassName,
-          )}
-        >
-          <div className={cn('px-5 pt-4', variant === 'admin' && 'px-6')}>
-            <span className="hud-label text-muted-foreground/70">{subtitle}</span>
-          </div>
-          {variant === 'admin' && <div className="scanline mx-3 mt-3" />}
-          {nav}
-        </aside>
+        {!hideNav && (
+          <aside
+            className={cn(
+              'relative z-20 flex h-full w-60 shrink-0 flex-col border-r border-white/8',
+              variant === 'admin' ? 'w-64' : '',
+              'watch-complication',
+              asideClassName,
+            )}
+          >
+            <div className={cn('px-5 pt-4', variant === 'admin' && 'px-6')}>
+              <span className="hud-label text-muted-foreground/70">{subtitle}</span>
+            </div>
+            {variant === 'admin' && <div className="scanline mx-3 mt-3" />}
+            {nav}
+          </aside>
+        )}
         <div className="relative z-10 flex min-w-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
             <main
@@ -65,7 +69,7 @@ export function SystemChrome({
                 mainClassName,
               )}
             >
-              {!fillMain && <PageHeading variant={variant} />}
+              {!fillMain && !hideNav && <PageHeading variant={variant} />}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={location.pathname}

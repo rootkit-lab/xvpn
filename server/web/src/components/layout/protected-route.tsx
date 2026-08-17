@@ -15,7 +15,7 @@ export function ProtectedRoute({ allowedRoles }: { allowedRoles?: Role[] }) {
   const loginPath = loginPathForLocation(location.pathname)
 
   if (isLoadingUser) {
-    return <PageFallback />
+    return <PageFallback label="Verificando sessão…" />
   }
 
   if (!isAuthenticated) {
@@ -23,7 +23,7 @@ export function ProtectedRoute({ allowedRoles }: { allowedRoles?: Role[] }) {
       return <Navigate to={loginPath} replace state={{ from: location.pathname }} />
     }
     window.location.replace(ssoLoginURL())
-    return <PageFallback />
+    return <PageFallback label="Redirecionando para o login…" />
   }
 
   if (allowedRoles && (!user || !allowedRoles.includes(user.role))) {

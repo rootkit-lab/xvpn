@@ -11,7 +11,7 @@ interface PollingState<T> {
 // usePollingData busca `fetcher` ao montar e a cada `intervalMs` — usado nas
 // telas que exibem estado "ao vivo" da interface WireGuard (dashboard,
 // dispositivos), onde os dados podem mudar sem nenhuma ação do admin.
-export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000): PollingState<T> {
+export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000, enabled = true): PollingState<T> {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -20,6 +20,12 @@ export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000
   const reload = useCallback(() => setReloadToken((t) => t + 1), [])
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false)
+      setData(null)
+      setError(null)
+      return
+    }
     let cancelled = false
     // Evita sobrepor requisições se a anterior ainda não voltou (API
     // lenta/rede ruim) — sem isso, um tick do interval podia disparar
@@ -52,7 +58,7 @@ export function usePollingData<T>(fetcher: () => Promise<T>, intervalMs = 10_000
       cancelled = true
       clearInterval(id)
     }
-  }, [reloadToken, intervalMs, fetcher])
+  }, [reloadToken, intervalMs, fetcher, enabled])
 
   return { data, error, loading, reload }
 }

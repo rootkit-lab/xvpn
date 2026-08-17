@@ -32,7 +32,7 @@ export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
     headers.set('Content-Type', 'application/json')
     const t = token()
     if (t) headers.set('Authorization', `Bearer ${t}`)
-    const res = await fetch(`/api${path}`, { ...options, headers })
+    const res = await fetch(`/api${path}`, { ...options, headers, credentials: 'include' })
     if (res.status === 401) {
       onUnauthorized?.()
       throw new Error('sessão expirada')
@@ -53,9 +53,12 @@ export function createWebChatAPI(onUnauthorized?: () => void): ChatAPI {
 
   return {
     async session() {
+      const headers = new Headers()
       const t = token()
-      if (!t) return { loggedIn: false, username: '', role: '', userId: 0 }
-      const me = await request<{ id: number; username: string; role: string }>('/auth/me')
+      if (t) headers.set('Authorization', `Bearer ${t}`)
+      const res = await fetch('/api/auth/me', { headers, credentials: 'include' })
+      if (!res.ok) return { loggedIn: false, username: '', role: '', userId: 0 }
+      const me = (await res.json()) as { id: number; username: string; role: string }
       return { loggedIn: true, username: me.username, role: me.role, userId: me.id }
     },
     async logout() {

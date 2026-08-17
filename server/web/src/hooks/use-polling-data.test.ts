@@ -24,6 +24,15 @@ describe('usePollingData', () => {
     unmount()
   })
 
+  it('não busca quando enabled é false', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ok: true })
+    const { result, unmount } = renderHook(() => usePollingData(fetcher, 60_000, false))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(result.current.data).toBeNull()
+    unmount()
+  })
+
   it('reload dispara nova busca', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce('a').mockResolvedValueOnce('b')
     const { result, unmount } = renderHook(() => usePollingData(fetcher, 60_000))

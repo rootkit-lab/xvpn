@@ -43,20 +43,32 @@ func isLocalDevHost(host string) bool {
 	return h == "localhost" || h == "127.0.0.1" || strings.HasSuffix(h, ".localhost")
 }
 
-// TokenFromRequest lê Bearer e, se ausente, o cookie de SSO.
-func TokenFromRequest(c *gin.Context) string {
+func bearerToken(c *gin.Context) string {
 	header := c.GetHeader("Authorization")
-	if header != "" {
-		parts := strings.SplitN(header, " ", 2)
-		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-			return strings.TrimSpace(parts[1])
-		}
+	if header == "" {
+		return ""
 	}
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
+}
+
+func cookieToken(c *gin.Context) string {
 	ck, err := c.Request.Cookie(SessionCookieName)
 	if err != nil || ck == nil {
 		return ""
 	}
 	return strings.TrimSpace(ck.Value)
+}
+
+// TokenFromRequest lê Bearer e, se ausente, o cookie de SSO.
+func TokenFromRequest(c *gin.Context) string {
+	if t := bearerToken(c); t != "" {
+		return t
+	}
+	return cookieToken(c)
 }
 
 func sessionCookie(token string, maxAge int, host string) *http.Cookie {

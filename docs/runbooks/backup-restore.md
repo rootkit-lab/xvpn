@@ -4,7 +4,7 @@ O `server/deploy/backup.sh` copia no **mesmo disco**. Off-site é restic (+ rclo
 
 ## O que o job inclui
 
-Opt-in na UI: Mongo (`mongodump`), blobs do marketplace, bare do forge (`/opt/xvpn/data/git`), mídia social. XDRIVER é cópia extra no share (`/srv/xvpn/shared/xvpn-backups/…`) — **não** substitui off-site e **nunca** leva o dump do Mongo (o `[shared]` é guest).
+Opt-in na UI: Mongo (`mongodump`), blobs do marketplace, bare do forge (`/opt/xvpn/data/git`), mídia social. XDRIVER é cópia extra em `/opt/xvpn/data/backups/xdriver/` (fora do `[shared]` guest) — **não** substitui off-site e **nunca** leva o dump do Mongo.
 
 ## Restore restic (SFTP / B2 / S3 / rclone)
 

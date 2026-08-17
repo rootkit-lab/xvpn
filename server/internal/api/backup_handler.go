@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/rootkit-lab/xvpn/server/internal/backup"
+	"github.com/rootkit-lab/xvpn/server/internal/driver"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -417,14 +418,9 @@ type errString string
 func (e errString) Error() string { return string(e) }
 
 func (a *App) xdriverBackupPath(d store.BackupDestination) string {
-	root := ""
-	if a.Config != nil {
-		root = a.Config.DriverSharedDir
-	}
-	if root == "" {
-		root = "/srv/xvpn/shared"
-	}
-	base := filepath.Join(root, "xvpn-backups")
+	// Fora do [shared] guest — peers VPN não plantam symlink aqui.
+	root := a.backupStaging()
+	base := filepath.Join(root, "xdriver")
 	name := sanitizePathPart(d.Name)
 	if d.Path != "" {
 		name = sanitizePathPart(d.Path)
@@ -439,6 +435,20 @@ func (a *App) xdriverBackupPath(d store.BackupDestination) string {
 		return ""
 	}
 	if cleanFull != cleanBase && !strings.HasPrefix(cleanFull, cleanBase+string(os.PathSeparator)) {
+		return ""
+	}
+	if _, err := os.Lstat(cleanBase); err == nil {
+		if err := driver.RejectSymlinks(cleanBase, cleanBase); err != nil {
+			return ""
+		}
+	} else if os.IsNotExist(err) {
+		if err := os.MkdirAll(cleanBase, 0o750); err != nil {
+			return ""
+		}
+	} else {
+		return ""
+	}
+	if err := driver.RejectSymlinks(cleanBase, cleanFull); err != nil {
 		return ""
 	}
 	return cleanFull

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -192,12 +193,20 @@ func dumpMongo(uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cmd := exec.Command(bin, "--uri="+uri, "--out="+dir)
+	cfg := filepath.Join(dir, "mongodump.yaml")
+	body := "uri: " + strconv.Quote(uri) + "\n"
+	if err := os.WriteFile(cfg, []byte(body), 0o600); err != nil {
+		_ = os.RemoveAll(dir)
+		return "", err
+	}
+	outDir := filepath.Join(dir, "dump")
+	cmd := exec.Command(bin, "--config="+cfg, "--out="+outDir)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		_ = os.RemoveAll(dir)
 		return "", fmt.Errorf("mongodump: %s", strings.TrimSpace(string(out)))
 	}
-	return dir, nil
+	_ = os.Remove(cfg)
+	return outDir, nil
 }
 
 func resticRepo(dest Dest, staging string) (string, []string, error) {

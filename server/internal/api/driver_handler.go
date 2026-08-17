@@ -187,7 +187,9 @@ func (a *App) handleDriverDownload(c *gin.Context) {
 	defer f.Close()
 	name := filepath.Base(full)
 	inline := c.Query("inline") == "1"
-	c.Header("Content-Type", driverContentType(name))
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox")
+	c.Header("Content-Type", driverContentType(name, inline))
 	c.Header("Content-Disposition", driverDisposition(inline, name))
 	http.ServeContent(c.Writer, c.Request, name, time.Time{}, f)
 }
@@ -201,24 +203,92 @@ func driverDisposition(inline bool, name string) string {
 	return kind + `; filename="` + name + `"`
 }
 
-func driverContentType(name string) string {
+func driverContentType(name string, inline bool) string {
 	lower := strings.ToLower(name)
+	ext := filepath.Ext(lower)
+	if driverActiveExt(ext) {
+		return "text/plain; charset=utf-8"
+	}
+	if inline {
+		if t := driverInlineType(ext); t != "" {
+			return t
+		}
+		return "text/plain; charset=utf-8"
+	}
 	if strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz") {
 		return "application/gzip"
 	}
-	if t := mime.TypeByExtension(filepath.Ext(lower)); t != "" {
+	if t := mime.TypeByExtension(ext); t != "" {
 		return t
 	}
 	return "application/octet-stream"
 }
 
+func driverActiveExt(ext string) bool {
+	switch ext {
+	case ".html", ".htm", ".svg", ".xml", ".js", ".mjs", ".xhtml":
+		return true
+	default:
+		return false
+	}
+}
+
+func driverInlineType(ext string) string {
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".avif":
+		return "image/avif"
+	case ".bmp":
+		return "image/bmp"
+	case ".mp4":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mov":
+		return "video/quicktime"
+	case ".ogv":
+		return "video/ogg"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	case ".ogg":
+		return "audio/ogg"
+	case ".m4a":
+		return "audio/mp4"
+	case ".flac":
+		return "audio/flac"
+	case ".pdf":
+		return "application/pdf"
+	default:
+		return ""
+	}
+}
+
 func (a *App) handleDriverWrite(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDriverWrite+4096)
 	var req struct {
 		Root    string `json:"root"`
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.Path) == "" {
+	if err := c.ShouldBindJSON(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "texto maior que 2 MiB"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
+		return
+	}
+	if strings.TrimSpace(req.Path) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return
 	}

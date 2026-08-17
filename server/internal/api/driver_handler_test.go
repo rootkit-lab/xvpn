@@ -117,6 +117,37 @@ func TestDriverWriteAndInlineDownload(t *testing.T) {
 	if dl.Body.String() != "novo" {
 		t.Fatalf("body=%q", dl.Body.String())
 	}
+	if dl.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("faltou nosniff")
+	}
+}
+
+func TestDriverInlineHTMLIsNotExecutable(t *testing.T) {
+	app, _ := newTestApp(t)
+	shared := t.TempDir()
+	app.Config.DriverSharedDir = shared
+	app.Config.DriverHomeRoot = t.TempDir()
+	if err := os.WriteFile(filepath.Join(shared, "x.html"), []byte("<script>alert(1)</script>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+	req := httptest.NewRequest(http.MethodGet, "/api/driver/download?root=shared&path=x.html&inline=1", nil)
+	req.Host = "xdriver.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("download: %d", rec.Code)
+	}
+	ct := rec.Header().Get("Content-Type")
+	if strings.Contains(ct, "html") {
+		t.Fatalf("HTML inline não pode ser text/html: %q", ct)
+	}
+	if rec.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatal("faltou nosniff")
+	}
 }
 
 func TestDriverExtractRejectsUnsupported(t *testing.T) {

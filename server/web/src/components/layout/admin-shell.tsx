@@ -11,6 +11,7 @@ import {
   Store,
   Shield,
   AtSign,
+  FolderKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -44,6 +45,12 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     label: 'DNS',
     product: 'dns',
     items: [{ to: '/admin/dns', label: 'DNS intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' }],
+  },
+  {
+    id: 'forge',
+    label: 'Projetos',
+    product: 'forge',
+    items: [{ to: '/admin/projects', label: 'Projetos', icon: FolderKanban, roles: VIEWER_UP_ROLES, product: 'forge' }],
   },
   {
     id: 'marketplace',

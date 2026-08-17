@@ -19,10 +19,13 @@ export function SocialFeedPage() {
   const fetchFeed = useCallback(() => api.listSocialFeed({ page: 1, per_page: 40 }), [])
   const fetchPeople = useCallback(() => api.listSocialPeople({ page: 1, per_page: 6 }), [])
   const fetchGroups = useCallback(() => api.listSocialGroups({ page: 1, per_page: 4 }), [])
+  const fetchProjects = useCallback(() => api.listProjects(), [])
   const { data, loading, error, reload } = usePollingData(fetchFeed, 15_000)
   const { data: people } = usePollingData(fetchPeople, 30_000)
   const { data: groups } = usePollingData(fetchGroups, 30_000)
+  const { data: projects } = usePollingData(fetchProjects, 60_000)
   const [body, setBody] = useState('')
+  const [projectSlug, setProjectSlug] = useState('')
   const [posting, setPosting] = useState(false)
   const left = 280 - [...body].length
 
@@ -32,7 +35,7 @@ export function SocialFeedPage() {
     if (!text) return
     setPosting(true)
     try {
-      await api.createSocialPost(text)
+      await api.createSocialPost(text, projectSlug || undefined)
       setBody('')
       reload()
     } catch (err) {
@@ -57,8 +60,25 @@ export function SocialFeedPage() {
               placeholder="O que está acontecendo?"
               rows={3}
             />
-            <div className="mt-3 flex items-center justify-between">
-              <span className={`text-xs ${left < 20 ? 'text-destructive' : 'text-muted-foreground'}`}>{left}</span>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs ${left < 20 ? 'text-destructive' : 'text-muted-foreground'}`}>{left}</span>
+                {(projects?.items.length ?? 0) > 0 && (
+                  <select
+                    className="rounded-full border border-white/10 bg-transparent px-2 py-1 text-xs text-muted-foreground"
+                    value={projectSlug}
+                    onChange={(e) => setProjectSlug(e.target.value)}
+                    aria-label="Ligar ao projeto"
+                  >
+                    <option value="">sem projeto</option>
+                    {projects?.items.map((p) => (
+                      <option key={p.slug} value={p.slug}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
               <Button type="submit" size="lg" className="rounded-full" disabled={posting || !body.trim()}>
                 {posting ? 'Publicando…' : 'Postar'}
               </Button>

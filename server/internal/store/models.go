@@ -486,13 +486,16 @@ type StoryView struct {
 
 // SocialPost é um post público do xgroup (timeline estilo Twitter).
 // Kind = text (padrão) ou repost (OriginalID aponta para o post original).
+// ProjectSlug (Fase 37) liga o post a um projeto do forge — o grupo
+// XGROUP do slug é a activity/issue; sem segundo social.
 type SocialPost struct {
-	ID         uint   `gorm:"primaryKey"`
-	AuthorID   uint   `gorm:"not null;index"`
-	Body       string `gorm:"type:text;not null"`
-	Kind       string `gorm:"default:'text'"`
-	OriginalID *uint  `gorm:"index"`
-	CreatedAt  time.Time
+	ID          uint    `gorm:"primaryKey"`
+	AuthorID    uint    `gorm:"not null;index"`
+	Body        string  `gorm:"type:text;not null"`
+	Kind        string  `gorm:"default:'text'"`
+	OriginalID  *uint   `gorm:"index"`
+	ProjectSlug *string `gorm:"index"`
+	CreatedAt   time.Time
 }
 
 // SocialPostStar é a estrela (favorito) de um membro num post.

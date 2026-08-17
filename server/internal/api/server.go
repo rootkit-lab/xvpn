@@ -292,6 +292,11 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/social/posts/:id/comments", app.handleSocialCreateComment)
 			authed.POST("/social/posts/:id/repost", app.handleSocialRepost)
 
+			// Forge (Fase 37): listagem e detalhe para o picker do feed
+			// e o XDRIVER. Member só vê projetos em que participa.
+			authed.GET("/projects", app.handleListProjects)
+			authed.GET("/projects/:slug", app.handleGetProject)
+
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())
 			{
@@ -377,6 +382,15 @@ func NewRouter(app *App) *gin.Engine {
 			marketWrite.Use(auth.RequireProduct(store.ProductMarketplace))
 			{
 				marketWrite.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
+			}
+
+			// Forge (Fase 37): projeto, regras e membros. Git é Fase 40.
+			forgeWrite := adminOnly.Group("")
+			forgeWrite.Use(auth.RequireProduct(store.ProductForge))
+			{
+				forgeWrite.POST("/projects", app.handleCreateProject)
+				forgeWrite.PATCH("/projects/:slug", app.handleUpdateProject)
+				forgeWrite.PUT("/projects/:slug/members", app.handleSetProjectMembers)
 			}
 		}
 

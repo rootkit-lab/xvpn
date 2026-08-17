@@ -134,6 +134,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/projects',
+    meta: {
+      kicker: 'Forge',
+      title: 'Projetos',
+      description: 'Um slug, membros e regras. Issues e activity no XGROUP. Sem git nesta fase.',
+    },
+  },
+  {
     prefix: '/admin/marketplace/acl',
     meta: {
       kicker: 'Marketplace',

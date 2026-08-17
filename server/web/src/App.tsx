@@ -40,6 +40,10 @@ const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ def
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
 const XGroupAdminPage = lazy(() => import('@/pages/xgroup-admin-page').then((m) => ({ default: m.XGroupAdminPage })))
+const ProjectsPage = lazy(() => import('@/pages/projects-page').then((m) => ({ default: m.ProjectsPage })))
+const ProjectDetailPage = lazy(() =>
+  import('@/pages/project-detail-page').then((m) => ({ default: m.ProjectDetailPage })),
+)
 const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
@@ -244,6 +248,8 @@ function XAdminCorpApp() {
             <Route path="marketplace/catalog" element={<MarketplacePage variant="manage" section="catalog" />} />
             <Route path="marketplace/acl" element={<MarketplacePage variant="manage" section="acl" />} />
             <Route path="xgroup" element={<XGroupAdminPage />} />
+            <Route path="projects" element={<ProjectsPage />} />
+            <Route path="projects/:slug" element={<ProjectDetailPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="dns" element={<DNSPage />} />
             <Route path="audit" element={<AuditPage />} />

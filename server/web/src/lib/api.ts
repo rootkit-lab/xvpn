@@ -416,6 +416,9 @@ export interface SocialPost {
   reposts: number
   reposted: boolean
   original?: SocialPostOriginal
+  project_slug?: string
+  project_name?: string
+  social_group_id?: number
   created_at: string
 }
 
@@ -459,7 +462,31 @@ export interface SocialAttachment {
   kind: string
 }
 
-export type DriverRoot = 'home' | 'shared'
+export type DriverRoot = 'home' | 'shared' | `project:${string}`
+
+export type ProjectRole = 'guest' | 'reporter' | 'developer' | 'maintainer' | 'owner'
+
+export interface ProjectMember {
+  user_id: number
+  username: string
+  role: ProjectRole
+}
+
+export interface Project {
+  slug: string
+  name: string
+  description: string
+  app_id?: number
+  social_group_id: number
+  files_enabled: boolean
+  visibility: MarketplaceVisibility
+  network: MarketplaceNetwork
+  runners: string[]
+  member_count: number
+  members?: ProjectMember[]
+  created_at: string
+  updated_at: string
+}
 
 export interface DriverEntry {
   name: string
@@ -645,6 +672,34 @@ export const api = {
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 
+  listProjects: () => request<{ items: Project[] }>('/projects'),
+  getProject: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}`),
+  createProject: (body: {
+    slug: string
+    name: string
+    description?: string
+    files_enabled?: boolean
+    visibility?: MarketplaceVisibility
+    network?: MarketplaceNetwork
+    runners?: string[]
+  }) => request<Project>('/projects', { method: 'POST', body: JSON.stringify(body) }),
+  updateProject: (
+    slug: string,
+    body: {
+      name?: string
+      description?: string
+      files_enabled?: boolean
+      visibility?: MarketplaceVisibility
+      network?: MarketplaceNetwork
+      runners?: string[]
+    },
+  ) => request<Project>(`/projects/${encodeURIComponent(slug)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  setProjectMembers: (slug: string, members: { user_id: number; role: ProjectRole }[]) =>
+    request<Project>(`/projects/${encodeURIComponent(slug)}/members`, {
+      method: 'PUT',
+      body: JSON.stringify({ members }),
+    }),
+
   listSocialPeople: (params?: PageParams) =>
     request<PageEnvelope<SocialProfile>>(withQuery('/social/people', params)),
   getSocialMe: () => request<SocialProfile>('/social/profile'),
@@ -689,8 +744,11 @@ export const api = {
   listSocialFeed: (params?: PageParams) => request<PageEnvelope<SocialPost>>(withQuery('/social/feed', params)),
   listSocialUserPosts: (username: string, params?: PageParams) =>
     request<PageEnvelope<SocialPost>>(withQuery(`/social/u/${encodeURIComponent(username)}/posts`, params)),
-  createSocialPost: (body: string) =>
-    request<SocialPost>('/social/posts', { method: 'POST', body: JSON.stringify({ body }) }),
+  createSocialPost: (body: string, projectSlug?: string) =>
+    request<SocialPost>('/social/posts', {
+      method: 'POST',
+      body: JSON.stringify({ body, project_slug: projectSlug || undefined }),
+    }),
   deleteSocialPost: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
   starSocialPost: (id: number) =>
     request<{ starred: boolean; stars: number; post_id: number }>(`/social/posts/${id}/star`, {

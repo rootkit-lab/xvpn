@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
 func cookieCoversIhuull(domain string) bool {
@@ -78,6 +79,35 @@ func TestTokenFromRequest_BearerWinsOverCookie(t *testing.T) {
 	c.Request.AddCookie(&http.Cookie{Name: SessionCookieName, Value: "from-cookie"})
 	if got := TokenFromRequest(c); got != "from-header" {
 		t.Fatalf("Bearer deveria prevalecer, got %q", got)
+	}
+}
+
+func TestRequireAuth_StaleBearerFallsBackToCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
+	good, err := tm.Issue(9, "rootkit", store.RoleAdmin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var uid uint
+	var okReq bool
+	r := gin.New()
+	r.GET("/me", RequireAuth(tm), func(c *gin.Context) {
+		okReq = true
+		v, _ := c.Get(ContextUserIDKey)
+		uid, _ = v.(uint)
+		c.Status(http.StatusNoContent)
+	})
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer token-velho-invalido")
+	req.AddCookie(&http.Cookie{Name: SessionCookieName, Value: good})
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent || !okReq {
+		t.Fatalf("esperava cookie válido, got %d", rec.Code)
+	}
+	if uid != uint(9) {
+		t.Fatalf("uid %v", uid)
 	}
 }
 

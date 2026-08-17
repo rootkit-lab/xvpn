@@ -1,5 +1,5 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, clearToken, setToken, type User } from '@/lib/api'
+import { ApiError, api, clearToken, setToken, type User } from '@/lib/api'
 
 interface AuthContextValue {
   isAuthenticated: boolean
@@ -30,8 +30,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(u)
         setIsAuthenticated(true)
       })
-      .catch(() => {
+      .catch(async (err) => {
         if (cancelled) return
+        // 401 já limpou o Bearer velho; tenta de novo só com o cookie SSO.
+        if (err instanceof ApiError && err.status === 401) {
+          try {
+            const u = await api.me()
+            if (cancelled) return
+            setUser(u)
+            setIsAuthenticated(true)
+            return
+          } catch {
+            if (cancelled) return
+          }
+        }
         setUser(null)
         setIsAuthenticated(false)
       })

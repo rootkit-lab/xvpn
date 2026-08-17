@@ -49,8 +49,8 @@ async function parseErrorMessage(res: Response): Promise<string> {
 // quando o token expirou ou é inválido — mesmo efeito colateral (limpar
 // token e mandar pro /login) nos três casos.
 function handleUnauthorized(path: string) {
-  if (path.startsWith('/auth/login') || path === '/auth/me' || path === '/auth/logout') return
   clearToken()
+  if (path.startsWith('/auth/login') || path === '/auth/me' || path === '/auth/logout') return
   if (productKind() === 'xauth') {
     if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
       window.location.href = '/login'

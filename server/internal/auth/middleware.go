@@ -32,6 +32,14 @@ func RequireAuth(tm *TokenManager) gin.HandlerFunc {
 
 		claims, err := tm.Parse(token)
 		if err != nil {
+			// Bearer velho no localStorage do painel não pode tapar o
+			// cookie SSO válido — senão /admin fica no spinner e o
+			// login nunca fecha.
+			if ck := cookieToken(c); ck != "" && ck != token {
+				claims, err = tm.Parse(ck)
+			}
+		}
+		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
 			return
 		}

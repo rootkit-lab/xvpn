@@ -5,6 +5,7 @@ import { ChatProvider } from '@chat/messenger/ChatProvider'
 import { createWebChatAPI } from '@chat/chatapi/web'
 import { useAuth } from '@/lib/auth-context'
 import { clearToken } from '@/lib/api'
+import { ssoLoginURL } from '@/lib/product-host'
 import { ChatDocumentTitle } from '@/components/layout/document-title'
 
 /** Provider acima dos shells — o painel vive na sidebar + status bar do SystemChrome. */
@@ -14,9 +15,7 @@ export function ChatHost({ children }: { children: ReactNode }) {
     () =>
       createWebChatAPI(() => {
         clearToken()
-        const here = window.location.pathname
-        const login = here.startsWith('/admin') ? '/admin/login' : '/my/login'
-        if (here !== login) window.location.href = login
+        window.location.replace(ssoLoginURL())
       }),
     [],
   )

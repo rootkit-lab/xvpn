@@ -49,9 +49,9 @@ const SHORTCUTS = [
 export function XvpnProductPortal() {
   const { user, isAuthenticated, isLoadingUser } = useAuth()
   const fetchStatus = useCallback(() => api.status(), [])
-  const { data: status, error, loading } = usePollingData(fetchStatus, 10_000)
+  const { data: status, error, loading } = usePollingData(fetchStatus, 10_000, isAuthenticated)
   const online = Boolean(status) && !error
-  const checking = loading && !status && !error
+  const checking = isAuthenticated && loading && !status && !error
   const showAdmin = isViewerUpRole(user?.role)
   const loginHref = ssoLoginURL()
 
@@ -88,7 +88,7 @@ export function XvpnProductPortal() {
           <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
             {isAuthenticated
               ? 'Status do túnel, cliente e atalhos da intranet. Peers e contas ficam em Administração.'
-              : 'Status do túnel, download do cliente e atalhos. A operação de peers fica em Administração — esta home não lista dispositivos.'}
+              : 'Baixe o cliente e entre com a conta ihuull. O estado da VPN e os peers só aparecem depois do login.'}
           </p>
         </section>
 
@@ -96,22 +96,32 @@ export function XvpnProductPortal() {
           <span
             className={cn(
               'size-2.5 shrink-0 rounded-full',
-              checking ? 'bg-muted-foreground/50' : online ? 'status-safe-dot' : 'bg-destructive',
+              !isAuthenticated || checking ? 'bg-muted-foreground/50' : online ? 'status-safe-dot' : 'bg-destructive',
             )}
             aria-hidden
           />
           <div className="min-w-0 flex-1">
             <p className="font-display text-sm font-semibold">
-              {checking ? 'Consultando…' : online ? 'VPN no ar' : 'API offline'}
+              {!isAuthenticated
+                ? 'Entre para ver o status'
+                : checking
+                  ? 'Consultando…'
+                  : online
+                    ? 'VPN no ar'
+                    : 'API offline'}
             </p>
-            {status ? (
+            {isAuthenticated && status ? (
               <p className="mt-1 text-sm text-muted-foreground">
                 {status.connected_peers} de {status.total_peers} peers com handshake recente · api v
                 {status.api_version}
               </p>
             ) : (
               <p className="mt-1 text-sm text-muted-foreground">
-                {error ? 'Não foi possível falar com o control-plane.' : 'Consultando o control-plane…'}
+                {!isAuthenticated
+                  ? 'O control-plane não publica peers para quem está deslogado.'
+                  : error
+                    ? 'Não foi possível falar com o control-plane.'
+                    : 'Consultando o control-plane…'}
               </p>
             )}
           </div>

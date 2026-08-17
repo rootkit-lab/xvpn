@@ -313,7 +313,7 @@ func csCreate(r CsRunner, spec CsSpec) error {
 		return err
 	}
 	if !exists {
-		if err := r.Git("clone", "--branch", spec.Branch, "--single-branch", spec.BarePath, spec.Workspace); err != nil {
+		if err := r.Git("clone", "--no-hardlinks", "--branch", spec.Branch, "--single-branch", spec.BarePath, spec.Workspace); err != nil {
 			return err
 		}
 		if err := r.Git("-C", spec.Workspace, "remote", "set-url", "origin", spec.CloneURL); err != nil {

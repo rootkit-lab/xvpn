@@ -148,8 +148,12 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if len(f.git) == 0 || f.git[0][0] != "clone" {
 		t.Fatalf("esperava git clone, veio %v", f.git)
 	}
-	if strings.Contains(strings.Join(f.git[0], " "), "worktree") {
+	joinedGit := strings.Join(f.git[0], " ")
+	if strings.Contains(joinedGit, "worktree") {
 		t.Fatal("não pode ser worktree")
+	}
+	if !strings.Contains(joinedGit, "--no-hardlinks") {
+		t.Fatal("clone local sem --no-hardlinks compartilha inode com o bare")
 	}
 	if f.git[0][len(f.git[0])-2] != bare {
 		t.Fatalf("clone deve ser do bare: %v", f.git[0])

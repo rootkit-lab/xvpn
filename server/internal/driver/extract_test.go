@@ -2,6 +2,7 @@ package driver
 
 import (
 	"archive/zip"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -61,6 +62,45 @@ func TestExtractZipWritesUnderDest(t *testing.T) {
 	}
 	if string(got) != "oi" {
 		t.Fatalf("conteúdo=%q", got)
+	}
+}
+
+func TestZipCentralCountRejectsTooManyEntries(t *testing.T) {
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "muitos.zip")
+	zf, err := os.Create(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zw := zip.NewWriter(zf)
+	for i := 0; i < MaxExtractFiles+1; i++ {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: fmt.Sprintf("d/%d", i), Method: zip.Store})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write(nil)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := zf.Close(); err != nil {
+		t.Fatal(err)
+	}
+	st, err := os.Stat(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(zipPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	n, err := zipCentralCount(f, st.Size())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n <= MaxExtractFiles {
+		t.Fatalf("contagem=%d", n)
 	}
 }
 

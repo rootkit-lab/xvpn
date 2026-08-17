@@ -19,7 +19,8 @@ func TestValidProjectSlug(t *testing.T) {
 
 func TestReservedProjectSlug(t *testing.T) {
 	if !ReservedProjectSlug("repositories") || !ReservedProjectSlug("stars") ||
-		!ReservedProjectSlug("issues") || !ReservedProjectSlug("pulls") || !ReservedProjectSlug("edit") {
+		!ReservedProjectSlug("issues") || !ReservedProjectSlug("pulls") || !ReservedProjectSlug("edit") ||
+		!ReservedProjectSlug("projects") || !ReservedProjectSlug("milestones") || !ReservedProjectSlug("labels") {
 		t.Fatal("rotas da home deveriam ser reservadas")
 	}
 	if ReservedProjectSlug("xvpn") {

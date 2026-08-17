@@ -770,6 +770,8 @@ export interface Issue {
   status: IssueStatus
   labels: string[]
   assignees: string[]
+  milestone?: number
+  milestone_title?: string
   author_id: number
   author: string
   thread_id: number
@@ -780,6 +782,58 @@ export interface Issue {
   can_close?: boolean
   can_reopen?: boolean
   can_update?: boolean
+}
+
+export interface IssueList {
+  items: Issue[]
+  open_count: number
+  closed_count: number
+}
+
+export interface Milestone {
+  number: number
+  title: string
+  description: string
+  status: 'open' | 'closed'
+  due_on?: string
+  open_issues: number
+  closed_issues: number
+  author: string
+  closed_at?: string
+  created_at: string
+  updated_at: string
+  can_update?: boolean
+}
+
+export type WorkProjectLayout = 'table' | 'board'
+export type WorkProjectTemplate = 'kanban' | 'board' | 'table' | 'bug' | 'roadmap'
+
+export interface WorkItem {
+  id: number
+  title: string
+  column: string
+  position: number
+  issue?: number
+  mr?: number
+  author: string
+  created_at: string
+}
+
+export interface WorkProject {
+  number: number
+  title: string
+  description: string
+  status: 'open' | 'closed'
+  layout: WorkProjectLayout | string
+  template: string
+  columns: string[]
+  item_count: number
+  author: string
+  closed_at?: string
+  created_at: string
+  updated_at: string
+  can_update?: boolean
+  items?: WorkItem[]
 }
 
 export type MRReviewState = 'approve' | 'request_changes' | 'comment'
@@ -1131,16 +1185,37 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
-  listIssues: (slug: string, opts?: { status?: IssueStatus; q?: string }) => {
+  listIssues: (
+    slug: string,
+    opts?: {
+      status?: IssueStatus
+      q?: string
+      author?: string
+      assignee?: string
+      label?: string
+      mentioned?: string
+      milestone?: number
+      sort?: 'newest' | 'oldest' | 'updated'
+    },
+  ) => {
     const q = new URLSearchParams()
     if (opts?.status) q.set('status', opts.status)
     if (opts?.q) q.set('q', opts.q)
+    if (opts?.author) q.set('author', opts.author)
+    if (opts?.assignee) q.set('assignee', opts.assignee)
+    if (opts?.label) q.set('label', opts.label)
+    if (opts?.mentioned) q.set('mentioned', opts.mentioned)
+    if (opts?.milestone) q.set('milestone', String(opts.milestone))
+    if (opts?.sort) q.set('sort', opts.sort)
     const qs = q.toString()
-    return request<{ items: Issue[] }>(`/projects/${encodeURIComponent(slug)}/issues${qs ? `?${qs}` : ''}`)
+    return request<IssueList>(`/projects/${encodeURIComponent(slug)}/issues${qs ? `?${qs}` : ''}`)
   },
   getIssue: (slug: string, n: number) =>
     request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`),
-  createIssue: (slug: string, body: { title: string; body?: string; labels?: string[]; assignees?: string[] }) =>
+  createIssue: (
+    slug: string,
+    body: { title: string; body?: string; labels?: string[]; assignees?: string[]; milestone?: number },
+  ) =>
     request<Issue>(`/projects/${encodeURIComponent(slug)}/issues`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -1148,12 +1223,59 @@ export const api = {
   patchIssue: (
     slug: string,
     n: number,
-    body: { title?: string; body?: string; status?: IssueStatus; labels?: string[]; assignees?: string[] },
+    body: { title?: string; body?: string; status?: IssueStatus; labels?: string[]; assignees?: string[]; milestone?: number },
   ) =>
     request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  listIssueLabels: (slug: string) =>
+    request<{ items: string[] }>(`/projects/${encodeURIComponent(slug)}/labels`),
+  listMilestones: (slug: string, status?: 'open' | 'closed') => {
+    const q = status ? `?status=${status}` : ''
+    return request<{ items: Milestone[] }>(`/projects/${encodeURIComponent(slug)}/milestones${q}`)
+  },
+  createMilestone: (slug: string, body: { title: string; description?: string; due_on?: string }) =>
+    request<Milestone>(`/projects/${encodeURIComponent(slug)}/milestones`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchMilestone: (slug: string, n: number, body: { title?: string; description?: string; status?: 'open' | 'closed'; due_on?: string }) =>
+    request<Milestone>(`/projects/${encodeURIComponent(slug)}/milestones/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  listWorkProjects: (slug: string, opts?: { status?: 'open' | 'closed'; q?: string }) => {
+    const q = new URLSearchParams()
+    if (opts?.status) q.set('status', opts.status)
+    if (opts?.q) q.set('q', opts.q)
+    const qs = q.toString()
+    return request<{ items: WorkProject[] }>(`/projects/${encodeURIComponent(slug)}/work-projects${qs ? `?${qs}` : ''}`)
+  },
+  getWorkProject: (slug: string, n: number) =>
+    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}`),
+  createWorkProject: (slug: string, body: { title: string; description?: string; template?: WorkProjectTemplate }) =>
+    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchWorkProject: (slug: string, n: number, body: { title?: string; description?: string; status?: 'open' | 'closed' }) =>
+    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  createWorkItem: (slug: string, n: number, body: { title?: string; issue?: number; mr?: number; column?: string }) =>
+    request<WorkItem>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchWorkItem: (slug: string, n: number, id: number, body: { title?: string; column?: string; position?: number }) =>
+    request<WorkItem>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteWorkItem: (slug: string, n: number, id: number) =>
+    request<void>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items/${id}`, { method: 'DELETE' }),
   putContents: (
     slug: string,
     body: { path: string; ref: string; content: string; message: string; description?: string; new_branch?: string; open_pr?: boolean },

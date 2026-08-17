@@ -147,6 +147,7 @@ type Issue struct {
 	Status       IssueStatus `gorm:"not null;default:open;index"`
 	Labels       []string    `gorm:"serializer:json"`
 	AssigneeIDs  []uint      `gorm:"serializer:json"`
+	MilestoneID  *uint       `gorm:"index"`
 	AuthorID     uint        `gorm:"not null;index"`
 	ThreadID     uint        `gorm:"not null;index"`
 	SocialPostID *uint
@@ -156,6 +157,81 @@ type Issue struct {
 	UpdatedAt    time.Time
 
 	Author User `gorm:"foreignKey:AuthorID"`
+}
+
+// MilestoneStatus é o ciclo de um milestone (Fase 46.1).
+type MilestoneStatus string
+
+const (
+	MilestoneOpen   MilestoneStatus = "open"
+	MilestoneClosed MilestoneStatus = "closed"
+)
+
+func (s MilestoneStatus) Valid() bool {
+	return s == MilestoneOpen || s == MilestoneClosed
+}
+
+// Milestone agrupa issues de um repo (não é o Project do forge).
+type Milestone struct {
+	ID          uint   `gorm:"primaryKey"`
+	ProjectID   uint   `gorm:"uniqueIndex:idx_project_milestone;not null"`
+	Number      uint   `gorm:"uniqueIndex:idx_project_milestone;not null"`
+	Title       string `gorm:"not null"`
+	Description string `gorm:"type:text"`
+	DueOn       *time.Time
+	Status      MilestoneStatus `gorm:"not null;default:open;index"`
+	AuthorID    uint            `gorm:"not null;index"`
+	ClosedAt    *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+
+	Author User `gorm:"foreignKey:AuthorID"`
+}
+
+// WorkProjectStatus é o ciclo de um board (Fase 46.1).
+type WorkProjectStatus string
+
+const (
+	WorkProjectOpen   WorkProjectStatus = "open"
+	WorkProjectClosed WorkProjectStatus = "closed"
+)
+
+func (s WorkProjectStatus) Valid() bool {
+	return s == WorkProjectOpen || s == WorkProjectClosed
+}
+
+// WorkProject é o Projects do GitHub (board/table). Não confundir com
+// Project (o repositório git).
+type WorkProject struct {
+	ID          uint              `gorm:"primaryKey"`
+	ProjectID   uint              `gorm:"uniqueIndex:idx_project_work;not null"`
+	Number      uint              `gorm:"uniqueIndex:idx_project_work;not null"`
+	Title       string            `gorm:"not null"`
+	Description string            `gorm:"type:text"`
+	Status      WorkProjectStatus `gorm:"not null;default:open;index"`
+	Layout      string            `gorm:"not null;default:board"`
+	Template    string
+	Columns     []string `gorm:"serializer:json"`
+	AuthorID    uint     `gorm:"not null;index"`
+	ClosedAt    *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+
+	Author User `gorm:"foreignKey:AuthorID"`
+}
+
+// WorkItem é um cartão no board: issue, PR ou draft.
+type WorkItem struct {
+	ID            uint `gorm:"primaryKey"`
+	WorkProjectID uint `gorm:"index;not null"`
+	IssueNumber   *uint
+	MRNumber      *uint
+	Title         string `gorm:"not null"`
+	Column        string `gorm:"not null"`
+	Position      int    `gorm:"not null;default:0"`
+	AuthorID      uint   `gorm:"not null;index"`
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // MRReviewState é o veredito de um review (Fase 47).
@@ -252,7 +328,7 @@ func ValidProjectSlug(s string) bool {
 // ReservedProjectSlug são rotas da home em xgit.corp (não podem ser slug).
 func ReservedProjectSlug(s string) bool {
 	switch s {
-	case "repositories", "packages", "stars", "overview", "settings", "login", "admin", "issues", "pulls", "edit":
+	case "repositories", "packages", "stars", "overview", "settings", "login", "admin", "issues", "pulls", "edit", "projects", "milestones", "labels":
 		return true
 	default:
 		return false

@@ -670,7 +670,8 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Feature GitLab | Onde no ihuull |
 |---|---|
 | SSO / membros | xauth + IAM + `ProjectMember` (guest/reporter/developer/maintainer/owner) |
-| Issues, labels, assignees | XGIT (`Issue` no Mongo, Fase 46). Activity social continua no XGROUP (grupo por slug) — post = link, não o tracker |
+| Issues, labels, assignees, milestones | XGIT (`Issue` + `Milestone` no Mongo, Fases 46/46.1). Activity social continua no XGROUP (grupo por slug) — post = link, não o tracker |
+| Projects (board/table) | XGIT (`WorkProject` / `WorkItem` no Mongo, Fase 46.1). Não é o `Project` do forge (repo). Itens apontam para issue/PR ou draft |
 | Discussão ao vivo / review | XCHAT (thread por MR e por issue; skill `chat-chrome`) |
 | Wiki, LFS, artifacts, job logs | XDRIVER share `project-<slug>` (só VPN) |
 | Releases / deb-exe-apk | Marketplace (`AppVersion` / `AppAsset`) |
@@ -685,9 +686,11 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
 
-**Console XGIT (Fase 43.1).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é a home do usuário (Overview com heatmap/timeline, Repositórios, Packages futuro, Stars) e o detalhe Code / Issues (46) / Pull requests (47) / Actions / Settings. Lista do membro: `scope=mine`. App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess`. `member` no xadmin é redirecionado a `xgit.corp`. Discussão de MR/issue abre o XCHAT no chrome. `/admin/projects*` redireciona. Sem GitLab CE.
+**Console XGIT (Fase 43.1).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é a home do usuário (Overview com heatmap/timeline, Repositórios, Packages futuro, Stars) e o detalhe Code / Issues (46/46.1) / Pull requests (47) / Projects (46.1) / Actions / Settings. Lista do membro: `scope=mine`. App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess`. `member` no xadmin é redirecionado a `xgit.corp`. Discussão de MR/issue abre o XCHAT no chrome. `/admin/projects*` redireciona. Sem GitLab CE.
 
 **Issues (Fase 46).** `Issue` first-class no Mongo (número por projeto, labels, assignees, open/closed). Aba no detalhe do repo. Thread XCHAT (`Kind=issue`). XGROUP só anuncia (link de volta). Guest lê; reporter+ cria.
+
+**Issues GitHub-like + Projects (Fase 46.1).** Superfície da lista no estilo GitHub: sidebar (Assigned/Created/Mentioned), `New issue` numa rota própria (`/:slug/issues/new`) com Write/Preview e sidebar (assignees, labels, milestone). `Milestone` first-class. **Projects** é outro modelo (`WorkProject` + `WorkItem`) — não colide com o `Project` do forge (o repo). Aba no repo; layouts table/board; templates Kanban / Table / Bug tracker. Item = issue, PR ou draft. Sem Insights/Workflows/Roadmap com datas nesta fase. Sem import do GitHub Projects.
 
 **Pull requests GitHub-like (Fase 47).** A Fase 41 entrega o modelo + merge. Esta fase entrega a superfície: Conversation / Commits / Files changed, checks da CI no header, review Approve/Request changes, popover **Code** (aba Local). API `mrs` pode permanecer; o rótulo da UI é Pull requests.
 
@@ -935,6 +938,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **44. Backups externos** | restic+rclone no Settings | Destino off-site configurável |
 | **45+. Forge tardio** | registry, pages, snippets, SAST | Backlog explícito |
 | **46. Issues no XGIT** | `Issue` + aba + thread XCHAT | Tracker no forge; XGROUP só activity |
+| **46.1 Issues + Projects** | lista GitHub-like, milestones, boards | `WorkProject` ≠ repo; sem Insights |
 | **47. PRs GitHub-like** | diff, commits, checks, review | Superfície de PR; merge já existe (41) |
 | **48. Editor Monaco** | `/edit` + commit (ou branch+PR) | Salvar = commit; protected branch respeitada |
 | **49. XCODESPACES** | `xcodespaces.corp` + worktree + IDE | Sem VM/shell; só VPN |

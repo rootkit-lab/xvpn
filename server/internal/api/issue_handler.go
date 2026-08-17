@@ -23,29 +23,32 @@ const (
 )
 
 type issueJSON struct {
-	Number    uint              `json:"number"`
-	Title     string            `json:"title"`
-	Body      string            `json:"body"`
-	Status    store.IssueStatus `json:"status"`
-	Labels    []string          `json:"labels"`
-	Assignees []string          `json:"assignees"`
-	AuthorID  uint              `json:"author_id"`
-	Author    string            `json:"author"`
-	ThreadID  uint              `json:"thread_id"`
-	ClosedAt  *time.Time        `json:"closed_at,omitempty"`
-	ClosedBy  string            `json:"closed_by,omitempty"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
-	CanClose  bool              `json:"can_close,omitempty"`
-	CanReopen bool              `json:"can_reopen,omitempty"`
-	CanUpdate bool              `json:"can_update,omitempty"`
+	Number         uint              `json:"number"`
+	Title          string            `json:"title"`
+	Body           string            `json:"body"`
+	Status         store.IssueStatus `json:"status"`
+	Labels         []string          `json:"labels"`
+	Assignees      []string          `json:"assignees"`
+	Milestone      *uint             `json:"milestone,omitempty"`
+	MilestoneTitle string            `json:"milestone_title,omitempty"`
+	AuthorID       uint              `json:"author_id"`
+	Author         string            `json:"author"`
+	ThreadID       uint              `json:"thread_id"`
+	ClosedAt       *time.Time        `json:"closed_at,omitempty"`
+	ClosedBy       string            `json:"closed_by,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+	CanClose       bool              `json:"can_close,omitempty"`
+	CanReopen      bool              `json:"can_reopen,omitempty"`
+	CanUpdate      bool              `json:"can_update,omitempty"`
 }
 
 type createIssueRequest struct {
-	Title    string   `json:"title"`
-	Body     string   `json:"body"`
-	Labels   []string `json:"labels"`
-	Assignee []string `json:"assignees"`
+	Title     string   `json:"title"`
+	Body      string   `json:"body"`
+	Labels    []string `json:"labels"`
+	Assignee  []string `json:"assignees"`
+	Milestone *uint    `json:"milestone"`
 }
 
 type patchIssueRequest struct {
@@ -54,6 +57,7 @@ type patchIssueRequest struct {
 	Status    *string  `json:"status"`
 	Labels    []string `json:"labels"`
 	Assignees []string `json:"assignees"`
+	Milestone *uint    `json:"milestone"`
 }
 
 func (a *App) canManageIssue(user store.User, proj store.Project, issue store.Issue) bool {
@@ -84,6 +88,10 @@ func (a *App) issueJSON(proj store.Project, user store.User, issue store.Issue) 
 		out.Author = author.Username
 	}
 	out.Assignees = a.usernamesByIDs(issue.AssigneeIDs)
+	if n, title := a.milestoneRef(issue.MilestoneID); n > 0 {
+		out.Milestone = &n
+		out.MilestoneTitle = title
+	}
 	if issue.ClosedByID != nil {
 		var closer store.User
 		if a.Store.DB.First(&closer, *issue.ClosedByID).Error == nil {
@@ -179,32 +187,140 @@ func (a *App) loadIssue(c *gin.Context) (store.Project, store.User, store.Issue,
 	return proj, user, issue, true
 }
 
+func (a *App) resolveUserQuery(c *gin.Context, me store.User, key string) (*store.User, bool) {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return nil, true
+	}
+	if raw == "me" {
+		return &me, true
+	}
+	var u store.User
+	if err := a.Store.DB.Where("username = ?", raw).First(&u).Error; err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": key + " inválido"})
+		return nil, false
+	}
+	return &u, true
+}
+
+func hasLabel(labels []string, want string) bool {
+	want = strings.ToLower(strings.TrimSpace(want))
+	for _, lb := range labels {
+		if strings.ToLower(lb) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func mentionedIn(body, username string) bool {
+	if username == "" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(body), "@"+strings.ToLower(username))
+}
+
 func (a *App) handleListIssues(c *gin.Context) {
 	proj, user, ok := a.loadProjectBySlug(c)
 	if !ok {
 		return
 	}
+	author, ok := a.resolveUserQuery(c, user, "author")
+	if !ok {
+		return
+	}
+	assignee, ok := a.resolveUserQuery(c, user, "assignee")
+	if !ok {
+		return
+	}
+	mentioned, ok := a.resolveUserQuery(c, user, "mentioned")
+	if !ok {
+		return
+	}
 	q := a.Store.DB.Where("project_id = ?", proj.ID)
-	if st := strings.TrimSpace(c.Query("status")); st != "" {
-		if !store.IssueStatus(st).Valid() {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "status inválido"})
-			return
-		}
-		q = q.Where("status = ?", st)
+	if author != nil {
+		q = q.Where("author_id = ?", author.ID)
 	}
 	if qstr := strings.TrimSpace(c.Query("q")); qstr != "" {
 		q = q.Where("title LIKE ?", "%"+qstr+"%")
 	}
+	if ms := strings.TrimSpace(c.Query("milestone")); ms != "" {
+		var n uint
+		if _, err := fmt.Sscanf(ms, "%d", &n); err != nil || n == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "milestone inválido"})
+			return
+		}
+		mid, err := a.resolveMilestoneID(proj, n)
+		if err != nil || mid == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "milestone não encontrado"})
+			return
+		}
+		q = q.Where("milestone_id = ?", *mid)
+	}
 	var rows []store.Issue
-	if err := q.Order("number desc").Limit(80).Find(&rows).Error; err != nil {
+	if err := q.Order("number desc").Limit(500).Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	items := make([]issueJSON, 0, len(rows))
+	label := strings.TrimSpace(c.Query("label"))
+	filtered := make([]store.Issue, 0, len(rows))
 	for _, it := range rows {
+		if assignee != nil && !containsUint(it.AssigneeIDs, assignee.ID) {
+			continue
+		}
+		if label != "" && !hasLabel(it.Labels, label) {
+			continue
+		}
+		if mentioned != nil && !mentionedIn(it.Body, mentioned.Username) {
+			continue
+		}
+		filtered = append(filtered, it)
+	}
+	var openCount, closedCount int
+	for _, it := range filtered {
+		if it.Status == store.IssueOpen {
+			openCount++
+		} else {
+			closedCount++
+		}
+	}
+	status := strings.TrimSpace(c.Query("status"))
+	if status != "" {
+		if !store.IssueStatus(status).Valid() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "status inválido"})
+			return
+		}
+		kept := filtered[:0]
+		for _, it := range filtered {
+			if string(it.Status) == status {
+				kept = append(kept, it)
+			}
+		}
+		filtered = kept
+	}
+	sort := strings.TrimSpace(c.Query("sort"))
+	switch sort {
+	case "oldest":
+		for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+			filtered[i], filtered[j] = filtered[j], filtered[i]
+		}
+	case "updated":
+		for i := 0; i < len(filtered); i++ {
+			for j := i + 1; j < len(filtered); j++ {
+				if filtered[j].UpdatedAt.After(filtered[i].UpdatedAt) {
+					filtered[i], filtered[j] = filtered[j], filtered[i]
+				}
+			}
+		}
+	}
+	if len(filtered) > 80 {
+		filtered = filtered[:80]
+	}
+	items := make([]issueJSON, 0, len(filtered))
+	for _, it := range filtered {
 		items = append(items, a.issueJSON(proj, user, it))
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusOK, gin.H{"items": items, "open_count": openCount, "closed_count": closedCount})
 }
 
 func (a *App) handleGetIssue(c *gin.Context) {
@@ -250,6 +366,14 @@ func (a *App) handleCreateIssue(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	var milestoneID *uint
+	if req.Milestone != nil {
+		milestoneID, err = a.resolveMilestoneID(proj, *req.Milestone)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
 
 	var issue store.Issue
 	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
@@ -275,6 +399,7 @@ func (a *App) handleCreateIssue(c *gin.Context) {
 			Status:       store.IssueOpen,
 			Labels:       labels,
 			AssigneeIDs:  assignees,
+			MilestoneID:  milestoneID,
 			AuthorID:     user.ID,
 			ThreadID:     thID,
 			SocialPostID: &postID,
@@ -335,6 +460,14 @@ func (a *App) handlePatchIssue(c *gin.Context) {
 		}
 		issue.AssigneeIDs = ids
 	}
+	if req.Milestone != nil {
+		mid, err := a.resolveMilestoneID(proj, *req.Milestone)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		issue.MilestoneID = mid
+	}
 	if req.Status != nil {
 		st := store.IssueStatus(strings.TrimSpace(*req.Status))
 		if !st.Valid() {
@@ -363,4 +496,29 @@ func (a *App) handlePatchIssue(c *gin.Context) {
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "project.issue.patch", fmt.Sprintf("%s#%d", proj.Slug, issue.Number))
 	c.JSON(http.StatusOK, a.issueJSON(proj, user, issue))
+}
+
+func (a *App) handleListIssueLabels(c *gin.Context) {
+	proj, _, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	var rows []store.Issue
+	if err := a.Store.DB.Where("project_id = ?", proj.ID).Limit(500).Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	seen := map[string]struct{}{}
+	items := make([]string, 0)
+	for _, it := range rows {
+		for _, lb := range it.Labels {
+			key := strings.ToLower(lb)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			items = append(items, lb)
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
 }

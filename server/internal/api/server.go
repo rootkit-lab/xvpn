@@ -247,6 +247,16 @@ func NewRouter(app *App) *gin.Engine {
 			tunnel.POST("/me/ssh-key", rateLimit(app.sshKeyLimiter), app.handleRegisterDeviceSSHKey)
 		}
 
+		// CI runner (Fase 42): só wg0. Token do MeshServer role=runner.
+		// O agent fala com 10.66.66.1:8080 — Nginx público (127.0.0.1) cai.
+		ci := apiGroup.Group("/ci", app.RequireVPN())
+		{
+			ci.GET("/jobs/next", app.handleCiClaim)
+			ci.POST("/jobs/:id/log", app.handleCiLog)
+			ci.POST("/jobs/:id/finish", app.handleCiFinish)
+			ci.POST("/jobs/:id/artifact", app.handleCiArtifact)
+		}
+
 		// authed: qualquer papel autenticado (inclusive member) — só
 		// identidade própria, sem telas de admin (ver PLAN.md §6.7,
 		// tabela de papéis: "member: sem telas de admin, portal
@@ -313,6 +323,11 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/projects/:slug/merge-requests/:iid", app.handleGetMergeRequest)
 			authed.POST("/projects/:slug/merge-requests/:iid/merge", app.handleMergeMergeRequest)
 			authed.POST("/projects/:slug/merge-requests/:iid/close", app.handleCloseMergeRequest)
+			authed.GET("/projects/:slug/jobs", app.handleListCiJobs)
+			authed.GET("/projects/:slug/jobs/:n", app.handleGetCiJob)
+			authed.GET("/projects/:slug/jobs/:n/log", app.handleGetCiJobLog)
+			authed.GET("/projects/:slug/jobs/:n/artifact", app.handleGetCiJobArtifact)
+			authed.POST("/projects/:slug/jobs/:n/cancel", app.handleCancelCiJob)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())
@@ -436,6 +451,7 @@ func NewRouter(app *App) *gin.Engine {
 				computeWrite.PATCH("/servers/:id", app.handleUpdateMeshServer)
 				computeWrite.DELETE("/servers/:id", app.handleDestroyMeshServer)
 				computeWrite.POST("/servers/:id/rebuild", app.handleRebuildMeshServer)
+				computeWrite.POST("/servers/:id/runner-token", app.handleIssueRunnerToken)
 				computeWrite.PUT("/servers/:id/access", app.handleSetServerAccess)
 				computeWrite.POST("/server-groups", app.handleCreateServerGroup)
 				computeWrite.PUT("/server-groups/:id/access", app.handleSetGroupAccess)

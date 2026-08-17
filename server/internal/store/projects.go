@@ -116,6 +116,50 @@ type MergeRequest struct {
 	Author User `gorm:"foreignKey:AuthorID"`
 }
 
+// CiJobStatus é o ciclo de um job (Fase 42).
+type CiJobStatus string
+
+const (
+	CiPending  CiJobStatus = "pending"
+	CiRunning  CiJobStatus = "running"
+	CiSuccess  CiJobStatus = "success"
+	CiFailed   CiJobStatus = "failed"
+	CiCanceled CiJobStatus = "canceled"
+)
+
+func (s CiJobStatus) Valid() bool {
+	switch s {
+	case CiPending, CiRunning, CiSuccess, CiFailed, CiCanceled:
+		return true
+	}
+	return false
+}
+
+func (s CiJobStatus) Terminal() bool {
+	return s == CiSuccess || s == CiFailed || s == CiCanceled
+}
+
+// CiJob é um job da pipeline. A execução é no peer runner, não no
+// PID do xvpn-server. Log/artifact ficam no XDRIVER do projeto.
+type CiJob struct {
+	ID                 uint   `gorm:"primaryKey"`
+	ProjectID          uint   `gorm:"uniqueIndex:idx_project_job;not null"`
+	Number             uint   `gorm:"uniqueIndex:idx_project_job;not null"`
+	Trigger            string `gorm:"not null"`
+	Ref                string `gorm:"not null"`
+	SHA                string `gorm:"not null"`
+	MergeRequestNumber *uint
+	Status             CiJobStatus `gorm:"not null;default:pending;index"`
+	RunnerID           *uint
+	LogRel             string
+	ArtifactRel        string
+	Error              string
+	StartedAt          *time.Time
+	FinishedAt         *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
 // ValidProjectSlug aceita [a-z0-9][a-z0-9-]{0,18}[a-z0-9] (2–20), sem
 // hífen nas pontas — a mesma chave de App.Slug no catálogo.
 func ValidProjectSlug(s string) bool {

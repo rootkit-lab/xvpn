@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { StatusBadge } from '@/pages/merge-request-page'
+import { CiJobStatusBadge } from '@/pages/ci-job-page'
 
 const PROJECT_ROLES: ProjectRole[] = ['guest', 'reporter', 'developer', 'maintainer', 'owner']
 
@@ -57,6 +58,7 @@ export function ProjectDetailPage() {
         userId={user?.id}
         canWrite={canWrite}
       />
+      <CiJobsCard slug={data.slug} />
       {canWrite ? <MembersForm project={data} onSaved={reload} /> : <MembersRead project={data} />}
     </div>
   )
@@ -597,6 +599,46 @@ function MergeRequestsCard({
             </form>
           )
         ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function CiJobsCard({ slug }: { slug: string }) {
+  const fetchJobs = useCallback(() => api.listCiJobs(slug), [slug])
+  const { data, loading, error } = usePollingData(fetchJobs, 10_000)
+
+  if (loading || !data) {
+    return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-24 w-full" />
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Pipeline</CardTitle>
+        <CardDescription>
+          Push e merge disparam um job. A execução é num peer <code className="font-mono text-xs">runner</code>, não
+          no xvpn-server. Log e artifact ficam no XDRIVER do projeto.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        {(data.items ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum job ainda. Faça push ou mergeie um MR.</p>
+        ) : (
+          data.items.map((job) => (
+            <Link
+              key={job.number}
+              to={`/admin/projects/${slug}/jobs/${job.number}`}
+              className="flex items-center justify-between gap-2 text-sm hover:underline"
+            >
+              <span className="min-w-0 truncate">
+                #{job.number} {job.trigger}{' '}
+                <span className="font-mono text-xs text-muted-foreground">{job.ref.replace('refs/heads/', '')}</span>
+              </span>
+              <CiJobStatusBadge status={job.status} />
+            </Link>
+          ))
+        )}
       </CardContent>
     </Card>
   )

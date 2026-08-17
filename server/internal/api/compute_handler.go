@@ -37,25 +37,26 @@ type BitLaunchAPI interface {
 }
 
 type meshServerResponse struct {
-	ID            uint      `json:"id"`
-	BitLaunchID   string    `json:"bitlaunch_id"`
-	Name          string    `json:"name"`
-	Hostname      string    `json:"hostname"`
-	Role          string    `json:"role"`
-	IPv4          string    `json:"ipv4"`
-	WgIP          string    `json:"wg_ip"`
-	Region        string    `json:"region"`
-	Size          string    `json:"size"`
-	Status        string    `json:"status"`
-	Labels        []string  `json:"labels"`
-	GroupID       *uint     `json:"group_id,omitempty"`
-	DeviceID      *uint     `json:"device_id,omitempty"`
-	AccessUserIDs []uint    `json:"access_user_ids,omitempty"`
-	AccountID     *uint     `json:"account_id,omitempty"`
-	Notes         string    `json:"notes"`
-	Protected     bool      `json:"protected"`
-	CreatedAt     time.Time `json:"created_at"`
-	EnrollToken   string    `json:"enroll_token,omitempty"`
+	ID             uint      `json:"id"`
+	BitLaunchID    string    `json:"bitlaunch_id"`
+	Name           string    `json:"name"`
+	Hostname       string    `json:"hostname"`
+	Role           string    `json:"role"`
+	IPv4           string    `json:"ipv4"`
+	WgIP           string    `json:"wg_ip"`
+	Region         string    `json:"region"`
+	Size           string    `json:"size"`
+	Status         string    `json:"status"`
+	Labels         []string  `json:"labels"`
+	GroupID        *uint     `json:"group_id,omitempty"`
+	DeviceID       *uint     `json:"device_id,omitempty"`
+	AccessUserIDs  []uint    `json:"access_user_ids,omitempty"`
+	AccountID      *uint     `json:"account_id,omitempty"`
+	Notes          string    `json:"notes"`
+	Protected      bool      `json:"protected"`
+	HasRunnerToken bool      `json:"has_runner_token"`
+	CreatedAt      time.Time `json:"created_at"`
+	EnrollToken    string    `json:"enroll_token,omitempty"`
 }
 
 type createMeshServerRequest struct {
@@ -110,7 +111,8 @@ func (a *App) meshServerJSON(s store.MeshServer, includeToken bool) meshServerRe
 		ID: s.ID, BitLaunchID: s.BitLaunchID, Name: s.Name, Hostname: s.Hostname,
 		Role: s.Role, IPv4: s.IPv4, WgIP: s.WgIP, Region: s.Region, Size: s.Size,
 		Status: s.Status, Labels: labels, GroupID: s.GroupID, DeviceID: s.DeviceID,
-		AccountID: s.AccountID, Notes: s.Notes, Protected: meshProtected(s), CreatedAt: s.CreatedAt,
+		AccountID: s.AccountID, Notes: s.Notes, Protected: meshProtected(s),
+		HasRunnerToken: s.RunnerTokenHash != "", CreatedAt: s.CreatedAt,
 	}
 	if includeToken && s.EnrollToken != "" {
 		out.EnrollToken = s.EnrollToken

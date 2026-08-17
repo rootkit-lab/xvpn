@@ -97,6 +97,71 @@ func TestDriverProjectRootRequiresMembership(t *testing.T) {
 	}
 }
 
+func TestDriverProjectHidesSlugFromStrangers(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Config.DriverSharedDir = t.TempDir()
+	app.Config.DriverHomeRoot = t.TempDir()
+	app.Config.DriverProjectsDir = t.TempDir()
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	createTestUserWithRole(t, app, "viewer", "senha-viewer-ok", store.RoleViewer)
+	createTestUserWithRole(t, app, "guest", "senha-guest-okx", store.RoleMember)
+	router := NewRouter(app)
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	viewerTok := loginAndGetToken(t, app, router, "viewer", "senha-viewer-ok")
+	guestTok := loginAndGetToken(t, app, router, "guest", "senha-guest-okx")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created projectResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:lab", nil, viewerTok, "xdriver.corp.ihuull.com")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("viewer sem membership deveria 404 (não 403), veio %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+		Members: []projectMemberIn{
+			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
+			{UserID: mustUserID(t, app, "guest"), Role: store.ProjectRoleGuest},
+		},
+	}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/lab", updateProjectRequest{FilesEnabled: boolPtr(true)}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enable files: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:lab", nil, guestTok, "xdriver.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("guest deveria listar, veio %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSONHost(t, router, http.MethodPost, "/api/driver/mkdir", map[string]string{
+		"root": "project:lab", "path": "", "name": "wiki",
+	}, guestTok, "xdriver.corp.ihuull.com")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("guest não deveria mkdir, veio %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func mustUserID(t *testing.T, app *App, username string) uint {
+	t.Helper()
+	var u store.User
+	if err := app.Store.DB.Where("username = ?", username).First(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	return u.ID
+}
+
+func boolPtr(v bool) *bool { return &v }
+
 func TestDriverRejectsEmptyDelete(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.Config.DriverSharedDir = t.TempDir()

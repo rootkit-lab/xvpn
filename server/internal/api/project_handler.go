@@ -74,6 +74,30 @@ func (a *App) canSeeProject(user store.User, proj store.Project) bool {
 	return n > 0
 }
 
+func (a *App) projectMemberRole(user store.User, proj store.Project) (store.ProjectRole, bool) {
+	var m store.ProjectMember
+	if err := a.Store.DB.Where("project_id = ? AND user_id = ?", proj.ID, user.ID).First(&m).Error; err != nil {
+		return "", false
+	}
+	return m.Role, true
+}
+
+// canAccessProjectFiles: forge write (admin/super_admin) ou membro.
+// Mutação (mkdir/upload/rm) exige developer+; guest/reporter só leem.
+func (a *App) canAccessProjectFiles(user store.User, proj store.Project, write bool) bool {
+	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
+		return true
+	}
+	role, ok := a.projectMemberRole(user, proj)
+	if !ok {
+		return false
+	}
+	if write {
+		return role.Rank() >= store.ProjectRoleDeveloper.Rank()
+	}
+	return true
+}
+
 func (a *App) loadProjectBySlug(c *gin.Context) (store.Project, store.User, bool) {
 	slug := strings.TrimSpace(c.Param("slug"))
 	var user store.User

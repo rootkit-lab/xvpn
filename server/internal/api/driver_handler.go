@@ -62,13 +62,13 @@ func parseDriverProjectRoot(root, slugHint string) (ok bool, slug string) {
 	return false, ""
 }
 
-func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string) (full, base string, ok bool) {
-	return a.driverResolveSlug(c, user, root, rel, c.Query("slug"))
+func (a *App) driverResolve(c *gin.Context, user store.User, root, rel string, write bool) (full, base string, ok bool) {
+	return a.driverResolveSlug(c, user, root, rel, c.Query("slug"), write)
 }
 
-func (a *App) driverResolveSlug(c *gin.Context, user store.User, root, rel, slugHint string) (full, base string, ok bool) {
+func (a *App) driverResolveSlug(c *gin.Context, user store.User, root, rel, slugHint string, write bool) (full, base string, ok bool) {
 	if isProject, slug := parseDriverProjectRoot(root, slugHint); isProject {
-		return a.driverResolveProject(c, user, slug, rel)
+		return a.driverResolveProject(c, user, slug, rel, write)
 	}
 	if root == "home" && !user.SambaEnabled && !user.SFTPEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Meu Drive desligado nesta conta"})
@@ -88,7 +88,7 @@ func (a *App) driverResolveSlug(c *gin.Context, user store.User, root, rel, slug
 	return full, base, true
 }
 
-func (a *App) driverResolveProject(c *gin.Context, user store.User, slug, rel string) (full, base string, ok bool) {
+func (a *App) driverResolveProject(c *gin.Context, user store.User, slug, rel string, write bool) (full, base string, ok bool) {
 	if !store.ValidProjectSlug(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return "", "", false
@@ -98,12 +98,16 @@ func (a *App) driverResolveProject(c *gin.Context, user store.User, slug, rel st
 		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
 		return "", "", false
 	}
+	if !a.canAccessProjectFiles(user, proj, false) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
+		return "", "", false
+	}
 	if !proj.FilesEnabled {
 		c.JSON(http.StatusForbidden, gin.H{"error": "arquivos deste projeto estão desligados"})
 		return "", "", false
 	}
-	if !a.canSeeProject(user, proj) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
+	if write && !a.canAccessProjectFiles(user, proj, true) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão para gravar neste projeto"})
 		return "", "", false
 	}
 	roots := a.driverRoots()
@@ -128,7 +132,7 @@ func (a *App) handleDriverList(c *gin.Context) {
 	}
 	root := c.DefaultQuery("root", "shared")
 	rel := c.Query("path")
-	full, base, ok := a.driverResolve(c, user, root, rel)
+	full, base, ok := a.driverResolve(c, user, root, rel, false)
 	if !ok {
 		return
 	}
@@ -162,7 +166,7 @@ func (a *App) handleDriverMkdir(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	parent, base, ok := a.driverResolve(c, user, req.Root, req.Path)
+	parent, base, ok := a.driverResolve(c, user, req.Root, req.Path, true)
 	if !ok {
 		return
 	}
@@ -192,7 +196,7 @@ func (a *App) handleDriverUpload(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	dir, base, ok := a.driverResolve(c, user, root, rel)
+	dir, base, ok := a.driverResolve(c, user, root, rel, true)
 	if !ok {
 		return
 	}
@@ -221,7 +225,7 @@ func (a *App) handleDriverDownload(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	full, base, ok := a.driverResolve(c, user, c.Query("root"), c.Query("path"))
+	full, base, ok := a.driverResolve(c, user, c.Query("root"), c.Query("path"), false)
 	if !ok {
 		return
 	}
@@ -250,7 +254,7 @@ func (a *App) handleDriverDelete(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	full, base, ok := a.driverResolve(c, user, req.Root, req.Path)
+	full, base, ok := a.driverResolve(c, user, req.Root, req.Path, true)
 	if !ok {
 		return
 	}

@@ -278,6 +278,14 @@ func (a *App) handleCreateMergeRequest(c *gin.Context) {
 		return
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "project.mr.open", fmt.Sprintf("%s!%d", proj.Slug, mr.Number))
+	if sha, err := forge.RevParse(a.gitDir(), proj.Slug, source); err == nil {
+		n := mr.Number
+		st := store.CiAwaitingApproval
+		if a.canApproveCi(user, proj) {
+			st = store.CiPending
+		}
+		a.enqueueCiJobAs(proj, ciTriggerMR, "refs/heads/"+source, sha, &n, user.Username, st)
+	}
 	c.JSON(http.StatusCreated, a.mrJSON(mr))
 }
 
@@ -328,7 +336,7 @@ func (a *App) handleMergeMergeRequest(c *gin.Context) {
 	_ = a.Store.LogAudit(callerUsername(c), "project.mr.merge", fmt.Sprintf("%s!%d", proj.Slug, mr.Number))
 	if sha, err := forge.RevParse(a.gitDir(), proj.Slug, mr.TargetBranch); err == nil {
 		n := mr.Number
-		a.enqueueCiJob(proj, ciTriggerMR, "refs/heads/"+mr.TargetBranch, sha, &n)
+		a.enqueueCiJobAs(proj, ciTriggerMR, "refs/heads/"+mr.TargetBranch, sha, &n, user.Username, store.CiPending)
 	}
 	c.JSON(http.StatusOK, a.mrJSON(mr))
 }

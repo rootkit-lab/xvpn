@@ -63,7 +63,7 @@ const XgitRepoLayout = lazy(() => import('@/pages/xgit-repo-page').then((m) => (
 const XgitCodePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCodePage })))
 const XgitCommitsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCommitsPage })))
 const XgitMrsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMrsPage })))
-const XgitActionsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitActionsPage })))
+const XgitActionsPage = lazy(() => import('@/pages/xgit-actions-page').then((m) => ({ default: m.XgitActionsPage })))
 const XgitRepoSettingsPage = lazy(() =>
   import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoSettingsPage })),
 )

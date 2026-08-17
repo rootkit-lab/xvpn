@@ -174,7 +174,7 @@ func (a *App) handleGitSmartHTTP(c *gin.Context) {
 	if push && c.Request.Method == http.MethodPost && c.Writer.Status() < 400 {
 		if raw, ok := c.Get(contextPushUpdates); ok {
 			if updates, ok := raw.([]forge.RefUpdate); ok {
-				a.enqueuePushJobs(proj, updates)
+				a.enqueuePushJobs(proj, updates, user.Username)
 			}
 		}
 	}

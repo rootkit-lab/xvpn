@@ -578,22 +578,56 @@ export interface ManagedService {
   password?: string
 }
 
-export type CiJobStatus = 'pending' | 'running' | 'success' | 'failed' | 'canceled'
+export type CiJobStatus =
+  | 'awaiting_approval'
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'canceled'
+
+export interface CiJobStep {
+  name: string
+  status: CiJobStatus
+}
+
+export interface CiWorkflow {
+  name: string
+  path: string
+}
 
 export interface CiJob {
   number: number
+  workflow: string
+  title: string
+  event: string
   trigger: string
   ref: string
+  branch: string
   sha: string
+  actor?: string
   merge_request_number?: number
   status: CiJobStatus
   runner?: string
   has_log: boolean
   has_artifact: boolean
   error?: string
+  jobs: CiJobStep[]
+  duration_ms?: number
+  can_approve?: boolean
+  can_rerun?: boolean
+  can_cancel?: boolean
   started_at?: string
   finished_at?: string
   created_at: string
+}
+
+export interface CiRunner {
+  hostname: string
+  name: string
+  status: string
+  labels?: string[]
+  wg_ip?: string
 }
 
 export interface BitLaunchAccount {
@@ -1047,12 +1081,21 @@ export const api = {
     request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/merge`, { method: 'POST' }),
   closeMergeRequest: (slug: string, iid: number) =>
     request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/close`, { method: 'POST' }),
-  listCiJobs: (slug: string) => request<{ items: CiJob[] }>(`/projects/${encodeURIComponent(slug)}/jobs`),
+  listCiJobs: (slug: string, workflow?: string) =>
+    request<{ items: CiJob[]; workflows: CiWorkflow[] }>(
+      `/projects/${encodeURIComponent(slug)}/jobs${workflow ? `?workflow=${encodeURIComponent(workflow)}` : ''}`,
+    ),
   getCiJob: (slug: string, n: number) =>
     request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}`),
   getCiJobLog: (slug: string, n: number) => requestText(`/projects/${encodeURIComponent(slug)}/jobs/${n}/log`),
   cancelCiJob: (slug: string, n: number) =>
     request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/cancel`, { method: 'POST' }),
+  approveCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/approve`, { method: 'POST' }),
+  rerunCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/rerun`, { method: 'POST' }),
+  listProjectRunners: (slug: string) =>
+    request<{ items: CiRunner[] }>(`/projects/${encodeURIComponent(slug)}/runners`),
   downloadCiArtifact: (slug: string, n: number) =>
     downloadBinary(`/projects/${encodeURIComponent(slug)}/jobs/${n}/artifact`, `job-${n}-artifact`),
 

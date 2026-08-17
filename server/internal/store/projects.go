@@ -128,16 +128,17 @@ type MergeRequest struct {
 type CiJobStatus string
 
 const (
-	CiPending  CiJobStatus = "pending"
-	CiRunning  CiJobStatus = "running"
-	CiSuccess  CiJobStatus = "success"
-	CiFailed   CiJobStatus = "failed"
-	CiCanceled CiJobStatus = "canceled"
+	CiAwaitingApproval CiJobStatus = "awaiting_approval"
+	CiPending          CiJobStatus = "pending"
+	CiRunning          CiJobStatus = "running"
+	CiSuccess          CiJobStatus = "success"
+	CiFailed           CiJobStatus = "failed"
+	CiCanceled         CiJobStatus = "canceled"
 )
 
 func (s CiJobStatus) Valid() bool {
 	switch s {
-	case CiPending, CiRunning, CiSuccess, CiFailed, CiCanceled:
+	case CiAwaitingApproval, CiPending, CiRunning, CiSuccess, CiFailed, CiCanceled:
 		return true
 	}
 	return false
@@ -157,6 +158,8 @@ type CiJob struct {
 	Ref                string `gorm:"not null"`
 	SHA                string `gorm:"not null"`
 	MergeRequestNumber *uint
+	Workflow           string `gorm:"not null;default:ci"`
+	Actor              string
 	Status             CiJobStatus `gorm:"not null;default:pending;index"`
 	RunnerID           *uint
 	LogRel             string

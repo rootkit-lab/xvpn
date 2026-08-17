@@ -6,6 +6,19 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`
 }
 
+export function formatCompactDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  const totalSeconds = Math.round(ms / 1000)
+  if (totalSeconds < 1) return '<1s'
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  if (minutes < 60) return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  const remMin = minutes % 60
+  return remMin ? `${hours}h ${remMin}m` : `${hours}h`
+}
+
 export function formatDuration(totalSeconds: number): string {
   const days = Math.floor(totalSeconds / 86400)
   const hours = Math.floor((totalSeconds % 86400) / 3600)

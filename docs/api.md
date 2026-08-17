@@ -95,11 +95,14 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | |
 | POST | `/api/projects/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | `git merge --no-ff` no servidor |
 | POST | `/api/projects/:slug/merge-requests/:iid/close` | autor, maintainer+ ou `forge` | |
-| GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI |
-| GET | `/api/projects/:slug/jobs/:n` | sessão + ACL | |
+| GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI. `?workflow=ci`. Inclui `workflows` |
+| GET | `/api/projects/:slug/jobs/:n` | sessão + ACL | run enriquecido (title, event, jobs, can_*) |
 | GET | `/api/projects/:slug/jobs/:n/log` | sessão + ACL | texto |
 | GET | `/api/projects/:slug/jobs/:n/artifact` | sessão + ACL | blob |
-| POST | `/api/projects/:slug/jobs/:n/cancel` | maintainer+ ou `forge` | |
+| POST | `/api/projects/:slug/jobs/:n/cancel` | maintainer+ ou `forge` | também em `awaiting_approval` |
+| POST | `/api/projects/:slug/jobs/:n/approve` | maintainer+ ou `forge` | `awaiting_approval` → `pending` |
+| POST | `/api/projects/:slug/jobs/:n/rerun` | maintainer+ ou `forge` | run terminal → novo `pending` |
+| GET | `/api/projects/:slug/runners` | sessão + ACL | peers `role=runner` do projeto (sem token) |
 | POST | `/api/servers/:id/runner-token` | admin + `compute` | token uma vez; só `role=runner` |
 | GET | `/api/ci/jobs/next` | VPN + token do runner | 204 se vazio |
 | POST | `/api/ci/jobs/:id/log` | VPN + token | |

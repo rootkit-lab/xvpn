@@ -40,6 +40,10 @@
   --product: var(--product-xgit);
 }
 
+[data-product="xcodespaces"] {
+  --product: var(--product-xcodespaces);
+}
+
 [data-product="ihuull"] {
   --product: var(--product-xvpn);
 }

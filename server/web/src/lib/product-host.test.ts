@@ -33,6 +33,7 @@ describe('productKind', () => {
     expect(productKind('xadmin.corp.localhost')).toBe('xadmin-corp')
     expect(productKind('xgit.corp.ihuull.com')).toBe('xgit-corp')
     expect(productKind('xgit.corp.localhost')).toBe('xgit-corp')
+    expect(productKind('xcodespaces.corp.ihuull.com')).toBe('xcodespaces-corp')
     expect(productKind('xauth.ihuull.com')).toBe('xauth')
     expect(productKind('xauth.localhost')).toBe('xauth')
     expect(productKind('ihuull.com')).toBe('core')
@@ -49,6 +50,7 @@ describe('productKind', () => {
     expect(isProductAppHost('xgroup.corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('xgit.corp.ihuull.com')).toBe(true)
+    expect(isProductAppHost('xcodespaces.corp.ihuull.com')).toBe(true)
     expect(isProductAppHost('xvpn.ihuull.com')).toBe(false)
     expect(isProductAppHost('xchat.ihuull.com')).toBe(false)
   })
@@ -64,6 +66,7 @@ describe('headerProduct', () => {
     expect(headerProduct('xvpn.ihuull.com', '/admin')).toBe('xvpn')
     expect(headerProduct('xadmin.corp.ihuull.com', '/admin')).toBe('xadmin')
     expect(headerProduct('xgit.corp.ihuull.com', '/')).toBe('xgit')
+    expect(headerProduct('xcodespaces.corp.ihuull.com', '/')).toBe('xcodespaces')
     expect(headerProduct('xvpn.ihuull.com', '/social')).toBe('xgroup')
     expect(headerProduct('xvpn.ihuull.com', '/social/messages')).toBe('xchat')
     expect(headerProduct('xvpn.ihuull.com', '/xgroup/groups')).toBe('xgroup')
@@ -81,6 +84,7 @@ describe('headerProduct', () => {
 describe('loginAudience', () => {
   it('emite aud do host de produto', () => {
     expect(loginAudience('xgit.corp.ihuull.com')).toBe('xgit')
+    expect(loginAudience('xcodespaces.corp.ihuull.com')).toBe('xcodespaces')
     expect(loginAudience('xadmin.corp.ihuull.com')).toBe('xadmin')
     expect(loginAudience('xvpn.ihuull.com')).toBe('xvpn')
   })

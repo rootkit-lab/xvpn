@@ -130,6 +130,10 @@ type Config struct {
 	// /opt/xvpn/data/git/<slug>.git). Smart HTTP só em xgit.corp.
 	GitDir string
 
+	// CodespacesDir é a raiz dos worktrees do XCODESPACES (Fase 49 —
+	// /opt/xvpn/data/codespaces/<user>/<slug>/<id>/). Fora do bare.
+	CodespacesDir string
+
 	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Se o banco estiver
 	// vazio, semeia a primeira BitLaunchAccount. O caminho normal é
 	// Compute → Configurações (várias contas). Vazio e sem contas =
@@ -187,6 +191,7 @@ func Load() (*Config, error) {
 		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
 		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
 		GitDir:                  getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
+		CodespacesDir:           getEnv("XVPN_CODESPACES_DIR", "/opt/xvpn/data/codespaces"),
 		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
 		CloudflareToken:         os.Getenv("XVPN_CLOUDFLARE_TOKEN"),
 	}

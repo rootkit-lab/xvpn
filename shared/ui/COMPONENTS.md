@@ -48,7 +48,7 @@ Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marks de produto (silhueta, `-
 
 Título da página (`PageHeading`) fica no template do app (`SystemChrome`), não neste chrome.
 
-Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` / `--product-xadmin` / `--product-xgit` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
+Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` / `--product-xadmin` / `--product-xgit` / `--product-xcodespaces` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
 
 **Nomes na UI** — slug minúsculo no código; lockup e catálogo em caixa do produto (`products.ts` / `PLAN.md` §6.13):
 

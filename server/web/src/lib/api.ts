@@ -215,6 +215,7 @@ export interface User {
   ssh_public_key?: string
   disk_quota_mb?: number
   xgit_enabled?: boolean
+  xcodespaces_enabled?: boolean
 }
 
 export interface FileAccessResponse {
@@ -819,6 +820,17 @@ export interface WorkItem {
   created_at: string
 }
 
+export interface Codespace {
+  id: string
+  slug: string
+  branch: string
+  author: string
+  created_at: string
+  updated_at: string
+  can_write?: boolean
+  open_url: string
+}
+
 export interface WorkProject {
   number: number
   title: string
@@ -1288,6 +1300,35 @@ export const api = {
     const q = ref ? `?ref=${encodeURIComponent(ref)}` : ''
     return downloadBinary(`/projects/${encodeURIComponent(slug)}/archive${q}`, `${slug}.zip`)
   },
+  listCodespaces: (slug?: string) => {
+    const q = slug ? `?slug=${encodeURIComponent(slug)}` : ''
+    return request<{ items: Codespace[] }>(`/xcodespaces${q}`)
+  },
+  createCodespace: (body: { slug: string; branch?: string }) =>
+    request<Codespace>('/xcodespaces', { method: 'POST', body: JSON.stringify(body) }),
+  getCodespace: (id: string) => request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}`),
+  deleteCodespace: (id: string) =>
+    request<void>(`/xcodespaces/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  listCodespaceTree: (id: string, path?: string) => {
+    const q = path ? `?path=${encodeURIComponent(path)}` : ''
+    return request<{ path: string; items: { name: string; path: string; type: 'tree' | 'blob'; size: number }[] }>(
+      `/xcodespaces/${encodeURIComponent(id)}/tree${q}`,
+    )
+  },
+  getCodespaceBlob: (id: string, path: string) =>
+    request<{ path: string; content: string; size: number }>(
+      `/xcodespaces/${encodeURIComponent(id)}/blob?path=${encodeURIComponent(path)}`,
+    ),
+  writeCodespaceFile: (id: string, body: { path: string; content: string }) =>
+    request<{ path: string }>(`/xcodespaces/${encodeURIComponent(id)}/contents`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  commitCodespace: (id: string, body: { message: string; description?: string }) =>
+    request<{ sha: string; branch: string; merge_request_number?: number }>(
+      `/xcodespaces/${encodeURIComponent(id)}/commit`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   listCiJobs: (slug: string, workflow?: string, mr?: number) => {
     const q = new URLSearchParams()
     if (workflow) q.set('workflow', workflow)

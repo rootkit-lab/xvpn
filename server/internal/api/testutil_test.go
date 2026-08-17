@@ -113,7 +113,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
 		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
 		&store.SocialPost{}, &store.SocialPostStar{}, &store.SocialPostComment{},
-		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CiJob{},
+		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CodeSpace{}, &store.CiJob{},
 		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
 		&store.ServiceInstance{},
 	); err != nil {

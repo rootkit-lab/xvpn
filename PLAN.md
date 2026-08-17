@@ -121,6 +121,33 @@ Isso é defesa em profundidade: mesmo um erro de firewall não expõe seus arqui
 
 Ponto que muita implementação amadora erra: **a chave privada do WireGuard do cliente é gerada localmente, no próprio dispositivo, pelo helper privilegiado — nunca no servidor.** O cliente envia ao servidor apenas a **chave pública** durante o *enrollment*. Isso significa que, mesmo que o servidor seja comprometido, um invasor não consegue se passar por um cliente existente (só consegue ver quem tem acesso, não personificar).
 
+### 3.6 Runtime do XCODESPACES: container isolado (não shell no host)
+
+A Fase 49 entregou o equivalente ao **github.dev**: Monaco no browser sobre um *worktree* do forge, sem runtime. Isso não é o Codespaces do GitHub. Lá o Create provisiona um ambiente, **clona** o repositório, sobe o VS Code remoto e o terminal roda **dentro** desse ambiente — dá para `go test`, instalar toolchain, usar LSP e o Git do próprio VS Code.
+
+Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloqueio certo era **bash no host de produção** (Fase 13 / §6.9), não “nunca haver um interpretador em lugar nenhum”. O VPS tem 4 vCPU / ~8 GB RAM e já divide a máquina com Nginx, Mongo, Samba e `landpages-ops` — KVM por codespace é inviável. O análogo honesto do Codespaces neste hardware é **um container Docker por workspace**, com teto de concorrência e cgroup.
+
+| Abordagem | Prós | Contras | Decisão |
+|---|---|---|---|
+| Monaco + worktree no host (Fase 49) | Sem Docker; superfície pequena; abre em segundos | Sem terminal, sem LSP real, sem `go test`/`npm`; Git só pela API | **Mantido** como editor rápido (tipo github.dev) |
+| Shell/SSH no VPS (`bash` na 22 ou `docker exec` no host) | Simples | Viola §6.9; um `rm -rf` acerta produção | **Rejeitado** — invariante |
+| VM KVM/QEMU por codespace | Isolamento forte | 8 GB RAM, 4 vCPU, disco compartilhado — inviável | **Rejeitado** |
+| vscode.dev / tunnel Microsoft | Zero runtime nosso | Sai da intranet; depende de terceiro; tira o clone do `xgit.corp` | **Rejeitado** |
+| Container Docker + VS Code web + `git clone` | Terminal, LSP, clone de verdade; limites de CPU/RAM; shell só no container | Docker no host de produção; precisa helper privilegiado e teto de concorrência | **Escolhido (Fase 50)** |
+
+**IDE remoto:** **openvscode-server** (VS Code OSS no browser — o mesmo motor do github.dev / Codespaces web) atrás do Nginx com JWE. **code-server** (Coder) é o fallback se o proxy WebSocket/path exigir. Não é o tunnel da Microsoft.
+
+**O que o container pode e não pode:**
+
+- Create = `git clone` do slug (smart HTTP em `xgit.corp`) **para um volume do container**. Não é worktree do bare; o bare em `/opt/xvpn/data/git/` continua intocado.
+- Terminal = PTY do VS Code **dentro** do container (usuário sem root). Não é SSH no VPS. Não é o console xterm do Compute (§6.16).
+- Sem `--privileged`, sem `/var/run/docker.sock`, sem `--network=host`. Publish só `127.0.0.1:<porta>` (faixa em §5.3).
+- O `xvpn-server` **não** fala com o Docker: helper privilegiado no padrão do `xvpn-user-provision` (`cs-create` / `cs-start` / `cs-stop` / `cs-rm`, JSON no stdin). Socket Unix do daemon, nunca TCP.
+- Rede do container: **não** alcança Mongo `127.0.0.1:27017` (bind só loopback do host). Egress para clone/push = `10.66.66.1:443` (`xgit.corp`). Sem porta pública nova no ufw.
+- Teto no VPS atual: **1 codespace em execução** (2 no máximo se a RAM livre permitir), ~1,5–2 GiB e 1 vCPU por container, disco do clone com quota, idle-stop (container para; volume fica).
+- Token de clone: credencial de curta duração injetada no container (não a senha da conta; não JWE de humano em variável de ambiente logável).
+- Guest/reporter: não criam codespace; read-only no editor rápido (Fase 49).
+
 ---
 
 ## 4. Arquitetura geral
@@ -173,7 +200,7 @@ Fonte da verdade de portas, hostnames e bind. Qualquer serviço novo no VPS **en
 | SSO | `xauth.ihuull.com` | **DNS only**. A → `206.189.224.72`. Backend `127.0.0.1:8080`. Login único; cookie `Domain=.ihuull.com` (Secure, HttpOnly, SameSite=Lax). Sem WS. Nginx: `server/deploy/nginx/xauth.conf`. Enroll continua em `xvpn.ihuull.com` |
 | landpages-ops | `ldpops.appapisip.com` | **Não muda.** Outra app Go no mesmo Nginx |
 
-**Não criar** A/AAAA públicos para `corp.ihuull.com`, `*.corp.ihuull.com`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`, `xgit.corp`, `xcodespaces.corp`. Wildcard `*.ihuull.com` casa `corp.ihuull.com` (um rótulo) — se o wildcard A existir, crie `corp` **sem** A (TXT `intranet-only`) para o nome não resolver fora do túnel. Wildcard **não** cobre `xchat.corp.ihuull.com` (dois rótulos).
+**Não criar** A/AAAA públicos para `corp.ihuull.com`, `*.corp.ihuull.com`, `xchat.corp`, `xgroup.corp`, `xdriver.corp`, `xgit.corp`, `xcodespaces.corp`, `cs-*.corp`. Wildcard `*.ihuull.com` casa `corp.ihuull.com` (um rótulo) — se o wildcard A existir, crie `corp` **sem** A (TXT `intranet-only`) para o nome não resolver fora do túnel. Wildcard **não** cobre `xchat.corp.ihuull.com` (dois rótulos). `cs-<id>.corp.ihuull.com` casa o cert `*.corp.ihuull.com`; **não** usar `<id>.xcodespaces.corp.ihuull.com` (dois rótulos — o wildcard `*.corp` não cobre).
 
 ### 5.2 Hostnames de intranet (`*.corp` — só com VPN)
 
@@ -184,7 +211,8 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice da intranet. `/admin` → `xadmin.corp` |
 | xadmin (console) | `xadmin.corp.ihuull.com` | `127.0.0.1:8080` (`/admin/*`) | Gerenciador geral. **Só VPN.** JWE `aud=xadmin`. Sem A público. §6.14 |
 | xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git) | Repos do forge. **Só VPN.** Sem A público. Fase 40 |
-| xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | IDE Monaco sobre worktree do forge. **Só VPN.** Sem A público. Sem landing pública. Fase 49 |
+| xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | Catálogo + editor rápido (Monaco, Fase 49). **Só VPN.** Sem A público. Sem landing pública |
+| codespace VS Code | `cs-<id>.corp.ihuull.com` | `127.0.0.1:19000–19007` (openvscode-server no container) | Um host por codespace em execução. Catch-all `*.corp` + cert `*.corp.ihuull.com`. **Só VPN.** Sem A público. Fase 50 |
 | xchat (API + WS) | `xchat.corp.ihuull.com` | `127.0.0.1:8080` (`/api/ws`, `/api/social/*`) | Messenger em `/` e `/social/messages`. **Sem `/admin`.** DNS canônico: dnsmasq `10.66.66.1:53`. Client: split-horizon + `/etc/hosts` |
 | xgroup (rede social) | `xgroup.corp.ihuull.com` | `127.0.0.1:8080` (`/social`, `/api/social/*`) | Feed/grupos. Mensagens → `xchat.corp`. **Sem `/admin`.** |
 | xdriver (arquivos) | `xdriver.corp.ihuull.com` | `127.0.0.1:8080` (`/api/driver/*`) | Drive nativo; `Host` obrigatório. **Sem `/admin`.** Samba continua `wg0:445` |
@@ -204,7 +232,8 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | ~~FileBrowser / :8081~~ | **retirado** | XDriver nativo no `xvpn-server`. Porta 8081 livre — não reusar sem linha nova |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via `127.0.0.1:8080` em `marketplace.ihuull.com` (e xadmin) | Sem porta nova. JWE. Nunca anônimo na internet |
 | Forge (git bare) | Disco `/opt/xvpn/data/git/` · smart HTTP em `xgit.corp` | Só VPN. Sem `git://` público. Fase 40 |
-| XCODESPACES (worktrees) | Disco `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` | Só VPN. Fora do bare. Sem shell. Fase 49 |
+| XCODESPACES (editor rápido) | Disco `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` | Worktree do forge. Só VPN. Fora do bare. Sem shell no host. Fase 49 |
+| XCODESPACES (runtime) | Docker + volume `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` · openvscode-server `127.0.0.1:19000–19007` | Clone no volume. Shell **só** no container. Sem `docker.sock` no container. Sem `--network=host`. Sem porta no ufw. Fase 50 |
 | Forge (arquivos de projeto) | Disco `/opt/xvpn/data/projects/<slug>` · XDRIVER `root=project:<slug>` | Só VPN. Sem FileBrowser. Samba `[project-*]` fica para depois. Fase 37 |
 | Serviços gerenciados | Mongo/Redis/Rabbit/LB no host alvo · bind **só `wg0`** (ou `127.0.0.1` se local-only) | xadmin orquestra (§6.18). **Não** é o Mongo `127.0.0.1:27017` do control-plane. Sem 6379/5672/27017 na `eth0` |
 | WebSocket xchat | `wss://xchat.corp.ihuull.com/api/ws` → `127.0.0.1:8080` | Upgrade **só** neste path. Auth no primeiro frame. App desktop não abre listener |
@@ -255,7 +284,7 @@ Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também n
 | `PATCH /api/dns` / `POST /api/dns/records` / `POST /api/dns/apply` | Admin+ com escopo `core` (Fase 35+: `dns`). Apply recarrega dnsmasq via provisioner. Zona pública (§6.17) é outra API |
 
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
-Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44; Issues/PRs/editor/XCODESPACES nas 46–49.
+Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44; Issues/PRs/editor/XCODESPACES nas 46–50.
 
 **Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS) — inclusive a landing `/`. Preto profundo, `watch-face`, cards `watch-complication`, `icon-well`, `field-glass`, Outfit, acento `--safe` / `power-safe`. Não há paleta navy/Workspace nem marketing paralela. Ver [§6.12](#612-design-system-e-color-system).
 
@@ -613,7 +642,7 @@ Skill: `desktop-app-ui`. App intranet novo: `new-intranet-app` passo UI aponta p
 | xdriver | — (público 444) | `xdriver.corp` | atalho no client | Só VPN. Sem FileBrowser |
 | xauth | `xauth.ihuull.com` | — | — | Login único no mesmo `xvpn-server`. Cookie `.ihuull.com` |
 | xgit | — | `xgit.corp` | — | Smart HTTP do forge. Fase 40 |
-| xcodespaces | — (sem landing pública) | `xcodespaces.corp` | — | IDE Monaco. Fase 49. Sem A público |
+| xcodespaces | — (sem landing pública) | `xcodespaces.corp` + `cs-<id>.corp` | — | Editor rápido (49) + VS Code remoto (50). Sem A público |
 | ihuu.com | parking AWS | — | — | Não usar no Nginx |
 
 **Padrão obrigatório de app** (`marketplace.yaml` + skill `new-intranet-app`):
@@ -635,7 +664,7 @@ Logo: o chrome de sistema (`ProductHeader`) mostra só o mark do produto + nome 
 | `marketplace` | Marketplace / Store | Marketplace Store | `marketplace.ihuull.com` |
 | `xadmin` | XADMIN / Console | XADMIN Console | `xadmin.corp` |
 | `xgit` | XGIT / Forge | XGIT Forge | `xgit.corp` — waffle se `ProjectMember` ou ACL do app |
-| `xcodespaces` | XCODESPACES / IDE | XCODESPACES IDE | `xcodespaces.corp` — waffle se `ProjectMember` ou ACL do app. Fase 49 |
+| `xcodespaces` | XCODESPACES / IDE | XCODESPACES IDE | `xcodespaces.corp` — waffle se `ProjectMember` ou ACL do app. Fases 49–50 |
 | `ihuull` | ihuull / plataforma | ihuull | landing da marca |
 
 Fonte: `shared/ui/react/products.ts`. Header autenticado: waffle de apps **sempre** + ícone Settings (prefs **deste** app) + pílula da conta (username + papel). Conta (perfil/senha) fica no menu da pílula, não no Settings. Scrollbar canônica em `shared/ui/scss/_utilities.scss` (`ihuull-scrollbar`) — não reinventar por SPA.
@@ -681,7 +710,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | CI/CD | Pipeline no xadmin; **runners** = peers WG com label `runner` (não no PID do `xvpn-server`). Artifacts → XDRIVER |
 | Pages | Nginx gerado + blob; hostname `*.corp` ou A público via §6.17 |
 | Editor web (arquivo único) | Monaco no blob `/edit` do XGIT; salvar = commit (ou branch + PR se a ref for protegida). Fase 48 |
-| Codespaces / IDE | App `xcodespaces.corp` (Monaco, worktree por user). Sem VM/Docker, sem shell no VPS. Fase 49 |
+| Codespaces / IDE | App `xcodespaces.corp`: editor rápido Monaco (Fase 49) + codespace Docker / openvscode-server / clone (Fase 50, §3.6). Sem shell no host |
 | Container / npm / pypi, snippets, SAST, feature flags | Fases 45+ |
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
@@ -696,7 +725,9 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **Editor web (Fase 48).** Monaco no blob. Salvar = diálogo de commit no servidor (autor = JWE). Branch protegida + papel sem push direto → criar branch e abrir PR (mesmo fluxo do GitHub). `PUT /api/projects/:slug/contents`. Limite ~2 MiB; binário não edita.
 
-**XCODESPACES (Fase 49).** Produto `xcodespaces`, host `xcodespaces.corp.ihuull.com`, `aud=xcodespaces`, Nginx só `10.66.66.1:443`. Worktree em `/opt/xvpn/data/codespaces/…` (bare intocado). IDE: tree + Monaco multi-tab + git commit/push + abrir PR. Entrada: popover Code → aba XCODESPACES → Create codespace na branch atual. **Não** é Codespaces da Microsoft: sem container, sem terminal/SSH no VPS (`PLAN.md` §3). Guest/reporter read-only.
+**XCODESPACES — editor rápido (Fase 49).** Produto `xcodespaces`, host `xcodespaces.corp.ihuull.com`, `aud=xcodespaces`, Nginx só `10.66.66.1:443`. Equivalente ao **github.dev**: worktree em `/opt/xvpn/data/codespaces/…` (bare intocado), tree + Monaco multi-tab + commit/push + abrir PR. Entrada: popover Code → aba XCODESPACES. Sem terminal, sem toolchain. Guest/reporter read-only. Permanece como caminho sem container.
+
+**XCODESPACES — remoto (Fase 50).** O Create de verdade (estilo GitHub Codespaces): helper sobe um **container Docker**, faz **`git clone`** do slug (smart HTTP `xgit.corp`, token de curta duração) para o volume do workspace, e serve **openvscode-server** em `https://cs-<id>.corp.ihuull.com` (proxy Nginx → `127.0.0.1:19000–19007`). Terminal, LSP e Git do VS Code rodam **dentro** do container. `.devcontainer/devcontainer.json` no repo, se existir, escolhe a imagem; senão imagem base ihuull (git + go + node). Idle-stop; teto de concorrência no VPS. **Não** é KVM. **Não** é bash na 22. Decisão e invariantes: §3.6.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
@@ -941,9 +972,10 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **46.1 Issues + Projects** | lista GitHub-like, milestones, boards | `WorkProject` ≠ repo; sem Insights |
 | **47. PRs GitHub-like** | diff, commits, checks, review | Superfície de PR; merge já existe (41) |
 | **48. Editor Monaco** | `/edit` + commit (ou branch+PR) | Salvar = commit; protected branch respeitada |
-| **49. XCODESPACES** | `xcodespaces.corp` + worktree + IDE | Sem VM/shell; só VPN |
+| **49. XCODESPACES (editor)** | `xcodespaces.corp` + worktree + Monaco | github.dev; sem terminal; só VPN |
+| **50. XCODESPACES (remoto)** | clone + Docker + openvscode-server | Shell só no container; `cs-<id>.corp`; §3.6 |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–49 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–50 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 
 ---
 

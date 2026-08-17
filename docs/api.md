@@ -79,6 +79,12 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/projects/:slug/git` | sessão | `clone_url`, `exists`, `protected_branches` |
 | POST | `/api/projects/:slug/git` | admin + `forge` | cria o bare se faltar |
 | PUT | `/api/projects/:slug/protected-branches` | admin + `forge` | substitui a lista |
+| GET | `/api/projects/:slug/branches` | sessão + ACL do projeto | heads do bare |
+| GET | `/api/projects/:slug/merge-requests` | sessão + ACL | `?status=open\|merged\|closed` |
+| POST | `/api/projects/:slug/merge-requests` | developer+ ou `forge` | abre MR + thread XCHAT + post XGROUP |
+| GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | |
+| POST | `/api/projects/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | `git merge --no-ff` no servidor |
+| POST | `/api/projects/:slug/merge-requests/:iid/close` | autor, maintainer+ ou `forge` | |
 
 Outro `Host` nas rotas smart HTTP → 404.
 

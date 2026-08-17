@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–39** em produção. **Fase 40** (Git smart HTTP em `xgit.corp`) nesta branch. **Próximo:** Fase 41 — Merge requests. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–40** em produção. **Fase 41** (Merge requests) nesta branch. **Próximo:** Fase 42 — CI. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1229,8 +1229,8 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 
 ## Fase 41 — Merge requests
 
-- [ ] MR no Mongo; UI no xadmin.
-- [ ] Thread XCHAT por MR (skill `chat-chrome`). Comentários de issue no XGROUP.
+- [x] MR no Mongo; UI no xadmin.
+- [x] Thread XCHAT por MR (skill `chat-chrome`). Comentários de issue no XGROUP.
 
 **Critério de saída:** abrir MR cria thread no XCHAT; merge respeita protected branch.
 

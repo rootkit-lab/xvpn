@@ -81,6 +81,41 @@ var DefaultProtectedBranches = []ProtectedBranch{
 	{Pattern: "master", MinPushRole: ProjectRoleMaintainer},
 }
 
+// MergeRequestStatus é o ciclo de vida do MR (Fase 41).
+type MergeRequestStatus string
+
+const (
+	MROpen   MergeRequestStatus = "open"
+	MRMerged MergeRequestStatus = "merged"
+	MRClosed MergeRequestStatus = "closed"
+)
+
+func (s MergeRequestStatus) Valid() bool {
+	return s == MROpen || s == MRMerged || s == MRClosed
+}
+
+// MergeRequest é o caminho de merge em branch protegida (PLAN.md §6.15).
+// ThreadID é um DirectThread Kind=mr; SocialPostID é a issue no XGROUP.
+type MergeRequest struct {
+	ID           uint               `gorm:"primaryKey"`
+	ProjectID    uint               `gorm:"uniqueIndex:idx_project_mr;not null"`
+	Number       uint               `gorm:"uniqueIndex:idx_project_mr;not null"`
+	Title        string             `gorm:"not null"`
+	Description  string             `gorm:"type:text"`
+	SourceBranch string             `gorm:"not null"`
+	TargetBranch string             `gorm:"not null"`
+	AuthorID     uint               `gorm:"not null;index"`
+	Status       MergeRequestStatus `gorm:"not null;default:open;index"`
+	ThreadID     uint               `gorm:"not null;index"`
+	SocialPostID *uint
+	MergedAt     *time.Time
+	MergedByID   *uint
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+
+	Author User `gorm:"foreignKey:AuthorID"`
+}
+
 // ValidProjectSlug aceita [a-z0-9][a-z0-9-]{0,18}[a-z0-9] (2–20), sem
 // hífen nas pontas — a mesma chave de App.Slug no catálogo.
 func ValidProjectSlug(s string) bool {

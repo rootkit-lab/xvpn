@@ -307,6 +307,12 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/projects", app.handleListProjects)
 			authed.GET("/projects/:slug", app.handleGetProject)
 			authed.GET("/projects/:slug/git", app.handleGetProjectGit)
+			authed.GET("/projects/:slug/branches", app.handleListProjectBranches)
+			authed.GET("/projects/:slug/merge-requests", app.handleListMergeRequests)
+			authed.POST("/projects/:slug/merge-requests", app.handleCreateMergeRequest)
+			authed.GET("/projects/:slug/merge-requests/:iid", app.handleGetMergeRequest)
+			authed.POST("/projects/:slug/merge-requests/:iid/merge", app.handleMergeMergeRequest)
+			authed.POST("/projects/:slug/merge-requests/:iid/close", app.handleCloseMergeRequest)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())

@@ -579,6 +579,25 @@ export interface ProjectGit {
   protected_branches: ProtectedBranch[]
 }
 
+export type MergeRequestStatus = 'open' | 'merged' | 'closed'
+
+export interface MergeRequest {
+  number: number
+  title: string
+  description: string
+  source_branch: string
+  target_branch: string
+  author_id: number
+  author: string
+  status: MergeRequestStatus
+  thread_id: number
+  social_post_id?: number
+  merged_at?: string
+  merged_by?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DriverEntry {
   name: string
   path: string
@@ -825,6 +844,26 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ branches }),
     }),
+  listProjectBranches: (slug: string) =>
+    request<{ items: string[] }>(`/projects/${encodeURIComponent(slug)}/branches`),
+  listMergeRequests: (slug: string, status?: MergeRequestStatus) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : ''
+    return request<{ items: MergeRequest[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests${q}`)
+  },
+  getMergeRequest: (slug: string, iid: number) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}`),
+  createMergeRequest: (
+    slug: string,
+    body: { title: string; description?: string; source_branch: string; target_branch: string },
+  ) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  mergeMergeRequest: (slug: string, iid: number) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/merge`, { method: 'POST' }),
+  closeMergeRequest: (slug: string, iid: number) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/close`, { method: 'POST' }),
 
   listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
   getServer: (id: number) => request<MeshServer>(`/servers/${id}`),

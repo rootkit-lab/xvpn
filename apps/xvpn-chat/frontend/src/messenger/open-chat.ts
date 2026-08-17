@@ -3,6 +3,7 @@ export const OPEN_CHAT_EVENT = 'xvpn-chat:open'
 export type OpenChatDetail = {
   username?: string
   groupId?: number
+  dmId?: number
   title?: string
 }
 

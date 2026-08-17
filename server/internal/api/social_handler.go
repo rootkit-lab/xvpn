@@ -396,13 +396,20 @@ func (a *App) findOrCreateDM(aID, bID uint) (uint, error) {
 		return 0, err
 	}
 	for _, m := range mine {
+		var th store.DirectThread
+		if err := a.Store.DB.First(&th, m.ThreadID).Error; err != nil {
+			continue
+		}
+		if th.Kind != "" && th.Kind != store.ThreadKindDM {
+			continue
+		}
 		var n int64
 		_ = a.Store.DB.Model(&store.DirectThreadMember{}).Where("thread_id = ? AND user_id = ?", m.ThreadID, bID).Count(&n).Error
 		if n > 0 {
 			return m.ThreadID, nil
 		}
 	}
-	th := store.DirectThread{}
+	th := store.DirectThread{Kind: store.ThreadKindDM}
 	if err := a.Store.DB.Create(&th).Error; err != nil {
 		return 0, err
 	}
@@ -431,11 +438,15 @@ func (a *App) handleSocialListThreads(c *gin.Context) {
 	}
 	items := make([]socialThreadResponse, 0, len(memberships))
 	for _, m := range memberships {
+		var th store.DirectThread
+		_ = a.Store.DB.First(&th, m.ThreadID).Error
 		var others []store.DirectThreadMember
 		_ = a.Store.DB.Where("thread_id = ? AND user_id <> ?", m.ThreadID, me).Find(&others).Error
 		title := "DM"
 		var peer uint
-		if len(others) > 0 {
+		if th.Kind == store.ThreadKindMR && strings.TrimSpace(th.Title) != "" {
+			title = th.Title
+		} else if len(others) > 0 {
 			peer = others[0].UserID
 			var u store.User
 			if a.Store.DB.First(&u, peer).Error == nil {

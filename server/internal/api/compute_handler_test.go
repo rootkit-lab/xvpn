@@ -246,3 +246,70 @@ func TestServerGroupAndAccess(t *testing.T) {
 		t.Fatalf("get: %+v", got)
 	}
 }
+
+func TestCreateRejectsReservedIntranetHostname(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.BitLaunch = &fakeBitLaunch{created: bitlaunch.Server{ID: "bl-x"}}
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec := doJSON(t, router, http.MethodPost, "/api/servers", createMeshServerRequest{
+		Hostname: "xadmin", HostID: 4, HostImageID: "img", SizeID: "sz", RegionID: "ams",
+	}, tok)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("xadmin deveria 409, veio %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRebuildRevokesOldPeer(t *testing.T) {
+	app, wg := newTestApp(t)
+	fake := &fakeBitLaunch{created: bitlaunch.Server{ID: "bl-r", Status: "ok"}}
+	app.BitLaunch = fake
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/servers", createMeshServerRequest{
+		Hostname: "labr", HostID: 4, HostImageID: "img", SizeID: "sz", RegionID: "ams",
+	}, tok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/servers/enroll", meshEnrollRequest{
+		EnrollToken: created.EnrollToken, PublicKey: testPublicKey, Hostname: "labr",
+	}, "")
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("enroll: %d %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := wg.peers[testPublicKey]; !ok {
+		t.Fatal("peer deveria existir antes do rebuild")
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/servers/"+strconv.FormatUint(uint64(created.ID), 10)+"/rebuild",
+		map[string]string{"host_image_id": "img2"}, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rebuild: %d %s", rec.Code, rec.Body.String())
+	}
+	if _, ok := wg.peers[testPublicKey]; ok {
+		t.Fatal("rebuild deveria revogar o peer antigo")
+	}
+	var after meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.EnrollToken == "" || after.WgIP != "" {
+		t.Fatalf("rebuild deveria devolver token novo e zerar wg: %+v", after)
+	}
+
+	var sys store.DNSRecord
+	if err := app.Store.DB.Where("hostname = ?", "xadmin.corp.ihuull.com").First(&sys).Error; err != nil {
+		t.Fatal(err)
+	}
+	if !sys.System || sys.IPv4 != "10.66.66.1" {
+		t.Fatalf("A de sistema não deveria mudar: %+v", sys)
+	}
+}

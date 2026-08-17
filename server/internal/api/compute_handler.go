@@ -176,6 +176,10 @@ func (a *App) handleCreateMeshServer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "hostname inválido (2–20, a-z 0-9 hífen)"})
 		return
 	}
+	if reservedMeshHostname(host) {
+		c.JSON(http.StatusConflict, gin.H{"error": "hostname reservado da intranet"})
+		return
+	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		name = host
@@ -292,14 +296,8 @@ func (a *App) handleDestroyMeshServer(c *gin.Context) {
 			return
 		}
 	}
-	if s.DeviceID != nil {
-		var dev store.Device
-		if err := a.Store.DB.First(&dev, *s.DeviceID).Error; err == nil {
-			_ = a.WG.RemovePeer(dev.PublicKey)
-			_ = a.Store.DB.Delete(&dev).Error
-		}
-	}
-	_ = a.Store.DB.Where("hostname = ?", s.Hostname+".corp.ihuull.com").Delete(&store.DNSRecord{}).Error
+	a.revokeMeshPeer(&s)
+	_ = a.Store.DB.Where("hostname = ? AND system = ?", s.Hostname+".corp.ihuull.com", false).Delete(&store.DNSRecord{}).Error
 	_ = a.pushIntranetDNS(c.Request.Context())
 	if err := a.Store.DB.Delete(&s).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
@@ -336,6 +334,7 @@ func (a *App) handleRebuildMeshServer(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao rebuild no BitLaunch"})
 		return
 	}
+	a.revokeMeshPeer(&s)
 	token, err := generateInviteToken()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
@@ -346,6 +345,7 @@ func (a *App) handleRebuildMeshServer(c *gin.Context) {
 	s.EnrollExpiresAt = &exp
 	s.Status = "rebuilding"
 	s.WgIP = ""
+	s.DeviceID = nil
 	if err := a.Store.DB.Save(&s).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -418,6 +418,10 @@ func (a *App) handleMeshServerEnroll(c *gin.Context) {
 	}
 	if match.Role == store.ServerRoleControl {
 		c.JSON(http.StatusConflict, gin.H{"error": "node de controle já está na malha"})
+		return
+	}
+	if reservedMeshHostname(match.Hostname) {
+		c.JSON(http.StatusConflict, gin.H{"error": "hostname reservado da intranet"})
 		return
 	}
 
@@ -647,7 +651,7 @@ func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID uint) error {
 	}
 	host := strings.ToLower(strings.TrimSpace(r.Name))
 	host = strings.ReplaceAll(host, " ", "-")
-	if !store.ValidProjectSlug(host) {
+	if !store.ValidProjectSlug(host) || reservedMeshHostname(host) {
 		host = "node-" + strings.ToLower(r.ID)
 		if len(host) > 20 {
 			host = host[:20]
@@ -674,6 +678,9 @@ func (a *App) ensureMeshDNS(hostname, ipv4 string) error {
 	var rec store.DNSRecord
 	err = a.Store.DB.Where("hostname = ?", h).First(&rec).Error
 	if err == nil {
+		if rec.System {
+			return fmt.Errorf("hostname %s é registro de sistema", h)
+		}
 		rec.IPv4 = ip
 		rec.Enabled = true
 		rec.Comment = "malha compute"
@@ -685,6 +692,32 @@ func (a *App) ensureMeshDNS(hostname, ipv4 string) error {
 	return a.Store.DB.Create(&store.DNSRecord{
 		Hostname: h, IPv4: ip, Enabled: true, Comment: "malha compute",
 	}).Error
+}
+
+func reservedMeshHostname(host string) bool {
+	if host == controlHostname {
+		return true
+	}
+	for _, rec := range store.DefaultIntranetHosts {
+		label := strings.TrimSuffix(rec.Hostname, ".corp.ihuull.com")
+		if label != rec.Hostname && label == host {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *App) revokeMeshPeer(s *store.MeshServer) {
+	if s.DeviceID == nil {
+		return
+	}
+	var dev store.Device
+	if err := a.Store.DB.First(&dev, *s.DeviceID).Error; err == nil {
+		_ = a.WG.RemovePeer(dev.PublicKey)
+		_ = a.Store.DB.Delete(&dev).Error
+	}
+	s.DeviceID = nil
+	s.WgIP = ""
 }
 
 func meshCloudInit(enrollToken, hostname string) string {

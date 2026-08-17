@@ -61,3 +61,18 @@ func TestLocalResticDryRun(t *testing.T) {
 func lookRestic() (string, error) {
 	return (&Runner{}).look("restic")
 }
+
+func TestRcloneConfigAllowlist(t *testing.T) {
+	if _, err := rcloneConfig("drive", Secret{RcloneConf: "type = sftp\nssh = /bin/sh"}); err != ErrBadKind {
+		t.Fatalf("raw conf: %v", err)
+	}
+	if _, err := rcloneConfig("drive", Secret{RcloneConf: `{"access_token":"x"}`}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rcloneConfig("webdav", Secret{WebDAVURL: "https://dav.example/"}); err != nil {
+		t.Fatal(err)
+	}
+	if safeRclonePath("../etc") || safeRclonePath("a:b") {
+		t.Fatal("path")
+	}
+}

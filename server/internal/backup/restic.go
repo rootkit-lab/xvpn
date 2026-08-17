@@ -267,25 +267,25 @@ func resticRepo(dest Dest, staging string) (string, []string, error) {
 		}
 		return repo, env, nil
 	case "webdav", "drive":
-		if sec.RcloneConf == "" {
+		conf, err := rcloneConfig(dest.Kind, sec)
+		if err != nil {
+			return "", nil, err
+		}
+		path := dest.Path
+		if path == "" {
+			path = "xvpn"
+		}
+		if !safeRclonePath(path) {
 			return "", nil, ErrBadKind
 		}
 		cfg := filepath.Join(staging, "rclone.conf")
 		if err := os.MkdirAll(staging, 0o750); err != nil {
 			return "", nil, err
 		}
-		if err := os.WriteFile(cfg, []byte(sec.RcloneConf), 0o600); err != nil {
+		if err := os.WriteFile(cfg, []byte(conf), 0o600); err != nil {
 			return "", nil, err
 		}
-		remote := dest.Endpoint
-		if remote == "" {
-			remote = dest.Kind
-		}
-		path := dest.Path
-		if path == "" {
-			path = "xvpn"
-		}
-		return "rclone:" + remote + ":" + path, []string{"RCLONE_CONFIG=" + cfg}, nil
+		return "rclone:" + dest.Kind + ":" + path, []string{"RCLONE_CONFIG=" + cfg}, nil
 	default:
 		return "", nil, ErrBadKind
 	}
@@ -314,6 +314,33 @@ func (r *Runner) copyXDriver(ctx context.Context, dest Dest, paths []string, dry
 		}
 	}
 	return Result{SnapshotID: r.now().UTC().Format("20060102T150405Z"), Log: log.String()}, nil
+}
+
+func safeRclonePath(p string) bool {
+	p = strings.TrimSpace(p)
+	if p == "" || strings.ContainsAny(p, "\n\r:") || strings.Contains(p, "..") {
+		return false
+	}
+	return true
+}
+
+func rcloneConfig(kind string, sec Secret) (string, error) {
+	switch kind {
+	case "webdav":
+		if sec.WebDAVURL == "" || strings.ContainsAny(sec.WebDAVURL, "\n\r") {
+			return "", ErrBadKind
+		}
+		return fmt.Sprintf("[webdav]\ntype = webdav\nvendor = other\nurl = %s\nuser = %s\npass = %s\n",
+			sec.WebDAVURL, sec.WebDAVUser, sec.WebDAVPass), nil
+	case "drive":
+		tok := strings.TrimSpace(sec.RcloneConf)
+		if tok == "" || !strings.HasPrefix(tok, "{") || strings.ContainsAny(tok, "\n\r=") {
+			return "", ErrBadKind
+		}
+		return fmt.Sprintf("[drive]\ntype = drive\ntoken = %s\n", tok), nil
+	default:
+		return "", ErrBadKind
+	}
 }
 
 func parseResticSummary(out []byte) (string, int64) {

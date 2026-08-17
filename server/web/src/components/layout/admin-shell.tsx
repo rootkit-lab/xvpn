@@ -37,8 +37,13 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
       { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES, product: 'core' },
-      { to: '/admin/dns', label: 'DNS intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'core' },
     ],
+  },
+  {
+    id: 'dns',
+    label: 'DNS',
+    product: 'dns',
+    items: [{ to: '/admin/dns', label: 'DNS intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' }],
   },
   {
     id: 'marketplace',

@@ -160,7 +160,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
     prefix: '/admin/dns',
     meta: {
-      kicker: 'Core VPN',
+      kicker: 'DNS',
       title: 'DNS intranet',
       description: 'Zona corp.ihuull.com no dnsmasq (10.66.66.1:53, só wg0).',
     },

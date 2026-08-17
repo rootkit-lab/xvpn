@@ -38,6 +38,8 @@ var DefaultIntranetHosts = []DNSRecord{
 	{Hostname: "xchat.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "messenger"},
 	{Hostname: "xgroup.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "rede social"},
 	{Hostname: "xdriver.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "drive nativo"},
+	{Hostname: "xadmin.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "console"},
+	{Hostname: "xgit.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "forge git"},
 }
 
 // SeedIntranetDNS cria settings + records oficiais se a tabela estiver vazia.

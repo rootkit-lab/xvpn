@@ -351,11 +351,17 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 				coreWrite.PATCH("/config", app.handleUpdateConfig)
-				coreWrite.PATCH("/dns", app.handleUpdateDNSSettings)
-				coreWrite.POST("/dns/records", app.handleCreateDNSRecord)
-				coreWrite.PATCH("/dns/records/:id", app.handleUpdateDNSRecord)
-				coreWrite.DELETE("/dns/records/:id", app.handleDeleteDNSRecord)
-				coreWrite.POST("/dns/apply", app.handleApplyDNS)
+			}
+
+			// DNS intranet (Fase 35): sai do core. Público (§6.17) entra depois.
+			dnsWrite := adminOnly.Group("")
+			dnsWrite.Use(auth.RequireProduct(store.ProductDNS))
+			{
+				dnsWrite.PATCH("/dns", app.handleUpdateDNSSettings)
+				dnsWrite.POST("/dns/records", app.handleCreateDNSRecord)
+				dnsWrite.PATCH("/dns/records/:id", app.handleUpdateDNSRecord)
+				dnsWrite.DELETE("/dns/records/:id", app.handleDeleteDNSRecord)
+				dnsWrite.POST("/dns/apply", app.handleApplyDNS)
 			}
 
 			// XDriver: SFTP/Samba/cota. Fora do escopo xdriver → 403.

@@ -30,12 +30,12 @@ export function loginCopy(variant: LoginVariant): {
   switch (variant) {
     case 'admin':
       return {
-        product: 'xvpn',
+        product: 'xadmin',
         title: 'Entrar na administração',
-        subtitle: 'Painel do sistema — só operadores.',
+        subtitle: 'XADMIN Console — só operadores, só na VPN.',
         brandTitle: 'Controle da rede',
-        brandBody: 'Peers, convites e o que só quem opera a VPN precisa ver.',
-        kicker: 'acesso seguro · painel',
+        brandBody: 'Peers, convites e o que só quem opera a plataforma precisa ver.',
+        kicker: 'acesso seguro · console',
       }
     case 'store':
       return {

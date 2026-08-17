@@ -521,10 +521,10 @@ function withQuery(path: string, params?: PageParams): string {
 }
 
 export const api = {
-  login: (username: string, password: string) =>
+  login: (username: string, password: string, aud?: string) =>
     request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, ...(aud ? { aud } : {}) }),
     }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   // me restaura {id, username, role} depois de um refresh — cookie SSO

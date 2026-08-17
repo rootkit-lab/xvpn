@@ -22,7 +22,7 @@ export function XGroupAdminPage() {
           </div>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
-          Fonte única: esta tela vive em <code className="font-mono text-xs">xvpn.ihuull.com/admin/xgroup</code>.
+          Fonte única: esta tela vive em <code className="font-mono text-xs">xadmin.corp.ihuull.com/admin/xgroup</code>.
           Não existe host <code className="font-mono text-xs">admin.xgroup</code>.
         </CardContent>
       </Card>

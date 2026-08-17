@@ -5,8 +5,11 @@ import (
 	"strings"
 )
 
-// PanelOrigin é o portal /admin — PLAN.md §5.1.
+// PanelOrigin é o portal/enroll público — PLAN.md §5.1.
 const PanelOrigin = "https://xvpn.ihuull.com"
+
+// AdminOrigin é o console (só VPN) — PLAN.md §6.14.
+const AdminOrigin = "https://xadmin.corp.ihuull.com"
 
 var safeReturnHosts = map[string]struct{}{
 	"xauth.ihuull.com":        {},
@@ -19,10 +22,14 @@ var safeReturnHosts = map[string]struct{}{
 	"xchat.ihuull.com":        {},
 	"xchat.corp.ihuull.com":   {},
 	"corp.ihuull.com":         {},
+	"xadmin.corp.ihuull.com":  {},
+	"xgit.corp.ihuull.com":    {},
 	"www.ihuull.com":          {},
 	"ihuull.com":              {},
 	"xauth.localhost":         {},
 	"xvpn.localhost":          {},
+	"xadmin.corp.localhost":   {},
+	"xgit.corp.localhost":     {},
 	"marketplace.localhost":   {},
 	"xdriver.localhost":       {},
 	"xdriver.corp.localhost":  {},
@@ -35,8 +42,8 @@ var safeReturnHosts = map[string]struct{}{
 	"127.0.0.1":               {},
 }
 
-func isPanelReturnHost(host string) bool {
-	return host == "xvpn.ihuull.com" || host == "xvpn.localhost" || host == "localhost" || host == "127.0.0.1"
+func isAdminReturnHost(host string) bool {
+	return host == "xadmin.corp.ihuull.com" || host == "xadmin.corp.localhost"
 }
 
 func allowedReturnScheme(scheme, host string) bool {
@@ -113,8 +120,8 @@ func SafeReturnURL(raw string) string {
 	if _, ok := safeReturnHosts[host]; !ok {
 		return ""
 	}
-	if !isPanelReturnHost(host) && strings.HasPrefix(u.Path, "/admin") {
-		return PanelOrigin + "/admin"
+	if !isAdminReturnHost(host) && strings.HasPrefix(u.Path, "/admin") {
+		return AdminOrigin + "/admin"
 	}
 	return u.String()
 }

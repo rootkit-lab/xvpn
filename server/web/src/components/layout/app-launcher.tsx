@@ -6,6 +6,7 @@ import { isViewerUpRole } from '@/lib/roles'
 import {
   MARKETPLACE_ORIGIN,
   PANEL_ORIGIN,
+  XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
@@ -107,10 +108,10 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
       ? [
           {
             id: 'admin',
-            label: 'Admin',
-            ...panel('/admin'),
+            label: PRODUCT_META.xadmin.label,
+            ...(kind === 'xadmin-corp' ? { to: '/admin' } : { href: `${XADMIN_CORP_ORIGIN}/admin` }),
             icon: LayoutDashboard,
-            current: variant === 'admin' && !onMarketplace && !onXDriver,
+            current: kind === 'xadmin-corp' && !onMarketplace && !onXDriver,
           } satisfies LauncherTile,
         ]
       : []),

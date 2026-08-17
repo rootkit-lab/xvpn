@@ -22,7 +22,7 @@ func TestApplyRevert_RoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(got)
-	if !strings.Contains(text, "xdriver.corp.ihuull.com") || !strings.Contains(text, ServerIP) {
+	if !strings.Contains(text, "xadmin.corp.ihuull.com") || !strings.Contains(text, ServerIP) {
 		t.Fatalf("bloco ausente: %q", text)
 	}
 	if !strings.HasPrefix(text, original) {

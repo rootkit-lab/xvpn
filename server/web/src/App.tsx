@@ -5,6 +5,7 @@ import { VIEWER_UP_ROLES } from '@/lib/roles'
 import {
   MARKETPLACE_ORIGIN,
   PANEL_ORIGIN,
+  XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
@@ -85,7 +86,7 @@ function XAuthApp() {
 function XAuthLeave() {
   useEffect(() => {
     const path = window.location.pathname
-    window.location.replace(path.startsWith('/admin') ? `${PANEL_ORIGIN}/admin` : `${PANEL_ORIGIN}/`)
+    window.location.replace(path.startsWith('/admin') ? `${XADMIN_CORP_ORIGIN}/admin` : `${PANEL_ORIGIN}/`)
   }, [])
   return <PageFallback />
 }
@@ -220,6 +221,39 @@ function CorpHubApp() {
   )
 }
 
+function XAdminCorpApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin/login" element={<SSOLoginRedirect />} />
+
+        <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="users" element={<UsersPage />} />
+            <Route path="users/new" element={<UserCreatePage />} />
+            <Route path="users/:id" element={<UserDetailPage />} />
+            <Route path="rbac" element={<RbacPage />} />
+            <Route path="devices" element={<DevicesPage />} />
+            <Route path="shares" element={<SharesPage />} />
+            <Route path="waitlist" element={<WaitlistPage />} />
+            <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
+            <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
+            <Route path="xgroup" element={<XGroupAdminPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="dns" element={<DNSPage />} />
+            <Route path="audit" element={<AuditPage />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
+
 function BrandLandingApp() {
   return (
     <Routes>
@@ -271,24 +305,8 @@ function PanelApp() {
           <Route path="/xchat/messages" element={<Navigate to="/social/messages" replace />} />
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
-          <Route path="/admin" element={<AdminShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="users/new" element={<UserCreatePage />} />
-            <Route path="users/:id" element={<UserDetailPage />} />
-            <Route path="rbac" element={<RbacPage />} />
-            <Route path="devices" element={<DevicesPage />} />
-            <Route path="shares" element={<SharesPage />} />
-            <Route path="waitlist" element={<WaitlistPage />} />
-            <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
-            <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
-            <Route path="xgroup" element={<XGroupAdminPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="dns" element={<DNSPage />} />
-            <Route path="audit" element={<AuditPage />} />
-          </Route>
-        </Route>
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -322,6 +340,8 @@ export default function App() {
               <XGroupCorpApp />
             ) : kind === 'corp' ? (
               <CorpHubApp />
+            ) : kind === 'xadmin-corp' ? (
+              <XAdminCorpApp />
             ) : kind === 'xvpn' ? (
               <PanelApp />
             ) : (

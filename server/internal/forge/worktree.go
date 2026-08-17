@@ -70,11 +70,14 @@ func WorktreeCommit(dest, message, name, email string) (string, error) {
 	if email == "" {
 		email = "xgit@corp.ihuull.com"
 	}
-	add := gitCmd(bin, "-C", dest, "add", "-A")
+	if err := assertWorktreeGitSafe(dest); err != nil {
+		return "", err
+	}
+	add := gitCmd(bin, "-C", dest, "-c", "core.hooksPath=/dev/null", "add", "-A")
 	if out, err := add.CombinedOutput(); err != nil {
 		return "", errors.New(strings.TrimSpace(string(out)))
 	}
-	commit := gitCmd(bin, "-C", dest, "-c", "user.name="+name, "-c", "user.email="+email, "commit", "-m", message)
+	commit := gitCmd(bin, "-C", dest, "-c", "user.name="+name, "-c", "user.email="+email, "-c", "core.hooksPath=/dev/null", "commit", "--no-verify", "-m", message)
 	if out, err := commit.CombinedOutput(); err != nil {
 		low := strings.ToLower(string(out))
 		if strings.Contains(low, "nothing to commit") {
@@ -95,13 +98,58 @@ func WorktreeCheckoutBranch(dest, branch string) error {
 	if !ValidBranchName(branch) {
 		return ErrInvalidBranch
 	}
+	if err := assertWorktreeGitSafe(dest); err != nil {
+		return err
+	}
 	bin, err := LookGit()
 	if err != nil {
 		return err
 	}
-	cmd := gitCmd(bin, "-C", dest, "checkout", "-B", branch)
+	cmd := gitCmd(bin, "-C", dest, "-c", "core.hooksPath=/dev/null", "checkout", "-B", branch)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.New(strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func assertWorktreeGitSafe(dest string) error {
+	gitPath := filepath.Join(dest, ".git")
+	fi, err := os.Lstat(gitPath)
+	if err != nil {
+		return err
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return errors.New("worktree .git inválido")
+	}
+	if !fi.Mode().IsRegular() {
+		return nil
+	}
+	raw, err := os.ReadFile(gitPath)
+	if err != nil {
+		return err
+	}
+	line := strings.TrimSpace(string(raw))
+	const prefix = "gitdir:"
+	if !strings.HasPrefix(strings.ToLower(line), prefix) {
+		return errors.New("worktree .git inválido")
+	}
+	gitdir := strings.TrimSpace(line[len(prefix):])
+	if gitdir == "" {
+		return errors.New("worktree .git inválido")
+	}
+	if !filepath.IsAbs(gitdir) {
+		gitdir = filepath.Join(dest, gitdir)
+	}
+	clean, err := filepath.Abs(gitdir)
+	if err != nil {
+		return err
+	}
+	cleanDest, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+	if clean == cleanDest || strings.HasPrefix(clean, cleanDest+string(os.PathSeparator)) {
+		return errors.New("worktree .git inválido")
 	}
 	return nil
 }

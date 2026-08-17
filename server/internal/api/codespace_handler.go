@@ -5,16 +5,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/rootkit-lab/xvpn/server/internal/driver"
 	"github.com/rootkit-lab/xvpn/server/internal/forge"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
@@ -237,13 +240,17 @@ func (a *App) handleCodespaceTree(c *gin.Context) {
 	}
 	root := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
 	rel := strings.Trim(strings.ReplaceAll(c.Query("path"), "\\", "/"), "/")
-	if strings.Contains(rel, "..") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
-		return
-	}
 	dir := root
 	if rel != "" {
-		dir = filepath.Join(root, filepath.FromSlash(rel))
+		resolved, err := safeCodespaceFile(a.codespacesDir(), cs.RelPath, rel)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
+			return
+		}
+		dir = resolved
+	} else if err := driver.RejectSymlinks(root, root); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
+		return
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -253,7 +260,7 @@ func (a *App) handleCodespaceTree(c *gin.Context) {
 	items := make([]gin.H, 0, len(entries))
 	for _, e := range entries {
 		name := e.Name()
-		if name == ".git" {
+		if name == ".git" || e.Type()&os.ModeSymlink != 0 {
 			continue
 		}
 		info, err := e.Info()
@@ -279,31 +286,27 @@ func (a *App) handleCodespaceBlob(c *gin.Context) {
 		return
 	}
 	rel := strings.Trim(strings.ReplaceAll(c.Query("path"), "\\", "/"), "/")
-	if rel == "" || strings.Contains(rel, "..") {
+	if rel == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
 	}
+	root := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
 	full, err := safeCodespaceFile(a.codespacesDir(), cs.RelPath, rel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
 	}
-	info, err := os.Stat(full)
+	raw, info, err := readFileNoFollow(root, full)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "arquivo não encontrado"})
+		if os.IsNotExist(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "arquivo não encontrado"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
 	}
-	if info.IsDir() {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "não é arquivo"})
-		return
-	}
-	if info.Size() > maxCodespaceBlob {
+	if info.Size() > maxCodespaceBlob || int64(len(raw)) > maxCodespaceBlob {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "arquivo grande demais para o editor"})
-		return
-	}
-	raw, err := os.ReadFile(full)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"path": rel, "content": string(raw), "size": info.Size()})
@@ -324,25 +327,18 @@ func (a *App) handleCodespaceWrite(c *gin.Context) {
 		return
 	}
 	rel := strings.Trim(strings.ReplaceAll(req.Path, "\\", "/"), "/")
-	if rel == "" || strings.Contains(rel, "..") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
-		return
-	}
 	if len(req.Content) > maxCodespaceBlob {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "conteúdo grande demais"})
 		return
 	}
+	root := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
 	full, err := safeCodespaceFile(a.codespacesDir(), cs.RelPath, rel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-	if err := os.WriteFile(full, []byte(req.Content), 0o640); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+	if err := writeFileNoFollow(root, full, []byte(req.Content)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"path": rel})
@@ -417,7 +413,26 @@ func sanitizePathPart(s string) string {
 	return out
 }
 
+func rejectCodespaceRel(rel string) error {
+	rel = strings.Trim(strings.ReplaceAll(rel, "\\", "/"), "/")
+	if rel == "" || strings.Contains(rel, "\x00") {
+		return fs.ErrInvalid
+	}
+	for _, part := range strings.Split(rel, "/") {
+		if part == "" || part == "." || part == ".." {
+			return fs.ErrInvalid
+		}
+		if strings.EqualFold(part, ".git") {
+			return fs.ErrInvalid
+		}
+	}
+	return nil
+}
+
 func safeCodespaceFile(root, rel, file string) (string, error) {
+	if err := rejectCodespaceRel(file); err != nil {
+		return "", err
+	}
 	base := filepath.Join(root, filepath.FromSlash(rel))
 	full := filepath.Join(base, filepath.FromSlash(file))
 	cleanBase, err := filepath.Abs(base)
@@ -431,5 +446,109 @@ func safeCodespaceFile(root, rel, file string) (string, error) {
 	if cleanFull == cleanBase || !strings.HasPrefix(cleanFull, cleanBase+string(os.PathSeparator)) {
 		return "", fs.ErrInvalid
 	}
+	if err := driver.RejectSymlinks(cleanBase, cleanFull); err != nil {
+		return "", err
+	}
 	return cleanFull, nil
+}
+
+func mkdirAllNoFollow(base, dir string) error {
+	base = filepath.Clean(base)
+	dir = filepath.Clean(dir)
+	if dir == base {
+		return driver.RejectSymlinks(base, base)
+	}
+	rel, err := filepath.Rel(base, dir)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return fs.ErrInvalid
+	}
+	cur := base
+	for _, part := range strings.Split(rel, string(os.PathSeparator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		next := filepath.Join(cur, part)
+		fi, err := os.Lstat(next)
+		if os.IsNotExist(err) {
+			dirfd, err := driver.OpenDirNoFollow(base, cur)
+			if err != nil {
+				return err
+			}
+			mkErr := syscall.Mkdirat(dirfd, part, 0o750)
+			_ = syscall.Close(dirfd)
+			if mkErr != nil && !os.IsExist(mkErr) {
+				return mkErr
+			}
+			cur = next
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir() {
+			return fs.ErrInvalid
+		}
+		cur = next
+	}
+	return nil
+}
+
+func writeFileNoFollow(base, full string, data []byte) error {
+	base = filepath.Clean(base)
+	full = filepath.Clean(full)
+	dir := filepath.Dir(full)
+	name := filepath.Base(full)
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return fs.ErrInvalid
+	}
+	if err := mkdirAllNoFollow(base, dir); err != nil {
+		return err
+	}
+	if err := driver.RejectSymlinks(base, dir); err != nil {
+		return err
+	}
+	dirfd, err := driver.OpenDirNoFollow(base, dir)
+	if err != nil {
+		return err
+	}
+	defer syscall.Close(dirfd)
+	fd, err := syscall.Openat(dirfd, name, syscall.O_CREAT|syscall.O_WRONLY|syscall.O_TRUNC|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0o640)
+	if err != nil {
+		return err
+	}
+	f := os.NewFile(uintptr(fd), name)
+	defer f.Close()
+	_, err = f.Write(data)
+	return err
+}
+
+func readFileNoFollow(base, full string) ([]byte, os.FileInfo, error) {
+	base = filepath.Clean(base)
+	full = filepath.Clean(full)
+	if err := driver.RejectSymlinks(base, full); err != nil {
+		return nil, nil, err
+	}
+	info, err := os.Lstat(full)
+	if err != nil {
+		return nil, nil, err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, nil, fs.ErrInvalid
+	}
+	dirfd, err := driver.OpenDirNoFollow(base, filepath.Dir(full))
+	if err != nil {
+		return nil, nil, err
+	}
+	defer syscall.Close(dirfd)
+	fd, err := syscall.Openat(dirfd, filepath.Base(full), syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	f := os.NewFile(uintptr(fd), full)
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, maxCodespaceBlob+1))
+	if err != nil {
+		return nil, nil, err
+	}
+	return raw, info, nil
 }

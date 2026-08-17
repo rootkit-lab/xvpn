@@ -26,10 +26,22 @@ type MeshServer struct {
 	GroupID         *uint
 	CreatedByUserID uint
 	DeviceID        *uint
+	AccountID       *uint
 	EnrollToken     string
 	EnrollExpiresAt *time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+// BitLaunchAccount é uma API/e-mail BitLaunch (Fase 38.1).
+// O token fica só no banco do VPS — nunca no Git nem nas listagens.
+type BitLaunchAccount struct {
+	ID        uint   `gorm:"primaryKey"`
+	Name      string `gorm:"not null"`
+	Email     string `gorm:"uniqueIndex;not null"`
+	Token     string `gorm:"not null" json:"-"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // ServerGroup agrupa MeshServers para ACL (ServerAccess).

@@ -49,6 +49,7 @@ type meshServerResponse struct {
 	GroupID       *uint     `json:"group_id,omitempty"`
 	DeviceID      *uint     `json:"device_id,omitempty"`
 	AccessUserIDs []uint    `json:"access_user_ids,omitempty"`
+	AccountID     *uint     `json:"account_id,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	EnrollToken   string    `json:"enroll_token,omitempty"`
 }
@@ -63,6 +64,7 @@ type createMeshServerRequest struct {
 	SSHKeys     []string `json:"ssh_keys"`
 	Labels      []string `json:"labels"`
 	Role        string   `json:"role"`
+	AccountID   uint     `json:"account_id"`
 }
 
 type updateMeshServerRequest struct {
@@ -103,7 +105,7 @@ func (a *App) meshServerJSON(s store.MeshServer, includeToken bool) meshServerRe
 		ID: s.ID, BitLaunchID: s.BitLaunchID, Name: s.Name, Hostname: s.Hostname,
 		Role: s.Role, IPv4: s.IPv4, WgIP: s.WgIP, Region: s.Region, Size: s.Size,
 		Status: s.Status, Labels: labels, GroupID: s.GroupID, DeviceID: s.DeviceID,
-		CreatedAt: s.CreatedAt,
+		AccountID: s.AccountID, CreatedAt: s.CreatedAt,
 	}
 	if includeToken && s.EnrollToken != "" {
 		out.EnrollToken = s.EnrollToken
@@ -121,7 +123,11 @@ func (a *App) handleListMeshServers(c *gin.Context) {
 	for _, s := range rows {
 		items = append(items, a.meshServerJSON(s, false))
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "bitlaunch": a.BitLaunch != nil})
+	accounts := make([]bitLaunchAccountJSON, 0)
+	for _, acc := range a.listBitLaunchAccounts() {
+		accounts = append(accounts, accountJSON(acc))
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items, "bitlaunch": a.bitLaunchReady(), "accounts": accounts})
 }
 
 func (a *App) handleGetMeshServer(c *gin.Context) {
@@ -140,6 +146,7 @@ func (a *App) handleImportMeshServers(c *gin.Context) {
 		return
 	}
 	imported := 1
+	actor := callerUserID(c)
 	if a.BitLaunch != nil {
 		remote, err := a.BitLaunch.List()
 		if err != nil {
@@ -147,7 +154,22 @@ func (a *App) handleImportMeshServers(c *gin.Context) {
 			return
 		}
 		for _, r := range remote {
-			if err := a.upsertBitLaunchServer(r, callerUserID(c)); err != nil {
+			if err := a.upsertBitLaunchServer(r, actor, 0); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+				return
+			}
+			imported++
+		}
+	}
+	for _, acc := range a.listBitLaunchAccounts() {
+		cli := bitlaunch.New(acc.Token)
+		remote, err := cli.List()
+		if err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao listar BitLaunch (" + acc.Email + ")"})
+			return
+		}
+		for _, r := range remote {
+			if err := a.upsertBitLaunchServer(r, actor, acc.ID); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 				return
 			}
@@ -160,13 +182,14 @@ func (a *App) handleImportMeshServers(c *gin.Context) {
 }
 
 func (a *App) handleCreateMeshServer(c *gin.Context) {
-	if a.BitLaunch == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "XVPN_BITLAUNCH_TOKEN não configurado"})
-		return
-	}
 	var req createMeshServerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	cli, accID, err := a.resolveBitLaunch(req.AccountID)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "cadastre uma conta BitLaunch em Compute → Configurações"})
 		return
 	}
 	host := strings.ToLower(strings.TrimSpace(req.Hostname))
@@ -208,7 +231,7 @@ func (a *App) handleCreateMeshServer(c *gin.Context) {
 	}
 	exp := time.Now().Add(2 * time.Hour)
 	script := meshCloudInit(token, host)
-	created, err := a.BitLaunch.Create(bitlaunch.CreateOpts{
+	created, err := cli.Create(bitlaunch.CreateOpts{
 		Name: name, HostID: req.HostID, HostImageID: req.HostImageID,
 		SizeID: req.SizeID, RegionID: req.RegionID, SSHKeys: req.SSHKeys, InitScript: script,
 	})
@@ -221,6 +244,9 @@ func (a *App) handleCreateMeshServer(c *gin.Context) {
 		IPv4: created.IPv4, Region: created.Region, Size: created.Size,
 		Image: created.Image, Status: created.Status, Labels: req.Labels,
 		CreatedByUserID: callerUserID(c), EnrollToken: token, EnrollExpiresAt: &exp,
+	}
+	if accID != 0 {
+		row.AccountID = &accID
 	}
 	if row.Status == "" {
 		row.Status = "launching"
@@ -295,10 +321,16 @@ func (a *App) handleDestroyMeshServer(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "o node de controle não se destrói por aqui"})
 		return
 	}
-	if a.BitLaunch != nil && s.BitLaunchID != "" && !strings.HasPrefix(s.BitLaunchID, "local-") {
-		if err := a.BitLaunch.Destroy(s.BitLaunchID); err != nil {
-			c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao destruir no BitLaunch"})
-			return
+	if s.BitLaunchID != "" && !strings.HasPrefix(s.BitLaunchID, "local-") {
+		accID := uint(0)
+		if s.AccountID != nil {
+			accID = *s.AccountID
+		}
+		if cli, _, err := a.resolveBitLaunch(accID); err == nil {
+			if err := cli.Destroy(s.BitLaunchID); err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao destruir no BitLaunch"})
+				return
+			}
 		}
 	}
 	a.revokeMeshPeer(&s)
@@ -313,10 +345,6 @@ func (a *App) handleDestroyMeshServer(c *gin.Context) {
 }
 
 func (a *App) handleRebuildMeshServer(c *gin.Context) {
-	if a.BitLaunch == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "XVPN_BITLAUNCH_TOKEN não configurado"})
-		return
-	}
 	s, ok := a.loadMeshServer(c)
 	if !ok {
 		return
@@ -333,7 +361,16 @@ func (a *App) handleRebuildMeshServer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "host_image_id é obrigatório"})
 		return
 	}
-	if err := a.BitLaunch.Rebuild(s.BitLaunchID, bitlaunch.RebuildOpts{
+	accID := uint(0)
+	if s.AccountID != nil {
+		accID = *s.AccountID
+	}
+	cli, _, err := a.resolveBitLaunch(accID)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "cadastre uma conta BitLaunch em Compute → Configurações"})
+		return
+	}
+	if err := cli.Rebuild(s.BitLaunchID, bitlaunch.RebuildOpts{
 		HostImageID: req.HostImageID, ImageDescription: req.ImageDescription,
 	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao rebuild no BitLaunch"})
@@ -634,7 +671,7 @@ func (a *App) upsertControlPlaneServer(actorID uint) error {
 	return a.ensureMeshDNS(controlHostname, controlPlaneWgIP)
 }
 
-func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID uint) error {
+func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID, accountID uint) error {
 	if r.IPv4 == controlPlaneIPv4 {
 		var s store.MeshServer
 		if err := a.Store.DB.Where("role = ?", store.ServerRoleControl).First(&s).Error; err == nil {
@@ -643,6 +680,9 @@ func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID uint) error {
 			s.Region = r.Region
 			s.Size = r.Size
 			s.Status = r.Status
+			if accountID != 0 {
+				s.AccountID = &accountID
+			}
 			return a.Store.DB.Save(&s).Error
 		}
 	}
@@ -653,6 +693,9 @@ func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID uint) error {
 		s.Status = r.Status
 		s.Region = r.Region
 		s.Size = r.Size
+		if accountID != 0 {
+			s.AccountID = &accountID
+		}
 		return a.Store.DB.Save(&s).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -670,6 +713,9 @@ func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID uint) error {
 		BitLaunchID: r.ID, Name: r.Name, Hostname: host, Role: store.ServerRoleMesh,
 		IPv4: r.IPv4, Region: r.Region, Size: r.Size, Image: r.Image,
 		Status: r.Status, CreatedByUserID: actorID,
+	}
+	if accountID != 0 {
+		s.AccountID = &accountID
 	}
 	return a.Store.DB.Create(&s).Error
 }

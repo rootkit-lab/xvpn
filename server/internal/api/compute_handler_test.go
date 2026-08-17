@@ -168,6 +168,33 @@ func TestCreateMeshServerAndEnroll(t *testing.T) {
 	}
 }
 
+func TestCreateMeshServerStoresChosenAccount(t *testing.T) {
+	app, _ := newTestApp(t)
+	fake := &fakeBitLaunch{created: bitlaunch.Server{ID: "bl-acc", Status: "launching"}}
+	app.BitLaunch = fake
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	acc := store.BitLaunchAccount{Name: "Trabalho", Email: "ops@ihuull.com", Token: "token-conta-escolhida"}
+	if err := app.Store.DB.Create(&acc).Error; err != nil {
+		t.Fatal(err)
+	}
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec := doJSON(t, router, http.MethodPost, "/api/servers", createMeshServerRequest{
+		Hostname: "labc", HostID: 4, HostImageID: "img", SizeID: "sz", RegionID: "ams",
+		AccountID: acc.ID,
+	}, tok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	if created.AccountID == nil || *created.AccountID != acc.ID {
+		t.Fatalf("servidor deveria gravar a conta: %+v", created)
+	}
+}
+
 func TestCreateMeshServerWithoutTokenIsUnavailable(t *testing.T) {
 	app, _ := newTestApp(t)
 	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)

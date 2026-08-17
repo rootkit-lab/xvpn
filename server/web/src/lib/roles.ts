@@ -36,7 +36,7 @@ export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
   xgroup: 'Operação da rede social.',
   xdriver: 'Shares Samba, SFTP e cota de disco.',
   forge: 'Projetos, membros e regras. Git e MR nas Fases 40–41.',
-  compute: 'VPS da malha e labels (Fase 38).',
+  compute: 'VPS da malha, labels e contas BitLaunch (Fase 38).',
   dns: 'Zona corp (dnsmasq) e DNS público (Fase 39).',
   managed: 'Mongo, Redis, Rabbit e LB na malha (Fase 43).',
 }

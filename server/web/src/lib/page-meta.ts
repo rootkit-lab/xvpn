@@ -142,6 +142,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/compute/settings',
+    meta: {
+      kicker: 'Compute',
+      title: 'Configurações',
+      description: 'Contas BitLaunch (e-mail + API). Token só no VPS.',
+    },
+  },
+  {
     prefix: '/admin/servers',
     meta: {
       kicker: 'Compute',

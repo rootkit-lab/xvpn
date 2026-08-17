@@ -126,8 +126,10 @@ type Config struct {
 	// sem Samba [project-*] nesta fase; só o Drive web em xdriver.corp.
 	DriverProjectsDir string
 
-	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Vazio = compute
-	// lista/importa o node local, mas create/destroy/rebuild devolvem 503.
+	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Se o banco estiver
+	// vazio, semeia a primeira BitLaunchAccount. O caminho normal é
+	// Compute → Configurações (várias contas). Vazio e sem contas =
+	// só import do node local; create/rebuild devolvem 503.
 	BitLaunchToken string
 }
 

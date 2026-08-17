@@ -15,7 +15,6 @@ import (
 
 	"github.com/rootkit-lab/xvpn/server/internal/api"
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
-	"github.com/rootkit-lab/xvpn/server/internal/bitlaunch"
 	"github.com/rootkit-lab/xvpn/server/internal/config"
 	"github.com/rootkit-lab/xvpn/server/internal/logging"
 	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
@@ -105,8 +104,8 @@ func run() error {
 		UserProvisioner: userProvisioner,
 		ServerPublicKey: privateKey.PublicKey().String(),
 	}
-	if cfg.BitLaunchToken != "" {
-		app.BitLaunch = bitlaunch.New(cfg.BitLaunchToken)
+	if err := app.SeedBitLaunchEnvAccount(); err != nil {
+		slog.Error("seed da conta BitLaunch do env falhou", "err", err.Error())
 	}
 	if err := app.ApplyPanelSettingsOverrides(); err != nil {
 		return fmt.Errorf("carregando overrides de configuração do painel: %w", err)

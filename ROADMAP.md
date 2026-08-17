@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fase 35** em produção. **Fase 36** (catálogo ≠ ACL) nesta branch. **Próximo:** Fases 37–45 — projeto, forge, compute, DNS público, serviços, backups (`PLAN.md` §6.14–§6.19). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–38** em produção. **Fase 38.1** (contas BitLaunch no Compute → Configurações) nesta branch. **Próximo:** Fase 39 — DNS público (`PLAN.md` §6.17). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1184,6 +1184,16 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 - [x] A corp no apply dnsmasq. SSH novo preferir `wg0`.
 
 **Critério de saída:** criar um VPS no xadmin resulta em peer na `10.66.66.0/24` + nome `*.corp` resolvendo. Sem `10.10`/`10.136`.
+
+---
+
+## Fase 38.1 — Compute Settings (contas BitLaunch)
+
+- [x] Menu Compute → Configurações.
+- [x] Várias APIs/e-mails BitLaunch; token só no VPS (nunca no Git, nunca devolver inteiro na API).
+- [x] Create/import/destroy/rebuild escolhem a conta; `XVPN_BITLAUNCH_TOKEN` só como semente se o banco estiver vazio.
+
+**Critério de saída:** cadastrar duas contas na UI; criar/importar usa a escolhida. Token não aparece no Git nem no GET.
 
 ---
 

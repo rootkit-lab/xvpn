@@ -13,7 +13,7 @@ import {
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
-import { SocialShell } from '@/components/layout/social-shell'
+import { PublicProfileShell, SocialShell } from '@/components/layout/social-shell'
 import { ChatHost } from '@/components/layout/chat-host'
 import { DocumentTitle, DocumentTitleProvider } from '@/components/layout/document-title'
 import { PageFallback } from '@/components/layout/page-fallback'
@@ -131,22 +131,20 @@ function XDriverCorpApp() {
 
 function XGroupPublicApp() {
   return (
-    <ChatHost>
-      <Routes>
-        <Route path="/" element={<XGroupPublicLanding />} />
-        <Route path="/login" element={<SSOLoginRedirect />} />
-        <Route path="/admin" element={<AdminHostRedirect />} />
-        <Route path="/admin/*" element={<AdminHostRedirect />} />
-        <Route path="/social/u/:username" element={<CanonicalProfileRedirect />} />
-        <Route path="/social/*" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social`} />} />
-        <Route element={<ProtectedRoute />}>
-          <Route element={<SocialShell />}>
-            <Route path=":username" element={<SocialProfileGate />} />
-          </Route>
+    <Routes>
+      <Route path="/" element={<XGroupPublicLanding />} />
+      <Route path="/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
+      <Route path="/social/u/:username" element={<CanonicalProfileRedirect />} />
+      <Route path="/social/*" element={<HostRedirect to={`${XGROUP_CORP_ORIGIN}/social`} />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<PublicProfileShell />}>
+          <Route path=":username" element={<SocialProfileGate />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </ChatHost>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 

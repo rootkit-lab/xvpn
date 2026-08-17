@@ -2,7 +2,9 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { isProfileUsername } from '@/lib/social-profile'
 import { MessageCircle, UserPlus, UserMinus } from 'lucide-react'
+import { useOptionalChat } from '@chat/messenger/ChatProvider'
 import { openChat } from '@chat/messenger/open-chat'
+import { XCHAT_CORP_ORIGIN } from '@/lib/product-host'
 import { toast } from 'sonner'
 import { api, ApiError, type SocialProfile } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -27,6 +29,7 @@ export function SocialProfileGate() {
 export function SocialProfilePage() {
   const { username } = useParams()
   const { user } = useAuth()
+  const chat = useOptionalChat()
   const fetchProfile = useCallback(() => api.getSocialProfile(username ?? ''), [username])
   const fetchPosts = useCallback(
     () => api.listSocialUserPosts(username ?? '', { page: 1, per_page: 40 }),
@@ -100,7 +103,10 @@ export function SocialProfilePage() {
                   <Button
                     variant="secondary"
                     className="rounded-full"
-                    onClick={() => openChat({ username: profile.username })}
+                    onClick={() => {
+                      if (chat) openChat({ username: profile.username })
+                      else window.location.assign(XCHAT_CORP_ORIGIN)
+                    }}
                   >
                     <MessageCircle className="size-4" />
                     Mensagem

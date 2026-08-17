@@ -1,7 +1,11 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { Home, MessageSquare, Search, UsersRound } from 'lucide-react'
+import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/auth-context'
 import { XCHAT_CORP_ORIGIN, XGROUP_CORP_ORIGIN, productKind } from '@/lib/product-host'
+import { AccountMenu } from '@/components/layout/account-menu'
+import { AppLauncher } from '@/components/layout/app-launcher'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
 const SOCIAL_NAV = [
@@ -10,6 +14,31 @@ const SOCIAL_NAV = [
   { to: '/social/messages', label: 'Mensagens', icon: MessageSquare, end: false, product: 'xchat' as const },
   { to: '/social/groups', label: 'Grupos', icon: UsersRound, end: false, product: 'xgroup' as const },
 ]
+
+/** Perfil em xgroup.ihuull.com — sem ChatHost (messenger fica no corp). */
+export function PublicProfileShell() {
+  const { user } = useAuth()
+  return (
+    <div data-product="xgroup" className="watch-face relative flex min-h-svh flex-col overflow-hidden">
+      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
+      <ProductHeader
+        product="xgroup"
+        href={`${XGROUP_CORP_ORIGIN}/social`}
+        trailing={
+          user ? (
+            <>
+              <AppLauncher variant="social" />
+              <AccountMenu variant="social" />
+            </>
+          ) : null
+        }
+      />
+      <main className="relative z-10 min-h-0 flex-1 overflow-y-auto p-6 md:p-8">
+        <Outlet />
+      </main>
+    </div>
+  )
+}
 
 export function SocialShell() {
   const kind = productKind()

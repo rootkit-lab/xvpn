@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1 e 46–48** em produção. **Fase 49** (XCODESPACES) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–49** em produção. **Próximo operacional:** Fase 50 — XCODESPACES remoto (VS Code + clone + Docker). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1121,7 +1121,7 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 
 ---
 
-## Ciclo xadmin (Fases 35–49)
+## Ciclo xadmin (Fases 35–50)
 
 Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §6.14–§6.19. Matriz GitLab/GitHub → stack ihuull (não instalar GitLab CE nem GitHub Enterprise):
 
@@ -1133,7 +1133,8 @@ Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §
 | Review ao vivo | XCHAT (thread por MR / issue) | 41, 46–47 |
 | Pull request GitHub-like (diff, checks, review) | XGIT (`xgit.corp` + xadmin) | 47 |
 | Editor web + commit (Monaco) | blob `/edit` no XGIT | 48 |
-| Codespaces (IDE no browser) | app `xcodespaces.corp` (Monaco) | 49 |
+| Codespaces (editor rápido) | app `xcodespaces.corp` (Monaco + worktree) | 49 |
+| Codespaces (VS Code remoto) | clone + Docker + openvscode-server | 50 |
 | Wiki / LFS / artifacts | XDRIVER `project-<slug>` | 37, 42 |
 | Releases deb/exe | Marketplace | 16 (já), 36 |
 | Git | `xgit.corp` smart HTTP | 40 |
@@ -1310,7 +1311,7 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 - [ ] Pages (Nginx + blob).
 - [ ] Snippets, SAST, feature flags.
 
-Não misturar com 35–44 nem com 46–49 (Issues / PRs / editor / XCODESPACES).
+Não misturar com 35–44 nem com 46–50 (Issues / PRs / editor / XCODESPACES).
 
 ---
 
@@ -1376,9 +1377,9 @@ Editar um arquivo no browser e **salvar = commit**, como o lápis do GitHub. Val
 
 ---
 
-## Fase 49 — XCODESPACES (IDE Monaco na intranet)
+## Fase 49 — XCODESPACES (editor rápido / Monaco)
 
-App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespaces do botão **Code** do GitHub (“Your workspaces in the cloud” + Create). **Não** é VM/Docker no VPS (sem shell remoto — `PLAN.md` §3). É um IDE web (Monaco) sobre um worktree do forge, só na VPN.
+App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespaces do botão **Code** do GitHub. Esta fase é o equivalente ao **github.dev** — Monaco sobre um worktree, sem runtime. O Codespaces de verdade (clone + container + VS Code + terminal) é a **Fase 50** (`PLAN.md` §3.6).
 
 - [x] Registrar `xcodespaces.corp.ihuull.com` em `PLAN.md` §5.2 + skill `port-domain-registry-check` + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Sem porta nova. Sem landing `xcodespaces.ihuull.com`.
 - [x] JWE `aud=xcodespaces`. App no catálogo (`slug=xcodespaces`, restricted + vpn). Waffle **Seus apps** se `ProjectMember` ou ACL do app. API no monólito (`/api/xcodespaces/`). Sem segundo binário Go.
@@ -1386,9 +1387,30 @@ App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespace
 - [x] Popover **Code** no XGIT: abas **Local** | **XCODESPACES**. Local = clone HTTPS + copiar URL + Download ZIP. XCODESPACES = lista de workspaces do user naquele repo, empty state (“No codespaces”) + **Create codespace on** a branch atual.
 - [x] Create: worktree em `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` (checkout da branch). Teto de workspaces por user. Disco fora de `/opt/xvpn/data/git/` (bare intocado).
 - [x] IDE em `https://xcodespaces.corp.ihuull.com/:id`: file tree, Monaco, commit no worktree (branch protegida → nova branch + PR). Chat no chrome.
-- [x] Sem terminal/SSH no VPS. Sem bind em `0.0.0.0`. Delete apaga o worktree. Guest/reporter: read-only; developer+: commit com as mesmas regras de protected branch.
+- [x] Sem terminal/SSH no VPS nesta fase. Sem bind em `0.0.0.0`. Delete apaga o worktree. Guest/reporter: read-only; developer+: commit com as mesmas regras de protected branch.
 
 **Critério de saída:** no repo, Code → XCODESPACES → Create on `main` abre o IDE; editar + commit cria commit no XGIT; Create em `main` como developer abre branch/PR, não push direto. Fora da VPN o host não resolve.
+
+---
+
+## Fase 50 — XCODESPACES remoto (VS Code + clone + Docker)
+
+O Create passa a ser o fluxo do GitHub Codespaces: provisiona um **container isolado**, **clona** o repositório, sobe **VS Code no browser** (openvscode-server) e o terminal roda **dentro** do container. O editor Monaco da Fase 49 permanece como “abrir no editor rápido” (sem esperar o runtime).
+
+Decisão e invariantes: `PLAN.md` §3.6. **Não** é KVM. **Não** é bash na 22 nem `docker exec` no host. Shell só no container.
+
+- [ ] Registrar em `PLAN.md` §5.2/`§5.3` (já nesta PR de docs): `cs-<id>.corp.ihuull.com` + faixa `127.0.0.1:19000–19007`. Catch-all `*.corp` + cert `*.corp`. Sem A público. Sem porta no ufw. Skill `port-domain-registry-check` no deploy. **Não** usar `<id>.xcodespaces.corp` (dois rótulos).
+- [ ] Docker no VPS: daemon só socket Unix; `xvpn` **fora** do grupo `docker`. Helper privilegiado no padrão do `xvpn-user-provision` (`cs-create` / `cs-start` / `cs-stop` / `cs-rm`, JSON stdin). O PID do `xvpn-server` não fala com o Docker.
+- [ ] Create (developer+): clone `https://xgit.corp.ihuull.com/<slug>` no volume `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` (branch escolhida). Token de clone de curta duração — não senha da conta, não JWE de humano em env logável. Bare em `/opt/xvpn/data/git/` intocado. Não reusar worktree da Fase 49 como `.git` do container.
+- [ ] Imagem: se o repo tiver `.devcontainer/devcontainer.json` válido (allowlist de imagem), usar; senão imagem base ihuull (git + go + node), pinada. Sem `privileged`, sem `docker.sock`, sem `--network=host`. Usuário sem root no container. cgroup: ~1,5–2 GiB RAM, 1 vCPU. Quota de disco no volume.
+- [ ] Teto: **1 codespace em execução** no VPS atual (2 se a RAM livre permitir). Idle-stop (container para; volume fica). Start de novo remonta o clone. Delete apaga volume + container.
+- [ ] IDE: openvscode-server no container, publish `127.0.0.1:<porta>`. Nginx `cs-<id>.corp` → essa porta (WebSocket). JWE `aud=xcodespaces` no proxy. Lista/create continua em `xcodespaces.corp`. Fallback documentado: code-server se o proxy quebrar.
+- [ ] Terminal = PTY do VS Code **dentro** do container. Commit/push pelo Git do VS Code (smart HTTP + token). Branch protegida: as mesmas regras do receive-pack (developer não empurra `main`).
+- [ ] Popover **Code** → XCODESPACES: **Create codespace** (Fase 50) vs **Abrir no editor rápido** (Fase 49). Empty state e lista mostram estado (Starting / Running / Stopped) + idle.
+- [ ] Guest/reporter: não criam nem ligam codespace. Fora da VPN `cs-*` não resolve. Sem bind em `0.0.0.0`.
+- [ ] Testes: helper rejeita JSON com imagem fora da allowlist / path escape; create não monta o bare; proxy recusa Host que não seja `cs-<id>.corp`. Runbook curto de operação (start/stop/disco).
+
+**Critério de saída:** Code → Create codespace clona o repo, abre VS Code em `cs-<id>.corp`, o terminal roda `git status` e `go version` (ou `node -v`) **dentro** do container; commit + push aparece no XGIT; Create em `main` como developer não faz push direto; parar o codespace não apaga o clone; delete apaga volume; `docker.sock` não existe no container; fora da VPN o host não resolve.
 
 ---
 
@@ -1407,7 +1429,7 @@ App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespace
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–49):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → XCODESPACES) é o trilho de UX do forge — pode avançar em paralelo à 44, sem misturar na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–50):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49 — não misturar Monaco e container na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

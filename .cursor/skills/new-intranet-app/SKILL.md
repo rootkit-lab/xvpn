@@ -16,7 +16,7 @@ App novo **só nasce** se não couber num slug já existente:
 | marketplace | Marketplace Store | Loja pública | Segunda vitrine |
 | xadmin | XADMIN Console | Gerenciador geral (só `xadmin.corp`) | Segundo `/admin` público; AdminShell fora deste host |
 | xgit | XGIT Forge | Repos + smart HTTP (`xgit.corp`) | GitLab CE; A público; issues só no XGROUP |
-| xcodespaces | XCODESPACES IDE | IDE Monaco (`xcodespaces.corp`, Fase 49) | VM/Docker no VPS; shell SSH; segundo binário Go |
+| xcodespaces | XCODESPACES IDE | Editor Monaco + codespace Docker (`xcodespaces.corp` / `cs-<id>.corp`, Fases 49–50) | KVM no host; shell SSH no VPS; `docker.sock` no container; segundo binário Go (API no monólito; helper `cs-*` no padrão do `xvpn-user-provision`) |
 
 Nomes de UI: `shared/ui/react/products.ts` + `PLAN.md` §6.13. Slug minúsculo no código; `marketplace.yaml` `name` = `productDisplayName(slug)`.
 

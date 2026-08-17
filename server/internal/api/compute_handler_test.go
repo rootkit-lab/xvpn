@@ -17,6 +17,9 @@ type fakeBitLaunch struct {
 	created bitlaunch.Server
 	opts    bitlaunch.CreateOpts
 	nuked   []string
+	account bitlaunch.Account
+	tx      bitlaunch.Transaction
+	topUp   bitlaunch.TopUpOpts
 	err     error
 }
 
@@ -49,6 +52,31 @@ func (f *fakeBitLaunch) Rebuild(id string, _ bitlaunch.RebuildOpts) error {
 	}
 	f.nuked = append(f.nuked, "rebuild:"+id)
 	return nil
+}
+
+func (f *fakeBitLaunch) Account() (bitlaunch.Account, error) {
+	if f.err != nil {
+		return bitlaunch.Account{}, f.err
+	}
+	if f.account.Email == "" && f.account.Balance == 0 {
+		return bitlaunch.Account{Email: "fake@bitlaunch.local", Balance: 30000, Used: 1, Limit: 5, CostPerHr: 21}, nil
+	}
+	return f.account, nil
+}
+
+func (f *fakeBitLaunch) CreateTransaction(opts bitlaunch.TopUpOpts) (bitlaunch.Transaction, error) {
+	if f.err != nil {
+		return bitlaunch.Transaction{}, f.err
+	}
+	f.topUp = opts
+	if f.tx.ID == "" {
+		return bitlaunch.Transaction{
+			ID: "tx-1", Address: "bc1qtestxxxxxxxx", CryptoSymbol: opts.CryptoSymbol,
+			AmountUSD: opts.AmountUSD, AmountCrypto: "0.001", Status: "Pending",
+			StatusURL: "https://pay.bitlaunch.io/invoice/tx-1",
+		}, nil
+	}
+	return f.tx, nil
 }
 
 func TestImportCreatesControlPlaneWithoutBitLaunch(t *testing.T) {
@@ -357,5 +385,71 @@ func TestRebuildRevokesOldPeer(t *testing.T) {
 	}
 	if !sys.System || sys.IPv4 != "10.66.66.1" {
 		t.Fatalf("A de sistema não deveria mudar: %+v", sys)
+	}
+}
+
+func TestImportMarksExternalHostsAndBlocksMutations(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.BitLaunch = &fakeBitLaunch{list: []bitlaunch.Server{
+		{ID: "bl-cripto", Name: "server-cripto-prod", IPv4: "203.0.113.80", Status: "ok"},
+		{ID: "bl-ip", Name: "outro-nome", IPv4: store.ExternalIPv4Cripto, Status: "ok"},
+	}}
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/servers/import", nil, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import: %d %s", rec.Code, rec.Body.String())
+	}
+	var listed struct {
+		Items []meshServerResponse `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	var cripto, byIP *meshServerResponse
+	for i := range listed.Items {
+		it := &listed.Items[i]
+		if it.Name == "server-cripto-prod" {
+			cripto = it
+		}
+		if it.IPv4 == store.ExternalIPv4Cripto {
+			byIP = it
+		}
+	}
+	if cripto == nil || cripto.Role != store.ServerRoleExternal || !cripto.Protected {
+		t.Fatalf("cripto-prod: %+v", cripto)
+	}
+	if byIP == nil || byIP.Role != store.ServerRoleExternal || !byIP.Protected {
+		t.Fatalf("65.38: %+v", byIP)
+	}
+	var corp store.DNSRecord
+	if err := app.Store.DB.Where("hostname = ?", "server-cripto-prod.corp.ihuull.com").First(&corp).Error; err == nil {
+		t.Fatal("host externo não deveria ganhar A corp")
+	}
+
+	rec = doJSON(t, router, http.MethodDelete, "/api/servers/"+strconv.FormatUint(uint64(cripto.ID), 10), nil, tok)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("destroy externo deveria 409, veio %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/servers/"+strconv.FormatUint(uint64(byIP.ID), 10)+"/rebuild",
+		map[string]string{"host_image_id": "img"}, tok)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("rebuild externo deveria 409, veio %d %s", rec.Code, rec.Body.String())
+	}
+
+	notes := "caixa só observa; app própria"
+	rec = doJSON(t, router, http.MethodPatch, "/api/servers/"+strconv.FormatUint(uint64(cripto.ID), 10),
+		updateMeshServerRequest{Notes: &notes}, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("notes: %d %s", rec.Code, rec.Body.String())
+	}
+	var after meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.Notes != notes {
+		t.Fatalf("notes: %+v", after)
 	}
 }

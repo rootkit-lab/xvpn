@@ -12,10 +12,30 @@ import (
 )
 
 type bitLaunchAccountJSON struct {
-	ID        uint   `json:"id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	TokenHint string `json:"token_hint"`
+	ID          uint     `json:"id"`
+	Name        string   `json:"name"`
+	Email       string   `json:"email"`
+	TokenHint   string   `json:"token_hint"`
+	BalanceUSD  *float64 `json:"balance_usd,omitempty"`
+	Used        *int     `json:"used,omitempty"`
+	Limit       *int     `json:"limit,omitempty"`
+	CostPerHr   *float64 `json:"cost_per_hr,omitempty"`
+	BillingDays *int     `json:"billing_alert_days,omitempty"`
+}
+
+type topUpRequest struct {
+	AmountUSD    float64 `json:"amount_usd"`
+	CryptoSymbol string  `json:"crypto_symbol"`
+}
+
+type topUpResponse struct {
+	ID           string  `json:"id"`
+	Address      string  `json:"address"`
+	CryptoSymbol string  `json:"crypto_symbol"`
+	AmountUSD    float64 `json:"amount_usd"`
+	AmountCrypto string  `json:"amount_crypto"`
+	Status       string  `json:"status"`
+	StatusURL    string  `json:"status_url"`
 }
 
 type upsertBitLaunchAccountRequest struct {
@@ -36,6 +56,31 @@ func accountJSON(a store.BitLaunchAccount) bitLaunchAccountJSON {
 	return bitLaunchAccountJSON{ID: a.ID, Name: a.Name, Email: a.Email, TokenHint: tokenHint(a.Token)}
 }
 
+func milliUSD(v int) float64 {
+	return float64(v) / 1000
+}
+
+func (a *App) accountWithBalance(row store.BitLaunchAccount) bitLaunchAccountJSON {
+	out := accountJSON(row)
+	cli, _, err := a.resolveBitLaunch(row.ID)
+	if err != nil {
+		return out
+	}
+	info, err := cli.Account()
+	if err != nil {
+		return out
+	}
+	bal := milliUSD(info.Balance)
+	cost := milliUSD(info.CostPerHr)
+	used, limit, days := info.Used, info.Limit, info.BillingAlert
+	out.BalanceUSD = &bal
+	out.Used = &used
+	out.Limit = &limit
+	out.CostPerHr = &cost
+	out.BillingDays = &days
+	return out
+}
+
 func (a *App) handleGetComputeSettings(c *gin.Context) {
 	var rows []store.BitLaunchAccount
 	if err := a.Store.DB.Order("id").Find(&rows).Error; err != nil {
@@ -44,7 +89,7 @@ func (a *App) handleGetComputeSettings(c *gin.Context) {
 	}
 	items := make([]bitLaunchAccountJSON, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, accountJSON(r))
+		items = append(items, a.accountWithBalance(r))
 	}
 	c.JSON(http.StatusOK, gin.H{"accounts": items, "bitlaunch": a.bitLaunchReady()})
 }
@@ -124,6 +169,44 @@ func (a *App) handleDeleteBitLaunchAccount(c *gin.Context) {
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "compute.account.delete", strconv.FormatUint(id, 10))
 	c.Status(http.StatusNoContent)
+}
+
+func (a *App) handleCreateBitLaunchTopUp(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	var req topUpRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	sym := strings.ToUpper(strings.TrimSpace(req.CryptoSymbol))
+	if req.AmountUSD < 5 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "amount_usd mínimo é 5"})
+		return
+	}
+	if sym != "BTC" && sym != "LTC" && sym != "ETH" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "crypto_symbol deve ser BTC, LTC ou ETH"})
+		return
+	}
+	cli, _, err := a.resolveBitLaunch(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "conta não encontrada"})
+		return
+	}
+	tx, err := cli.CreateTransaction(bitlaunch.TopUpOpts{AmountUSD: req.AmountUSD, CryptoSymbol: sym})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao criar recarga no BitLaunch"})
+		return
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "compute.account.topup", sym)
+	c.JSON(http.StatusCreated, topUpResponse{
+		ID: tx.ID, Address: tx.Address, CryptoSymbol: tx.CryptoSymbol,
+		AmountUSD: tx.AmountUSD, AmountCrypto: tx.AmountCrypto,
+		Status: tx.Status, StatusURL: tx.StatusURL,
+	})
 }
 
 func normalizeBitLaunchAccount(name, email, token string, requireToken bool) (string, string, string, error) {

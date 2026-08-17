@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LogOut, Palette, Settings } from 'lucide-react'
 import { useChat } from '@chat/messenger/ChatProvider'
 import { ChatDropdown, ChatIconButton, ChatMenuItem, ChatShell } from '@chat/messenger/chrome'
@@ -30,12 +30,20 @@ const THEME_LABEL: Record<string, string> = {
 }
 
 export function Messenger({ className }: { className?: string }) {
-  const { session, myStatus, setMyStatus, setActiveKey, logout, mode, activeKey } = useChat()
+  const { session, myStatus, setMyStatus, setActiveKey, logout, mode, activeKey, contacts, unread } = useChat()
   const { theme, setTheme } = useChatTheme()
   const { setOpen: setSettingsOpen } = useChatSettings()
   const [picker, setPicker] = useState<'status' | 'theme' | null>(null)
   const desktop = mode === 'desktop'
   const resolvedTheme = desktop ? theme : 'inherit'
+  const chatTitle = contacts.find((c) => c.key === activeKey)?.title?.trim()
+  const unreadTotal = Object.values(unread).reduce((sum, n) => sum + n, 0)
+
+  useEffect(() => {
+    const page = chatTitle || 'Mensagens'
+    const base = page === 'XCHAT' ? 'XCHAT' : `${page} · XCHAT`
+    document.title = unreadTotal > 0 ? `(${unreadTotal > 99 ? '99+' : unreadTotal}) ${base}` : base
+  }, [chatTitle, unreadTotal])
 
   const chrome = (
     <>

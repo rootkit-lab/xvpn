@@ -6,6 +6,23 @@ export type PageMeta = {
 
 const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
   {
+    prefix: '/my/login',
+    meta: {
+      kicker: 'ihuull',
+      title: 'Entrar',
+      description: 'SSO ihuull — cookie de sessão no domínio.',
+    },
+  },
+  {
+    prefix: '/login',
+    exact: true,
+    meta: {
+      kicker: 'ihuull',
+      title: 'Entrar',
+      description: 'SSO ihuull — cookie de sessão no domínio.',
+    },
+  },
+  {
     prefix: '/my/profile',
     meta: {
       kicker: 'xvpn',
@@ -54,9 +71,26 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
       description: 'Portal do produto — status da VPN, download do cliente e atalhos.',
     },
   },
+  {
+    prefix: '/',
+    exact: true,
+    meta: {
+      kicker: 'xvpn',
+      title: 'Início',
+      description: 'Portal do produto — status da VPN, download do cliente e atalhos.',
+    },
+  },
 ]
 
 const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
+  {
+    prefix: '/admin/login',
+    meta: {
+      kicker: 'ihuull',
+      title: 'Entrar',
+      description: 'SSO ihuull — cookie de sessão no domínio.',
+    },
+  },
   {
     prefix: '/admin/users',
     meta: {
@@ -226,7 +260,7 @@ export function pageMetaForPath(pathname: string): PageMeta {
   return (
     matchMeta(pathname, USER_PAGES) ?? {
       kicker: 'xvpn',
-      title: 'Painel',
+      title: '',
       description: '',
     }
   )

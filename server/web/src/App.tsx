@@ -15,6 +15,7 @@ import { AdminShell } from '@/components/layout/admin-shell'
 import { UserShell } from '@/components/layout/user-shell'
 import { SocialShell } from '@/components/layout/social-shell'
 import { ChatHost } from '@/components/layout/chat-host'
+import { DocumentTitle, DocumentTitleProvider } from '@/components/layout/document-title'
 import { PageFallback } from '@/components/layout/page-fallback'
 import { LandingPage } from '@/pages/landing-page'
 import { LoginPage } from '@/pages/login-page'
@@ -290,31 +291,34 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Suspense fallback={<PageFallback />}>
-          {kind === 'xauth' ? (
-            <XAuthApp />
-          ) : kind === 'marketplace' ? (
-            <MarketplaceApp />
-          ) : kind === 'xdriver-corp' ? (
-            <XDriverCorpApp />
-          ) : kind === 'xdriver' ? (
-            <XDriverPublicApp />
-          ) : kind === 'xgroup' ? (
-            <XGroupPublicApp />
-          ) : kind === 'xgroup-corp' ? (
-            <XGroupCorpApp />
-          ) : kind === 'xchat' ? (
-            <XChatPublicApp />
-          ) : kind === 'xchat-corp' ? (
-            <XChatCorpApp />
-          ) : kind === 'corp' ? (
-            <CorpHubApp />
-          ) : kind === 'xvpn' ? (
-            <PanelApp />
-          ) : (
-            <BrandLandingApp />
-          )}
-        </Suspense>
+        <DocumentTitleProvider>
+          <DocumentTitle />
+          <Suspense fallback={<PageFallback />}>
+            {kind === 'xauth' ? (
+              <XAuthApp />
+            ) : kind === 'marketplace' ? (
+              <MarketplaceApp />
+            ) : kind === 'xdriver-corp' ? (
+              <XDriverCorpApp />
+            ) : kind === 'xdriver' ? (
+              <XDriverPublicApp />
+            ) : kind === 'xchat' ? (
+              <XChatPublicApp />
+            ) : kind === 'xchat-corp' ? (
+              <XChatCorpApp />
+            ) : kind === 'xgroup' ? (
+              <XGroupPublicApp />
+            ) : kind === 'xgroup-corp' ? (
+              <XGroupCorpApp />
+            ) : kind === 'corp' ? (
+              <CorpHubApp />
+            ) : kind === 'xvpn' ? (
+              <PanelApp />
+            ) : (
+              <BrandLandingApp />
+            )}
+          </Suspense>
+        </DocumentTitleProvider>
       </AuthProvider>
     </BrowserRouter>
   )

@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import type { PresenceStatus } from '@/lib/api'
 import { presenceLabel } from '@/lib/social-presence'
+import { useSocialMediaUrl } from '@/hooks/use-social-media-url'
 
 const DOT: Record<PresenceStatus, string> = {
   online: 'status-safe-dot',
@@ -15,22 +16,29 @@ export function SocialAvatar({
   className,
   textClassName,
   presence,
+  src,
 }: {
   name: string
   className?: string
   textClassName?: string
   presence?: PresenceStatus
+  src?: string
 }) {
   const letter = (name.trim() || '?').slice(0, 1).toUpperCase()
+  const photo = useSocialMediaUrl(src)
   return (
     <span className="relative inline-flex shrink-0">
       <span
         className={cn(
-          'icon-well flex items-center justify-center rounded-full font-display font-semibold',
+          'icon-well flex items-center justify-center overflow-hidden rounded-full font-display font-semibold',
           className,
         )}
       >
-        <span className={textClassName}>{letter}</span>
+        {photo ? (
+          <img src={photo} alt="" className="size-full object-cover" />
+        ) : (
+          <span className={textClassName}>{letter}</span>
+        )}
       </span>
       {presence && (
         <span

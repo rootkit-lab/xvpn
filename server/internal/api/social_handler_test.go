@@ -181,3 +181,53 @@ func TestSocialProfile_ExposesVisiblePresence(t *testing.T) {
 		t.Fatalf("invisible deve vazar como offline, obtido %q", got.Presence)
 	}
 }
+
+func TestSocialProfile_PatchMediaRefs(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	router := NewRouter(app)
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-ok")
+
+	rec := doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{BannerURL: strPtr("https://evil.example/x")}, aliceTok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("URL externa deveria 400, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{BannerURL: strPtr("tone:primary")}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tom válido deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var got socialProfileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.BannerURL != "tone:primary" {
+		t.Fatalf("banner_url: %q", got.BannerURL)
+	}
+
+	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d}
+	attID := uploadSocialFile(t, router, aliceTok, "avatar.png", "image/png", png)
+	ref := "attachment:" + strconv.FormatUint(uint64(attID), 10)
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{AvatarURL: &ref}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("avatar próprio deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	bobAtt := uploadSocialFile(t, router, bobTok, "bob.png", "image/png", png)
+	bobRef := "attachment:" + strconv.FormatUint(uint64(bobAtt), 10)
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{AvatarURL: &bobRef}, aliceTok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("anexo de outro usuário deveria 400, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	req := doJSON(t, router, http.MethodGet, "/api/social/attachments/"+strconv.FormatUint(uint64(attID), 10), nil, bobTok)
+	if req.Code != http.StatusOK {
+		t.Fatalf("avatar público deveria ser lido por outro membro, obtido %d: %s", req.Code, req.Body.String())
+	}
+}

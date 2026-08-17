@@ -35,7 +35,7 @@ Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` 
 
 | Método | Path | Notas |
 |---|---|---|
-| GET/PATCH | `/api/social/profile` | Perfil xgroup |
+| GET/PATCH | `/api/social/profile` | Perfil xgroup. PATCH: `display_name`, `bio`, `avatar_url`, `banner_url` (vazio, `attachment:<id>` ou `tone:<preset>` na capa) |
 | GET | `/api/social/people` | Diretório |
 | POST/DELETE | `/api/social/follow/:username` | |
 | GET/POST | `/api/social/groups` | |

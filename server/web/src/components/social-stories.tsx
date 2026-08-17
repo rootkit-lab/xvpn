@@ -9,15 +9,18 @@ import {
 } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { usePollingData } from '@/hooks/use-polling-data'
+import { SocialAvatar } from '@/components/social-avatar'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 export function SocialStoriesRail({
   filterAuthorId,
+  allowCompose = true,
   className,
 }: {
   filterAuthorId?: number
+  allowCompose?: boolean
   className?: string
 }) {
   const { user } = useAuth()
@@ -29,16 +32,32 @@ export function SocialStoriesRail({
   const authors = (data?.items ?? []).filter((a) =>
     filterAuthorId == null ? true : a.author_id === filterAuthorId,
   )
+  const empty = authors.length === 0
+  if (empty && !allowCompose) return null
 
   return (
-    <div className={cn('watch-complication rounded-[22px] px-3 py-3', className)}>
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        <button type="button" onClick={() => setComposer(true)} className="flex w-16 shrink-0 flex-col items-center gap-1.5">
-          <span className="flex size-14 items-center justify-center rounded-full bg-gradient-to-b from-white/14 to-white/6 ring-2 ring-white/12">
-            <Plus className="size-5" strokeWidth={2.25} />
-          </span>
-          <span className="w-full truncate text-center text-[11px] text-muted-foreground">Seu status</span>
-        </button>
+    <div className={cn('watch-complication rounded-[22px] px-4 py-3', className)}>
+      <div className="mb-2.5 flex items-baseline justify-between gap-3">
+        <p className="hud-label text-muted-foreground/70">Status</p>
+        {empty && (
+          <p className="text-[11px] text-muted-foreground">
+            {filterAuthorId != null ? 'Nenhum status nas últimas 24 h' : 'Ninguém publicou nas últimas 24 h'}
+          </p>
+        )}
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-0.5">
+        {allowCompose && (
+          <button
+            type="button"
+            onClick={() => setComposer(true)}
+            className="flex w-16 shrink-0 flex-col items-center gap-1.5"
+          >
+            <span className="flex size-14 items-center justify-center rounded-full bg-gradient-to-b from-white/14 to-white/6 ring-2 ring-white/12">
+              <Plus className="size-5" strokeWidth={2.25} />
+            </span>
+            <span className="w-full truncate text-center text-[11px] text-muted-foreground">Novo</span>
+          </button>
+        )}
         {authors.map((s) => (
           <button
             key={s.author_id}
@@ -48,22 +67,21 @@ export function SocialStoriesRail({
           >
             <span
               className={cn(
-                'flex size-14 items-center justify-center rounded-full text-sm font-semibold',
-                s.unseen
-                  ? 'bg-[var(--safe)]/15 text-[var(--safe)] ring-2 ring-[var(--safe)]'
-                  : 'bg-white/8 text-muted-foreground ring-2 ring-white/15',
+                'rounded-full p-[3px]',
+                s.unseen ? 'bg-[var(--safe)]' : 'bg-white/20',
               )}
             >
-              {(s.username || '?').slice(0, 1).toUpperCase()}
+              <SocialAvatar
+                name={s.username}
+                src={s.avatar_url}
+                className="size-12 bg-background text-sm"
+              />
             </span>
             <span className="w-full truncate text-center text-[11px] text-muted-foreground">
               {user && s.username === user.username ? 'Você' : s.username}
             </span>
           </button>
         ))}
-        {authors.length === 0 && (
-          <p className="self-center text-xs text-muted-foreground">Nenhum status nas últimas 24 h.</p>
-        )}
       </div>
       {composer && (
         <StoryComposer

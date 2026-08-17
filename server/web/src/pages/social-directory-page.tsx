@@ -90,7 +90,7 @@ function ExploreRow({
   return (
     <div className="watch-complication flex items-center gap-3 rounded-[18px] p-3.5">
       <ProfileLink username={profile.username} className="shrink-0">
-        <SocialAvatar name={display} className="size-12 text-sm" />
+        <SocialAvatar name={display} src={profile.avatar_url} className="size-12 text-sm" />
       </ProfileLink>
       <ProfileLink username={profile.username} className="min-w-0 flex-1">
         <p className="truncate font-display text-sm font-semibold">{display}</p>

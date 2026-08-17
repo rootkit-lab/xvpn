@@ -125,7 +125,7 @@ export function PostCard({ post }: { post: SocialPost }) {
   return (
     <article className="watch-complication flex gap-3 rounded-[22px] px-4 py-4">
       <ProfileLink username={post.username} className="shrink-0">
-        <SocialAvatar name={display} presence={presence} className="size-11 text-sm" />
+        <SocialAvatar name={display} src={post.avatar_url} presence={presence} className="size-11 text-sm" />
       </ProfileLink>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2">
@@ -161,6 +161,7 @@ function FollowHint({ profile, onChanged }: { profile: SocialProfile; onChanged:
     <div className="flex items-center gap-2">
       <SocialAvatar
         name={profile.display_name || profile.username}
+        src={profile.avatar_url}
         presence={presence}
         className="size-9 text-xs"
       />

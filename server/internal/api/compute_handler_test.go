@@ -247,6 +247,25 @@ func TestServerGroupAndAccess(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsExistingCustomDNS(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.BitLaunch = &fakeBitLaunch{created: bitlaunch.Server{ID: "bl-dns"}}
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	if err := app.Store.DB.Create(&store.DNSRecord{
+		Hostname: "labd.corp.ihuull.com", IPv4: "10.66.66.9", Enabled: true, Comment: "lab do dns",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec := doJSON(t, router, http.MethodPost, "/api/servers", createMeshServerRequest{
+		Hostname: "labd", HostID: 4, HostImageID: "img", SizeID: "sz", RegionID: "ams",
+	}, tok)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("A customizado deveria 409, veio %d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCreateRejectsReservedIntranetHostname(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.BitLaunch = &fakeBitLaunch{created: bitlaunch.Server{ID: "bl-x"}}

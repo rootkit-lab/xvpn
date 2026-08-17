@@ -24,6 +24,7 @@ const (
 	controlPlaneIPv4 = "206.189.224.72"
 	controlPlaneWgIP = "10.66.66.1"
 	controlHostname  = "control"
+	meshDNSComment   = "malha compute"
 )
 
 type BitLaunchAPI interface {
@@ -180,6 +181,10 @@ func (a *App) handleCreateMeshServer(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "hostname reservado da intranet"})
 		return
 	}
+	if err := a.assertMeshDNSAvailable(host); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "hostname já tem registro DNS"})
+		return
+	}
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
 		name = host
@@ -297,7 +302,7 @@ func (a *App) handleDestroyMeshServer(c *gin.Context) {
 		}
 	}
 	a.revokeMeshPeer(&s)
-	_ = a.Store.DB.Where("hostname = ? AND system = ?", s.Hostname+".corp.ihuull.com", false).Delete(&store.DNSRecord{}).Error
+	_ = a.Store.DB.Where("hostname = ? AND system = ? AND comment = ?", s.Hostname+".corp.ihuull.com", false, meshDNSComment).Delete(&store.DNSRecord{}).Error
 	_ = a.pushIntranetDNS(c.Request.Context())
 	if err := a.Store.DB.Delete(&s).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
@@ -422,6 +427,10 @@ func (a *App) handleMeshServerEnroll(c *gin.Context) {
 	}
 	if reservedMeshHostname(match.Hostname) {
 		c.JSON(http.StatusConflict, gin.H{"error": "hostname reservado da intranet"})
+		return
+	}
+	if err := a.assertMeshDNSAvailable(match.Hostname); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "hostname já tem registro DNS"})
 		return
 	}
 
@@ -678,20 +687,40 @@ func (a *App) ensureMeshDNS(hostname, ipv4 string) error {
 	var rec store.DNSRecord
 	err = a.Store.DB.Where("hostname = ?", h).First(&rec).Error
 	if err == nil {
-		if rec.System {
-			return fmt.Errorf("hostname %s é registro de sistema", h)
+		if rec.System || rec.Comment != meshDNSComment {
+			return fmt.Errorf("hostname %s já tem registro DNS", h)
 		}
 		rec.IPv4 = ip
 		rec.Enabled = true
-		rec.Comment = "malha compute"
+		rec.Comment = meshDNSComment
 		return a.Store.DB.Save(&rec).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 	return a.Store.DB.Create(&store.DNSRecord{
-		Hostname: h, IPv4: ip, Enabled: true, Comment: "malha compute",
+		Hostname: h, IPv4: ip, Enabled: true, Comment: meshDNSComment,
 	}).Error
+}
+
+func (a *App) assertMeshDNSAvailable(hostname string) error {
+	fqdn := hostname + ".corp.ihuull.com"
+	h, err := corpdns.NormalizeHostname(fqdn)
+	if err != nil {
+		return err
+	}
+	var rec store.DNSRecord
+	err = a.Store.DB.Where("hostname = ?", h).First(&rec).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if rec.System || rec.Comment != meshDNSComment {
+		return fmt.Errorf("hostname %s já tem registro DNS", h)
+	}
+	return nil
 }
 
 func reservedMeshHostname(host string) bool {

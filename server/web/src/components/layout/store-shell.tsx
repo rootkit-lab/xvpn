@@ -2,13 +2,15 @@ import { Outlet } from 'react-router-dom'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
 import { PANEL_ORIGIN } from '@/lib/product-host'
+import { isViewerUpRole } from '@/lib/roles'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { AppLauncher } from '@/components/layout/app-launcher'
 import { AppSettingsButton } from '@/components/layout/app-settings-button'
 import { cn } from '@/lib/utils'
 
-export function StoreShell({ kind }: { kind: 'marketplace' | 'xdriver' }) {
+export function StoreShell({ kind }: { kind: 'marketplace' | 'xdriver' | 'xgit' }) {
   const { user } = useAuth()
+  const showSettings = kind !== 'xgit' || isViewerUpRole(user?.role)
 
   return (
     <div data-product={kind} className="watch-face relative flex min-h-svh flex-col overflow-hidden">
@@ -19,7 +21,7 @@ export function StoreShell({ kind }: { kind: 'marketplace' | 'xdriver' }) {
         trailing={
           user ? (
             <>
-              <AppSettingsButton kind={kind} />
+              {showSettings ? <AppSettingsButton kind={kind} /> : null}
               <AppLauncher variant={kind} />
               <AccountMenu variant="user" />
             </>

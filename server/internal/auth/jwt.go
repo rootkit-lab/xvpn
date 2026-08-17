@@ -21,6 +21,7 @@ const (
 	AudXgroup  = "xgroup"
 	AudXdriver = "xdriver"
 	AudXadmin  = "xadmin"
+	AudXgit    = "xgit"
 )
 
 // Claims são as informações do token de sessão (payload do JWE).
@@ -137,6 +138,8 @@ func NormalizeAudience(aud string) string {
 		return AudXdriver
 	case AudXadmin:
 		return AudXadmin
+	case AudXgit:
+		return AudXgit
 	default:
 		return AudXvpn
 	}

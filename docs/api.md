@@ -1,6 +1,6 @@
 # API do xvpn-server
 
-Issuer SSO: `https://xauth.ihuull.com` (leitura ainda aceita o issuer legado `https://xvpn.ihuull.com`). Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`, `xadmin`). JWT HMAC é rejeitado.
+Issuer SSO: `https://xauth.ihuull.com` (leitura ainda aceita o issuer legado `https://xvpn.ihuull.com`). Tokens são **só JWE** (`dir` + `A256GCM`) com `aud` por app (`xvpn`, `xchat`, `xgroup`, `xdriver`, `xadmin`, `xgit`). JWT HMAC é rejeitado.
 
 Comunicação de app no desktop: `https://xchat.corp.ihuull.com` (intranet). Login web: `https://xauth.ihuull.com`. Portal/enroll: `https://xvpn.ihuull.com` (`/` portal; `/admin` → xadmin). Console: `https://xadmin.corp.ihuull.com` (só VPN; Fases 35+). Loja: `https://marketplace.ihuull.com` — schema em [`marketplace.md`](./marketplace.md). Drive: `https://xdriver.corp.ihuull.com` (só VPN; `xdriver.ihuull.com` não serve). Marketing xgroup: `https://xgroup.ihuull.com` (landing + perfil `/:user` com JWE; sem WS). App: `https://xgroup.corp.ihuull.com`.
 
@@ -12,7 +12,7 @@ Auth no browser: cookie `ihuull_session` (`Domain=.ihuull.com`, Secure, HttpOnly
 |---|---|---|---|
 | POST | `/api/auth/login` | público + rate limit | Body `{username,password,aud?}`. Recusa `xbot`. Em `xauth` também grava o cookie de sessão. |
 | POST | `/api/auth/logout` | público | Apaga o cookie `.ihuull.com`. |
-| GET | `/api/auth/me` | Bearer ou cookie | Papel atual do banco (não só o claim). |
+| GET | `/api/auth/me` | Bearer ou cookie | Papel atual do banco (não só o claim). `xgit_enabled` se `ProjectMember` ou ACL do app `xgit`. |
 | POST | `/api/devices/enroll` | convite | Devolve IP, pubkey do server, `dns: ["10.66.66.1"]`. |
 | GET | `/api/status` | público | Saúde, `api_version`, peers. |
 
@@ -78,6 +78,7 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/:slug/git-receive-pack` | idem | |
 | GET | `/api/xgit/settings` | sessão | defaults do forge + `clone_host` |
 | PATCH | `/api/xgit/settings` | admin + `forge` | visibility/network padrão, `allow_member_create` |
+| GET | `/api/projects` | sessão | `?scope=all` (viewer+) lista todos; `?scope=mine` só `ProjectMember`. Default: all se viewer+, senão mine. Member + `scope=all` → 403 |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | mesmo create de `/api/projects` |
 | GET | `/api/projects/:slug/tree` | sessão + ACL | `?ref=&path=` |
 | GET | `/api/projects/:slug/blob` | sessão + ACL | `?path=` obrigatório, `?ref=` |

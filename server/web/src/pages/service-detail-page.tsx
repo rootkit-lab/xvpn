@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ServiceStatusBadge } from '@/pages/services-page'
+import { xgitPath } from '@/lib/xgit'
 
 export function ServiceDetailPage() {
   const { slug = '' } = useParams()
@@ -59,7 +60,7 @@ export function ServiceDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <ServiceStatusBadge status={data.status} />
             {data.project_slug ? (
-              <Link to={`/admin/xgit/${data.project_slug}`} className="hover:underline">
+              <Link to={xgitPath(data.project_slug)} className="hover:underline">
                 {data.project_slug}
               </Link>
             ) : null}

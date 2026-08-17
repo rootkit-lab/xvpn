@@ -5,6 +5,7 @@ import {
   XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
+  XGIT_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
 } from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
@@ -44,10 +45,11 @@ const APPS = [
     icon: LayoutDashboard,
   },
   {
-    href: `${XADMIN_CORP_ORIGIN}/admin/xgit`,
+    href: XGIT_CORP_ORIGIN,
     label: 'XGIT',
     description: 'Repositórios',
     icon: GitBranch,
+    needXgit: true,
   },
 ] as const
 
@@ -79,21 +81,23 @@ export function CorpHubPage() {
           <code className="font-mono text-xs">xadmin.corp.ihuull.com</code> — não neste endereço.
         </p>
         <ul className="grid gap-3">
-          {APPS.map(({ href, label, description, icon: Icon }) => (
-            <li key={href}>
-              <a
-                href={href}
-                className="watch-complication flex items-center gap-3 rounded-[18px] p-4 hover:bg-white/6"
-              >
-                <Icon className="size-5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                  <span className="font-display block text-sm font-semibold">{label}</span>
-                  <span className="text-xs text-muted-foreground">{description}</span>
-                </span>
-                <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
-              </a>
-            </li>
-          ))}
+          {APPS.filter((app) => !('needXgit' in app && app.needXgit) || user?.xgit_enabled).map(
+            ({ href, label, description, icon: Icon }) => (
+              <li key={href}>
+                <a
+                  href={href}
+                  className="watch-complication flex items-center gap-3 rounded-[18px] p-4 hover:bg-white/6"
+                >
+                  <Icon className="size-5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-display block text-sm font-semibold">{label}</span>
+                    <span className="text-xs text-muted-foreground">{description}</span>
+                  </span>
+                  <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
+                </a>
+              </li>
+            ),
+          )}
         </ul>
       </main>
     </div>

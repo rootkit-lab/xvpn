@@ -63,9 +63,13 @@ func TestProjectTreeAPI(t *testing.T) {
 	}
 	var tree struct {
 		Items []struct {
-			Name string `json:"name"`
-			Type string `json:"type"`
+			Name       string `json:"name"`
+			Type       string `json:"type"`
+			LastCommit *struct {
+				Subject string `json:"subject"`
+			} `json:"last_commit"`
 		} `json:"items"`
+		CommitCount int `json:"commit_count"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &tree); err != nil {
 		t.Fatal(err)
@@ -74,10 +78,16 @@ func TestProjectTreeAPI(t *testing.T) {
 	for _, e := range tree.Items {
 		if e.Name == "README" && e.Type == "blob" {
 			found = true
+			if e.LastCommit == nil || e.LastCommit.Subject == "" {
+				t.Fatalf("README sem last_commit: %s", rec.Body.String())
+			}
 		}
 	}
 	if !found {
 		t.Fatalf("README ausente: %s", rec.Body.String())
+	}
+	if tree.CommitCount < 1 {
+		t.Fatalf("commit_count: %d", tree.CommitCount)
 	}
 
 	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/blob?path=README&ref=main", nil, tok)

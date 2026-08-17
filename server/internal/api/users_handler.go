@@ -33,6 +33,8 @@ type userResponse struct {
 	SambaEnabled bool   `json:"samba_enabled"`
 	SSHPublicKey string `json:"ssh_public_key"`
 	DiskQuotaMB  uint64 `json:"disk_quota_mb"`
+	// XgitEnabled: waffle "Seus apps" — ProjectMember ou ACL do app xgit.
+	XgitEnabled bool `json:"xgit_enabled"`
 }
 
 func toUserResponse(u store.User) userResponse {
@@ -51,6 +53,30 @@ func toUserResponse(u store.User) userResponse {
 		SSHPublicKey: u.SSHPublicKey,
 		DiskQuotaMB:  u.DiskQuotaMB,
 	}
+}
+
+func (a *App) userHasXgit(user store.User) bool {
+	var n int64
+	_ = a.Store.DB.Model(&store.ProjectMember{}).Where("user_id = ?", user.ID).Count(&n).Error
+	if n > 0 {
+		return true
+	}
+	var app store.App
+	if err := a.Store.DB.Where("slug = ? AND archived_at IS NULL", "xgit").First(&app).Error; err != nil {
+		return false
+	}
+	if app.Visibility == store.AppVisibilityGlobal {
+		return true
+	}
+	var access int64
+	_ = a.Store.DB.Model(&store.AppAccess{}).Where("app_id = ? AND user_id = ?", app.ID, user.ID).Count(&access).Error
+	return access > 0
+}
+
+func (a *App) toSessionUser(user store.User) userResponse {
+	resp := toUserResponse(user)
+	resp.XgitEnabled = a.userHasXgit(user)
+	return resp
 }
 
 func callerProducts(c *gin.Context) []store.Product {

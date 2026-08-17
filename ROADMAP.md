@@ -1263,12 +1263,13 @@ xadmin instala e opera **no node local e nos VPS da malha**. Kinds: `mongo`, `re
 O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** — mesma superfície de um GitHub/GitLab (lista, Code, MRs, Actions, Settings), sem instalar GitLab CE. Mapeamento das features: `PLAN.md` §6.15.
 
 - [x] Nav **XGIT** no xadmin: Repositórios (`/admin/xgit`) e Configurações (`/admin/xgit/settings`). `/admin/projects*` redireciona.
-- [x] Lista de repositórios filtrada pela ACL (`ProjectMember`). `member` só vê os seus; `viewer+` com escopo `forge` vê o catálogo admin.
+- [x] Lista no xadmin: **todos** os repositórios (`scope=all`, viewer+). App em `xgit.corp`: só os do membro (`scope=mine`).
 - [x] Detalhe estilo GitHub: abas **Code** (tree/blob/README/commits/clone), **Merge requests**, **Actions** (CI + serviços do projeto), **Settings** (regras, colaboradores, branches protegidas).
 - [x] Configurações gerais: visibility/network padrão, `allow_member_create`, host de clone `xgit.corp`. Tree/blob/commits na API.
-- [x] `member` no xadmin cai em `/admin/xgit` (não no dashboard). Issues continuam no XGROUP; clone só na VPN.
+- [x] `member` no xadmin vai para `xgit.corp` (não o dashboard). Issues no XGROUP; clone só na VPN.
+- [x] App de sistema `xgit` no catálogo (restricted + vpn). Tile no waffle quando o usuário é `ProjectMember` ou tem ACL do app.
 
-**Critério de saída:** um membro abre só os repos em que participa; admin com `forge` cria, lista e configura o forge; `git clone https://xgit.corp.ihuull.com/<slug>` continua o único caminho de git. Sem GitLab CE.
+**Critério de saída:** xadmin vê todos os repos; o membro abre XGIT no waffle só se participa de um projeto (ou tem ACL do app) e lista os seus em `xgit.corp`; admin com `forge` cria e configura; `git clone https://xgit.corp.ihuull.com/<slug>` continua o único caminho de git. Sem GitLab CE.
 
 ---
 

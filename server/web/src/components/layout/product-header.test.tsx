@@ -25,6 +25,7 @@ describe('ProductHeader', () => {
     expect(productDisplayName('xdriver')).toBe('XDRIVER Drive')
     expect(productDisplayName('marketplace')).toBe('Marketplace Store')
     expect(productDisplayName('xadmin')).toBe('XADMIN Console')
+    expect(productDisplayName('xgit')).toBe('XGIT Forge')
   })
 
   it('na landing da marca mostra ihuull sem kicker de produto', () => {

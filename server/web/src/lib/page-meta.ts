@@ -146,7 +146,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'XGIT',
       title: 'Repositórios',
-      description: 'Forge GitLab-like: Code, MRs, Actions e Settings. Lista filtrada pela ACL do projeto.',
+      description: 'Forge: no xadmin lista todos os repos; em xgit.corp só os do membro. ACL do app no Marketplace.',
     },
   },
   {

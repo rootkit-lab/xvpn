@@ -408,6 +408,9 @@ func (a *App) archiveMissingMarketplaceApps(keep map[string]struct{}) ([]string,
 		if _, ok := keep[app.Slug]; ok {
 			continue
 		}
+		if app.Slug == "xgit" {
+			continue
+		}
 		app.ArchivedAt = &now
 		if err := a.Store.DB.Save(&app).Error; err != nil {
 			return nil, err

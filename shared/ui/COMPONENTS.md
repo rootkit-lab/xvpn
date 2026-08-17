@@ -42,13 +42,13 @@ Skill: `desktop-app-ui`. Plano: `PLAN.md` §6.12. Marks de produto (silhueta, `-
 
 | Prop | Tipo | Papel |
 |---|---|---|
-| `product` | `ihuull` \| `xvpn` \| `xchat` \| `marketplace` \| `xgroup` \| `xdriver` \| `xadmin` | Identidade (`data-product` + `--product`) |
+| `product` | `ihuull` \| `xvpn` \| `xchat` \| `marketplace` \| `xgroup` \| `xdriver` \| `xadmin` \| `xgit` | Identidade (`data-product` + `--product`) |
 | `href` | `string` | Link do app (default `/`) |
 | `trailing` | `ReactNode` | Direita — Settings, waffle, `AccountMenu` |
 
 Título da página (`PageHeading`) fica no template do app (`SystemChrome`), não neste chrome.
 
-Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` / `--product-xadmin` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
+Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--product-xdriver` / `--product-marketplace` / `--product-xadmin` / `--product-xgit` em `_color-system.scss` (fita da logo). O shell põe `data-product` no `watch-face` para tingir o fundo.
 
 **Nomes na UI** — slug minúsculo no código; lockup e catálogo em caixa do produto (`products.ts` / `PLAN.md` §6.13):
 
@@ -60,6 +60,7 @@ Acento: tokens `--product-xvpn` / `--product-xchat` / `--product-xgroup` / `--pr
 | `xdriver` | XDRIVER | Drive | XDRIVER Drive |
 | `marketplace` | Marketplace | Store | Marketplace Store |
 | `xadmin` | XADMIN | Console | XADMIN Console |
+| `xgit` | XGIT | Forge | XGIT Forge |
 
 Header autenticado (direita): Settings (prefs do app atual) → waffle de apps → pílula da conta. Não omitir o waffle quando o usuário está logado.
 

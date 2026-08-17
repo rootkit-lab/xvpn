@@ -8,5 +8,6 @@ export function productIdFromCatalogSlug(slug: string): ProductId | null {
   if (s === 'xgroup' || s === 'xvpn-group') return 'xgroup'
   if (s === 'xdriver') return 'xdriver'
   if (s === 'marketplace') return 'marketplace'
+  if (s === 'xgit') return 'xgit'
   return null
 }

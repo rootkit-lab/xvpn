@@ -6,6 +6,7 @@ describe('productIdFromCatalogSlug', () => {
     expect(productIdFromCatalogSlug('xchat')).toBe('xchat')
     expect(productIdFromCatalogSlug('xvpn-client')).toBe('xvpn')
     expect(productIdFromCatalogSlug('XVPN')).toBe('xvpn')
+    expect(productIdFromCatalogSlug('xgit')).toBe('xgit')
     expect(productIdFromCatalogSlug('outro')).toBeNull()
   })
 })

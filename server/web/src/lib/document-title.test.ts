@@ -10,6 +10,7 @@ describe('titleBrand', () => {
     expect(titleBrand('xauth.ihuull.com', '/login')).toBe('ihuull')
     expect(titleBrand('xvpn.ihuull.com', '/admin/users')).toBe('XVPN')
     expect(titleBrand('xadmin.corp.ihuull.com', '/admin/users')).toBe('XADMIN')
+    expect(titleBrand('xgit.corp.ihuull.com', '/')).toBe('XGIT')
   })
 
   it('no painel, a rota social vira XGROUP/XCHAT', () => {
@@ -23,6 +24,7 @@ describe('documentTitle', () => {
     expect(documentTitle({ hostname: 'xdriver.corp.ihuull.com', pathname: '/' })).toBe('XDRIVER')
     expect(documentTitle({ hostname: 'xchat.ihuull.com', pathname: '/' })).toBe('XCHAT')
     expect(documentTitle({ hostname: 'xvpn.ihuull.com', pathname: '/' })).toBe('XVPN')
+    expect(documentTitle({ hostname: 'xgit.corp.ihuull.com', pathname: '/' })).toBe('XGIT')
   })
 
   it('página admin e portal', () => {

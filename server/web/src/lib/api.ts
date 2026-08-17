@@ -214,6 +214,7 @@ export interface User {
   samba_enabled?: boolean
   ssh_public_key?: string
   disk_quota_mb?: number
+  xgit_enabled?: boolean
 }
 
 export interface FileAccessResponse {
@@ -651,6 +652,12 @@ export interface ProjectGit {
   protected_branches: ProtectedBranch[]
 }
 
+export interface GitLangStat {
+  name: string
+  bytes: number
+  pct: number
+}
+
 export interface GitTreeEntry {
   name: string
   path: string
@@ -658,6 +665,7 @@ export interface GitTreeEntry {
   mode: string
   size: number
   sha: string
+  last_commit?: GitCommit
 }
 
 export interface GitCommit {
@@ -897,7 +905,8 @@ export const api = {
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 
-  listProjects: () => request<{ items: Project[] }>('/projects'),
+  listProjects: (scope?: 'all' | 'mine') =>
+    request<{ items: Project[] }>(scope ? `/projects?scope=${scope}` : '/projects'),
   createXgitRepo: (body: { slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
     request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
   getXgitSettings: () =>
@@ -923,9 +932,14 @@ export const api = {
     if (ref) q.set('ref', ref)
     if (path) q.set('path', path)
     const qs = q.toString()
-    return request<{ items: GitTreeEntry[]; ref: string; path: string }>(
-      `/projects/${encodeURIComponent(slug)}/tree${qs ? `?${qs}` : ''}`,
-    )
+    return request<{
+      items: GitTreeEntry[]
+      ref: string
+      path: string
+      commit_count?: number
+      tags?: string[]
+      languages?: GitLangStat[]
+    }>(`/projects/${encodeURIComponent(slug)}/tree${qs ? `?${qs}` : ''}`)
   },
   getProjectBlob: (slug: string, path: string, ref?: string) => {
     const q = new URLSearchParams({ path })

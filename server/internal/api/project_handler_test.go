@@ -153,4 +153,104 @@ func TestEnsureProjectForAppOnSync(t *testing.T) {
 	}
 }
 
+func TestListProjectsScopeAllForbiddenForMember(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	router := NewRouter(app)
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects?scope=all", nil, aliceTok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("member scope=all deveria 403, veio %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects?scope=all", nil, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin scope=all: %d %s", rec.Code, rec.Body.String())
+	}
+	var listed struct {
+		Items []projectResponse `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Items) != 1 || listed.Items[0].Slug != "lab" {
+		t.Fatalf("xadmin deveria ver todos: %+v", listed.Items)
+	}
+}
+
+func TestMeXgitEnabledByMembershipOrACL(t *testing.T) {
+	app, _ := newTestApp(t)
+	if err := store.SeedXgitApp(app.Store.DB); err != nil {
+		t.Fatal(err)
+	}
+	alice := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	bob := createTestUserWithRole(t, app, "bob", "senha-bob-okxx", store.RoleMember)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-okxx")
+
+	rec := doJSON(t, router, http.MethodGet, "/api/auth/me", nil, bobTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("me bob: %d %s", rec.Code, rec.Body.String())
+	}
+	var me userResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if me.XgitEnabled {
+		t.Fatal("sem ProjectMember nem ACL o waffle não mostra XGIT")
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created projectResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+		Members: []projectMemberIn{
+			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
+			{UserID: alice.ID, Role: store.ProjectRoleDeveloper},
+		},
+	}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/auth/me", nil, aliceTok)
+	if err := json.Unmarshal(rec.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if !me.XgitEnabled {
+		t.Fatal("ProjectMember deveria ligar xgit_enabled")
+	}
+
+	var xgit store.App
+	if err := app.Store.DB.Where("slug = ?", "xgit").First(&xgit).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.DB.Create(&store.AppAccess{AppID: xgit.ID, UserID: bob.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/auth/me", nil, bobTok)
+	if err := json.Unmarshal(rec.Body.Bytes(), &me); err != nil {
+		t.Fatal(err)
+	}
+	if !me.XgitEnabled {
+		t.Fatal("ACL do app xgit deveria ligar xgit_enabled")
+	}
+}
+
 func ptrNetwork(n store.AppNetwork) *store.AppNetwork { return &n }

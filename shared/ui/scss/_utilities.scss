@@ -36,6 +36,10 @@
   --product: var(--product-xadmin);
 }
 
+[data-product="xgit"] {
+  --product: var(--product-xgit);
+}
+
 [data-product="ihuull"] {
   --product: var(--product-xvpn);
 }

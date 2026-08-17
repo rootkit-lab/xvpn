@@ -174,6 +174,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"create-bitlaunch-account", http.MethodPost, "/api/compute/settings/accounts", upsertBitLaunchAccountRequest{Name: "rbac", Email: "rbac@ihuull.com", Token: "token-rbac-16chars"}, "adminOnly"},
 	{"patch-bitlaunch-account", http.MethodPatch, "/api/compute/settings/accounts/1", upsertBitLaunchAccountRequest{Name: "rbac", Email: "rbac@ihuull.com"}, "adminOnly"},
 	{"delete-bitlaunch-account", http.MethodDelete, "/api/compute/settings/accounts/1", nil, "adminOnly"},
+	{"topup-bitlaunch-account", http.MethodPost, "/api/compute/settings/accounts/1/topup", topUpRequest{AmountUSD: 10, CryptoSymbol: "BTC"}, "adminOnly"},
 
 	{"social-people", http.MethodGet, "/api/social/people", nil, "any"},
 	{"social-profile-me", http.MethodGet, "/api/social/profile", nil, "any"},

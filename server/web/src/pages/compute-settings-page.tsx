@@ -1,6 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { api, ApiError, type BitLaunchAccount } from '@/lib/api'
+import { api, ApiError, type BitLaunchAccount, type BitLaunchTopUp } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable, type DataTableColumn } from '@/components/data-table'
 import {
   AlertDialog,
@@ -30,6 +31,15 @@ export function ComputeSettingsPage() {
   const columns: DataTableColumn<BitLaunchAccount>[] = [
     { key: 'name', header: 'Nome', cell: (a) => <span className="font-medium">{a.name}</span> },
     { key: 'email', header: 'E-mail', cell: (a) => <span className="text-muted-foreground">{a.email}</span> },
+    {
+      key: 'bal',
+      header: 'Saldo',
+      cell: (a) => (
+        <span className="hud-mono text-xs">
+          {a.balance_usd != null ? `US$ ${a.balance_usd.toFixed(2)}` : '—'}
+        </span>
+      ),
+    },
     { key: 'hint', header: 'Token', cell: (a) => <code className="text-xs">{a.token_hint}</code> },
     {
       key: 'act',
@@ -37,6 +47,7 @@ export function ComputeSettingsPage() {
       cell: (a) =>
         canWrite ? (
           <div className="flex justify-end gap-1">
+            <TopUpAccount account={a} onDone={reload} />
             <EditAccount account={a} onSaved={reload} />
             <DeleteAccount account={a} onDeleted={reload} />
           </div>
@@ -55,6 +66,28 @@ export function ComputeSettingsPage() {
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {(data?.accounts.length ?? 0) > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {data?.accounts.map((a) => (
+            <Card key={a.id}>
+              <CardHeader>
+                <CardTitle className="text-base">{a.name}</CardTitle>
+                <CardDescription>{a.email}</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1">
+                <p className="font-display text-2xl">
+                  {a.balance_usd != null ? `US$ ${a.balance_usd.toFixed(2)}` : 'saldo indisponível'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {a.used != null && a.limit != null ? `${a.used}/${a.limit} VPS` : 'VPS —'}
+                  {a.cost_per_hr != null ? ` · US$ ${a.cost_per_hr.toFixed(3)}/h` : ''}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
 
       {canWrite ? <AddAccountForm onCreated={reload} /> : null}
 
@@ -138,6 +171,109 @@ function AddAccountForm({ onCreated }: { onCreated: () => void }) {
         </form>
       </CardContent>
     </Card>
+  )
+}
+
+function TopUpAccount({ account, onDone }: { account: BitLaunchAccount; onDone: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [amount, setAmount] = useState('20')
+  const [symbol, setSymbol] = useState<'BTC' | 'LTC' | 'ETH'>('BTC')
+  const [busy, setBusy] = useState(false)
+  const [invoice, setInvoice] = useState<BitLaunchTopUp | null>(null)
+
+  async function create() {
+    const usd = Number(amount)
+    if (!Number.isFinite(usd) || usd < 5) {
+      toast.error('Mínimo US$ 5')
+      return
+    }
+    setBusy(true)
+    try {
+      const tx = await api.topUpBitLaunchAccount(account.id, { amount_usd: usd, crypto_symbol: symbol })
+      setInvoice(tx)
+      toast.success('Invoice cripto criado no BitLaunch')
+      onDone()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao criar recarga')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) setInvoice(null)
+      }}
+    >
+      <AlertDialogTrigger asChild>
+        <Button type="button" variant="ghost" size="sm">
+          Cripto
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Adicionar saldo — {account.email}</AlertDialogTitle>
+          <AlertDialogDescription>
+            Gera um endereço via API BitLaunch (BTC, LTC ou ETH). Pague na carteira; o saldo sobe quando
+            confirmar.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {invoice ? (
+          <div className="grid gap-2 text-sm">
+            <p>
+              Envie <span className="hud-mono">{invoice.amount_crypto}</span> {invoice.crypto_symbol}
+            </p>
+            <p className="hud-mono break-all text-xs">{invoice.address}</p>
+            <p className="text-muted-foreground">
+              US$ {invoice.amount_usd} · {invoice.status}
+            </p>
+            {invoice.status_url ? (
+              <a href={invoice.status_url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                Abrir invoice
+              </a>
+            ) : null}
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor={`topup-usd-${account.id}`}>US$</Label>
+              <Input
+                id={`topup-usd-${account.id}`}
+                type="number"
+                min={5}
+                step="1"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Moeda</Label>
+              <Select value={symbol} onValueChange={(v) => setSymbol(v as 'BTC' | 'LTC' | 'ETH')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BTC">BTC</SelectItem>
+                  <SelectItem value="LTC">LTC</SelectItem>
+                  <SelectItem value="ETH">ETH</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Fechar</AlertDialogCancel>
+          {invoice ? null : (
+            <Button type="button" onClick={create} disabled={busy}>
+              {busy ? 'Gerando…' : 'Gerar endereço'}
+            </Button>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rootkit-lab/xvpn/server/internal/bitlaunch"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -121,5 +122,56 @@ func TestSeedBitLaunchEnvAccountOnce(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("seed deveria ser idempotente, n=%d", n)
+	}
+}
+
+func TestBitLaunchAccountBalanceAndTopUp(t *testing.T) {
+	app, _ := newTestApp(t)
+	fake := &fakeBitLaunch{account: bitlaunch.Account{
+		Email: "ops@ihuull.com", Balance: 45000, Used: 2, Limit: 8, CostPerHr: 30, BillingAlert: 5,
+	}}
+	app.BitLaunch = fake
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	acc := store.BitLaunchAccount{Name: "Ops", Email: "ops@ihuull.com", Token: "token-conta-saldo-16"}
+	if err := app.Store.DB.Create(&acc).Error; err != nil {
+		t.Fatal(err)
+	}
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+
+	rec := doJSON(t, router, http.MethodGet, "/api/compute/settings", nil, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get: %d %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "token-conta-saldo-16") {
+		t.Fatal("GET não pode vazar token")
+	}
+	var settings struct {
+		Accounts []bitLaunchAccountJSON `json:"accounts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &settings); err != nil {
+		t.Fatal(err)
+	}
+	if len(settings.Accounts) != 1 || settings.Accounts[0].BalanceUSD == nil || *settings.Accounts[0].BalanceUSD != 45 {
+		t.Fatalf("saldo: %+v", settings.Accounts)
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/compute/settings/accounts/"+strconv.FormatUint(uint64(acc.ID), 10)+"/topup",
+		topUpRequest{AmountUSD: 20, CryptoSymbol: "btc"}, tok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("topup: %d %s", rec.Code, rec.Body.String())
+	}
+	var tx topUpResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &tx); err != nil {
+		t.Fatal(err)
+	}
+	if tx.Address == "" || tx.CryptoSymbol != "BTC" || fake.topUp.AmountUSD != 20 {
+		t.Fatalf("invoice: %+v topUp=%+v", tx, fake.topUp)
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/compute/settings/accounts/"+strconv.FormatUint(uint64(acc.ID), 10)+"/topup",
+		topUpRequest{AmountUSD: 20, CryptoSymbol: "DOGE"}, tok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("DOGE deveria 400, veio %d", rec.Code)
 	}
 }

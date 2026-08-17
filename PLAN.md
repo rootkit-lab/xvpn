@@ -684,6 +684,9 @@ O VPS `206.189.224.72` já está no BitLaunch. O xadmin lista, rotula e provisio
 
 - API [BitLaunch](https://developers.bitlaunch.io/) (`POST /servers`, options, destroy, rebuild). Contas (e-mail + token) em **Compute → Configurações** (`/admin/compute/settings`). Token só no banco do VPS, nunca no Git, nunca inteiro no GET. `XVPN_BITLAUNCH_TOKEN` só semeia a primeira conta se o banco estiver vazio.
 - Modelo: `MeshServer` + `BitLaunchAccount` + `ServerGroup` + `ServerAccess`. UI em `/admin/servers` e `/admin/compute/settings` (`xadmin.corp`). Create/import usam a conta escolhida.
+- Detalhe do servidor: console tipo xterm (info + observações). **Não** é shell SSH — §3 rejeitou bash remoto na VPS.
+- Hosts com app própria ficam `role=external` (inventário só): hoje `server-cripto-prod` e `65.38.120.203`. Sem enroll, cloud-init, destroy, rebuild ou A `*.corp`. A malha XVPN é só `206.189.224.72`.
+- Conta BitLaunch: `GET /user` (saldo = USD×1000) e recarga `POST /transactions` (`amountUsd` + `cryptoSymbol` BTC/LTC/ETH). Token nunca no GET.
 - Após create: cloud-init instala WireGuard, gera chave **no host novo**, envia só a pública em `POST /api/servers/enroll` (público, rate-limit, em `xvpn.ihuull.com` — o host ainda não tem `wg0`). IP em `10.66.66.0/24`. Teto ~250 IPs (clientes + VPS + runners). Faixa `10.66.67.0/24` **só** se `ip route` no VPS confirmar que está livre. **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`. Sem porta nova no §5.
 - DNS intranet: A `nome.corp` → IP wg0 (apply dnsmasq). DNS público: A do IPv4 via §6.17 se for edge.
 - SSH de operação nos hosts **novos**: preferir só `wg0`. ufw público do node atual permanece até cutover documentado.
@@ -890,6 +893,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **37. Projeto + membros + regras** | 1 projeto/slug; XGROUP/XCHAT/XDRIVER; sem git ainda | ACL de projeto no xadmin |
 | **38. Compute BitLaunch** | Importar VPS atual; labels/grupos; create; enroll WG | Peer na malha + A corp |
 | **38.1 Contas BitLaunch** | Settings no Compute; várias APIs/e-mails | Token só no VPS; create escolhe a conta |
+| **38.2 Console + saldo** | xterm/observações; hosts externos; recarga cripto | Sem SSH; sem mexer em cripto-prod |
 | **39. DNS público** | Adapter Cloudflare + recursor da malha | A criado no xadmin; sem `:53` na eth0 |
 | **40. Git smart HTTP** | `xgit.corp` + protected branches | Clone/push só na VPN |
 | **41. Merge requests** | MR + thread XCHAT | Review sem segundo chat |

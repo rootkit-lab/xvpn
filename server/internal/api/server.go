@@ -417,6 +417,7 @@ func NewRouter(app *App) *gin.Engine {
 				computeWrite.POST("/compute/settings/accounts", app.handleCreateBitLaunchAccount)
 				computeWrite.PATCH("/compute/settings/accounts/:id", app.handleUpdateBitLaunchAccount)
 				computeWrite.DELETE("/compute/settings/accounts/:id", app.handleDeleteBitLaunchAccount)
+				computeWrite.POST("/compute/settings/accounts/:id/topup", app.handleCreateBitLaunchTopUp)
 			}
 		}
 

@@ -27,6 +27,12 @@ func TestClientListCreateDestroyRebuild(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/servers/bl-1/rebuild":
 			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/user":
+			_ = json.NewEncoder(w).Encode(Account{Email: "ops@ihuull.com", Balance: 30000, Used: 1, Limit: 5, CostPerHr: 21})
+		case r.Method == http.MethodPost && r.URL.Path == "/transactions":
+			_ = json.NewEncoder(w).Encode(Transaction{
+				ID: "tx-1", Address: "bc1qtest", CryptoSymbol: "BTC", AmountUSD: 20, AmountCrypto: "0.002", Status: "Pending",
+			})
 		default:
 			http.NotFound(w, r)
 		}
@@ -72,6 +78,15 @@ func TestClientListCreateDestroyRebuild(t *testing.T) {
 	}
 	if lastPath != "/servers/bl-1/rebuild" {
 		t.Fatalf("rebuild path=%s", lastPath)
+	}
+
+	acc, err := c.Account()
+	if err != nil || acc.Balance != 30000 || lastPath != "/user" {
+		t.Fatalf("account: %+v err=%v path=%s", acc, err, lastPath)
+	}
+	tx, err := c.CreateTransaction(TopUpOpts{AmountUSD: 20, CryptoSymbol: "BTC"})
+	if err != nil || tx.Address != "bc1qtest" || lastPath != "/transactions" {
+		t.Fatalf("topup: %+v err=%v path=%s", tx, err, lastPath)
 	}
 }
 

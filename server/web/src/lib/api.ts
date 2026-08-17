@@ -472,7 +472,7 @@ export interface ProjectMember {
   role: ProjectRole
 }
 
-export type MeshServerRole = 'control' | 'mesh' | 'runner'
+export type MeshServerRole = 'control' | 'mesh' | 'runner' | 'external'
 
 export interface MeshServer {
   id: number
@@ -490,6 +490,8 @@ export interface MeshServer {
   device_id?: number
   access_user_ids?: number[]
   account_id?: number
+  notes?: string
+  protected?: boolean
   created_at: string
   enroll_token?: string
 }
@@ -499,6 +501,21 @@ export interface BitLaunchAccount {
   name: string
   email: string
   token_hint: string
+  balance_usd?: number
+  used?: number
+  limit?: number
+  cost_per_hr?: number
+  billing_alert_days?: number
+}
+
+export interface BitLaunchTopUp {
+  id: string
+  address: string
+  crypto_symbol: string
+  amount_usd: number
+  amount_crypto: string
+  status: string
+  status_url: string
 }
 
 export interface ServerGroup {
@@ -753,7 +770,7 @@ export const api = {
   }) => request<MeshServer>('/servers', { method: 'POST', body: JSON.stringify(body) }),
   updateServer: (
     id: number,
-    body: { name?: string; labels?: string[]; role?: MeshServerRole; group_id?: number },
+    body: { name?: string; labels?: string[]; role?: MeshServerRole; group_id?: number; notes?: string },
   ) => request<MeshServer>(`/servers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   destroyServer: (id: number) => request<void>(`/servers/${id}`, { method: 'DELETE' }),
   rebuildServer: (id: number, hostImageId: string, imageDescription?: string) =>
@@ -783,6 +800,11 @@ export const api = {
   updateBitLaunchAccount: (id: number, body: { name: string; email: string; token?: string }) =>
     request<BitLaunchAccount>(`/compute/settings/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteBitLaunchAccount: (id: number) => request<void>(`/compute/settings/accounts/${id}`, { method: 'DELETE' }),
+  topUpBitLaunchAccount: (id: number, body: { amount_usd: number; crypto_symbol: 'BTC' | 'LTC' | 'ETH' }) =>
+    request<BitLaunchTopUp>(`/compute/settings/accounts/${id}/topup`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   listSocialPeople: (params?: PageParams) =>
     request<PageEnvelope<SocialProfile>>(withQuery('/social/people', params)),

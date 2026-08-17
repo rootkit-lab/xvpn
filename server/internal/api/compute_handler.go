@@ -32,6 +32,8 @@ type BitLaunchAPI interface {
 	Create(bitlaunch.CreateOpts) (bitlaunch.Server, error)
 	Destroy(id string) error
 	Rebuild(id string, opts bitlaunch.RebuildOpts) error
+	Account() (bitlaunch.Account, error)
+	CreateTransaction(bitlaunch.TopUpOpts) (bitlaunch.Transaction, error)
 }
 
 type meshServerResponse struct {
@@ -50,6 +52,8 @@ type meshServerResponse struct {
 	DeviceID      *uint     `json:"device_id,omitempty"`
 	AccessUserIDs []uint    `json:"access_user_ids,omitempty"`
 	AccountID     *uint     `json:"account_id,omitempty"`
+	Notes         string    `json:"notes"`
+	Protected     bool      `json:"protected"`
 	CreatedAt     time.Time `json:"created_at"`
 	EnrollToken   string    `json:"enroll_token,omitempty"`
 }
@@ -72,6 +76,7 @@ type updateMeshServerRequest struct {
 	Role    *string   `json:"role"`
 	Name    *string   `json:"name"`
 	GroupID *uint     `json:"group_id"`
+	Notes   *string   `json:"notes"`
 }
 
 type createServerGroupRequest struct {
@@ -105,7 +110,7 @@ func (a *App) meshServerJSON(s store.MeshServer, includeToken bool) meshServerRe
 		ID: s.ID, BitLaunchID: s.BitLaunchID, Name: s.Name, Hostname: s.Hostname,
 		Role: s.Role, IPv4: s.IPv4, WgIP: s.WgIP, Region: s.Region, Size: s.Size,
 		Status: s.Status, Labels: labels, GroupID: s.GroupID, DeviceID: s.DeviceID,
-		AccountID: s.AccountID, CreatedAt: s.CreatedAt,
+		AccountID: s.AccountID, Notes: s.Notes, Protected: meshProtected(s), CreatedAt: s.CreatedAt,
 	}
 	if includeToken && s.EnrollToken != "" {
 		out.EnrollToken = s.EnrollToken
@@ -220,6 +225,10 @@ func (a *App) handleCreateMeshServer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "o node de controle não se cria por aqui"})
 		return
 	}
+	if store.IsExternalHost(name, host, "") {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host não se provisiona pela malha"})
+		return
+	}
 	if req.HostID == 0 || req.HostImageID == "" || req.SizeID == "" || req.RegionID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "host_id, host_image_id, size_id e region_id são obrigatórios"})
 		return
@@ -286,11 +295,14 @@ func (a *App) handleUpdateMeshServer(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "role inválida"})
 			return
 		}
-		if s.Role == store.ServerRoleControl {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "não altera o papel do node de controle"})
+		if s.Role == store.ServerRoleControl || s.Role == store.ServerRoleExternal || store.IsExternalHost(s.Name, s.Hostname, s.IPv4) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "não altera o papel deste host"})
 			return
 		}
 		s.Role = role
+	}
+	if req.Notes != nil {
+		s.Notes = strings.TrimSpace(*req.Notes)
 	}
 	if req.GroupID != nil {
 		if *req.GroupID == 0 {
@@ -317,8 +329,8 @@ func (a *App) handleDestroyMeshServer(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if s.Role == store.ServerRoleControl || s.WgIP == controlPlaneWgIP {
-		c.JSON(http.StatusConflict, gin.H{"error": "o node de controle não se destrói por aqui"})
+	if meshProtected(s) {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host não se destrói por aqui"})
 		return
 	}
 	if s.BitLaunchID != "" && !strings.HasPrefix(s.BitLaunchID, "local-") {
@@ -349,8 +361,8 @@ func (a *App) handleRebuildMeshServer(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if s.Role == store.ServerRoleControl {
-		c.JSON(http.StatusConflict, gin.H{"error": "o node de controle não se reconstrói por aqui"})
+	if meshProtected(s) {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host não se reconstrói por aqui"})
 		return
 	}
 	var req struct {
@@ -458,8 +470,8 @@ func (a *App) handleMeshServerEnroll(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "enroll_token inválido"})
 		return
 	}
-	if match.Role == store.ServerRoleControl {
-		c.JSON(http.StatusConflict, gin.H{"error": "node de controle já está na malha"})
+	if match.Role == store.ServerRoleControl || match.Role == store.ServerRoleExternal || store.IsExternalHost(match.Name, match.Hostname, match.IPv4) {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host não entra na malha"})
 		return
 	}
 	if reservedMeshHostname(match.Hostname) {
@@ -693,6 +705,9 @@ func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID, accountID uint)
 		s.Status = r.Status
 		s.Region = r.Region
 		s.Size = r.Size
+		if store.IsExternalHost(r.Name, s.Hostname, r.IPv4) {
+			s.Role = store.ServerRoleExternal
+		}
 		if accountID != 0 {
 			s.AccountID = &accountID
 		}
@@ -709,8 +724,12 @@ func (a *App) upsertBitLaunchServer(r bitlaunch.Server, actorID, accountID uint)
 			host = host[:20]
 		}
 	}
+	role := store.ServerRoleMesh
+	if store.IsExternalHost(r.Name, host, r.IPv4) {
+		role = store.ServerRoleExternal
+	}
 	s = store.MeshServer{
-		BitLaunchID: r.ID, Name: r.Name, Hostname: host, Role: store.ServerRoleMesh,
+		BitLaunchID: r.ID, Name: r.Name, Hostname: host, Role: role,
 		IPv4: r.IPv4, Region: r.Region, Size: r.Size, Image: r.Image,
 		Status: r.Status, CreatedByUserID: actorID,
 	}
@@ -767,6 +786,11 @@ func (a *App) assertMeshDNSAvailable(hostname string) error {
 		return fmt.Errorf("hostname %s já tem registro DNS", h)
 	}
 	return nil
+}
+
+func meshProtected(s store.MeshServer) bool {
+	return s.Role == store.ServerRoleControl || s.Role == store.ServerRoleExternal ||
+		s.WgIP == controlPlaneWgIP || store.IsExternalHost(s.Name, s.Hostname, s.IPv4)
 }
 
 func reservedMeshHostname(host string) bool {

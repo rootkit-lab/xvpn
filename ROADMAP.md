@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–38** em produção. **Fase 38.1** (contas BitLaunch no Compute → Configurações) nesta branch. **Próximo:** Fase 39 — DNS público (`PLAN.md` §6.17). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–38.1** em produção. **Fase 38.2** (console xterm + saldo BitLaunch) nesta branch. **Próximo:** Fase 39 — DNS público (`PLAN.md` §6.17). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1194,6 +1194,16 @@ Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com
 - [x] Create/import/destroy/rebuild escolhem a conta; `XVPN_BITLAUNCH_TOKEN` só como semente se o banco estiver vazio.
 
 **Critério de saída:** cadastrar duas contas na UI; criar/importar usa a escolhida. Token não aparece no Git nem no GET.
+
+---
+
+## Fase 38.2 — Console do servidor + saldo BitLaunch
+
+- [x] Detalhe do servidor: terminal tipo xterm com info do host + campo de observações (sem shell SSH — `PLAN.md` §3 rejeitou bash remoto).
+- [x] Hosts externos só inventário: `server-cripto-prod` e `65.38.120.203` — sem enroll, cloud-init, destroy, rebuild ou A corp. Só o node `206.189.224.72` é malha XVPN.
+- [x] API/UI da conta BitLaunch: saldo, used/limit, $/h. Recarga cripto (`POST /transactions`, BTC/LTC/ETH) se a API aceitar.
+
+**Critério de saída:** abrir um servidor mostra o console e grava observação. Importar os dois hosts externos não os mexe. Settings mostra saldo e gera invoice cripto sem devolver o token.
 
 ---
 

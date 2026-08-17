@@ -146,7 +146,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Compute',
       title: 'Configurações',
-      description: 'Contas BitLaunch (e-mail + API). Token só no VPS.',
+      description: 'Contas BitLaunch (e-mail + API), saldo e recarga cripto. Token só no VPS.',
     },
   },
   {
@@ -154,7 +154,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Compute',
       title: 'Servidores',
-      description: 'Malha BitLaunch. Importa o VPS atual; create gera chave WireGuard no host novo.',
+      description: 'Malha BitLaunch. Console xterm e observações no detalhe. Hosts externos só inventário.',
     },
   },
   {

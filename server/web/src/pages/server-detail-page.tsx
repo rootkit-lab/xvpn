@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Textarea } from '@/components/ui/textarea'
+import { ServerConsole } from '@/components/server-console'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -47,10 +49,67 @@ export function ServerDetailPage() {
         <span className="text-foreground">{data.hostname}</span>
       </p>
 
+      <ServerConsole server={data} />
+      {canWrite ? <NotesForm server={data} onSaved={reload} /> : data.notes ? (
+        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{data.notes}</p>
+      ) : null}
       {canWrite ? <ServerForm server={data} onSaved={reload} /> : <ServerRead server={data} />}
       {canWrite ? <AccessForm server={data} onSaved={reload} /> : null}
-      {canWrite && data.role !== 'control' ? <DangerZone server={data} /> : null}
+      {canWrite && !data.protected && data.role !== 'control' ? <DangerZone server={data} /> : null}
     </div>
+  )
+}
+
+function NotesForm({ server, onSaved }: { server: MeshServer; onSaved: () => void }) {
+  const [notes, setNotes] = useState(server.notes ?? '')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setNotes(server.notes ?? '')
+  }, [server])
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    try {
+      await api.updateServer(server.id, { notes })
+      toast.success('Observação salva')
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao salvar observação')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Observações</CardTitle>
+        <CardDescription>
+          {server.protected
+            ? 'Host externo — só inventário. Não enroll, destroy nem rebuild.'
+            : 'Anotações operacionais deste host. Não é um shell SSH.'}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <Textarea
+            id="srv-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={5}
+            placeholder="ex.: app própria neste VPS; não mexer no cloud-init"
+            className="hud-mono"
+          />
+          <div>
+            <Button type="submit" disabled={busy}>
+              {busy ? 'Salvando…' : 'Salvar observação'}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -132,7 +191,7 @@ function ServerForm({ server, onSaved }: { server: MeshServer; onSaved: () => vo
             <Label htmlFor="srv-labels">Labels</Label>
             <Input id="srv-labels" value={labels} onChange={(e) => setLabels(e.target.value)} />
           </div>
-          {server.role !== 'control' ? (
+          {server.role !== 'control' && !server.protected ? (
             <div className="space-y-1.5">
               <Label>Papel</Label>
               <Select value={role} onValueChange={(v) => setRole(v as MeshServerRole)}>

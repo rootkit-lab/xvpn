@@ -25,11 +25,21 @@ export function ServersPage() {
 
   const columns: DataTableColumn<MeshServer>[] = [
     { key: 'name', header: 'Servidor', cell: (s) => <span className="font-medium">{s.name}</span> },
-    { key: 'hostname', header: 'Hostname', cell: (s) => <span className="text-muted-foreground">{s.hostname}.corp</span> },
+    {
+      key: 'hostname',
+      header: 'Hostname',
+      cell: (s) => (
+        <span className="text-muted-foreground">{s.role === 'external' ? s.hostname : `${s.hostname}.corp`}</span>
+      ),
+    },
     {
       key: 'role',
       header: 'Papel',
-      cell: (s) => <Badge variant={s.role === 'control' ? 'secondary' : 'outline'}>{s.role}</Badge>,
+      cell: (s) => (
+        <Badge variant={s.role === 'control' || s.role === 'external' ? 'secondary' : 'outline'}>
+          {s.role === 'external' ? 'externo' : s.role}
+        </Badge>
+      ),
     },
     { key: 'wg', header: 'wg0', cell: (s) => <span className="text-muted-foreground">{s.wg_ip || '—'}</span> },
     { key: 'status', header: 'Status', cell: (s) => <span className="text-muted-foreground">{s.status}</span> },

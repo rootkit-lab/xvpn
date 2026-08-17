@@ -42,6 +42,34 @@ type RebuildOpts struct {
 	ImageDescription string
 }
 
+// Account é GET /user. Balance e CostPerHr vêm em USD×1000.
+type Account struct {
+	Email             string `json:"email"`
+	EmailConfirmed    bool   `json:"emailConfirmed"`
+	Used              int    `json:"used"`
+	Limit             int    `json:"limit"`
+	Balance           int    `json:"balance"`
+	CostPerHr         int    `json:"costPerHr"`
+	BillingAlert      int    `json:"billingAlert"`
+	NegativeAllowance int    `json:"negativeAllowance"`
+}
+
+type TopUpOpts struct {
+	AmountUSD    float64
+	CryptoSymbol string
+}
+
+// Transaction é o invoice de recarga cripto (POST /transactions).
+type Transaction struct {
+	ID           string  `json:"id"`
+	Address      string  `json:"address"`
+	CryptoSymbol string  `json:"cryptoSymbol"`
+	AmountUSD    float64 `json:"amountUsd"`
+	AmountCrypto string  `json:"amountCrypto"`
+	Status       string  `json:"status"`
+	StatusURL    string  `json:"statusUrl"`
+}
+
 // Client fala com a API. Testes injetam HTTPClient + BaseURL.
 type Client struct {
 	Token      string
@@ -93,6 +121,25 @@ func (c *Client) Rebuild(id string, opts RebuildOpts) error {
 		"hostImageID":      opts.HostImageID,
 		"imageDescription": opts.ImageDescription,
 	}, nil)
+}
+
+func (c *Client) Account() (Account, error) {
+	var out Account
+	if err := c.do(http.MethodGet, "/user", nil, &out); err != nil {
+		return Account{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) CreateTransaction(opts TopUpOpts) (Transaction, error) {
+	var out Transaction
+	if err := c.do(http.MethodPost, "/transactions", map[string]any{
+		"amountUsd":    opts.AmountUSD,
+		"cryptoSymbol": opts.CryptoSymbol,
+	}, &out); err != nil {
+		return Transaction{}, err
+	}
+	return out, nil
 }
 
 func (c *Client) do(method, path string, payload any, dest any) error {

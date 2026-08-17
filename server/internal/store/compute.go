@@ -1,12 +1,30 @@
 package store
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
-	ServerRoleControl = "control"
-	ServerRoleMesh    = "mesh"
-	ServerRoleRunner  = "runner"
+	ServerRoleControl  = "control"
+	ServerRoleMesh     = "mesh"
+	ServerRoleRunner   = "runner"
+	ServerRoleExternal = "external"
 )
+
+// Hosts BitLaunch com app própria — inventário só (Fase 38.2).
+const (
+	ExternalHostCriptoProd = "server-cripto-prod"
+	ExternalIPv4Cripto     = "65.38.120.203"
+)
+
+func IsExternalHost(name, hostname, ipv4 string) bool {
+	if strings.TrimSpace(ipv4) == ExternalIPv4Cripto {
+		return true
+	}
+	blob := strings.ToLower(name + " " + hostname)
+	return strings.Contains(blob, ExternalHostCriptoProd)
+}
 
 // MeshServer é um VPS da malha (Fase 38 — PLAN.md §6.16).
 // A chave privada WireGuard nunca fica aqui — só o peer (Device) após enroll.
@@ -27,6 +45,7 @@ type MeshServer struct {
 	CreatedByUserID uint
 	DeviceID        *uint
 	AccountID       *uint
+	Notes           string `gorm:"type:text"`
 	EnrollToken     string
 	EnrollExpiresAt *time.Time
 	CreatedAt       time.Time

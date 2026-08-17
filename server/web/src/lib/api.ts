@@ -382,6 +382,7 @@ export interface SocialProfile {
   display_name: string
   bio: string
   avatar_url: string
+  banner_url: string
   following: boolean
   followers: number
   following_count: number
@@ -415,6 +416,7 @@ export interface SocialStoryItem {
 export interface SocialStoryAuthor {
   author_id: number
   username: string
+  avatar_url?: string
   unseen: boolean
   items: SocialStoryItem[]
 }
@@ -616,8 +618,12 @@ export const api = {
   listSocialPeople: (params?: PageParams) =>
     request<PageEnvelope<SocialProfile>>(withQuery('/social/people', params)),
   getSocialMe: () => request<SocialProfile>('/social/profile'),
-  patchSocialMe: (body: { display_name?: string; bio?: string; avatar_url?: string }) =>
-    request<SocialProfile>('/social/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  patchSocialMe: (body: {
+    display_name?: string
+    bio?: string
+    avatar_url?: string
+    banner_url?: string
+  }) => request<SocialProfile>('/social/profile', { method: 'PATCH', body: JSON.stringify(body) }),
   getSocialProfile: (username: string) => request<SocialProfile>(`/social/u/${encodeURIComponent(username)}`),
   followUser: (username: string) =>
     request<{ ok: boolean }>(`/social/follow/${encodeURIComponent(username)}`, { method: 'POST' }),

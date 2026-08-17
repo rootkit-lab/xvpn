@@ -150,6 +150,9 @@ func (a *App) handleSocialDownloadAttachment(c *gin.Context) {
 }
 
 func (a *App) canAccessAttachment(attachmentID, userID uint) bool {
+	if a.isProfileMedia(attachmentID) {
+		return true
+	}
 	var msgs []store.Message
 	_ = a.Store.DB.Where("attachment_id = ?", attachmentID).Find(&msgs).Error
 	for _, m := range msgs {
@@ -182,10 +185,11 @@ type storyItemResponse struct {
 }
 
 type storyAuthorResponse struct {
-	AuthorID uint                `json:"author_id"`
-	Username string              `json:"username"`
-	Unseen   bool                `json:"unseen"`
-	Items    []storyItemResponse `json:"items"`
+	AuthorID  uint                `json:"author_id"`
+	Username  string              `json:"username"`
+	AvatarURL string              `json:"avatar_url,omitempty"`
+	Unseen    bool                `json:"unseen"`
+	Items     []storyItemResponse `json:"items"`
 }
 
 func (a *App) handleSocialCreateStory(c *gin.Context) {
@@ -253,9 +257,19 @@ func (a *App) handleSocialListStories(c *gin.Context) {
 			g.Unseen = true
 		}
 	}
+	avatars := map[uint]string{}
+	if len(order) > 0 {
+		var profs []store.SocialProfile
+		_ = a.Store.DB.Where("user_id IN ?", order).Find(&profs).Error
+		for _, p := range profs {
+			avatars[p.UserID] = p.AvatarURL
+		}
+	}
 	out := make([]storyAuthorResponse, 0, len(order))
 	for _, id := range order {
-		out = append(out, *byAuthor[id])
+		g := *byAuthor[id]
+		g.AvatarURL = avatars[id]
+		out = append(out, g)
 	}
 	c.JSON(http.StatusOK, gin.H{"items": out})
 }

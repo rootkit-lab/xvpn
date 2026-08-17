@@ -351,6 +351,7 @@ type SocialProfile struct {
 	DisplayName string `gorm:"not null"`
 	Bio         string `gorm:"type:text;default:''"`
 	AvatarURL   string `gorm:"default:''"`
+	BannerURL   string `gorm:"default:''"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 

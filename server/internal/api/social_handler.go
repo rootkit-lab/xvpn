@@ -18,6 +18,7 @@ type socialProfileResponse struct {
 	DisplayName string `json:"display_name"`
 	Bio         string `json:"bio"`
 	AvatarURL   string `json:"avatar_url"`
+	BannerURL   string `json:"banner_url"`
 	Following   bool   `json:"following"`
 	Followers   int64  `json:"followers"`
 	FollowingN  int64  `json:"following_count"`
@@ -85,6 +86,7 @@ func (a *App) profileResponse(p store.SocialProfile, username string, viewerID u
 		DisplayName: p.DisplayName,
 		Bio:         p.Bio,
 		AvatarURL:   p.AvatarURL,
+		BannerURL:   p.BannerURL,
 		Following:   n > 0 && viewerID != p.UserID,
 		Followers:   followers,
 		FollowingN:  followingN,
@@ -146,6 +148,7 @@ type patchSocialProfileRequest struct {
 	DisplayName *string `json:"display_name"`
 	Bio         *string `json:"bio"`
 	AvatarURL   *string `json:"avatar_url"`
+	BannerURL   *string `json:"banner_url"`
 }
 
 func (a *App) handleSocialMePatch(c *gin.Context) {
@@ -181,7 +184,20 @@ func (a *App) handleSocialMePatch(c *gin.Context) {
 		prof.Bio = bio
 	}
 	if req.AvatarURL != nil {
-		prof.AvatarURL = strings.TrimSpace(*req.AvatarURL)
+		ref, err := normalizeAvatarRef(*req.AvatarURL)
+		if err != nil || a.validateOwnedImageRef(user.ID, ref) != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "avatar_url inválido"})
+			return
+		}
+		prof.AvatarURL = ref
+	}
+	if req.BannerURL != nil {
+		ref, err := normalizeBannerRef(*req.BannerURL)
+		if err != nil || a.validateOwnedImageRef(user.ID, ref) != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "banner_url inválido"})
+			return
+		}
+		prof.BannerURL = ref
 	}
 	if err := a.Store.DB.Save(&prof).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})

@@ -178,6 +178,8 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-codespaces", http.MethodGet, "/api/xcodespaces", nil, "any"},
 	{"create-codespace", http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Slug: "lab"}, "any"},
 	{"get-codespace", http.MethodGet, "/api/xcodespaces/x", nil, "any"},
+	{"start-codespace", http.MethodPost, "/api/xcodespaces/x/start", nil, "any"},
+	{"stop-codespace", http.MethodPost, "/api/xcodespaces/x/stop", nil, "any"},
 	{"delete-codespace", http.MethodDelete, "/api/xcodespaces/x", nil, "any"},
 	{"codespace-tree", http.MethodGet, "/api/xcodespaces/x/tree", nil, "any"},
 	{"codespace-blob", http.MethodGet, "/api/xcodespaces/x/blob?path=README", nil, "any"},

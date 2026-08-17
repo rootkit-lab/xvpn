@@ -19,6 +19,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/server/internal/driver"
 	"github.com/rootkit-lab/xvpn/server/internal/forge"
+	"github.com/rootkit-lab/xvpn/server/internal/provision"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -28,19 +29,23 @@ const (
 )
 
 type codespaceJSON struct {
-	ID        string    `json:"id"`
-	Slug      string    `json:"slug"`
-	Branch    string    `json:"branch"`
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	CanWrite  bool      `json:"can_write,omitempty"`
-	OpenURL   string    `json:"open_url"`
+	ID         string    `json:"id"`
+	Slug       string    `json:"slug"`
+	Branch     string    `json:"branch"`
+	Author     string    `json:"author"`
+	Kind       string    `json:"kind"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	CanWrite   bool      `json:"can_write,omitempty"`
+	OpenURL    string    `json:"open_url"`
+	RuntimeURL string    `json:"runtime_url,omitempty"`
 }
 
 type createCodespaceRequest struct {
 	Slug   string `json:"slug"`
 	Branch string `json:"branch"`
+	Kind   string `json:"kind"`
 }
 
 type writeCodespaceRequest struct {
@@ -65,13 +70,26 @@ func codespaceOpenURL(id string) string {
 }
 
 func (a *App) codespaceJSON(user store.User, proj store.Project, cs store.CodeSpace) codespaceJSON {
+	kind := cs.Kind
+	if kind == "" {
+		kind = store.CodespaceKindQuick
+	}
+	status := cs.Status
+	if status == "" {
+		status = store.CodespaceStopped
+	}
 	out := codespaceJSON{
 		ID:        cs.PublicID,
 		Slug:      proj.Slug,
 		Branch:    cs.Branch,
+		Kind:      kind,
+		Status:    status,
 		CreatedAt: cs.CreatedAt,
 		UpdatedAt: cs.UpdatedAt,
 		OpenURL:   codespaceOpenURL(cs.PublicID),
+	}
+	if kind == store.CodespaceKindRemote {
+		out.RuntimeURL = codespaceRuntimeURL(cs.PublicID)
 	}
 	var author store.User
 	if a.Store.DB.First(&author, cs.UserID).Error == nil {
@@ -134,12 +152,13 @@ func (a *App) handleListCodespaces(c *gin.Context) {
 		return
 	}
 	items := make([]codespaceJSON, 0, len(rows))
-	for _, cs := range rows {
+	for i := range rows {
+		a.maybeIdleStop(&rows[i])
 		var proj store.Project
-		if a.Store.DB.First(&proj, cs.ProjectID).Error != nil {
+		if a.Store.DB.First(&proj, rows[i].ProjectID).Error != nil {
 			continue
 		}
-		items = append(items, a.codespaceJSON(user, proj, cs))
+		items = append(items, a.codespaceJSON(user, proj, rows[i]))
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
@@ -172,6 +191,18 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "branch inválida"})
 		return
 	}
+	kind := strings.ToLower(strings.TrimSpace(req.Kind))
+	if kind == "" {
+		kind = store.CodespaceKindQuick
+	}
+	if kind != store.CodespaceKindQuick && kind != store.CodespaceKindRemote {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "kind inválido"})
+		return
+	}
+	if kind == store.CodespaceKindRemote && !a.canGitPush(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão"})
+		return
+	}
 	var n int64
 	_ = a.Store.DB.Model(&store.CodeSpace{}).Where("user_id = ?", user.ID).Count(&n).Error
 	if n >= maxCodespacesPerUser {
@@ -186,16 +217,55 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 	publicID := hex.EncodeToString(raw)
 	rel := filepath.Join(sanitizePathPart(user.Username), proj.Slug, publicID)
 	dest := filepath.Join(a.codespacesDir(), rel)
-	if err := forge.AddWorktree(a.gitDir(), proj.Slug, dest, branch); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 	cs := store.CodeSpace{
 		PublicID:  publicID,
 		UserID:    user.ID,
 		ProjectID: proj.ID,
 		Branch:    branch,
 		RelPath:   filepath.ToSlash(rel),
+		Kind:      kind,
+		Status:    store.CodespaceStopped,
+		Image:     provision.DefaultCodespaceImage,
+	}
+	if kind == store.CodespaceKindRemote {
+		if a.runningCodespaceCount() >= 1 {
+			c.JSON(http.StatusConflict, gin.H{"error": "já existe um codespace em execução"})
+			return
+		}
+		port, err := a.allocateCodespacePort()
+		if err != nil {
+			c.JSON(http.StatusConflict, gin.H{"error": "sem porta livre"})
+			return
+		}
+		tok, err := newCodespaceToken()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+			return
+		}
+		cs.GitTokenHash = hashCodespaceToken(tok)
+		cs.HostPort = port
+		cs.Status = store.CodespaceStarting
+		if err := a.Store.DB.Create(&cs).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+			return
+		}
+		cloneURL := "https://xgit.corp.ihuull.com/" + proj.Slug
+		if err := a.applyCodespace(c.Request.Context(), &cs, "create", port, tok, cloneURL); err != nil {
+			_ = a.Store.DB.Delete(&cs)
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível iniciar o codespace"})
+			return
+		}
+		now := time.Now()
+		cs.Status = store.CodespaceRunning
+		cs.LastActiveAt = &now
+		_ = a.Store.DB.Model(&cs).Updates(map[string]any{"status": cs.Status, "last_active_at": now}).Error
+		_ = a.Store.LogAudit(callerUsername(c), "codespace.create", fmt.Sprintf("%s %s %s remote", proj.Slug, branch, publicID))
+		c.JSON(http.StatusCreated, a.codespaceJSON(user, proj, cs))
+		return
+	}
+	if err := forge.AddWorktree(a.gitDir(), proj.Slug, dest, branch); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 	if err := a.Store.DB.Create(&cs).Error; err != nil {
 		_ = forge.RemoveWorktree(a.gitDir(), proj.Slug, dest)
@@ -211,6 +281,77 @@ func (a *App) handleGetCodespace(c *gin.Context) {
 	if !ok {
 		return
 	}
+	a.maybeIdleStop(&cs)
+	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
+}
+
+func (a *App) handleStartCodespace(c *gin.Context) {
+	user, proj, cs, ok := a.loadCodespace(c)
+	if !ok {
+		return
+	}
+	if cs.Kind != store.CodespaceKindRemote {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "não é um codespace remoto"})
+		return
+	}
+	if !a.canGitPush(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão"})
+		return
+	}
+	if cs.Status == store.CodespaceRunning && cs.HostPort > 0 {
+		c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
+		return
+	}
+	if a.runningCodespaceCount() >= 1 {
+		c.JSON(http.StatusConflict, gin.H{"error": "já existe um codespace em execução"})
+		return
+	}
+	port, err := a.allocateCodespacePort()
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "sem porta livre"})
+		return
+	}
+	tok, err := newCodespaceToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	cloneURL := gitCloneHost + "/" + proj.Slug
+	if err := a.applyCodespace(c.Request.Context(), &cs, "start", port, tok, cloneURL); err != nil {
+		if err := a.applyCodespace(c.Request.Context(), &cs, "create", port, tok, cloneURL); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível iniciar o codespace"})
+			return
+		}
+	}
+	now := time.Now()
+	cs.Status = store.CodespaceRunning
+	cs.HostPort = port
+	cs.GitTokenHash = hashCodespaceToken(tok)
+	cs.LastActiveAt = &now
+	_ = a.Store.DB.Model(&cs).Updates(map[string]any{
+		"status": cs.Status, "host_port": port, "git_token_hash": cs.GitTokenHash, "last_active_at": now,
+	}).Error
+	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
+}
+
+func (a *App) handleStopCodespace(c *gin.Context) {
+	user, proj, cs, ok := a.loadCodespace(c)
+	if !ok {
+		return
+	}
+	if cs.Kind != store.CodespaceKindRemote {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "não é um codespace remoto"})
+		return
+	}
+	if user.ID != cs.UserID && !store.HasProduct(user.Role, user.Products, store.ProductForge) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão"})
+		return
+	}
+	_ = a.applyCodespace(c.Request.Context(), &cs, "stop", cs.HostPort, "", "")
+	cs.Status = store.CodespaceStopped
+	cs.HostPort = 0
+	cs.GitTokenHash = ""
+	_ = a.Store.DB.Model(&cs).Updates(map[string]any{"status": cs.Status, "host_port": 0, "git_token_hash": ""}).Error
 	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
 }
 
@@ -224,7 +365,12 @@ func (a *App) handleDeleteCodespace(c *gin.Context) {
 		return
 	}
 	dest := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
-	_ = forge.RemoveWorktree(a.gitDir(), proj.Slug, dest)
+	if cs.Kind == store.CodespaceKindRemote {
+		_ = a.applyCodespace(c.Request.Context(), &cs, "rm", 0, "", "")
+		_ = os.RemoveAll(dest)
+	} else {
+		_ = forge.RemoveWorktree(a.gitDir(), proj.Slug, dest)
+	}
 	if err := a.Store.DB.Delete(&cs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -233,16 +379,27 @@ func (a *App) handleDeleteCodespace(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (a *App) codespaceFilesRoot(cs store.CodeSpace) string {
+	return filepath.Join(a.codespacesDir(), filepath.FromSlash(a.codespaceFileRel(cs)))
+}
+
+func (a *App) codespaceFileRel(cs store.CodeSpace) string {
+	if cs.Kind == store.CodespaceKindRemote {
+		return filepath.ToSlash(filepath.Join(filepath.FromSlash(cs.RelPath), "workspace"))
+	}
+	return cs.RelPath
+}
+
 func (a *App) handleCodespaceTree(c *gin.Context) {
 	_, _, cs, ok := a.loadCodespace(c)
 	if !ok {
 		return
 	}
-	root := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
+	root := a.codespaceFilesRoot(cs)
 	rel := strings.Trim(strings.ReplaceAll(c.Query("path"), "\\", "/"), "/")
 	dir := root
 	if rel != "" {
-		resolved, err := safeCodespaceFile(a.codespacesDir(), cs.RelPath, rel)
+		resolved, err := safeCodespaceFile(a.codespacesDir(), a.codespaceFileRel(cs), rel)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 			return
@@ -290,8 +447,8 @@ func (a *App) handleCodespaceBlob(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
 	}
-	root := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
-	full, err := safeCodespaceFile(a.codespacesDir(), cs.RelPath, rel)
+	root := a.codespaceFilesRoot(cs)
+	full, err := safeCodespaceFile(a.codespacesDir(), a.codespaceFileRel(cs), rel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
@@ -331,8 +488,8 @@ func (a *App) handleCodespaceWrite(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "conteúdo grande demais"})
 		return
 	}
-	root := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
-	full, err := safeCodespaceFile(a.codespacesDir(), cs.RelPath, rel)
+	root := a.codespaceFilesRoot(cs)
+	full, err := safeCodespaceFile(a.codespacesDir(), a.codespaceFileRel(cs), rel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "path inválido"})
 		return
@@ -363,7 +520,7 @@ func (a *App) handleCodespaceCommit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "mensagem de commit inválida"})
 		return
 	}
-	dest := filepath.Join(a.codespacesDir(), filepath.FromSlash(cs.RelPath))
+	dest := a.codespaceFilesRoot(cs)
 	base := cs.Branch
 	mustPR := !a.canPushBranch(user, proj, base)
 	if mustPR {

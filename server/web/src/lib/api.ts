@@ -881,10 +881,13 @@ export interface Codespace {
   slug: string
   branch: string
   author: string
+  kind: 'quick' | 'remote' | string
+  status: 'stopped' | 'starting' | 'running' | 'error' | string
   created_at: string
   updated_at: string
   can_write?: boolean
   open_url: string
+  runtime_url?: string
 }
 
 export interface WorkProject {
@@ -1391,9 +1394,13 @@ export const api = {
     const q = slug ? `?slug=${encodeURIComponent(slug)}` : ''
     return request<{ items: Codespace[] }>(`/xcodespaces${q}`)
   },
-  createCodespace: (body: { slug: string; branch?: string }) =>
+  createCodespace: (body: { slug: string; branch?: string; kind?: 'quick' | 'remote' }) =>
     request<Codespace>('/xcodespaces', { method: 'POST', body: JSON.stringify(body) }),
   getCodespace: (id: string) => request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}`),
+  startCodespace: (id: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/start`, { method: 'POST' }),
+  stopCodespace: (id: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
   deleteCodespace: (id: string) =>
     request<void>(`/xcodespaces/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listCodespaceTree: (id: string, path?: string) => {

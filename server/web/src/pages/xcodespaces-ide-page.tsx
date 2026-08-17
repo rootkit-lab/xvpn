@@ -79,9 +79,16 @@ export function XcodespacesIdePage() {
           <span className="px-1.5 text-muted-foreground">·</span>
           <span className="font-mono text-xs">{cs.branch}</span>
         </p>
-        <Button type="button" className="btn-glow" size="sm" disabled={!dirty || !cs.can_write} onClick={() => setOpen(true)}>
-          Commit
-        </Button>
+        <div className="flex items-center gap-2">
+          {cs.kind === 'remote' && cs.runtime_url ? (
+            <Button asChild size="sm" variant="outline">
+              <a href={cs.runtime_url}>Abrir VS Code</a>
+            </Button>
+          ) : null}
+          <Button type="button" className="btn-glow" size="sm" disabled={!dirty || !cs.can_write} onClick={() => setOpen(true)}>
+            Commit
+          </Button>
+        </div>
       </div>
       <div className="grid min-h-0 flex-1 md:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="min-h-0 overflow-y-auto border-r border-border/60 p-3 text-sm">

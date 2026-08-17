@@ -18,7 +18,7 @@ export function XcodespacesHomePage() {
         <p className="hud-label text-muted-foreground/70">XCODESPACES</p>
         <h1 className="font-display text-2xl font-semibold">Your workspaces</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          IDE Monaco sobre um worktree do XGIT. Sem VM e sem shell no VPS. Crie a partir do botão Code no repositório.
+          Codespace remoto (VS Code + clone + terminal no container) ou editor rápido (Monaco). Crie a partir do botão Code no repositório.
         </p>
       </div>
       <div className="watch-complication overflow-hidden rounded-[18px]">
@@ -43,11 +43,17 @@ export function XcodespacesHomePage() {
                     {cs.slug}
                   </Link>
                   <p className="text-xs text-muted-foreground">
-                    {cs.branch} · {formatRelativeTime(cs.updated_at)}
+                    {cs.kind === 'remote' ? 'VS Code' : 'Editor rápido'} · {cs.status} · {cs.branch} ·{' '}
+                    {formatRelativeTime(cs.updated_at)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline">{cs.branch}</Badge>
+                  <Badge variant="outline">{cs.status || cs.branch}</Badge>
+                  {cs.kind === 'remote' && cs.runtime_url ? (
+                    <Button asChild size="sm" className="btn-glow">
+                      <a href={cs.runtime_url}>Abrir VS Code</a>
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"

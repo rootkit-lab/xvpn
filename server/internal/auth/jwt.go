@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -62,6 +65,19 @@ func (t *TokenManager) aeadKey() []byte {
 		return t.secret[:32]
 	}
 	return t.secret
+}
+
+// HMACHex is a deterministic digest for local service tokens (not session JWEs).
+func (t *TokenManager) HMACHex(label string) string {
+	if t == nil {
+		return ""
+	}
+	t.mu.Lock()
+	secret := t.secret
+	t.mu.Unlock()
+	mac := hmac.New(sha256.New, secret)
+	_, _ = mac.Write([]byte(label))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func (t *TokenManager) Issue(userID uint, username string, role store.Role) (string, error) {

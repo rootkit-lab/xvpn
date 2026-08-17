@@ -96,6 +96,18 @@ func TestTokenManager_RejectsHMACJWT(t *testing.T) {
 	}
 }
 
+func TestTokenManager_HMACHexStable(t *testing.T) {
+	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
+	a := tm.HMACHex("cs-conn:aabbccddeeff")
+	b := tm.HMACHex("cs-conn:aabbccddeeff")
+	if a == "" || a != b || len(a) < 32 {
+		t.Fatalf("digest instável: %q %q", a, b)
+	}
+	if tm.HMACHex("cs-conn:ffffffffffff") == a {
+		t.Fatal("ids diferentes não podem compartilhar digest")
+	}
+}
+
 func TestTokenManager_RejectsWrongSecret(t *testing.T) {
 	tm1 := NewTokenManager("segredo-um-com-pelo-menos-32-bytes-aqui", time.Hour)
 	tm2 := NewTokenManager("segredo-dois-com-pelo-menos-32-bytes-aqui", time.Hour)

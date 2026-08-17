@@ -171,6 +171,59 @@ func TestGitPushHonorsRolesAndProtectedBranch(t *testing.T) {
 	}
 }
 
+func TestCodespaceGitTokenScopedToProject(t *testing.T) {
+	app, router, adminTok := setupGitApp(t)
+	var admin store.User
+	if err := app.Store.DB.Where("username = ?", "admin").First(&admin).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, slug := range []string{"lab", "other"} {
+		rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: slug, Name: slug}, adminTok)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("create %s: %d %s", slug, rec.Code, rec.Body.String())
+		}
+		seedProjectBranches(t, app.Config.GitDir, slug)
+	}
+	var lab, other store.Project
+	if err := app.Store.DB.Where("slug = ?", "lab").First(&lab).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.DB.Where("slug = ?", "other").First(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	tok := "tokentokentoken1"
+	cs := store.CodeSpace{
+		PublicID:     "aabbccddeeff",
+		UserID:       admin.ID,
+		ProjectID:    lab.ID,
+		Branch:       "main",
+		RelPath:      "admin/lab/aabbccddeeff",
+		Kind:         store.CodespaceKindRemote,
+		Status:       store.CodespaceRunning,
+		GitTokenHash: hashCodespaceToken(tok),
+	}
+	if err := app.Store.DB.Create(&cs).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doGitBasic(t, router, http.MethodGet, "/lab/info/refs?service=git-upload-pack", nil, "codespace-aabbccddeeff", tok)
+	if rec.Code == http.StatusUnauthorized || rec.Code == http.StatusNotFound {
+		t.Fatalf("token do codespace deveria ler o próprio repo: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doGitBasic(t, router, http.MethodGet, "/other/info/refs?service=git-upload-pack", nil, "codespace-aabbccddeeff", tok)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("token não pode autenticar outro repo: %d %s", rec.Code, rec.Body.String())
+	}
+
+	if err := app.Store.DB.Model(&cs).Updates(map[string]any{"status": store.CodespaceStopped, "git_token_hash": ""}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec = doGitBasic(t, router, http.MethodGet, "/lab/info/refs?service=git-upload-pack", nil, "codespace-aabbccddeeff", tok)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("token após stop deveria falhar: %d", rec.Code)
+	}
+}
+
 func setupGitApp(t *testing.T) (*App, http.Handler, string) {
 	t.Helper()
 	app, _ := newTestApp(t)

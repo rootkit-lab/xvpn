@@ -56,6 +56,9 @@ func (f *fakeUserProvisioner) ApplyDNS(_ context.Context, payload string) error 
 func (f *fakeUserProvisioner) ApplySvc(_ context.Context, payload string) error {
 	return f.record("ApplySvc(" + payload + ")")
 }
+func (f *fakeUserProvisioner) ApplyCodespace(_ context.Context, payload string) error {
+	return f.record("ApplyCodespace(" + payload + ")")
+}
 
 // withProvisioner retorna um App de teste com o provisioner fake injetado.
 // Reuso do newTestApp existente, só sobrescrevendo o campo novo.

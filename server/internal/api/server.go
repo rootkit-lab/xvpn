@@ -187,6 +187,7 @@ func NewRouter(app *App) *gin.Engine {
 
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
+	r.Use(app.maybeCodespaceProxy())
 
 	if app.waitlistLimiter == nil {
 		// 5 tentativas por IP a cada 10 minutos — generoso pra um
@@ -338,6 +339,8 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/xcodespaces", app.handleListCodespaces)
 			authed.POST("/xcodespaces", app.handleCreateCodespace)
 			authed.GET("/xcodespaces/:id", app.handleGetCodespace)
+			authed.POST("/xcodespaces/:id/start", app.handleStartCodespace)
+			authed.POST("/xcodespaces/:id/stop", app.handleStopCodespace)
 			authed.DELETE("/xcodespaces/:id", app.handleDeleteCodespace)
 			authed.GET("/xcodespaces/:id/tree", app.handleCodespaceTree)
 			authed.GET("/xcodespaces/:id/blob", app.handleCodespaceBlob)

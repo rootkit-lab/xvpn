@@ -34,6 +34,7 @@ describe('productKind', () => {
     expect(productKind('xgit.corp.ihuull.com')).toBe('xgit-corp')
     expect(productKind('xgit.corp.localhost')).toBe('xgit-corp')
     expect(productKind('xcodespaces.corp.ihuull.com')).toBe('xcodespaces-corp')
+    expect(productKind('cs-aabbccddeeff.corp.ihuull.com')).toBe('xcodespaces-corp')
     expect(productKind('xauth.ihuull.com')).toBe('xauth')
     expect(productKind('xauth.localhost')).toBe('xauth')
     expect(productKind('ihuull.com')).toBe('core')

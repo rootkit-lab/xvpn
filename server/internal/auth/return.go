@@ -1,9 +1,21 @@
 package auth
 
 import (
+	"net"
 	"net/url"
+	"regexp"
 	"strings"
 )
+
+var codespaceReturnHostRe = regexp.MustCompile(`^cs-[a-f0-9]{12}\.corp\.(ihuull\.com|localhost)$`)
+
+func isCodespaceRuntimeHost(host string) bool {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+	return codespaceReturnHostRe.MatchString(strings.ToLower(h))
+}
 
 // PanelOrigin é o portal/enroll público — PLAN.md §5.1.
 const PanelOrigin = "https://xvpn.ihuull.com"
@@ -66,7 +78,7 @@ func TrustedHandoffOrigin(raw string) bool {
 		return false
 	}
 	host := strings.ToLower(u.Hostname())
-	if _, ok := safeReturnHosts[host]; !ok {
+	if _, ok := safeReturnHosts[host]; !ok && !isCodespaceRuntimeHost(host) {
 		return false
 	}
 	return allowedReturnScheme(u.Scheme, host)
@@ -93,7 +105,7 @@ func HandoffAllowed(origin, referer, fetchSite, requestHost string) bool {
 	}
 	host := requestHostName(requestHost)
 	_, ok := safeReturnHosts[host]
-	return ok
+	return ok || isCodespaceRuntimeHost(host)
 }
 
 // SafeReturnURL aceita só hosts ihuull conhecidos — bloqueia open redirect.
@@ -119,7 +131,7 @@ func SafeReturnURL(raw string) string {
 		}
 		host = strings.ToLower(u.Hostname())
 	}
-	if _, ok := safeReturnHosts[host]; !ok {
+	if _, ok := safeReturnHosts[host]; !ok && !isCodespaceRuntimeHost(host) {
 		return ""
 	}
 	if !isAdminReturnHost(host) && strings.HasPrefix(u.Path, "/admin") {

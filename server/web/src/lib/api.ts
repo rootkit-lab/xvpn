@@ -390,6 +390,15 @@ export interface SocialProfile {
   presence?: PresenceStatus
 }
 
+export interface SocialPostOriginal {
+  id: number
+  username: string
+  display_name: string
+  avatar_url: string
+  body: string
+  created_at: string
+}
+
 export interface SocialPost {
   id: number
   author_id: number
@@ -397,7 +406,25 @@ export interface SocialPost {
   display_name: string
   avatar_url: string
   body: string
+  kind: 'text' | 'repost' | string
   presence?: PresenceStatus
+  starred: boolean
+  stars: number
+  comments: number
+  reposts: number
+  reposted: boolean
+  original?: SocialPostOriginal
+  created_at: string
+}
+
+export interface SocialPostComment {
+  id: number
+  post_id: number
+  author_id: number
+  username: string
+  display_name: string
+  avatar_url: string
+  body: string
   created_at: string
 }
 
@@ -663,6 +690,23 @@ export const api = {
   createSocialPost: (body: string) =>
     request<SocialPost>('/social/posts', { method: 'POST', body: JSON.stringify({ body }) }),
   deleteSocialPost: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
+  starSocialPost: (id: number) =>
+    request<{ starred: boolean; stars: number; post_id: number }>(`/social/posts/${id}/star`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  listSocialComments: (id: number, params?: PageParams) =>
+    request<PageEnvelope<SocialPostComment>>(withQuery(`/social/posts/${id}/comments`, params)),
+  createSocialComment: (id: number, body: string) =>
+    request<SocialPostComment>(`/social/posts/${id}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+  repostSocialPost: (id: number) =>
+    request<{ reposted: boolean; reposts: number; post_id: number }>(`/social/posts/${id}/repost`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
   listSocialStories: () => request<{ items: SocialStoryAuthor[] }>('/social/stories'),
   createSocialStory: (body: string, extra?: { kind?: string; attachment_id?: number }) =>
     request<SocialStoryItem>('/social/stories', {

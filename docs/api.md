@@ -46,6 +46,9 @@ Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` 
 | POST | `/api/social/acks` | entregue/lido |
 | GET | `/api/social/feed` | Timeline (self + following; mural geral se vazio) |
 | POST | `/api/social/posts` | Máx. 280 caracteres |
+| POST | `/api/social/posts/:id/star` | Toggle estrela |
+| GET/POST | `/api/social/posts/:id/comments` | Comentários (280) |
+| POST | `/api/social/posts/:id/repost` | Toggle repost (não o próprio) |
 | GET | `/api/social/u/:username` | Perfil + `presence` visível (`invisible` vira `offline`) |
 | GET | `/api/social/u/:username/posts` | Posts do perfil (`presence` do autor) |
 | DELETE | `/api/social/posts/:id` | Autor ou admin |

@@ -14,19 +14,42 @@ import (
 
 const maxPostRunes = 280
 
-type socialPostResponse struct {
+type socialPostOriginal struct {
 	ID          uint      `json:"id"`
-	AuthorID    uint      `json:"author_id"`
 	Username    string    `json:"username"`
 	DisplayName string    `json:"display_name"`
 	AvatarURL   string    `json:"avatar_url"`
 	Body        string    `json:"body"`
-	Presence    string    `json:"presence"`
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+type socialPostResponse struct {
+	ID          uint                `json:"id"`
+	AuthorID    uint                `json:"author_id"`
+	Username    string              `json:"username"`
+	DisplayName string              `json:"display_name"`
+	AvatarURL   string              `json:"avatar_url"`
+	Body        string              `json:"body"`
+	Kind        string              `json:"kind"`
+	Presence    string              `json:"presence"`
+	Starred     bool                `json:"starred"`
+	Stars       int64               `json:"stars"`
+	Comments    int64               `json:"comments"`
+	Reposts     int64               `json:"reposts"`
+	Reposted    bool                `json:"reposted"`
+	Original    *socialPostOriginal `json:"original,omitempty"`
+	CreatedAt   time.Time           `json:"created_at"`
 }
 
 type createPostRequest struct {
 	Body string `json:"body"`
+}
+
+func postKind(p store.SocialPost) string {
+	if p.Kind == "repost" {
+		return "repost"
+	}
+	return "text"
 }
 
 func (a *App) postResponse(p store.SocialPost, author store.User, prof store.SocialProfile) socialPostResponse {
@@ -41,6 +64,7 @@ func (a *App) postResponse(p store.SocialPost, author store.User, prof store.Soc
 		DisplayName: name,
 		AvatarURL:   prof.AvatarURL,
 		Body:        p.Body,
+		Kind:        postKind(p),
 		Presence:    a.presenceOf(p.AuthorID),
 		CreatedAt:   p.CreatedAt,
 	}
@@ -62,17 +86,21 @@ func (a *App) handleSocialCreatePost(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return
 	}
-	prof, err := a.ensureProfile(user)
-	if err != nil {
+	if _, err := a.ensureProfile(user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	post := store.SocialPost{AuthorID: user.ID, Body: body}
+	post := store.SocialPost{AuthorID: user.ID, Body: body, Kind: "text"}
 	if err := a.Store.DB.Create(&post).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	c.JSON(http.StatusCreated, a.postResponse(post, user, prof))
+	out := a.hydratePosts([]store.SocialPost{post}, user.ID)
+	if len(out) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	c.JSON(http.StatusCreated, out[0])
 }
 
 func (a *App) handleSocialFeed(c *gin.Context) {
@@ -101,7 +129,7 @@ func (a *App) handleSocialFeed(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	writePage(c, a.hydratePosts(posts), total, p)
+	writePage(c, a.hydratePosts(posts, viewer), total, p)
 }
 
 func (a *App) handleSocialUserPosts(c *gin.Context) {
@@ -122,7 +150,7 @@ func (a *App) handleSocialUserPosts(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	writePage(c, a.hydratePosts(posts), total, p)
+	writePage(c, a.hydratePosts(posts, callerUserID(c)), total, p)
 }
 
 func (a *App) handleSocialDeletePost(c *gin.Context) {
@@ -138,6 +166,9 @@ func (a *App) handleSocialDeletePost(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "só o autor pode apagar"})
 		return
 	}
+	_ = a.Store.DB.Where("post_id = ?", post.ID).Delete(&store.SocialPostStar{}).Error
+	_ = a.Store.DB.Where("post_id = ?", post.ID).Delete(&store.SocialPostComment{}).Error
+	_ = a.Store.DB.Where("original_id = ?", post.ID).Delete(&store.SocialPost{}).Error
 	if err := a.Store.DB.Delete(&post).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -145,8 +176,33 @@ func (a *App) handleSocialDeletePost(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (a *App) hydratePosts(posts []store.SocialPost) []socialPostResponse {
+type countRow struct {
+	PostID uint
+	N      int64
+}
+
+func (a *App) hydratePosts(posts []store.SocialPost, viewer uint) []socialPostResponse {
 	out := make([]socialPostResponse, 0, len(posts))
+	if len(posts) == 0 {
+		return out
+	}
+	ids := make([]uint, 0, len(posts))
+	origIDs := make([]uint, 0)
+	for _, post := range posts {
+		ids = append(ids, post.ID)
+		if post.OriginalID != nil && *post.OriginalID > 0 {
+			origIDs = append(origIDs, *post.OriginalID)
+		}
+	}
+	engageIDs := append(append([]uint{}, ids...), origIDs...)
+
+	stars := a.countByPostID(&store.SocialPostStar{}, engageIDs)
+	comments := a.countByPostID(&store.SocialPostComment{}, engageIDs)
+	reposts := a.countReposts(engageIDs)
+	starred := a.viewerPostSet(&store.SocialPostStar{}, engageIDs, viewer)
+	reposted := a.viewerRepostSet(engageIDs, viewer)
+	originals := a.loadOriginals(origIDs)
+
 	for _, post := range posts {
 		var user store.User
 		if err := a.Store.DB.First(&user, post.AuthorID).Error; err != nil {
@@ -159,7 +215,108 @@ func (a *App) hydratePosts(posts []store.SocialPost) []socialPostResponse {
 		if err != nil {
 			continue
 		}
-		out = append(out, a.postResponse(post, user, prof))
+		item := a.postResponse(post, user, prof)
+		engageID := post.ID
+		if post.OriginalID != nil && *post.OriginalID > 0 {
+			engageID = *post.OriginalID
+		}
+		item.Stars = stars[engageID]
+		item.Comments = comments[engageID]
+		item.Reposts = reposts[engageID]
+		item.Starred = starred[engageID]
+		item.Reposted = reposted[engageID]
+		if post.OriginalID != nil {
+			if orig, ok := originals[*post.OriginalID]; ok {
+				item.Original = &orig
+			}
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func (a *App) countByPostID(model any, ids []uint) map[uint]int64 {
+	out := map[uint]int64{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []countRow
+	_ = a.Store.DB.Model(model).Select("post_id, count(*) as n").
+		Where("post_id IN ?", ids).Group("post_id").Scan(&rows).Error
+	for _, r := range rows {
+		out[r.PostID] = r.N
+	}
+	return out
+}
+
+func (a *App) countReposts(ids []uint) map[uint]int64 {
+	out := map[uint]int64{}
+	if len(ids) == 0 {
+		return out
+	}
+	var rows []countRow
+	_ = a.Store.DB.Model(&store.SocialPost{}).Select("original_id as post_id, count(*) as n").
+		Where("kind = ? AND original_id IN ?", "repost", ids).Group("original_id").Scan(&rows).Error
+	for _, r := range rows {
+		out[r.PostID] = r.N
+	}
+	return out
+}
+
+func (a *App) viewerPostSet(model any, ids []uint, viewer uint) map[uint]bool {
+	out := map[uint]bool{}
+	if len(ids) == 0 || viewer == 0 {
+		return out
+	}
+	var found []uint
+	_ = a.Store.DB.Model(model).Where("post_id IN ? AND user_id = ?", ids, viewer).Pluck("post_id", &found).Error
+	for _, id := range found {
+		out[id] = true
+	}
+	return out
+}
+
+func (a *App) viewerRepostSet(ids []uint, viewer uint) map[uint]bool {
+	out := map[uint]bool{}
+	if len(ids) == 0 || viewer == 0 {
+		return out
+	}
+	var found []uint
+	_ = a.Store.DB.Model(&store.SocialPost{}).
+		Where("kind = ? AND original_id IN ? AND author_id = ?", "repost", ids, viewer).
+		Pluck("original_id", &found).Error
+	for _, id := range found {
+		out[id] = true
+	}
+	return out
+}
+
+func (a *App) loadOriginals(ids []uint) map[uint]socialPostOriginal {
+	out := map[uint]socialPostOriginal{}
+	if len(ids) == 0 {
+		return out
+	}
+	var posts []store.SocialPost
+	if err := a.Store.DB.Where("id IN ?", ids).Find(&posts).Error; err != nil {
+		return out
+	}
+	for _, p := range posts {
+		var user store.User
+		if err := a.Store.DB.First(&user, p.AuthorID).Error; err != nil {
+			continue
+		}
+		prof, err := a.ensureProfile(user)
+		if err != nil {
+			continue
+		}
+		name := prof.DisplayName
+		if name == "" {
+			name = user.Username
+		}
+		out[p.ID] = socialPostOriginal{
+			ID: p.ID, Username: user.Username, DisplayName: name,
+			AvatarURL: prof.AvatarURL, Body: p.Body, CreatedAt: p.CreatedAt,
+		}
 	}
 	return out
 }

@@ -3,8 +3,9 @@ import { Link } from 'react-router-dom'
 import { ProfileLink } from '@/components/profile-link'
 import { SocialAvatar } from '@/components/social-avatar'
 import { SocialStoriesRail } from '@/components/social-stories'
+import { PostCard } from '@/components/social-post-card'
 import { toast } from 'sonner'
-import { api, ApiError, type SocialPost, type SocialProfile } from '@/lib/api'
+import { api, ApiError, type SocialProfile } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { useOptionalChat } from '@chat/messenger/ChatProvider'
@@ -12,7 +13,6 @@ import { livePresence } from '@/lib/social-presence'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatRelativeTime } from '@/lib/format'
 
 export function SocialFeedPage() {
   const { user } = useAuth()
@@ -50,7 +50,7 @@ export function SocialFeedPage() {
 
       <div className="grid w-full min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex flex-col gap-4">
-          <form onSubmit={publish} className="watch-complication rounded-[22px] p-4">
+          <form onSubmit={publish} className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
             <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value.slice(0, 280))}
@@ -73,14 +73,14 @@ export function SocialFeedPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {data.items.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} onChanged={reload} />
               ))}
             </div>
           )}
         </div>
 
         <aside className="hidden xl:flex xl:flex-col xl:gap-4">
-          <div className="watch-complication rounded-[22px] p-4">
+          <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
             <p className="hud-label text-muted-foreground/70">Quem seguir</p>
             <div className="mt-3 flex flex-col gap-3">
               {suggestions.map((p) => (
@@ -92,7 +92,7 @@ export function SocialFeedPage() {
               Mostrar mais
             </Link>
           </div>
-          <div className="watch-complication rounded-[22px] p-4">
+          <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
             <p className="hud-label text-muted-foreground/70">Grupos</p>
             <div className="mt-3 flex flex-col gap-2">
               {(groups?.items ?? []).slice(0, 4).map((g) => (
@@ -114,30 +114,6 @@ export function SocialFeedPage() {
         </aside>
       </div>
     </div>
-  )
-}
-
-export function PostCard({ post }: { post: SocialPost }) {
-  const chat = useOptionalChat()
-  const presence = livePresence(post.author_id, post.presence, chat?.presence)
-  const display = post.display_name || post.username
-
-  return (
-    <article className="watch-complication flex gap-3 rounded-[22px] px-4 py-4">
-      <ProfileLink username={post.username} className="shrink-0">
-        <SocialAvatar name={display} src={post.avatar_url} presence={presence} className="size-11 text-sm" />
-      </ProfileLink>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <ProfileLink username={post.username} className="font-display text-sm font-semibold hover:underline">
-            {display}
-          </ProfileLink>
-          <span className="text-xs text-muted-foreground">@{post.username}</span>
-          <span className="text-xs text-muted-foreground">· {formatRelativeTime(post.created_at)}</span>
-        </div>
-        <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed">{post.body}</p>
-      </div>
-    </article>
   )
 }
 

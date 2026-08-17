@@ -107,6 +107,9 @@ type App struct {
 	// cmd/xvpn-server/main.go junto com o restante do App.
 	UserProvisioner UserProvisioner
 
+	// Backup (Fase 44) roda restic/rclone. Nil = backup.Runner no PATH.
+	Backup backupEngine
+
 	// ServerPublicKey é derivada da chave privada lida na inicialização
 	// (nunca a chave privada em si) e devolvida aos clientes no enrollment.
 	ServerPublicKey string
@@ -418,6 +421,9 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/compute/settings", app.handleGetComputeSettings)
 			viewerUp.GET("/services", app.handleListServices)
 			viewerUp.GET("/services/:slug", app.handleGetService)
+			viewerUp.GET("/backups/settings", app.handleGetBackupSettings)
+			viewerUp.GET("/backups/destinations", app.handleListBackupDestinations)
+			viewerUp.GET("/backups/jobs", app.handleListBackupJobs)
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.
@@ -449,6 +455,11 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 				coreWrite.PATCH("/config", app.handleUpdateConfig)
+				coreWrite.PATCH("/backups/settings", app.handlePatchBackupSettings)
+				coreWrite.POST("/backups/destinations", app.handleCreateBackupDestination)
+				coreWrite.PATCH("/backups/destinations/:id", app.handlePatchBackupDestination)
+				coreWrite.DELETE("/backups/destinations/:id", app.handleDeleteBackupDestination)
+				coreWrite.POST("/backups/destinations/:id/run", app.handleRunBackup)
 			}
 
 			// DNS intranet (Fase 35) + público do stack (Fase 39).

@@ -248,6 +248,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/backups',
+    meta: {
+      kicker: 'Core VPN',
+      title: 'Backups',
+      description: 'Destinos off-site (restic + rclone). Credenciais só no VPS. Dry-run e último job.',
+    },
+  },
+  {
     prefix: '/admin/dns/settings',
     meta: {
       kicker: 'DNS',

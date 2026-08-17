@@ -1295,12 +1295,12 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 
 ## Fase 44 — Backups externos (Settings)
 
-- [ ] Destinos: SFTP, Google Drive (rclone), Backblaze B2, S3/MinIO, WebDAV, XDRIVER (extra).
-- [ ] Motor restic + rclone. Credenciais só no VPS.
-- [ ] UI Settings: retenção, o que entra (Mongo CP, marketplace, git, social), dry-run, último job.
-- [ ] `backup.sh` local permanece; off-site é adicional.
+- [x] Destinos: SFTP, Google Drive (rclone), Backblaze B2, S3/MinIO, WebDAV, XDRIVER (extra).
+- [x] Motor restic + rclone. Credenciais só no VPS.
+- [x] UI Settings: retenção, o que entra (Mongo CP, marketplace, git, social), dry-run, último job.
+- [x] `backup.sh` local permanece; off-site é adicional.
 
-**Critério de saída:** um job restic chega a um SFTP ou B2 de teste; restore documentado; nenhum token no Git.
+**Critério de saída:** um job restic chega a um SFTP ou B2 de teste; restore documentado; nenhum token no Git. Restore: [`docs/runbooks/backup-restore.md`](./docs/runbooks/backup-restore.md).
 
 ---
 

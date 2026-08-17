@@ -14,6 +14,7 @@ import {
   GitBranch,
   Server,
   Boxes,
+  Archive,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -40,6 +41,7 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
       { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES, product: 'core' },
+      { to: '/admin/backups', label: 'Backups', icon: Archive, roles: VIEWER_UP_ROLES, product: 'core' },
     ],
   },
   {

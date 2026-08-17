@@ -36,6 +36,7 @@ const SharesPage = lazy(() => import('@/pages/shares-page').then((m) => ({ defau
 const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ default: m.WaitlistPage })))
 const MarketplacePage = lazy(() => import('@/pages/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
+const BackupsPage = lazy(() => import('@/pages/backups-page').then((m) => ({ default: m.BackupsPage })))
 const DNSPage = lazy(() => import('@/pages/dns-page').then((m) => ({ default: m.DNSPage })))
 const PublicDNSPage = lazy(() => import('@/pages/public-dns-page').then((m) => ({ default: m.PublicDNSPage })))
 const PublicDNSZonePage = lazy(() =>
@@ -404,6 +405,7 @@ function XAdminCorpApp() {
               <Route path="services" element={<ServicesPage />} />
               <Route path="services/:slug" element={<ServiceDetailPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="backups" element={<BackupsPage />} />
               <Route path="dns/settings" element={<DNSSettingsPage />} />
               <Route path="dns/public/:id" element={<PublicDNSZonePage />} />
               <Route path="dns/public" element={<PublicDNSPage />} />

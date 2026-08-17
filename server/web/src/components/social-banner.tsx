@@ -1,29 +1,32 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { useSocialMediaUrl } from '@/hooks/use-social-media-url'
-import {
-  fallbackBannerClass,
-  parseBannerTone,
-  bannerToneClass,
-} from '@/lib/social-profile-media'
+import { isInlineMediaUrl, parseAttachmentId } from '@/lib/social-profile-media'
 
 export function SocialBanner({
-  username,
   bannerUrl,
   className,
   children,
 }: {
-  username: string
   bannerUrl?: string
   className?: string
   children?: ReactNode
 }) {
-  const tone = parseBannerTone(bannerUrl)
-  const photo = useSocialMediaUrl(bannerUrl)
-  const fallback = tone ? bannerToneClass(tone) : fallbackBannerClass(username)
+  const hasPhoto = Boolean(bannerUrl && (parseAttachmentId(bannerUrl) || isInlineMediaUrl(bannerUrl)))
+  const photo = useSocialMediaUrl(hasPhoto ? bannerUrl : undefined)
 
   return (
-    <div className={cn('relative overflow-hidden', photo ? 'bg-black/40' : fallback, className)}>
+    <div
+      className={cn('relative overflow-hidden', className)}
+      style={
+        photo
+          ? undefined
+          : {
+              background:
+                'linear-gradient(165deg, var(--profile-accent, var(--primary)) 0%, color-mix(in oklch, var(--profile-accent, var(--primary)) 35%, black) 100%)',
+            }
+      }
+    >
       {photo && <img src={photo} alt="" className="absolute inset-0 size-full object-cover" />}
       {children}
     </div>

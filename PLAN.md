@@ -533,7 +533,7 @@ Eventos: `message.new`, `message.ack`, `message.receipt`, `typing`, `presence`, 
 
 #### Dados e privacidade
 
-- `SocialProfile` (display name, bio, avatar, banner) é **opt-in de visibilidade entre membros**. Avatar/capa só aceitam anexo próprio (`attachment:<id>`) ou tom do design system na capa (`tone:primary`…). Não inclui `AllowedIP`, chaves WireGuard/SSH, cota, papel de admin.
+- `SocialProfile` (display name, bio, avatar, banner, theme) é **opt-in de visibilidade entre membros**. Avatar/capa só aceitam anexo próprio (`attachment:<id>`). `theme` é um token da paleta do design system (`primary`, `safe`, `xgroup`…) e tinge o layout do perfil. Não inclui `AllowedIP`, chaves WireGuard/SSH, cota, papel de admin.
 - Follow é unidirecional (seguir ≠ amizade).
 - DM: qualquer membro autenticado pode iniciar thread com outro membro (organização pequena, padrão Workspace Chat).
 - Grupo: criador é dono; membros entram por convite do grupo; `admin+` pode dissolver.

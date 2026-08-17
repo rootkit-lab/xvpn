@@ -383,6 +383,7 @@ export interface SocialProfile {
   bio: string
   avatar_url: string
   banner_url: string
+  theme: string
   following: boolean
   followers: number
   following_count: number
@@ -623,6 +624,7 @@ export const api = {
     bio?: string
     avatar_url?: string
     banner_url?: string
+    theme?: string
   }) => request<SocialProfile>('/social/profile', { method: 'PATCH', body: JSON.stringify(body) }),
   getSocialProfile: (username: string) => request<SocialProfile>(`/social/u/${encodeURIComponent(username)}`),
   followUser: (username: string) =>

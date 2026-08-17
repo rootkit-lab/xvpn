@@ -11,13 +11,56 @@ import (
 
 var errInvalidProfileMedia = errors.New("referência de mídia inválida")
 
-// Tons da capa — mesmos tokens do design system (não cores soltas).
-var allowedBannerTones = map[string]struct{}{
-	"primary": {},
-	"chart-2": {},
-	"chart-3": {},
-	"chart-4": {},
-	"chart-5": {},
+// Paleta do perfil — só tokens do design system (PLAN.md §6.12).
+var allowedProfileThemes = map[string]struct{}{
+	"primary":     {},
+	"safe":        {},
+	"xgroup":      {},
+	"xdriver":     {},
+	"marketplace": {},
+	"glow-amber":  {},
+	"glow-red":    {},
+}
+
+// Tons antigos da capa (`tone:chart-2`) mapeiam para a paleta atual.
+var legacyBannerTones = map[string]string{
+	"primary":     "primary",
+	"chart-2":     "safe",
+	"chart-3":     "xgroup",
+	"chart-4":     "xdriver",
+	"chart-5":     "marketplace",
+	"safe":        "safe",
+	"xgroup":      "xgroup",
+	"xdriver":     "xdriver",
+	"marketplace": "marketplace",
+	"glow-amber":  "glow-amber",
+	"glow-red":    "glow-red",
+}
+
+func normalizeTheme(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", nil
+	}
+	if mapped, ok := legacyBannerTones[s]; ok {
+		return mapped, nil
+	}
+	if _, ok := allowedProfileThemes[s]; !ok {
+		return "", errInvalidProfileMedia
+	}
+	return s, nil
+}
+
+func resolveProfileTheme(p store.SocialProfile) string {
+	if t, err := normalizeTheme(p.Theme); err == nil && t != "" {
+		return t
+	}
+	if tone, ok := strings.CutPrefix(p.BannerURL, "tone:"); ok {
+		if mapped, err := normalizeTheme(tone); err == nil {
+			return mapped
+		}
+	}
+	return ""
 }
 
 func normalizeAvatarRef(raw string) (string, error) {
@@ -35,10 +78,11 @@ func normalizeMediaRef(raw string, allowTone bool) (string, error) {
 	}
 	if allowTone {
 		if tone, ok := strings.CutPrefix(s, "tone:"); ok {
-			if _, allowed := allowedBannerTones[tone]; !allowed {
+			mapped, err := normalizeTheme(tone)
+			if err != nil || mapped == "" {
 				return "", errInvalidProfileMedia
 			}
-			return "tone:" + tone, nil
+			return "tone:" + mapped, nil
 		}
 	}
 	if rest, ok := strings.CutPrefix(s, "attachment:"); ok {

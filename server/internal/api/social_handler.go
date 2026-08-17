@@ -19,6 +19,7 @@ type socialProfileResponse struct {
 	Bio         string `json:"bio"`
 	AvatarURL   string `json:"avatar_url"`
 	BannerURL   string `json:"banner_url"`
+	Theme       string `json:"theme"`
 	Following   bool   `json:"following"`
 	Followers   int64  `json:"followers"`
 	FollowingN  int64  `json:"following_count"`
@@ -87,6 +88,7 @@ func (a *App) profileResponse(p store.SocialProfile, username string, viewerID u
 		Bio:         p.Bio,
 		AvatarURL:   p.AvatarURL,
 		BannerURL:   p.BannerURL,
+		Theme:       resolveProfileTheme(p),
 		Following:   n > 0 && viewerID != p.UserID,
 		Followers:   followers,
 		FollowingN:  followingN,
@@ -149,6 +151,7 @@ type patchSocialProfileRequest struct {
 	Bio         *string `json:"bio"`
 	AvatarURL   *string `json:"avatar_url"`
 	BannerURL   *string `json:"banner_url"`
+	Theme       *string `json:"theme"`
 }
 
 func (a *App) handleSocialMePatch(c *gin.Context) {
@@ -198,6 +201,17 @@ func (a *App) handleSocialMePatch(c *gin.Context) {
 			return
 		}
 		prof.BannerURL = ref
+	}
+	if req.Theme != nil {
+		theme, err := normalizeTheme(*req.Theme)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "theme inválido"})
+			return
+		}
+		prof.Theme = theme
+		if strings.HasPrefix(prof.BannerURL, "tone:") {
+			prof.BannerURL = ""
+		}
 	}
 	if err := a.Store.DB.Save(&prof).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})

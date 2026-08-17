@@ -1,13 +1,59 @@
-export const BANNER_TONES = ['primary', 'chart-2', 'chart-3', 'chart-4', 'chart-5'] as const
+export const PROFILE_THEMES = [
+  { id: 'primary', label: 'Ciano', cssVar: '--primary' },
+  { id: 'safe', label: 'Verde', cssVar: '--safe' },
+  { id: 'xgroup', label: 'Magenta', cssVar: '--product-xgroup' },
+  { id: 'xdriver', label: 'Âmbar', cssVar: '--product-xdriver' },
+  { id: 'marketplace', label: 'Azul', cssVar: '--product-marketplace' },
+  { id: 'glow-amber', label: 'Ouro', cssVar: '--glow-amber' },
+  { id: 'glow-red', label: 'Vermelho', cssVar: '--glow-red' },
+] as const
 
-export type BannerTone = (typeof BANNER_TONES)[number]
+export type ProfileThemeId = (typeof PROFILE_THEMES)[number]['id']
 
-const TONE_CLASS: Record<BannerTone, string> = {
-  primary: 'bg-primary/35',
-  'chart-2': 'bg-chart-2/40',
-  'chart-3': 'bg-chart-3/40',
-  'chart-4': 'bg-chart-4/35',
-  'chart-5': 'bg-chart-5/35',
+const THEME_IDS = new Set<string>(PROFILE_THEMES.map((t) => t.id))
+
+/** Tons antigos da capa (`tone:chart-2`) → paleta atual. */
+const LEGACY_TONE: Record<string, ProfileThemeId> = {
+  primary: 'primary',
+  'chart-2': 'safe',
+  'chart-3': 'xgroup',
+  'chart-4': 'xdriver',
+  'chart-5': 'marketplace',
+  safe: 'safe',
+  xgroup: 'xgroup',
+  xdriver: 'xdriver',
+  marketplace: 'marketplace',
+  'glow-amber': 'glow-amber',
+  'glow-red': 'glow-red',
+}
+
+export function isProfileTheme(id: string): id is ProfileThemeId {
+  return THEME_IDS.has(id)
+}
+
+export function profileThemeById(id: ProfileThemeId) {
+  return PROFILE_THEMES.find((t) => t.id === id) ?? PROFILE_THEMES[0]
+}
+
+export function fallbackTheme(username: string): ProfileThemeId {
+  const n = [...username].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
+  return PROFILE_THEMES[n % PROFILE_THEMES.length].id
+}
+
+export function resolveProfileTheme(theme: string | undefined, bannerUrl: string | undefined, username: string): ProfileThemeId {
+  if (theme && isProfileTheme(theme)) return theme
+  const fromBanner = parseBannerTone(bannerUrl)
+  if (fromBanner) return fromBanner
+  return fallbackTheme(username)
+}
+
+export function profileThemeStyle(theme: ProfileThemeId): Record<string, string> {
+  const { cssVar } = profileThemeById(theme)
+  return {
+    '--profile-accent': `var(${cssVar})`,
+    '--profile-accent-soft': `color-mix(in oklch, var(${cssVar}) 22%, transparent)`,
+    '--profile-accent-strong': `color-mix(in oklch, var(${cssVar}) 55%, transparent)`,
+  }
 }
 
 export function attachmentRef(id: number): string {
@@ -22,19 +68,10 @@ export function parseAttachmentId(ref: string | undefined): number | null {
   return Number.isInteger(id) && id > 0 ? id : null
 }
 
-export function parseBannerTone(ref: string | undefined): BannerTone | null {
+export function parseBannerTone(ref: string | undefined): ProfileThemeId | null {
   if (!ref?.startsWith('tone:')) return null
-  const tone = ref.slice(5)
-  return (BANNER_TONES as readonly string[]).includes(tone) ? (tone as BannerTone) : null
-}
-
-export function bannerToneClass(tone: BannerTone): string {
-  return TONE_CLASS[tone]
-}
-
-export function fallbackBannerClass(username: string): string {
-  const n = [...username].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
-  return bannerToneClass(BANNER_TONES[n % BANNER_TONES.length])
+  const mapped = LEGACY_TONE[ref.slice(5)]
+  return mapped ?? null
 }
 
 export function isInlineMediaUrl(ref: string): boolean {

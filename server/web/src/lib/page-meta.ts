@@ -25,6 +25,32 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/repositories',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Repositórios',
+      description: 'Repositórios do usuário logado em xgit.corp.',
+    },
+  },
+  {
+    prefix: '/packages',
+    exact: true,
+    meta: {
+      kicker: 'XGIT',
+      title: 'Packages',
+      description: 'Registry na malha — Fase 45+.',
+    },
+  },
+  {
+    prefix: '/stars',
+    exact: true,
+    meta: {
+      kicker: 'XGIT',
+      title: 'Stars',
+      description: 'Repositórios marcados com estrela.',
+    },
+  },
+  {
     prefix: '/my/profile',
     meta: {
       kicker: 'xvpn',

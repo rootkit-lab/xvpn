@@ -639,6 +639,36 @@ export interface Project {
   members?: ProjectMember[]
   created_at: string
   updated_at: string
+  language?: string
+  last_commit_at?: string
+  starred?: boolean
+  star_count?: number
+  spark?: number[]
+}
+
+export interface XgitOverview {
+  profile: SocialProfile
+  repo_count: number
+  star_count: number
+  popular: Project[]
+  contributions: { total: number; days: { date: string; count: number }[] }
+  activity: XgitActivityItem[]
+}
+
+export interface XgitActivityItem {
+  kind: 'commits' | 'repos_created' | 'repo_created' | 'merge_request' | string
+  month?: string
+  count?: number
+  repo_count?: number
+  repos?: string[]
+  slug?: string
+  number?: number
+  title?: string
+  description?: string
+  comments?: number
+  thread_id?: number
+  language?: string
+  created_at: string
 }
 
 export interface ProtectedBranch {
@@ -905,8 +935,16 @@ export const api = {
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 
-  listProjects: (scope?: 'all' | 'mine') =>
-    request<{ items: Project[] }>(scope ? `/projects?scope=${scope}` : '/projects'),
+  listProjects: (scope?: 'all' | 'mine', cards?: boolean) => {
+    const q = new URLSearchParams()
+    if (scope) q.set('scope', scope)
+    if (cards) q.set('cards', '1')
+    const qs = q.toString()
+    return request<{ items: Project[] }>(qs ? `/projects?${qs}` : '/projects')
+  },
+  getXgitOverview: () => request<XgitOverview>('/xgit/overview'),
+  listXgitStars: () => request<{ items: Project[] }>('/xgit/stars'),
+  toggleProjectStar: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}/star`, { method: 'POST' }),
   createXgitRepo: (body: { slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
     request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
   getXgitSettings: () =>

@@ -78,7 +78,10 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/:slug/git-receive-pack` | idem | |
 | GET | `/api/xgit/settings` | sessão | defaults do forge + `clone_host` |
 | PATCH | `/api/xgit/settings` | admin + `forge` | visibility/network padrão, `allow_member_create` |
-| GET | `/api/projects` | sessão | `?scope=all` (viewer+) lista todos; `?scope=mine` só `ProjectMember`. Default: all se viewer+, senão mine. Member + `scope=all` → 403 |
+| GET | `/api/projects` | sessão | `?scope=all` (viewer+) lista todos; `?scope=mine` só `ProjectMember`. `?cards=1` acrescenta language, last_commit, spark e stars. Default: all se viewer+, senão mine. Member + `scope=all` → 403 |
+| GET | `/api/xgit/overview` | sessão | perfil, populares, heatmap (1 ano) e activity (commits, repos, MRs + comentários XCHAT) |
+| GET | `/api/xgit/stars` | sessão | repositórios com estrela |
+| POST | `/api/projects/:slug/star` | sessão + ACL | toggle da estrela |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | mesmo create de `/api/projects` |
 | GET | `/api/projects/:slug/tree` | sessão + ACL | `?ref=&path=` |
 | GET | `/api/projects/:slug/blob` | sessão + ACL | `?path=` obrigatório, `?ref=` |

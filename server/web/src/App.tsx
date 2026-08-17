@@ -14,7 +14,7 @@ import {
 } from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
-import { StoreShell } from '@/components/layout/store-shell'
+import { XgitShell } from '@/components/layout/xgit-shell'
 import { UserShell } from '@/components/layout/user-shell'
 import { PublicProfileShell, SocialShell } from '@/components/layout/social-shell'
 import { ChatHost } from '@/components/layout/chat-host'
@@ -48,6 +48,14 @@ const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ def
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
 const XGroupAdminPage = lazy(() => import('@/pages/xgroup-admin-page').then((m) => ({ default: m.XGroupAdminPage })))
 const XgitReposPage = lazy(() => import('@/pages/xgit-repos-page').then((m) => ({ default: m.XgitReposPage })))
+const XgitHomeLayout = lazy(() => import('@/pages/xgit-home-layout').then((m) => ({ default: m.XgitHomeLayout })))
+const XgitOverviewPage = lazy(() =>
+  import('@/pages/xgit-overview-page').then((m) => ({ default: m.XgitOverviewPage })),
+)
+const XgitPackagesPage = lazy(() =>
+  import('@/pages/xgit-packages-page').then((m) => ({ default: m.XgitPackagesPage })),
+)
+const XgitStarsPage = lazy(() => import('@/pages/xgit-stars-page').then((m) => ({ default: m.XgitStarsPage })))
 const XgitSettingsPage = lazy(() =>
   import('@/pages/xgit-settings-page').then((m) => ({ default: m.XgitSettingsPage })),
 )
@@ -243,28 +251,35 @@ function XGroupCorpApp() {
 
 function XGitCorpApp() {
   return (
-    <Routes>
-      <Route path="/login" element={<SSOLoginRedirect />} />
-      <Route path="/admin" element={<AdminHostRedirect />} />
-      <Route path="/admin/*" element={<AdminHostRedirect />} />
-      <Route element={<ProtectedRoute />}>
-        <Route element={<StoreShell kind="xgit" />}>
-          <Route index element={<XgitReposPage />} />
-          <Route path=":slug" element={<XgitRepoLayout />}>
-            <Route index element={<XgitCodePage />} />
-            <Route path="tree/*" element={<XgitCodePage />} />
-            <Route path="blob/*" element={<XgitCodePage />} />
-            <Route path="commits" element={<XgitCommitsPage />} />
-            <Route path="mrs" element={<XgitMrsPage />} />
-            <Route path="mrs/:iid" element={<MergeRequestPage />} />
-            <Route path="actions" element={<XgitActionsPage />} />
-            <Route path="actions/:n" element={<CiJobPage />} />
-            <Route path="settings" element={<XgitRepoSettingsPage />} />
+    <ChatHost>
+      <Routes>
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<XgitShell />}>
+            <Route element={<XgitHomeLayout />}>
+              <Route index element={<XgitOverviewPage />} />
+              <Route path="repositories" element={<XgitReposPage />} />
+              <Route path="packages" element={<XgitPackagesPage />} />
+              <Route path="stars" element={<XgitStarsPage />} />
+            </Route>
+            <Route path=":slug" element={<XgitRepoLayout />}>
+              <Route index element={<XgitCodePage />} />
+              <Route path="tree/*" element={<XgitCodePage />} />
+              <Route path="blob/*" element={<XgitCodePage />} />
+              <Route path="commits" element={<XgitCommitsPage />} />
+              <Route path="mrs" element={<XgitMrsPage />} />
+              <Route path="mrs/:iid" element={<MergeRequestPage />} />
+              <Route path="actions" element={<XgitActionsPage />} />
+              <Route path="actions/:n" element={<CiJobPage />} />
+              <Route path="settings" element={<XgitRepoSettingsPage />} />
+            </Route>
           </Route>
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatHost>
   )
 }
 

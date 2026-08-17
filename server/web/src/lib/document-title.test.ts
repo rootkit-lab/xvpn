@@ -25,6 +25,9 @@ describe('documentTitle', () => {
     expect(documentTitle({ hostname: 'xchat.ihuull.com', pathname: '/' })).toBe('XCHAT')
     expect(documentTitle({ hostname: 'xvpn.ihuull.com', pathname: '/' })).toBe('XVPN')
     expect(documentTitle({ hostname: 'xgit.corp.ihuull.com', pathname: '/' })).toBe('XGIT')
+    expect(documentTitle({ hostname: 'xgit.corp.ihuull.com', pathname: '/repositories' })).toBe(
+      'Repositórios · XGIT',
+    )
   })
 
   it('página admin e portal', () => {

@@ -63,6 +63,10 @@ const XgitRepoLayout = lazy(() => import('@/pages/xgit-repo-page').then((m) => (
 const XgitCodePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCodePage })))
 const XgitCommitsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCommitsPage })))
 const XgitMrsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMrsPage })))
+const XgitIssuesPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssuesPage })))
+const XgitIssuePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssuePage })))
+const XgitPullsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitPullsPage })))
+const XgitEditPage = lazy(() => import('@/pages/xgit-edit-page').then((m) => ({ default: m.XgitEditPage })))
 const XgitActionsPage = lazy(() => import('@/pages/xgit-actions-page').then((m) => ({ default: m.XgitActionsPage })))
 const XgitRepoSettingsPage = lazy(() =>
   import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoSettingsPage })),
@@ -268,7 +272,12 @@ function XGitCorpApp() {
               <Route index element={<XgitCodePage />} />
               <Route path="tree/*" element={<XgitCodePage />} />
               <Route path="blob/*" element={<XgitCodePage />} />
+              <Route path="edit/:ref/*" element={<XgitEditPage />} />
               <Route path="commits" element={<XgitCommitsPage />} />
+              <Route path="issues" element={<XgitIssuesPage />} />
+              <Route path="issues/:n" element={<XgitIssuePage />} />
+              <Route path="pulls" element={<XgitPullsPage />} />
+              <Route path="pulls/:iid" element={<MergeRequestPage />} />
               <Route path="mrs" element={<XgitMrsPage />} />
               <Route path="mrs/:iid" element={<MergeRequestPage />} />
               <Route path="actions" element={<XgitActionsPage />} />
@@ -374,7 +383,12 @@ function XAdminCorpApp() {
                 <Route index element={<XgitCodePage />} />
                 <Route path="tree/*" element={<XgitCodePage />} />
                 <Route path="blob/*" element={<XgitCodePage />} />
+                <Route path="edit/:ref/*" element={<XgitEditPage />} />
                 <Route path="commits" element={<XgitCommitsPage />} />
+                <Route path="issues" element={<XgitIssuesPage />} />
+                <Route path="issues/:n" element={<XgitIssuePage />} />
+                <Route path="pulls" element={<XgitPullsPage />} />
+                <Route path="pulls/:iid" element={<MergeRequestPage />} />
                 <Route path="mrs" element={<XgitMrsPage />} />
                 <Route path="mrs/:iid" element={<MergeRequestPage />} />
                 <Route path="actions" element={<XgitActionsPage />} />

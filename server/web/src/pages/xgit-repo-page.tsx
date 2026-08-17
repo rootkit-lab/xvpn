@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { BookOpen, ChevronRight, Clock, Code2, Copy, File, Folder, GitBranch, Lock, Scale, Shield, Tag } from 'lucide-react'
+import { BookOpen, ChevronRight, Clock, Code2, Copy, Download, File, Folder, GitBranch, Lock, Pencil, Scale, Shield, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, type GitLangStat, type GitTreeEntry, type Project } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format'
@@ -26,14 +26,14 @@ import {
   GitCard,
   MembersForm,
   MembersRead,
-  MergeRequestsCard,
   RulesForm,
   RulesRead,
 } from '@/pages/project-detail-page'
 
 const TABS = [
   { to: '', label: 'Code', end: true },
-  { to: 'mrs', label: 'Merge requests', end: false },
+  { to: 'issues', label: 'Issues', end: false },
+  { to: 'pulls', label: 'Pull requests', end: false },
   { to: 'actions', label: 'Actions', end: false },
   { to: 'settings', label: 'Settings', end: false },
 ] as const
@@ -43,9 +43,12 @@ export function XgitRepoLayout() {
   const location = useLocation()
   const fetchProject = useCallback(() => api.getProject(slug), [slug])
   const fetchMRs = useCallback(() => api.listMergeRequests(slug, 'open'), [slug])
+  const fetchIssues = useCallback(() => api.listIssues(slug, { status: 'open' }), [slug])
   const { data, loading, error } = usePollingData(fetchProject, 20_000)
   const { data: mrs } = usePollingData(fetchMRs, 20_000)
+  const { data: issues } = usePollingData(fetchIssues, 20_000)
   const openCount = mrs?.items?.length ?? 0
+  const issueCount = issues?.items?.length ?? 0
 
   if (loading || !data) {
     return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-48 w-full" />
@@ -83,8 +86,11 @@ export function XgitRepoLayout() {
                 (path === base ||
                   path.startsWith(`${base}/tree/`) ||
                   path.startsWith(`${base}/blob/`) ||
+                  path.startsWith(`${base}/edit/`) ||
                   path.startsWith(`${base}/commits`))
-              const on = tab.to === '' ? codeOn : isActive
+              const pullsOn =
+                tab.to === 'pulls' && (path.includes('/pulls') || path.includes('/mrs'))
+              const on = tab.to === '' ? codeOn : tab.to === 'pulls' ? pullsOn : isActive
               return cn(
                 'border-b-2 px-3 py-2 text-sm',
                 on ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -92,7 +98,10 @@ export function XgitRepoLayout() {
             }}
           >
             {tab.label}
-            {tab.to === 'mrs' && openCount > 0 ? (
+            {tab.to === 'issues' && issueCount > 0 ? (
+              <span className="ml-1.5 rounded-full bg-muted px-1.5 text-xs">{issueCount}</span>
+            ) : null}
+            {tab.to === 'pulls' && openCount > 0 ? (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 text-xs">{openCount}</span>
             ) : null}
           </NavLink>
@@ -255,7 +264,8 @@ export function XgitCodePage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
-                <DropdownMenuLabel>Clone HTTPS</DropdownMenuLabel>
+                <DropdownMenuLabel>Local</DropdownMenuLabel>
+                <p className="px-2 pb-1 text-xs text-muted-foreground">Clone HTTPS</p>
                 <div className="flex items-center gap-2 px-2 pb-2">
                   <code className="min-w-0 flex-1 truncate font-mono text-[11px]">{git.clone_url}</code>
                   <Button
@@ -270,8 +280,19 @@ export function XgitCodePage() {
                     <Copy className="size-3.5" />
                   </Button>
                 </div>
-                <DropdownMenuSeparator />
                 <p className="px-2 pb-2 font-mono text-[11px] text-muted-foreground">git clone {git.clone_url}</p>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => {
+                    void api.downloadProjectArchive(slug, activeRef).then(
+                      () => toast.success('Download iniciado'),
+                      (err: unknown) => toast.error(err instanceof Error ? err.message : 'Falha no ZIP'),
+                    )
+                  }}
+                >
+                  <Download className="size-3.5" />
+                  Download ZIP
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
@@ -320,7 +341,20 @@ export function XgitCodePage() {
             blob.binary ? (
               <p className="p-5 text-sm text-muted-foreground">Arquivo binário — clone para abrir.</p>
             ) : (
-              <pre className="overflow-x-auto p-5 font-mono text-xs leading-relaxed">{blob.content}</pre>
+              <div>
+                <div className="flex justify-end border-b border-border/60 px-3 py-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigate(xgitPath(`${slug}/edit/${activeRef}/${filePath}`))}
+                  >
+                    <Pencil className="size-3.5" />
+                    Edit
+                  </Button>
+                </div>
+                <pre className="overflow-x-auto p-5 font-mono text-xs leading-relaxed">{blob.content}</pre>
+              </div>
             )
           ) : treeLoading || !tree ? (
             <p className="p-5 text-sm text-muted-foreground">Carregando árvore…</p>
@@ -343,17 +377,29 @@ export function XgitCodePage() {
                 {sortTree(tree.items).map((e) => (
                   <tr key={e.path} className="border-b border-border/40 last:border-0 hover:bg-muted/20">
                     <td className="w-[32%] px-4 py-2">
-                      <Link
-                        to={e.type === 'tree' ? xgitPath(`${slug}/tree/${e.path}`) : xgitPath(`${slug}/blob/${e.path}`)}
-                        className="inline-flex items-center gap-2 hover:underline"
-                      >
-                        {e.type === 'tree' ? (
-                          <Folder className="size-4 text-muted-foreground" />
-                        ) : (
-                          <File className="size-4 text-muted-foreground" />
-                        )}
-                        {e.name}
-                      </Link>
+                      <span className="inline-flex items-center gap-2">
+                        <Link
+                          to={e.type === 'tree' ? xgitPath(`${slug}/tree/${e.path}`) : xgitPath(`${slug}/blob/${e.path}`)}
+                          className="inline-flex items-center gap-2 hover:underline"
+                        >
+                          {e.type === 'tree' ? (
+                            <Folder className="size-4 text-muted-foreground" />
+                          ) : (
+                            <File className="size-4 text-muted-foreground" />
+                          )}
+                          {e.name}
+                        </Link>
+                        {e.type === 'blob' ? (
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground"
+                            title="Edit"
+                            onClick={() => navigate(xgitPath(`${slug}/edit/${activeRef}/${e.path}`))}
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                        ) : null}
+                      </span>
                     </td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">
                       {e.last_commit ? (
@@ -549,15 +595,8 @@ export function XgitCommitsPage() {
   )
 }
 
-export function XgitMrsPage() {
-  const { slug = '' } = useParams()
-  const { user } = useAuth()
-  const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const { data } = usePollingData(fetchProject, 20_000)
-  if (!data) return <Skeleton className="h-32 w-full" />
-  return <MergeRequestsCard slug={slug} members={data.members ?? []} userId={user?.id} canWrite={canWrite} />
-}
+export { XgitIssuesPage, XgitIssuePage, XgitPullsPage } from '@/pages/xgit-issues-page'
+export { XgitMrsPage } from '@/pages/xgit-issues-page'
 
 export { XgitActionsPage } from '@/pages/xgit-actions-page'
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rootkit-lab/xvpn/server/internal/forge"
@@ -201,6 +202,102 @@ func TestMergeRequestACLAndClose(t *testing.T) {
 	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, adminTok)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("merge fechado: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git não está no PATH")
+	}
+	app, router, adminTok := setupGitApp(t)
+	dev := createTestUserWithRole(t, app, "dev", "senha-dev-ok-1", store.RoleMember)
+	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-ok-1")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	var created projectResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+		Members: []projectMemberIn{
+			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
+			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
+		},
+	}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("members: %d", rec.Code)
+	}
+	seedProjectBranches(t, app.Config.GitDir, "lab")
+
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+		Title: "Add feat", SourceBranch: "feat", TargetBranch: "main",
+	}, devTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("open: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/merge-requests/1/commits", nil, devTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("commits: %d %s", rec.Code, rec.Body.String())
+	}
+	var commits struct {
+		Items []forge.CommitInfo `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &commits); err != nil {
+		t.Fatal(err)
+	}
+	if len(commits.Items) == 0 {
+		t.Fatal("esperava commits no PR")
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/merge-requests/1/diff", nil, devTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("diff: %d", rec.Code)
+	}
+	var diff struct {
+		Diff string `json:"diff"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &diff); err != nil {
+		t.Fatal(err)
+	}
+	if diff.Diff == "" || !strings.Contains(diff.Diff, "feat.txt") {
+		t.Fatalf("diff: %q", diff.Diff)
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/reviews", map[string]string{
+		"state": "approve", "body": "lgtm",
+	}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("review: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/reviews", map[string]string{
+		"state": "approve",
+	}, devTok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("autor não aprova o próprio: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var proj store.Project
+	if err := app.Store.DB.Where("slug = ?", "lab").First(&proj).Error; err != nil {
+		t.Fatal(err)
+	}
+	n := uint(1)
+	if err := app.Store.DB.Model(&store.CiJob{}).Where("project_id = ? AND merge_request_number = ?", proj.ID, n).
+		Update("status", store.CiFailed).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, adminTok)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("CI failed deveria bloquear merge: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs?mr=1", nil, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("jobs?mr=: %d", rec.Code)
 	}
 }
 

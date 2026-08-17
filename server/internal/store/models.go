@@ -419,12 +419,13 @@ type SocialGroupMember struct {
 }
 
 const (
-	ThreadKindDM = "dm"
-	ThreadKindMR = "mr"
+	ThreadKindDM    = "dm"
+	ThreadKindMR    = "mr"
+	ThreadKindIssue = "issue"
 )
 
-// DirectThread é uma conversa 1:1 (Kind=dm) ou a thread de um MR (Kind=mr).
-// findOrCreateDM só casa Kind=dm — senão um MR com 2 membros vira a DM deles.
+// DirectThread é uma conversa 1:1 (Kind=dm), thread de MR (Kind=mr) ou de issue (Kind=issue).
+// findOrCreateDM só casa Kind=dm — senão um MR/issue com 2 membros vira a DM deles.
 type DirectThread struct {
 	ID        uint   `gorm:"primaryKey"`
 	Kind      string `gorm:"not null;default:dm;index"`

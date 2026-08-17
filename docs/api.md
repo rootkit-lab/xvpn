@@ -90,12 +90,23 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/api/projects/:slug/git` | admin + `forge` | cria o bare se faltar |
 | PUT | `/api/projects/:slug/protected-branches` | admin + `forge` | substitui a lista |
 | GET | `/api/projects/:slug/branches` | sessão + ACL do projeto | heads do bare |
+| GET | `/api/projects/:slug/issues` | sessão + ACL | `?status=open\|closed&q=` |
+| POST | `/api/projects/:slug/issues` | reporter+ ou `forge` | abre issue + thread XCHAT + post XGROUP |
+| GET | `/api/projects/:slug/issues/:n` | sessão + ACL | |
+| PATCH | `/api/projects/:slug/issues/:n` | autor, maintainer+ ou `forge` | título, corpo, labels, assignees, open/closed |
 | GET | `/api/projects/:slug/merge-requests` | sessão + ACL | `?status=open\|merged\|closed` |
 | POST | `/api/projects/:slug/merge-requests` | developer+ ou `forge` | abre MR + thread XCHAT + post XGROUP |
-| GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | |
-| POST | `/api/projects/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | `git merge --no-ff` no servidor |
+| GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | `can_merge`, `checks_block` |
+| PATCH | `/api/projects/:slug/merge-requests/:iid` | autor ou maintainer+ | título/descrição se aberto |
+| POST | `/api/projects/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | bloqueia se CI do PR falhou |
 | POST | `/api/projects/:slug/merge-requests/:iid/close` | autor, maintainer+ ou `forge` | |
-| GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI. `?workflow=ci`. Inclui `workflows` |
+| GET | `/api/projects/:slug/merge-requests/:iid/commits` | sessão + ACL | `base..head` |
+| GET | `/api/projects/:slug/merge-requests/:iid/diff` | sessão + ACL | unified, teto 1 MiB |
+| GET | `/api/projects/:slug/merge-requests/:iid/reviews` | sessão + ACL | |
+| POST | `/api/projects/:slug/merge-requests/:iid/reviews` | reporter+ | `approve` / `request_changes` / `comment` |
+| PUT | `/api/projects/:slug/contents` | developer+ | commit no bare; branch protegida sem push → nova branch + PR |
+| GET | `/api/projects/:slug/archive` | sessão + ACL | ZIP da ref (`?ref=`) |
+| GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI. `?workflow=ci&mr=N`. Inclui `workflows` |
 | GET | `/api/projects/:slug/jobs/:n` | sessão + ACL | run enriquecido (title, event, jobs, can_*) |
 | GET | `/api/projects/:slug/jobs/:n/log` | sessão + ACL | texto |
 | GET | `/api/projects/:slug/jobs/:n/artifact` | sessão + ACL | blob |

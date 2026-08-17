@@ -756,6 +756,40 @@ export interface MergeRequest {
   merged_by?: string
   created_at: string
   updated_at: string
+  can_merge?: boolean
+  can_edit?: boolean
+  checks_block?: string
+}
+
+export type IssueStatus = 'open' | 'closed'
+
+export interface Issue {
+  number: number
+  title: string
+  body: string
+  status: IssueStatus
+  labels: string[]
+  assignees: string[]
+  author_id: number
+  author: string
+  thread_id: number
+  closed_at?: string
+  closed_by?: string
+  created_at: string
+  updated_at: string
+  can_close?: boolean
+  can_reopen?: boolean
+  can_update?: boolean
+}
+
+export type MRReviewState = 'approve' | 'request_changes' | 'comment'
+
+export interface MRReview {
+  id: number
+  author: string
+  state: MRReviewState
+  body: string
+  created_at: string
 }
 
 export interface DriverEntry {
@@ -1077,14 +1111,70 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  patchMergeRequest: (slug: string, iid: number, body: { title?: string; description?: string }) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   mergeMergeRequest: (slug: string, iid: number) =>
     request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/merge`, { method: 'POST' }),
   closeMergeRequest: (slug: string, iid: number) =>
     request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/close`, { method: 'POST' }),
-  listCiJobs: (slug: string, workflow?: string) =>
-    request<{ items: CiJob[]; workflows: CiWorkflow[] }>(
-      `/projects/${encodeURIComponent(slug)}/jobs${workflow ? `?workflow=${encodeURIComponent(workflow)}` : ''}`,
+  listMRCommits: (slug: string, iid: number) =>
+    request<{ items: GitCommit[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/commits`),
+  getMRDiff: (slug: string, iid: number) =>
+    request<{ diff: string }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/diff`),
+  listMRReviews: (slug: string, iid: number) =>
+    request<{ items: MRReview[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/reviews`),
+  createMRReview: (slug: string, iid: number, body: { state: MRReviewState; body?: string }) =>
+    request<MRReview>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  listIssues: (slug: string, opts?: { status?: IssueStatus; q?: string }) => {
+    const q = new URLSearchParams()
+    if (opts?.status) q.set('status', opts.status)
+    if (opts?.q) q.set('q', opts.q)
+    const qs = q.toString()
+    return request<{ items: Issue[] }>(`/projects/${encodeURIComponent(slug)}/issues${qs ? `?${qs}` : ''}`)
+  },
+  getIssue: (slug: string, n: number) =>
+    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`),
+  createIssue: (slug: string, body: { title: string; body?: string; labels?: string[]; assignees?: string[] }) =>
+    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchIssue: (
+    slug: string,
+    n: number,
+    body: { title?: string; body?: string; status?: IssueStatus; labels?: string[]; assignees?: string[] },
+  ) =>
+    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  putContents: (
+    slug: string,
+    body: { path: string; ref: string; content: string; message: string; description?: string; new_branch?: string; open_pr?: boolean },
+  ) =>
+    request<{ sha: string; branch: string; merge_request_number?: number }>(
+      `/projects/${encodeURIComponent(slug)}/contents`,
+      { method: 'PUT', body: JSON.stringify(body) },
     ),
+  downloadProjectArchive: (slug: string, ref?: string) => {
+    const q = ref ? `?ref=${encodeURIComponent(ref)}` : ''
+    return downloadBinary(`/projects/${encodeURIComponent(slug)}/archive${q}`, `${slug}.zip`)
+  },
+  listCiJobs: (slug: string, workflow?: string, mr?: number) => {
+    const q = new URLSearchParams()
+    if (workflow) q.set('workflow', workflow)
+    if (mr) q.set('mr', String(mr))
+    const qs = q.toString()
+    return request<{ items: CiJob[]; workflows: CiWorkflow[] }>(
+      `/projects/${encodeURIComponent(slug)}/jobs${qs ? `?${qs}` : ''}`,
+    )
+  },
   getCiJob: (slug: string, n: number) =>
     request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}`),
   getCiJobLog: (slug: string, n: number) => requestText(`/projects/${encodeURIComponent(slug)}/jobs/${n}/log`),

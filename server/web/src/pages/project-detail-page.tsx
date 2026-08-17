@@ -517,7 +517,7 @@ export function MergeRequestsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Merge requests</CardTitle>
+        <CardTitle className="text-base">Pull requests</CardTitle>
         <CardDescription>
           Review no XCHAT (uma thread por MR). Comentários de issue no XGROUP. Merge em branch protegida exige
           maintainer+.
@@ -531,7 +531,7 @@ export function MergeRequestsCard({
             {data.items.map((mr: MergeRequest) => (
               <Link
                 key={mr.number}
-                to={xgitPath(`${slug}/mrs/${mr.number}`)}
+                to={xgitPath(`${slug}/pulls/${mr.number}`)}
                 className="flex items-center justify-between gap-2 text-sm hover:underline"
               >
                 <span className="min-w-0 truncate">

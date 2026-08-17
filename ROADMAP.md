@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1** em produção. **Fase 42.1** (Actions GitHub-like) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. **Próximo forge:** Fase 46 — Issues no XGIT (depois PRs GitHub-like, editor Monaco, XCODESPACES). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–43.1** em produção. **Fases 46–48** (Issues, PRs GitHub-like, editor Monaco) nesta branch. **Próximo operacional:** Fase 44 — Backups externos. **Próximo forge:** Fase 49 — XCODESPACES. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1318,12 +1318,12 @@ Não misturar com 35–44 nem com 46–49 (Issues / PRs / editor / XCODESPACES).
 
 Issues deixam de ser só um post no XGROUP. Viram entidade first-class no forge, no estilo GitHub (lista + detalhe), com discussão no XCHAT. XGROUP continua sendo a activity social do projeto — não é o tracker.
 
-- [ ] Modelo `Issue` no Mongo (`project_id`, `number`, título, corpo, estado open/closed, labels, assignees, autor, timestamps). Sem segundo social.
-- [ ] Aba **Issues** no detalhe do repo (`xgit.corp` e xadmin), entre Code e Pull requests. Slug reservado `issues`.
-- [ ] Lista: filtro open/closed, busca, labels, assignees. Criar issue (reporter+). Fechar/reabrir (autor, maintainer+ ou `forge`).
-- [ ] Detalhe `/:slug/issues/:n`: markdown, sidebar (labels/assignees), thread XCHAT (`DirectThread.Kind=issue`) no chrome (skill `chat-chrome` — sem FAB/modal).
-- [ ] Activity no XGROUP: um post por issue aberta (link de volta ao XGIT). Comentários de review ficam no XCHAT, não duplicados no feed.
-- [ ] API: `GET/POST /api/projects/:slug/issues`, `GET/PATCH /api/projects/:slug/issues/:n`. RBAC: guest lê se o projeto for visível; reporter+ cria.
+- [x] Modelo `Issue` no Mongo (`project_id`, `number`, título, corpo, estado open/closed, labels, assignees, autor, timestamps). Sem segundo social.
+- [x] Aba **Issues** no detalhe do repo (`xgit.corp` e xadmin), entre Code e Pull requests. Slug reservado `issues`.
+- [x] Lista: filtro open/closed, busca, labels, assignees. Criar issue (reporter+). Fechar/reabrir (autor, maintainer+ ou `forge`).
+- [x] Detalhe `/:slug/issues/:n`: markdown, sidebar (labels/assignees), thread XCHAT (`DirectThread.Kind=issue`) no chrome (skill `chat-chrome` — sem FAB/modal).
+- [x] Activity no XGROUP: um post por issue aberta (link de volta ao XGIT). Comentários de review ficam no XCHAT, não duplicados no feed.
+- [x] API: `GET/POST /api/projects/:slug/issues`, `GET/PATCH /api/projects/:slug/issues/:n`. RBAC: guest lê se o projeto for visível; reporter+ cria.
 
 **Critério de saída:** membro abre `#1` em `xgit.corp`, discute no popout do XCHAT e fecha a issue. Fora da VPN a rota não resolve. Sem GitHub Issues import nesta fase.
 
@@ -1333,13 +1333,13 @@ Issues deixam de ser só um post no XGROUP. Viram entidade first-class no forge,
 
 A página de MR hoje é um card (título, branches, merge/close). Precisa da superfície de um PR do GitHub para o review valer o fluxo (diff → checks → merge).
 
-- [ ] Renomear a aba **Merge requests** para **Pull requests** na UI do XGIT (API pode continuar `mrs` / `MergeRequest` nesta fase — sem breaking sem necessidade).
-- [ ] Detalhe `/:slug/pulls/:n` (alias da rota `mrs`): header GitHub-like (estado Open/Merged/Closed, `source → target`, autor, reviewers).
-- [ ] Abas do PR: **Conversation** (descrição + timeline + XCHAT), **Commits**, **Files changed** (diff unificado, comentário inline → thread XCHAT).
-- [ ] Checks da Fase 42 no header (pending/success/failure); merge bloqueado se job obrigatório falhar (quando o projeto exigir).
-- [ ] Review: Approve / Request changes / Comment (maintainer+ mergeia; developer abre). Editar título/descrição.
-- [ ] Lista de PRs com filtros (open/closed/merged) e contagem no tab do repo, no estilo da lista de Issues.
-- [ ] Botão **Code** no repo: popover Local (HTTPS/SSH-copy + Download ZIP) — a aba XCODESPACES entra na Fase 49.
+- [x] Renomear a aba **Merge requests** para **Pull requests** na UI do XGIT (API pode continuar `mrs` / `MergeRequest` nesta fase — sem breaking sem necessidade).
+- [x] Detalhe `/:slug/pulls/:n` (alias da rota `mrs`): header GitHub-like (estado Open/Merged/Closed, `source → target`, autor, reviewers).
+- [x] Abas do PR: **Conversation** (descrição + timeline + XCHAT), **Commits**, **Files changed** (diff unificado, comentário inline → thread XCHAT).
+- [x] Checks da Fase 42 no header (pending/success/failure); merge bloqueado se job obrigatório falhar (quando o projeto exigir).
+- [x] Review: Approve / Request changes / Comment (maintainer+ mergeia; developer abre). Editar título/descrição.
+- [x] Lista de PRs com filtros (open/closed/merged) e contagem no tab do repo, no estilo da lista de Issues.
+- [x] Botão **Code** no repo: popover Local (HTTPS/SSH-copy + Download ZIP) — a aba XCODESPACES entra na Fase 49.
 
 **Critério de saída:** abrir um PR mostra diff e commits; comentar uma linha abre o XCHAT; merge respeita protected branch + CI. Sem GitLab.
 
@@ -1349,12 +1349,12 @@ A página de MR hoje é um card (título, branches, merge/close). Precisa da sup
 
 Editar um arquivo no browser e **salvar = commit**, como o lápis do GitHub. Valida o mesmo caminho de protected branch / PR da Fase 47. Não é o IDE completo (isso é XCODESPACES).
 
-- [ ] Ação **Edit** no blob (lápis) e no menu de contexto do arquivo → rota `/:slug/edit/:ref/*path` com [Monaco Editor](https://microsoft.github.io/monaco-editor/).
-- [ ] Linguagem por extensão; tema alinhado ao `shared/ui` (dark). Sem copiar tokens. Limite de tamanho (ex.: 2 MiB) — binário/imagem não abre no editor (viewer já existe no XDRIVER).
-- [ ] **Salvar** abre o diálogo de commit (mensagem obrigatória, descrição opcional). Commit no servidor (`git commit` no bare via worktree), autor = usuário JWE. Nunca gerar chave git no servidor para o humano.
-- [ ] Fluxo GitHub: se a ref for branch protegida e o papel não puder push direto → obrigar **criar branch + abrir PR** (não commitar em `main`/`master` no web). Developer em branch própria commita direto.
-- [ ] Preview do diff antes do commit. Cancelar descarta o buffer (sem commit vazio).
-- [ ] API: `PUT /api/projects/:slug/contents` (path + ref + mensagem + conteúdo). Mesmas regras de protected branch do receive-pack.
+- [x] Ação **Edit** no blob (lápis) e no menu de contexto do arquivo → rota `/:slug/edit/:ref/*path` com [Monaco Editor](https://microsoft.github.io/monaco-editor/).
+- [x] Linguagem por extensão; tema alinhado ao `shared/ui` (dark). Sem copiar tokens. Limite de tamanho (ex.: 2 MiB) — binário/imagem não abre no editor (viewer já existe no XDRIVER).
+- [x] **Salvar** abre o diálogo de commit (mensagem obrigatória, descrição opcional). Commit no servidor (`git commit` no bare via worktree), autor = usuário JWE. Nunca gerar chave git no servidor para o humano.
+- [x] Fluxo GitHub: se a ref for branch protegida e o papel não puder push direto → obrigar **criar branch + abrir PR** (não commitar em `main`/`master` no web). Developer em branch própria commita direto.
+- [x] Preview do diff antes do commit. Cancelar descarta o buffer (sem commit vazio).
+- [x] API: `PUT /api/projects/:slug/contents` (path + ref + mensagem + conteúdo). Mesmas regras de protected branch do receive-pack.
 
 **Critério de saída:** editar um `.go` em `xgit.corp`, salvar, ver o commit no histórico; tentativa de salvar em `main` como developer abre PR em vez de push direto.
 

@@ -166,6 +166,10 @@ var rbacRouteCases = []rbacRouteCase{
 	{"social-list-stories", http.MethodGet, "/api/social/stories", nil, "any"},
 	{"social-feed", http.MethodGet, "/api/social/feed", nil, "any"},
 	{"social-create-post", http.MethodPost, "/api/social/posts", createPostRequest{Body: "olá xgroup"}, "any"},
+	{"social-star-post", http.MethodPost, "/api/social/posts/1/star", nil, "any"},
+	{"social-list-comments", http.MethodGet, "/api/social/posts/1/comments", nil, "any"},
+	{"social-create-comment", http.MethodPost, "/api/social/posts/1/comments", createCommentRequest{Body: "ok"}, "any"},
+	{"social-repost", http.MethodPost, "/api/social/posts/1/repost", nil, "any"},
 }
 
 func strPtr(s string) *string { return &s }

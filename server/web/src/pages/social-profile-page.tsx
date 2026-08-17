@@ -10,7 +10,7 @@ import { api, ApiError } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { livePresence, presenceLabel } from '@/lib/social-presence'
-import { PostCard } from '@/pages/social-feed-page'
+import { PostCard } from '@/components/social-post-card'
 import { SocialAvatar } from '@/components/social-avatar'
 import { SocialBanner } from '@/components/social-banner'
 import { SocialStoriesRail } from '@/components/social-stories'
@@ -39,7 +39,7 @@ export function SocialProfilePage() {
     [username],
   )
   const { data, loading, error, reload } = usePollingData(fetchProfile, 20_000)
-  const { data: posts, loading: postsLoading } = usePollingData(fetchPosts, 15_000)
+  const { data: posts, loading: postsLoading, reload: reloadPosts } = usePollingData(fetchPosts, 15_000)
   const [editing, setEditing] = useState(false)
 
   if (!username) return <p className="text-sm text-destructive">Usuário inválido.</p>
@@ -75,12 +75,8 @@ export function SocialProfilePage() {
     >
       <aside className="flex min-w-0 flex-col gap-4">
         <section
-          className="overflow-hidden rounded-[22px] border watch-complication"
-          style={{
-            borderColor: 'var(--profile-accent-strong)',
-            boxShadow:
-              'inset 0 1px 0 color-mix(in oklch, var(--profile-accent) 28%, transparent), 0 0 42px -18px var(--profile-accent)',
-          }}
+          className="overflow-hidden rounded-[22px] border bg-white/[0.03]"
+          style={{ borderColor: 'color-mix(in oklch, var(--profile-accent) 28%, transparent)' }}
         >
           <SocialBanner bannerUrl={profile.banner_url} className="h-28 w-full md:h-32">
             <span
@@ -97,7 +93,7 @@ export function SocialProfilePage() {
               name={display}
               src={profile.avatar_url}
               presence={presence}
-              className="-mt-12 size-[5.5rem] border-4 border-background text-2xl shadow-lg ring-2 ring-[var(--profile-accent)]"
+              className="-mt-12 size-[5.5rem] border-4 border-background text-2xl ring-2 ring-[var(--profile-accent)]"
             />
             <div className="mt-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -192,16 +188,16 @@ export function SocialProfilePage() {
           {postsLoading || !posts ? (
             <Skeleton className="h-32 w-full rounded-[22px]" />
           ) : posts.items.length === 0 ? (
-            <div className="watch-complication rounded-[22px] px-5 py-10 text-center">
+            <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-5 py-10 text-center">
               <p className="font-display text-sm font-semibold">Ainda sem posts</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {isMe ? 'Publique no início para aparecer aqui.' : `${display} ainda não publicou.`}
               </p>
             </div>
           ) : (
-            <div className="flex flex-col gap-3 [&_article]:border [&_article]:border-[color-mix(in_oklch,var(--profile-accent)_24%,transparent)]">
+            <div className="flex flex-col gap-3">
               {posts.items.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} post={post} onChanged={reloadPosts} />
               ))}
             </div>
           )}

@@ -38,7 +38,7 @@ export function SocialStoriesRail({
 
   return (
     <>
-      <div className={cn('watch-complication rounded-[22px] px-4 py-3', className)}>
+      <div className={cn('rounded-[18px] border border-white/8 bg-white/[0.03] px-4 py-3', className)}>
         <div className="mb-2.5 flex items-baseline justify-between gap-3">
           <p className="hud-label text-muted-foreground/70">Status</p>
           {empty && (
@@ -125,7 +125,7 @@ function StoryOverlay({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-3 sm:p-6"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
       {children}
@@ -289,36 +289,40 @@ function StoryViewer({
   return (
     <StoryOverlay onClose={onClose}>
       <article
-        className="relative flex h-[min(40rem,88dvh)] w-full max-w-[22rem] flex-col overflow-hidden rounded-[22px] shadow-2xl"
-        style={{
-          background:
-            'linear-gradient(165deg, var(--profile-accent, var(--primary)) 0%, color-mix(in oklch, var(--profile-accent, var(--primary)) 28%, black) 100%)',
-        }}
+        className="relative flex h-[min(36rem,84dvh)] w-full max-w-md flex-col overflow-hidden rounded-[20px] border border-white/12 bg-black"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex gap-1 px-3 pt-3">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(180deg, color-mix(in oklch, var(--profile-accent, var(--primary)) 42%, black) 0%, #0a0a0c 100%)',
+          }}
+        />
+        <div className="relative z-10 flex gap-1 px-4 pt-4">
           {author.items.map((s, i) => (
             <span
               key={s.id}
-              className={cn('h-0.5 flex-1 rounded-full', i <= idx ? 'bg-white' : 'bg-white/25')}
+              className={cn('h-1 flex-1 rounded-full', i <= idx ? 'bg-white' : 'bg-white/20')}
             />
           ))}
         </div>
-        <div className="flex items-center gap-2 px-3 py-2">
-          <SocialAvatar name={author.username} src={author.avatar_url} className="size-8 text-xs" />
-          <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-white">
-            @{author.username}
-          </p>
+        <div className="relative z-10 flex items-center gap-2.5 px-4 py-3">
+          <SocialAvatar name={author.username} src={author.avatar_url} className="size-9 text-xs" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-sm font-semibold text-white">@{author.username}</p>
+            <p className="text-[11px] text-white/55">Toque à direita para avançar</p>
+          </div>
           <button
             type="button"
-            className="inline-flex size-8 items-center justify-center rounded-full bg-black/35 text-white/90"
+            className="inline-flex size-9 items-center justify-center rounded-full border border-white/15 bg-black/30 text-white"
             aria-label="Fechar status"
             onClick={onClose}
           >
             <X className="size-4" />
           </button>
         </div>
-        <div className="relative flex min-h-0 flex-1 items-center justify-center px-6 py-8">
+        <div className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-8 py-6">
           <button
             type="button"
             className="absolute inset-y-0 left-0 z-10 w-1/3"
@@ -332,9 +336,9 @@ function StoryViewer({
             onClick={() => void next()}
           />
           {item.kind === 'image' && url ? (
-            <img src={url} alt="" className="pointer-events-none max-h-full max-w-full object-contain" />
+            <img src={url} alt="" className="pointer-events-none max-h-full max-w-full rounded-[12px] object-contain" />
           ) : (
-            <p className="pointer-events-none text-center font-display text-2xl font-semibold leading-snug text-white">
+            <p className="pointer-events-none max-w-sm text-center font-display text-[1.75rem] font-semibold leading-snug text-white">
               {item.body}
             </p>
           )}

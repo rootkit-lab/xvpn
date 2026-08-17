@@ -451,9 +451,29 @@ type StoryView struct {
 }
 
 // SocialPost é um post público do xgroup (timeline estilo Twitter).
+// Kind = text (padrão) ou repost (OriginalID aponta para o post original).
 type SocialPost struct {
+	ID         uint   `gorm:"primaryKey"`
+	AuthorID   uint   `gorm:"not null;index"`
+	Body       string `gorm:"type:text;not null"`
+	Kind       string `gorm:"default:'text'"`
+	OriginalID *uint  `gorm:"index"`
+	CreatedAt  time.Time
+}
+
+// SocialPostStar é a estrela (favorito) de um membro num post.
+type SocialPostStar struct {
+	ID        uint `gorm:"primaryKey"`
+	PostID    uint `gorm:"uniqueIndex:idx_post_star;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_post_star;not null"`
+	CreatedAt time.Time
+}
+
+// SocialPostComment é um comentário curto num post.
+type SocialPostComment struct {
 	ID        uint   `gorm:"primaryKey"`
-	AuthorID  uint   `gorm:"not null;index"`
+	PostID    uint   `gorm:"index;not null"`
+	AuthorID  uint   `gorm:"not null"`
 	Body      string `gorm:"type:text;not null"`
 	CreatedAt time.Time
 }

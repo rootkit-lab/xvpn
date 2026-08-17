@@ -287,6 +287,10 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/social/posts", app.handleSocialCreatePost)
 			authed.GET("/social/u/:username/posts", app.handleSocialUserPosts)
 			authed.DELETE("/social/posts/:id", app.handleSocialDeletePost)
+			authed.POST("/social/posts/:id/star", app.handleSocialStarPost)
+			authed.GET("/social/posts/:id/comments", app.handleSocialListComments)
+			authed.POST("/social/posts/:id/comments", app.handleSocialCreateComment)
+			authed.POST("/social/posts/:id/repost", app.handleSocialRepost)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())

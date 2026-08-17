@@ -301,6 +301,62 @@ export interface ConfigResponse {
   jwt_token_ttl_minutes: number
 }
 
+export type BackupKind = 'sftp' | 'b2' | 's3' | 'webdav' | 'drive' | 'xdriver'
+
+export interface BackupSettings {
+  retention_days: number
+  include_mongo: boolean
+  include_marketplace: boolean
+  include_git: boolean
+  include_social: boolean
+}
+
+export interface BackupDestination {
+  id: number
+  name: string
+  kind: BackupKind
+  endpoint: string
+  path: string
+  enabled: boolean
+  has_secret: boolean
+  offsite: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BackupJob {
+  id: number
+  destination_id: number
+  destination: string
+  dry_run: boolean
+  status: 'pending' | 'running' | 'ok' | 'error'
+  snapshot_id?: string
+  bytes: number
+  error?: string
+  started_at?: string
+  finished_at?: string
+  created_at: string
+}
+
+export interface BackupSecret {
+  password?: string
+  sftp_user?: string
+  sftp_host?: string
+  sftp_path?: string
+  sftp_key?: string
+  b2_account_id?: string
+  b2_key?: string
+  s3_endpoint?: string
+  s3_access?: string
+  s3_secret?: string
+  s3_bucket?: string
+  s3_region?: string
+  webdav_url?: string
+  webdav_user?: string
+  webdav_pass?: string
+  rclone_conf?: string
+}
+
 export interface DNSRecord {
   id: number
   hostname: string
@@ -998,6 +1054,37 @@ export const api = {
   getConfig: () => request<ConfigResponse>('/config'),
   updateConfig: (body: { invite_token_ttl_minutes?: number; jwt_token_ttl_minutes?: number }) =>
     request<ConfigResponse>('/config', { method: 'PATCH', body: JSON.stringify(body) }),
+
+  getBackupSettings: () => request<BackupSettings>('/backups/settings'),
+  updateBackupSettings: (body: Partial<BackupSettings>) =>
+    request<BackupSettings>('/backups/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  listBackupDestinations: () => request<{ items: BackupDestination[] }>('/backups/destinations'),
+  createBackupDestination: (body: {
+    name: string
+    kind: BackupKind
+    endpoint?: string
+    path?: string
+    enabled?: boolean
+    secret?: BackupSecret
+  }) => request<BackupDestination>('/backups/destinations', { method: 'POST', body: JSON.stringify(body) }),
+  updateBackupDestination: (
+    id: number,
+    body: {
+      name?: string
+      kind?: BackupKind
+      endpoint?: string
+      path?: string
+      enabled?: boolean
+      secret?: BackupSecret
+    },
+  ) => request<BackupDestination>(`/backups/destinations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteBackupDestination: (id: number) => request<void>(`/backups/destinations/${id}`, { method: 'DELETE' }),
+  listBackupJobs: () => request<{ items: BackupJob[] }>('/backups/jobs'),
+  runBackup: (id: number, dryRun: boolean) =>
+    request<BackupJob>(`/backups/destinations/${id}/run`, {
+      method: 'POST',
+      body: JSON.stringify({ dry_run: dryRun }),
+    }),
 
   getDNS: () => request<DNSResponse>('/dns'),
   updateDNS: (body: { forwarders?: string; cache_size?: number; catch_all?: boolean }) =>

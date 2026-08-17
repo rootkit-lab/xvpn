@@ -134,6 +134,10 @@ type Config struct {
 	// /opt/xvpn/data/codespaces/<user>/<slug>/<id>/). Fora do bare.
 	CodespacesDir string
 
+	// BackupDir é o staging dos jobs off-site (Fase 44 — restic cache,
+	// rclone.conf temporário). Credenciais ficam no Mongo, não aqui.
+	BackupDir string
+
 	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Se o banco estiver
 	// vazio, semeia a primeira BitLaunchAccount. O caminho normal é
 	// Compute → Configurações (várias contas). Vazio e sem contas =
@@ -192,6 +196,7 @@ func Load() (*Config, error) {
 		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
 		GitDir:                  getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
 		CodespacesDir:           getEnv("XVPN_CODESPACES_DIR", "/opt/xvpn/data/codespaces"),
+		BackupDir:               getEnv("XVPN_BACKUP_DIR", "/opt/xvpn/data/backups"),
 		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
 		CloudflareToken:         os.Getenv("XVPN_CLOUDFLARE_TOKEN"),
 	}

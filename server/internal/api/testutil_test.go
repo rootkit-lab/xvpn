@@ -116,6 +116,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CodeSpace{}, &store.CiJob{},
 		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
 		&store.ServiceInstance{},
+		&store.BackupSettings{}, &store.BackupDestination{}, &store.BackupJob{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}

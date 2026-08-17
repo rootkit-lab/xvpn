@@ -165,6 +165,20 @@ Outro `Host` nas rotas smart HTTP → 404.
 
 ACL admin: `PUT /api/marketplace/apps/:id/access` no xadmin (tela **ACL**, não a vitrine), só com escopo `marketplace` (ou admin irrestrito / `super_admin`). Catálogo e ACL são telas distintas (`PLAN.md` §6.8, [`marketplace.md`](./marketplace.md)).
 
+## Backups externos (xadmin, Fase 44)
+
+`viewer+` lê; escrita exige `admin+` e produto `core`. Secret do destino nunca volta no GET.
+
+| Método | Path | Notas |
+|---|---|---|
+| GET/PATCH | `/api/backups/settings` | retenção, include mongo/marketplace/git/social |
+| GET/POST | `/api/backups/destinations` | `kind`: `sftp` `b2` `s3` `webdav` `drive` `xdriver` |
+| PATCH/DELETE | `/api/backups/destinations/:id` | PATCH pode rotacionar `secret` |
+| GET | `/api/backups/jobs` | últimos 40 |
+| POST | `/api/backups/destinations/:id/run` | `{dry_run}`. restic no PATH; credenciais só no VPS |
+
+Restore: [`docs/runbooks/backup-restore.md`](./runbooks/backup-restore.md). `backup.sh` local permanece.
+
 ## Hooks (xbot)
 
 | Método | Path | Auth |

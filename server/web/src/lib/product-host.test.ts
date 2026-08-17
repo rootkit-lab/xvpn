@@ -13,6 +13,8 @@ import {
   ssoLoginURL,
   loginAudience,
   ssoLogoutURL,
+  codespaceOpenHref,
+  codespaceRuntimeURL,
 } from './product-host'
 
 describe('productKind', () => {
@@ -173,5 +175,17 @@ describe('ssoLogoutURL', () => {
     expect(decodeURIComponent(new URL(url).searchParams.get('return') ?? '')).toBe('https://marketplace.ihuull.com/')
     expect(isLoggedOutParam('?logged_out=1&return=https://marketplace.ihuull.com/')).toBe(true)
     expect(isLoggedOutParam('?return=https://marketplace.ihuull.com/')).toBe(false)
+  })
+})
+
+describe('codespaceOpenHref', () => {
+  it('remote vai para cs-* mesmo sem runtime_url', () => {
+    expect(codespaceRuntimeURL('aabbccddeeff')).toBe('https://cs-aabbccddeeff.corp.ihuull.com')
+    expect(codespaceOpenHref({ id: 'aabbccddeeff', kind: 'remote' })).toBe(
+      'https://cs-aabbccddeeff.corp.ihuull.com',
+    )
+    expect(codespaceOpenHref({ id: 'aabbccddeeff', kind: 'quick' })).toBe(
+      'https://xcodespaces.corp.ihuull.com/aabbccddeeff',
+    )
   })
 })

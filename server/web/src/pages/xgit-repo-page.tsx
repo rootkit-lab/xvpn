@@ -7,7 +7,7 @@ import { formatRelativeTime } from '@/lib/format'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
-import { XCODESPACES_CORP_ORIGIN } from '@/lib/product-host'
+import { XCODESPACES_CORP_ORIGIN, codespaceOpenHref } from '@/lib/product-host'
 import { xgitPath, xgitReposPath } from '@/lib/xgit'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -329,8 +329,8 @@ export function XgitCodePage() {
                     ) : (
                       (spaces?.items ?? []).map((cs) => (
                         <DropdownMenuItem key={cs.id} asChild>
-                          <a href={cs.kind === 'remote' && cs.runtime_url ? cs.runtime_url : `${XCODESPACES_CORP_ORIGIN}/${cs.id}`}>
-                            {cs.kind === 'remote' ? 'VS Code' : 'Editor'} · {cs.status} · {cs.branch} · {cs.id}
+                          <a href={codespaceOpenHref(cs)}>
+                            {cs.kind === 'remote' ? 'VS Code' : 'Editor rápido'} · {cs.status} · {cs.branch} · {cs.id}
                           </a>
                         </DropdownMenuItem>
                       ))
@@ -345,7 +345,7 @@ export function XgitCodePage() {
                           .then((cs) => {
                             toast.success('Codespace criado')
                             reloadSpaces()
-                            window.location.href = cs.runtime_url || `${XCODESPACES_CORP_ORIGIN}/${cs.id}`
+                            window.location.href = codespaceOpenHref(cs)
                           })
                           .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Falha ao criar'))
                           .finally(() => setCsBusy(false))

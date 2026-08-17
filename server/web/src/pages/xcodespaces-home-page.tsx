@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format'
 import { usePollingData } from '@/hooks/use-polling-data'
-import { XGIT_CORP_ORIGIN } from '@/lib/product-host'
+import { XGIT_CORP_ORIGIN, codespaceOpenHref } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -39,9 +39,9 @@ export function XcodespacesHomePage() {
             {data.items.map((cs) => (
               <li key={cs.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div>
-                  <Link to={`/${cs.id}`} className="text-sm font-medium hover:underline">
+                  <a href={codespaceOpenHref(cs)} className="text-sm font-medium hover:underline">
                     {cs.slug}
-                  </Link>
+                  </a>
                   <p className="text-xs text-muted-foreground">
                     {cs.kind === 'remote' ? 'VS Code' : 'Editor rápido'} · {cs.status} · {cs.branch} ·{' '}
                     {formatRelativeTime(cs.updated_at)}
@@ -49,11 +49,15 @@ export function XcodespacesHomePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{cs.status || cs.branch}</Badge>
-                  {cs.kind === 'remote' && cs.runtime_url ? (
+                  {cs.kind === 'remote' ? (
                     <Button asChild size="sm" className="btn-glow">
-                      <a href={cs.runtime_url}>Abrir VS Code</a>
+                      <a href={codespaceOpenHref(cs)}>Abrir VS Code</a>
                     </Button>
-                  ) : null}
+                  ) : (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={`/${cs.id}`}>Editor rápido</Link>
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="sm"

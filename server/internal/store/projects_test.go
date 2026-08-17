@@ -17,6 +17,15 @@ func TestValidProjectSlug(t *testing.T) {
 	}
 }
 
+func TestReservedProjectSlug(t *testing.T) {
+	if !ReservedProjectSlug("repositories") || !ReservedProjectSlug("stars") {
+		t.Fatal("rotas da home deveriam ser reservadas")
+	}
+	if ReservedProjectSlug("xvpn") {
+		t.Fatal("slug de repo não é reservado")
+	}
+}
+
 func TestProjectRole_Rank(t *testing.T) {
 	if !(ProjectRoleOwner.Rank() > ProjectRoleMaintainer.Rank() &&
 		ProjectRoleMaintainer.Rank() > ProjectRoleDeveloper.Rank() &&

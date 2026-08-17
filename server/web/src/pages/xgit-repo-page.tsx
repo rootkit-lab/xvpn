@@ -7,7 +7,7 @@ import { formatRelativeTime } from '@/lib/format'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
-import { xgitPath } from '@/lib/xgit'
+import { xgitPath, xgitReposPath } from '@/lib/xgit'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -57,7 +57,7 @@ export function XgitRepoLayout() {
     <div className="flex flex-col gap-0">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Link to={xgitPath()} className="text-primary hover:underline">
+          <Link to={xgitReposPath()} className="text-primary hover:underline">
             ihuull
           </Link>
           <span className="text-muted-foreground">/</span>

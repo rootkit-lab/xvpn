@@ -62,6 +62,11 @@ type projectResponse struct {
 	Members       []projectMemberResponse `json:"members,omitempty"`
 	CreatedAt     time.Time               `json:"created_at"`
 	UpdatedAt     time.Time               `json:"updated_at"`
+	Language      string                  `json:"language,omitempty"`
+	LastCommitAt  *time.Time              `json:"last_commit_at,omitempty"`
+	Starred       bool                    `json:"starred"`
+	StarCount     int64                   `json:"star_count"`
+	Spark         []int                   `json:"spark,omitempty"`
 }
 
 func (a *App) canSeeProject(user store.User, proj store.Project) bool {
@@ -183,9 +188,10 @@ func (a *App) handleListProjects(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
+	cards := c.Query("cards") == "1"
 	items := make([]projectResponse, 0, len(rows))
 	for _, p := range rows {
-		items = append(items, a.projectResponse(p, false))
+		items = append(items, a.decorateProjectCard(user, p, cards))
 	}
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
@@ -199,6 +205,10 @@ func (a *App) handleCreateProject(c *gin.Context) {
 	slug := strings.ToLower(strings.TrimSpace(req.Slug))
 	if !store.ValidProjectSlug(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "slug inválido (2–20, a-z 0-9 hífen)"})
+		return
+	}
+	if store.ReservedProjectSlug(slug) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "slug reservado (rota da home XGIT)"})
 		return
 	}
 	name := strings.TrimSpace(req.Name)

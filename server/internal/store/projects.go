@@ -66,6 +66,14 @@ type ProjectMember struct {
 	User User `gorm:"foreignKey:UserID"`
 }
 
+// ProjectStar é o star do usuário num repositório (home XGIT).
+type ProjectStar struct {
+	ID        uint `gorm:"primaryKey"`
+	ProjectID uint `gorm:"uniqueIndex:idx_project_star;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_project_star;not null"`
+	CreatedAt time.Time
+}
+
 // ProtectedBranch impede push direto (Fase 40). Merge via MR é Fase 41.
 type ProtectedBranch struct {
 	ID          uint        `gorm:"primaryKey"`
@@ -177,4 +185,14 @@ func ValidProjectSlug(s string) bool {
 		return false
 	}
 	return true
+}
+
+// ReservedProjectSlug são rotas da home em xgit.corp (não podem ser slug).
+func ReservedProjectSlug(s string) bool {
+	switch s {
+	case "repositories", "packages", "stars", "overview", "settings", "login", "admin":
+		return true
+	default:
+		return false
+	}
 }

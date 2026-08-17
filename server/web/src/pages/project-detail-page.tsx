@@ -7,7 +7,7 @@ import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
 import { XGROUP_CORP_ORIGIN } from '@/lib/product-host'
-import { xgitPath } from '@/lib/xgit'
+import { xgitPath, xgitReposPath } from '@/lib/xgit'
 import { UserPicker } from '@/components/user-picker'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,7 +45,7 @@ export function ProjectDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        <Link to={xgitPath()} className="hover:underline">
+        <Link to={xgitReposPath()} className="hover:underline">
           XGIT
         </Link>
         <span className="px-1.5">/</span>

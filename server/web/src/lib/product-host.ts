@@ -271,9 +271,6 @@ export function codespaceRuntimeURL(id: string): string {
   return `https://cs-${id}.corp.ihuull.com`
 }
 
-export function codespaceOpenHref(cs: { id: string; kind?: string; runtime_url?: string }): string {
-  if (cs.kind === 'remote') {
-    return cs.runtime_url || codespaceRuntimeURL(cs.id)
-  }
-  return `${XCODESPACES_CORP_ORIGIN}/${cs.id}`
+export function codespaceOpenHref(cs: { id: string; runtime_url?: string }): string {
+  return cs.runtime_url || codespaceRuntimeURL(cs.id)
 }

@@ -1,5 +1,4 @@
 import { useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api, ApiError } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format'
@@ -43,21 +42,14 @@ export function XcodespacesHomePage() {
                     {cs.slug}
                   </a>
                   <p className="text-xs text-muted-foreground">
-                    {cs.kind === 'remote' ? 'VS Code' : 'Editor rápido'} · {cs.status} · {cs.branch} ·{' '}
-                    {formatRelativeTime(cs.updated_at)}
+                    {cs.status} · {cs.branch} · {formatRelativeTime(cs.updated_at)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{cs.status || cs.branch}</Badge>
-                  {cs.kind === 'remote' ? (
-                    <Button asChild size="sm" className="btn-glow">
-                      <a href={codespaceOpenHref(cs)}>Abrir VS Code</a>
-                    </Button>
-                  ) : (
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={`/${cs.id}`}>Editor rápido</Link>
-                    </Button>
-                  )}
+                  <Button asChild size="sm" className="btn-glow">
+                    <a href={codespaceOpenHref(cs)}>Abrir VS Code</a>
+                  </Button>
                   <Button
                     type="button"
                     size="sm"

@@ -179,13 +179,11 @@ describe('ssoLogoutURL', () => {
 })
 
 describe('codespaceOpenHref', () => {
-  it('remote vai para cs-* mesmo sem runtime_url', () => {
+  it('sempre abre cs-*, sem fallback no Monaco', () => {
     expect(codespaceRuntimeURL('aabbccddeeff')).toBe('https://cs-aabbccddeeff.corp.ihuull.com')
-    expect(codespaceOpenHref({ id: 'aabbccddeeff', kind: 'remote' })).toBe(
+    expect(codespaceOpenHref({ id: 'aabbccddeeff' })).toBe('https://cs-aabbccddeeff.corp.ihuull.com')
+    expect(codespaceOpenHref({ id: 'aabbccddeeff', runtime_url: '' })).toBe(
       'https://cs-aabbccddeeff.corp.ihuull.com',
-    )
-    expect(codespaceOpenHref({ id: 'aabbccddeeff', kind: 'quick' })).toBe(
-      'https://xcodespaces.corp.ihuull.com/aabbccddeeff',
     )
   })
 })

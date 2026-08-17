@@ -7,7 +7,7 @@ import { formatRelativeTime } from '@/lib/format'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
-import { XCODESPACES_CORP_ORIGIN, codespaceOpenHref } from '@/lib/product-host'
+import { codespaceOpenHref } from '@/lib/product-host'
 import { xgitPath, xgitReposPath } from '@/lib/xgit'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -324,16 +324,37 @@ export function XgitCodePage() {
                 ) : (
                   <>
                     <DropdownMenuLabel>Your workspaces</DropdownMenuLabel>
-                    {(spaces?.items ?? []).length === 0 ? (
+                    {(spaces?.items ?? []).filter((cs) => cs.kind !== 'quick').length === 0 ? (
                       <p className="px-2 pb-2 text-xs text-muted-foreground">No codespaces</p>
                     ) : (
-                      (spaces?.items ?? []).map((cs) => (
-                        <DropdownMenuItem key={cs.id} asChild>
-                          <a href={codespaceOpenHref(cs)}>
-                            {cs.kind === 'remote' ? 'VS Code' : 'Editor rápido'} · {cs.status} · {cs.branch} · {cs.id}
-                          </a>
-                        </DropdownMenuItem>
-                      ))
+                      (spaces?.items ?? [])
+                        .filter((cs) => cs.kind !== 'quick')
+                        .map((cs) => (
+                          <DropdownMenuItem
+                            key={cs.id}
+                            disabled={csBusy}
+                            onClick={() => {
+                              setCsBusy(true)
+                              const href = codespaceOpenHref(cs)
+                              const go = () => {
+                                window.location.href = href
+                              }
+                              if (cs.status === 'running') {
+                                go()
+                                return
+                              }
+                              void api
+                                .startCodespace(cs.id)
+                                .then(go)
+                                .catch((err: unknown) => {
+                                  toast.error(err instanceof ApiError ? err.message : 'Falha ao abrir')
+                                  setCsBusy(false)
+                                })
+                            }}
+                          >
+                            {cs.branch} · {cs.id}
+                          </DropdownMenuItem>
+                        ))
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -352,23 +373,6 @@ export function XgitCodePage() {
                       }}
                     >
                       Create codespace on {activeRef === 'HEAD' ? 'main' : activeRef}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={csBusy}
-                      onClick={() => {
-                        setCsBusy(true)
-                        void api
-                          .createCodespace({ slug, branch: activeRef === 'HEAD' ? 'main' : activeRef, kind: 'quick' })
-                          .then((cs) => {
-                            toast.success('Editor rápido criado')
-                            reloadSpaces()
-                            window.location.href = `${XCODESPACES_CORP_ORIGIN}/${cs.id}`
-                          })
-                          .catch((err: unknown) => toast.error(err instanceof ApiError ? err.message : 'Falha ao criar'))
-                          .finally(() => setCsBusy(false))
-                      }}
-                    >
-                      Abrir no editor rápido
                     </DropdownMenuItem>
                   </>
                 )}

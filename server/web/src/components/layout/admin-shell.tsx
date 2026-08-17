@@ -57,7 +57,10 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     id: 'compute',
     label: 'Compute',
     product: 'compute',
-    items: [{ to: '/admin/servers', label: 'Servidores', icon: Server, roles: VIEWER_UP_ROLES, product: 'compute' }],
+    items: [
+      { to: '/admin/servers', label: 'Servidores', icon: Server, roles: VIEWER_UP_ROLES, product: 'compute' },
+      { to: '/admin/compute/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'compute' },
+    ],
   },
   {
     id: 'marketplace',

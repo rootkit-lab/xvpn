@@ -48,6 +48,9 @@ const ServersPage = lazy(() => import('@/pages/servers-page').then((m) => ({ def
 const ServerDetailPage = lazy(() =>
   import('@/pages/server-detail-page').then((m) => ({ default: m.ServerDetailPage })),
 )
+const ComputeSettingsPage = lazy(() =>
+  import('@/pages/compute-settings-page').then((m) => ({ default: m.ComputeSettingsPage })),
+)
 const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
@@ -256,6 +259,7 @@ function XAdminCorpApp() {
             <Route path="projects/:slug" element={<ProjectDetailPage />} />
             <Route path="servers" element={<ServersPage />} />
             <Route path="servers/:id" element={<ServerDetailPage />} />
+            <Route path="compute/settings" element={<ComputeSettingsPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="dns" element={<DNSPage />} />
             <Route path="audit" element={<AuditPage />} />

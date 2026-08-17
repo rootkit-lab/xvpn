@@ -1,8 +1,8 @@
 import { useCallback, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, ApiError, type MeshServer, type ServerGroup } from '@/lib/api'
+import { api, ApiError, type BitLaunchAccount, type MeshServer, type ServerGroup } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { useAuth } from '@/lib/auth-context'
 import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DataTable, type DataTableColumn } from '@/components/data-table'
 
 export function ServersPage() {
@@ -32,6 +33,14 @@ export function ServersPage() {
     },
     { key: 'wg', header: 'wg0', cell: (s) => <span className="text-muted-foreground">{s.wg_ip || '—'}</span> },
     { key: 'status', header: 'Status', cell: (s) => <span className="text-muted-foreground">{s.status}</span> },
+    {
+      key: 'account',
+      header: 'Conta',
+      cell: (s) => {
+        const acc = (data?.accounts ?? []).find((a) => a.id === s.account_id)
+        return <span className="text-muted-foreground">{acc?.email ?? '—'}</span>
+      },
+    },
   ]
 
   return (
@@ -59,11 +68,17 @@ export function ServersPage() {
 
       {canWrite && data && !data.bitlaunch ? (
         <p className="text-sm text-muted-foreground">
-          Criar VPS exige <code>XVPN_BITLAUNCH_TOKEN</code> no VPS. Importar o node local funciona sem token.
+          Cadastre uma API em{' '}
+          <Link to="/admin/compute/settings" className="underline underline-offset-4">
+            Compute → Configurações
+          </Link>
+          . Importar o node local funciona sem token.
         </p>
       ) : null}
 
-      {canWrite && data?.bitlaunch ? <CreateServerForm onCreated={reload} /> : null}
+      {canWrite && data?.bitlaunch ? (
+        <CreateServerForm accounts={data.accounts ?? []} onCreated={reload} />
+      ) : null}
       {canWrite ? <CreateGroupForm onCreated={reloadGroups} /> : null}
 
       {(groups?.items.length ?? 0) > 0 ? (
@@ -88,7 +103,13 @@ export function ServersPage() {
   )
 }
 
-function CreateServerForm({ onCreated }: { onCreated: () => void }) {
+function CreateServerForm({
+  accounts,
+  onCreated,
+}: {
+  accounts: BitLaunchAccount[]
+  onCreated: () => void
+}) {
   const [hostname, setHostname] = useState('')
   const [name, setName] = useState('')
   const [hostID, setHostID] = useState('4')
@@ -96,6 +117,7 @@ function CreateServerForm({ onCreated }: { onCreated: () => void }) {
   const [sizeID, setSizeID] = useState('')
   const [regionID, setRegionID] = useState('')
   const [labels, setLabels] = useState('')
+  const [accountID, setAccountID] = useState(accounts[0] ? String(accounts[0].id) : '')
   const [busy, setBusy] = useState(false)
   const [enrollToken, setEnrollToken] = useState('')
 
@@ -116,6 +138,7 @@ function CreateServerForm({ onCreated }: { onCreated: () => void }) {
           .map((s) => s.trim())
           .filter(Boolean),
         role: 'mesh',
+        account_id: accountID ? Number(accountID) : undefined,
       })
       setHostname('')
       setName('')
@@ -179,6 +202,23 @@ function CreateServerForm({ onCreated }: { onCreated: () => void }) {
             <Label htmlFor="srv-region">region_id</Label>
             <Input id="srv-region" value={regionID} onChange={(e) => setRegionID(e.target.value)} required />
           </div>
+          {accounts.length > 0 ? (
+            <div className="space-y-1.5">
+              <Label>Conta BitLaunch</Label>
+              <Select value={accountID} onValueChange={setAccountID}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Conta" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.name} ({a.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="sm:col-span-2 lg:col-span-3">
             <Button type="submit" disabled={busy || hostname.trim().length < 2}>
               <Plus className="size-4" />

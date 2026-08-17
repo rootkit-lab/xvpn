@@ -87,7 +87,8 @@ type App struct {
 	// store content-addressed do marketplace, raiz distinta.
 	SocialMedia *marketplace.Store
 
-	// BitLaunch (Fase 38). Nil = sem token: só import do node local.
+	// BitLaunch (Fase 38). Só os testes injetam o fake. Em produção o
+	// cliente sai de BitLaunchAccount (Compute → Configurações).
 	BitLaunch BitLaunchAPI
 
 	// fetchAsset baixa um asset por URL durante o sync (Fase 16). Nil =
@@ -332,6 +333,7 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/servers", app.handleListMeshServers)
 			viewerUp.GET("/servers/:id", app.handleGetMeshServer)
 			viewerUp.GET("/server-groups", app.handleListServerGroups)
+			viewerUp.GET("/compute/settings", app.handleGetComputeSettings)
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.
@@ -412,6 +414,9 @@ func NewRouter(app *App) *gin.Engine {
 				computeWrite.PUT("/servers/:id/access", app.handleSetServerAccess)
 				computeWrite.POST("/server-groups", app.handleCreateServerGroup)
 				computeWrite.PUT("/server-groups/:id/access", app.handleSetGroupAccess)
+				computeWrite.POST("/compute/settings/accounts", app.handleCreateBitLaunchAccount)
+				computeWrite.PATCH("/compute/settings/accounts/:id", app.handleUpdateBitLaunchAccount)
+				computeWrite.DELETE("/compute/settings/accounts/:id", app.handleDeleteBitLaunchAccount)
 			}
 		}
 

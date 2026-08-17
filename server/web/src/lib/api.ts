@@ -489,8 +489,16 @@ export interface MeshServer {
   group_id?: number
   device_id?: number
   access_user_ids?: number[]
+  account_id?: number
   created_at: string
   enroll_token?: string
+}
+
+export interface BitLaunchAccount {
+  id: number
+  name: string
+  email: string
+  token_hint: string
 }
 
 export interface ServerGroup {
@@ -728,7 +736,7 @@ export const api = {
       body: JSON.stringify({ members }),
     }),
 
-  listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean }>('/servers'),
+  listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
   getServer: (id: number) => request<MeshServer>(`/servers/${id}`),
   importServers: () => request<{ items: MeshServer[]; bitlaunch: boolean }>('/servers/import', { method: 'POST' }),
   createServer: (body: {
@@ -741,6 +749,7 @@ export const api = {
     ssh_keys?: string[]
     labels?: string[]
     role?: MeshServerRole
+    account_id?: number
   }) => request<MeshServer>('/servers', { method: 'POST', body: JSON.stringify(body) }),
   updateServer: (
     id: number,
@@ -768,6 +777,12 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ user_ids: userIds }),
     }),
+  getComputeSettings: () => request<{ accounts: BitLaunchAccount[]; bitlaunch: boolean }>('/compute/settings'),
+  createBitLaunchAccount: (body: { name: string; email: string; token: string }) =>
+    request<BitLaunchAccount>('/compute/settings/accounts', { method: 'POST', body: JSON.stringify(body) }),
+  updateBitLaunchAccount: (id: number, body: { name: string; email: string; token?: string }) =>
+    request<BitLaunchAccount>(`/compute/settings/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteBitLaunchAccount: (id: number) => request<void>(`/compute/settings/accounts/${id}`, { method: 'DELETE' }),
 
   listSocialPeople: (params?: PageParams) =>
     request<PageEnvelope<SocialProfile>>(withQuery('/social/people', params)),

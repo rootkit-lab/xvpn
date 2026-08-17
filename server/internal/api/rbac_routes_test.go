@@ -170,6 +170,10 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-server-groups", http.MethodGet, "/api/server-groups", nil, "viewerUp"},
 	{"create-server-group", http.MethodPost, "/api/server-groups", createServerGroupRequest{Name: "rbac-edge"}, "adminOnly"},
 	{"set-group-access", http.MethodPut, "/api/server-groups/1/access", setServerAccessRequest{}, "adminOnly"},
+	{"get-compute-settings", http.MethodGet, "/api/compute/settings", nil, "viewerUp"},
+	{"create-bitlaunch-account", http.MethodPost, "/api/compute/settings/accounts", upsertBitLaunchAccountRequest{Name: "rbac", Email: "rbac@ihuull.com", Token: "token-rbac-16chars"}, "adminOnly"},
+	{"patch-bitlaunch-account", http.MethodPatch, "/api/compute/settings/accounts/1", upsertBitLaunchAccountRequest{Name: "rbac", Email: "rbac@ihuull.com"}, "adminOnly"},
+	{"delete-bitlaunch-account", http.MethodDelete, "/api/compute/settings/accounts/1", nil, "adminOnly"},
 
 	{"social-people", http.MethodGet, "/api/social/people", nil, "any"},
 	{"social-profile-me", http.MethodGet, "/api/social/profile", nil, "any"},

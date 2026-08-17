@@ -38,7 +38,7 @@ func allModels() []any {
 		&SocialAttachment{}, &Story{}, &StoryView{},
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
 		&Project{}, &ProjectMember{},
-		&MeshServer{}, &ServerGroup{}, &ServerAccess{},
+		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
 	}
 }
 

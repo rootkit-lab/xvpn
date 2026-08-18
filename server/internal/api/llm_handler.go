@@ -244,12 +244,17 @@ func (a *App) handleLLMCommitMessage(c *gin.Context) {
 		{Role: "system", Content: "Você escreve uma única linha Conventional Commits (feat/fix/docs/chore/refactor/test/security/perf). Sem markdown, sem aspas, sem explicação."},
 		{Role: "user", Content: "Diff:\n" + diff},
 	}
-	text, err := a.callProjectLLM(c, msgs, 80)
+	text, err := a.callProjectLLM(c, msgs, 256)
 	if err != nil {
 		writeLLMError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": firstLine(text)})
+	msg := firstLine(text)
+	if msg == "" {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "resposta vazia do provedor"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": msg})
 }
 
 func (a *App) callProjectLLM(c *gin.Context, msgs []llmMessage, maxTokens int) (string, error) {
@@ -279,17 +284,21 @@ func (a *App) completeLLM(base *url.URL, provider, model, key string, msgs []llm
 	if provider == "anthropic" {
 		return completeAnthropic(client, base, model, key, msgs, maxTokens)
 	}
-	return completeOpenAICompat(client, base, model, key, msgs, maxTokens)
+	return completeOpenAICompat(client, base, provider, model, key, msgs, maxTokens)
 }
 
-func completeOpenAICompat(client *http.Client, base *url.URL, model, key string, msgs []llmMessage, maxTokens int) (string, error) {
+func completeOpenAICompat(client *http.Client, base *url.URL, provider, model, key string, msgs []llmMessage, maxTokens int) (string, error) {
 	endpoint := strings.TrimRight(base.String(), "/") + "/chat/completions"
-	body, err := json.Marshal(map[string]any{
+	payload := map[string]any{
 		"model":       model,
 		"messages":    msgs,
 		"max_tokens":  maxTokens,
 		"temperature": 0.2,
-	})
+	}
+	if disableGLMThinking(provider, model) {
+		payload["thinking"] = map[string]string{"type": "disabled"}
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
@@ -308,17 +317,66 @@ func completeOpenAICompat(client *http.Client, base *url.URL, model, key string,
 	if resp.StatusCode >= 300 {
 		return "", errLLM(providerRejectMessage(raw, resp.StatusCode), http.StatusBadGateway)
 	}
+	return extractOpenAIChatText(raw)
+}
+
+func disableGLMThinking(provider, model string) bool {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if displayLLMProvider(provider) != "glm" && !strings.HasPrefix(m, "glm-") {
+		return false
+	}
+	// GLM-5.3 rejeita thinking.type=disabled; o texto vai em reasoning_content.
+	return !strings.HasPrefix(m, "glm-5.3")
+}
+
+func extractOpenAIChatText(raw []byte) (string, error) {
 	var out struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content          json.RawMessage `json:"content"`
+				ReasoningContent string          `json:"reasoning_content"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil || len(out.Choices) == 0 {
 		return "", errLLM("resposta inválida do provedor", http.StatusBadGateway)
 	}
-	return strings.TrimSpace(out.Choices[0].Message.Content), nil
+	text := openAIContentText(out.Choices[0].Message.Content)
+	if text == "" {
+		text = strings.TrimSpace(out.Choices[0].Message.ReasoningContent)
+	}
+	if text == "" {
+		return "", errLLM("resposta vazia do provedor", http.StatusBadGateway)
+	}
+	return text, nil
+}
+
+func openAIContentText(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return strings.TrimSpace(s)
+	}
+	var parts []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &parts) != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, p := range parts {
+		if p.Text == "" || (p.Type != "" && p.Type != "text") {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte('\n')
+		}
+		b.WriteString(p.Text)
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func completeAnthropic(client *http.Client, base *url.URL, model, key string, msgs []llmMessage, maxTokens int) (string, error) {

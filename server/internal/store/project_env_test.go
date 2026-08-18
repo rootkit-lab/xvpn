@@ -24,6 +24,9 @@ func TestBlockedAndLLMProjectEnv(t *testing.T) {
 	if !BlockedProjectEnvName("LD_LIBRARY_PATH") || !BlockedProjectEnvName("SSH_AUTH_SOCK") || !BlockedProjectEnvName("DOCKER_HOST") {
 		t.Fatal("prefixos bloqueados")
 	}
+	if !BlockedProjectEnvName("NODE_OPTIONS") || !BlockedProjectEnvName("BASH_ENV") || !BlockedProjectEnvName("PROMPT_COMMAND") {
+		t.Fatal("runtime-control bloqueado")
+	}
 	if BlockedProjectEnvName("APP_URL") {
 		t.Fatal("APP_URL livre")
 	}

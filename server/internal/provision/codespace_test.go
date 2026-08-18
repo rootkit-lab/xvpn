@@ -166,14 +166,20 @@ func TestDockerRunArgs_InjectsEnvOmitsLLM(t *testing.T) {
 		Env:             map[string]string{"APP_URL": "https://xgit.corp"},
 	}
 	joined := strings.Join(dockerRunArgs(spec), " ")
-	if !strings.Contains(joined, "-e APP_URL=https://xgit.corp") {
-		t.Fatalf("ENV ausente: %s", joined)
+	if !strings.Contains(joined, "--env-file "+runtimeEnvHostPath(spec.Workspace)) {
+		t.Fatalf("env-file ausente: %s", joined)
+	}
+	if strings.Contains(joined, "https://xgit.corp") || strings.Contains(joined, "-e APP_URL=") {
+		t.Fatalf("valor de ENV não pode ir no argv: %s", joined)
 	}
 	if err := validateCodespaceEnv(map[string]string{"XCS_LLM_KEY": "sk"}); err == nil {
 		t.Fatal("key LLM não pode ir ao container")
 	}
 	if err := validateCodespaceEnv(map[string]string{"PATH": "/bin"}); err == nil {
 		t.Fatal("PATH bloqueado")
+	}
+	if err := validateCodespaceEnv(map[string]string{"NODE_OPTIONS": "--require=/tmp/x"}); err == nil {
+		t.Fatal("NODE_OPTIONS bloqueado")
 	}
 }
 
@@ -189,7 +195,8 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 		"bare_path":"` + bare + `","branch":"main","port":19003,
 		"clone_url":"https://xgit.corp.ihuull.com/lab",
 		"git_user":"codespace-` + id + `","git_token":"tokentokentoken1",
-		"connection_token":"tokentokentoken1"
+		"connection_token":"tokentokentoken1",
+		"env":{"APP_URL":"https://xgit.corp"}
 	}`
 	f := newFakeCs()
 	if err := ApplyCodespace(f, strings.NewReader(payload), csRoot, gitRoot); err != nil {
@@ -221,6 +228,13 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	settings := machineSettingsHostPath(ws)
 	if !strings.Contains(f.writes[settings], "ihuull Dark") {
 		t.Fatalf("tema não gravado: %v", f.writes)
+	}
+	envFile := runtimeEnvHostPath(ws)
+	if !strings.Contains(f.writes[envFile], "APP_URL=https://xgit.corp") {
+		t.Fatalf("env-file não gravado: %v", f.writes)
+	}
+	if strings.Contains(joined, "https://xgit.corp") {
+		t.Fatalf("valor de ENV no argv: %s", joined)
 	}
 }
 

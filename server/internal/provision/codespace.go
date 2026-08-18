@@ -379,6 +379,9 @@ func csCreate(r CsRunner, spec CsSpec) error {
 	if err := applyMachineSettings(r, spec.Workspace, extraSettings); err != nil {
 		return err
 	}
+	if err := writeRuntimeEnvFile(r, spec.Workspace, spec.Env); err != nil {
+		return err
+	}
 	if err := r.ChownRecursive(spec.Workspace, 1000, 1000); err != nil {
 		return err
 	}
@@ -409,20 +412,35 @@ func machineSettingsHostPath(workspace string) string {
 	return filepath.Join(filepath.Dir(workspace), "machine-settings.json")
 }
 
-func dockerEnvArgs(env map[string]string) []string {
+func runtimeEnvHostPath(workspace string) string {
+	return filepath.Join(filepath.Dir(workspace), "runtime.env")
+}
+
+func writeRuntimeEnvFile(r CsRunner, workspace string, env map[string]string) error {
+	path := runtimeEnvHostPath(workspace)
+	if err := r.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	return r.WriteFile(path, formatEnvFile(env), 0o600)
+}
+
+func formatEnvFile(env map[string]string) string {
 	if len(env) == 0 {
-		return nil
+		return ""
 	}
 	keys := make([]string, 0, len(env))
 	for k := range env {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	args := make([]string, 0, len(keys)*2)
+	var b strings.Builder
 	for _, k := range keys {
-		args = append(args, "-e", k+"="+env[k])
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(env[k])
+		b.WriteByte('\n')
 	}
-	return args
+	return b.String()
 }
 
 func dockerRunArgs(spec CsSpec) []string {
@@ -442,8 +460,8 @@ func dockerRunArgs(spec CsSpec) []string {
 		"-v", machineSettingsHostPath(spec.Workspace) + ":" + codespaceMachineDest + ":ro",
 		"--label", "xvpn.codespace=" + spec.ID,
 	}
-	if extra := dockerEnvArgs(spec.Env); len(extra) > 0 {
-		args = append(args, extra...)
+	if len(spec.Env) > 0 {
+		args = append(args, "--env-file", runtimeEnvHostPath(spec.Workspace))
 	}
 	if openvscodeNeedsEntrypoint(spec.Image) {
 		// A imagem-base injeta --without-connection-token no ENTRYPOINT.

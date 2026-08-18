@@ -36,10 +36,15 @@ func ValidProjectEnvName(name string) bool {
 
 func BlockedProjectEnvName(name string) bool {
 	switch name {
-	case "PATH", "HOME":
+	case "PATH", "HOME", "ENV", "BASH_ENV", "PROMPT_COMMAND", "SHELLOPTS",
+		"NODE_OPTIONS", "NODE_PATH",
+		"PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME",
+		"PERL5OPT", "PERL5LIB", "RUBYOPT", "RUBYLIB",
+		"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS",
+		"GOFLAGS", "GOTOOLCHAIN", "SSLKEYLOGFILE":
 		return true
 	}
-	for _, p := range []string{"LD_", "SSH_", "DOCKER_"} {
+	for _, p := range []string{"LD_", "SSH_", "DOCKER_", "NODE_", "PYTHON", "GIT_", "OPENSSL_", "NPM_CONFIG"} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}

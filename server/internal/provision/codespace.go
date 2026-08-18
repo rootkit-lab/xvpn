@@ -353,7 +353,7 @@ func csCreate(r CsRunner, spec CsSpec) error {
 			extraSettings = dc.Settings
 		}
 	}
-	if err := applyWorkspaceSettings(r, spec.Workspace, extraSettings); err != nil {
+	if err := applyMachineSettings(r, spec.Workspace, extraSettings); err != nil {
 		return err
 	}
 	if err := r.ChownRecursive(spec.Workspace, 1000, 1000); err != nil {
@@ -376,7 +376,15 @@ func csWriteGitCreds(r CsRunner, spec CsSpec) error {
 	return nil
 }
 
-const openvscodeServerBin = "/home/.openvscode-server/bin/openvscode-server"
+const (
+	openvscodeServerBin  = "/home/.openvscode-server/bin/openvscode-server"
+	codespaceProjectDir  = "/home/workspace/project"
+	codespaceMachineDest = "/home/.openvscode-server/data/Machine/settings.json"
+)
+
+func machineSettingsHostPath(workspace string) string {
+	return filepath.Join(filepath.Dir(workspace), "machine-settings.json")
+}
 
 func dockerRunArgs(spec CsSpec) []string {
 	name := containerName(spec.ID)
@@ -390,7 +398,9 @@ func dockerRunArgs(spec CsSpec) []string {
 		"--cap-drop", "ALL",
 		"--user", "1000:1000",
 		"-p", "127.0.0.1:" + strconv.Itoa(int(spec.Port)) + ":3000",
-		"-v", spec.Workspace + ":/home/workspace:rw",
+		// Clone ≠ HOME: o IDE grava .cache/.openvscode-server em /home/workspace.
+		"-v", spec.Workspace + ":" + codespaceProjectDir + ":rw",
+		"-v", machineSettingsHostPath(spec.Workspace) + ":" + codespaceMachineDest + ":ro",
 		"--label", "xvpn.codespace=" + spec.ID,
 	}
 	if openvscodeNeedsEntrypoint(spec.Image) {
@@ -401,7 +411,7 @@ func dockerRunArgs(spec CsSpec) []string {
 		"--host", "0.0.0.0",
 		"--port", "3000",
 		"--connection-token", spec.ConnectionToken,
-		"--default-folder", "/home/workspace",
+		"--default-folder", codespaceProjectDir,
 	)
 	return args
 }
@@ -412,22 +422,17 @@ func openvscodeNeedsEntrypoint(image string) bool {
 
 func defaultCodespaceSettings() map[string]any {
 	return map[string]any{
-		"workbench.colorTheme":   "ihuull Dark",
-		"editor.fontFamily":      "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
-		"editor.minimap.enabled": false,
+		"workbench.colorTheme":                             "ihuull Dark",
+		"editor.fontFamily":                                "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+		"editor.minimap.enabled":                           false,
+		"workbench.startupEditor":                          "welcomePage",
+		"workbench.welcomePage.walkthroughs.openOnInstall": true,
+		"git.openRepositoryInParentFolders":                "never",
 	}
 }
 
-func applyWorkspaceSettings(r CsRunner, workspace string, extra map[string]any) error {
-	dir := filepath.Join(workspace, ".vscode")
-	path := filepath.Join(dir, "settings.json")
-	exists, err := r.FileExists(path)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
+func applyMachineSettings(r CsRunner, workspace string, extra map[string]any) error {
+	path := machineSettingsHostPath(workspace)
 	settings := defaultCodespaceSettings()
 	for k, v := range extra {
 		if k == "" || v == nil {
@@ -439,7 +444,7 @@ func applyWorkspaceSettings(r CsRunner, workspace string, extra map[string]any) 
 	if err != nil {
 		return err
 	}
-	if err := r.MkdirAll(dir, 0o750); err != nil {
+	if err := r.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		return err
 	}
 	return r.WriteFile(path, string(raw)+"\n", 0o644)

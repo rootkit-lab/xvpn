@@ -1424,8 +1424,8 @@ Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot of
 
 - [x] `server/deploy/codespace/Dockerfile`: `FROM gitpod/openvscode-server:1.98.2` + Go + Node LTS + git + build-essential. Sem Docker Engine, sem socket. Tag `ihuull/codespace:<ver>` na allowlist do helper (além de `gitpod/openvscode-server` / `codercom/code-server`).
 - [x] `.devcontainer/devcontainer.json` na raiz do monorepo: `image`, `customizations.vscode.extensions`, `settings` (tema ihuull, fontes), `postCreateCommand` leve (`go version && node -v`). Sem `privileged`, sem mount de `/var/run/docker.sock`.
-- [x] Helper lê mais que `image`: aplica `customizations.vscode.settings` em `.vscode/settings.json` no volume (não sobrescreve se já existir).
-- [ ] Build da imagem no VPS (ou CI) + `docker pull` no runbook. Create novo usa `ihuull/codespace`; codespace antigo continua na imagem em que nasceu até Recreate.
+- [x] Helper lê mais que `image`: aplica `customizations.vscode.settings` em `machine-settings.json` ao lado do volume (Machine do IDE). Não escreve `.vscode/` no clone.
+- [x] Build da imagem no VPS + `docker pull` no runbook. Create novo usa `ihuull/codespace`; codespace antigo continua na imagem em que nasceu até Recreate.
 - [x] Teste: allowlist rejeita imagem fora; `ihuull/codespace` aceita. `go version` / `node -v` no terminal depois do build no VPS.
 
 ### 51.2 Extensões (Open VSX)
@@ -1438,7 +1438,7 @@ Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot of
 
 - [x] Pacote `shared/vscode-theme`: `ihuull Dark` gerado dos tokens `$dark` em `shared/ui/scss/_color-system.scss` (skill `design-system` — não copiar hex à mão). Fundo ~oklch 0.11, acento primary 230, card 0.18, glow.
 - [x] Fonte do editor: `editor.fontFamily` JetBrains Mono / Fira Code / ui-monospace (a imagem não empacota as webfonts nesta PR).
-- [x] Default: `"workbench.colorTheme": "ihuull Dark"` em `.vscode/settings.json` do workspace. Sem `:root` no painel.
+- [x] Default: `"workbench.colorTheme": "ihuull Dark"` nas Machine settings (fora do clone). Sem `:root` no painel.
 
 ### 51.4 Chat ihuull + GLM e outros provedores
 
@@ -1460,7 +1460,16 @@ Settings do repo em `xgit.corp` (`/:slug/settings`): seção **Codespaces** (ao 
 
 **Critério de saída:** Create no repo XVPN abre VS Code com tema ihuull, Go/ESLint ativos, `go version` + `node -v` ok; Settings → Codespaces grava um ENV e um secret GLM; o terminal vê o ENV e **não** vê a key; o chat ihuull responde via GLM; o botão de commit preenche uma mensagem Conventional Commits para o usuário confirmar; `docker.sock` ausente; Recreate pega imagem nova.
 
-**Ordem:** 51.1 + 51.3 (imagem/tema) → 51.5 (ENVs no XGIT, o chat precisa) → 51.2/51.4 (extensão: chat + generate commit). Sem misturar Settings de secret com o Dockerfile na mesma PR.
+### 51.6 HOME ≠ clone + Welcome ihuull
+
+O openvscode usa `/home/workspace` como HOME. Montar o clone aí faz o IDE gravar `.cache`, logs e lock **dentro do repo** — o Source Control fica cheio de `U` e o Explorer verde.
+
+- [x] Helper monta o clone em `/home/workspace/project`; `--default-folder` nesse path. HOME do container fica fora do Git.
+- [x] Settings (tema, Welcome) em `…/<id>/machine-settings.json` → Machine do IDE (`:ro`). Sem `.vscode/settings.json` gerado no clone.
+- [x] `shared/vscode-theme` contribui walkthrough **XCODESPACES** (pt-BR). gitignore global na imagem (`.cache`, `.openvscode-server`) como defesa.
+- [x] Recreate obrigatório para codespace já criado (start não troca o `-v`).
+
+**Ordem:** 51.1 + 51.3 + 51.6 (imagem/tema/HOME/Welcome) → 51.5 (ENVs no XGIT, o chat precisa) → 51.2/51.4 (extensão: chat + generate commit). Sem misturar Settings de secret com o Dockerfile na mesma PR.
 
 ---
 

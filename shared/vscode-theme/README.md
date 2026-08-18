@@ -7,4 +7,4 @@ node shared/vscode-theme/gen.mjs
 node shared/vscode-theme/gen.mjs --check
 ```
 
-Não edite `themes/ihuull-dark.json` à mão. Bake na imagem `ihuull/codespace` (Fase 51.3).
+Não edite `themes/ihuull-dark.json` à mão. Bake na imagem `ihuull/codespace` (Fase 51.3). O pacote também contribui o walkthrough **XCODESPACES** (Welcome).

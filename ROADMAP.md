@@ -1446,7 +1446,7 @@ O assistente é **nosso** (painel na extensão `ihuull.codespace`, tema ihuull).
 
 - [x] Proxy LLM no `xvpn-server`: OpenAI-compatível (GLM / Zhipu, OpenAI, Groq) + Anthropic. Fonte: **xadmin → Settings** (`CodespaceSettings`, key write-only). Allowlist de hosts do `base_url` (https). Rate limit. Só hosts `cs-*` / `xcodespaces.corp`. Sem porta pública nova.
 - [x] Chat na extensão (`ihuull.codespace`): painel simples. Sem chrome de terceiro.
-- [x] **Auto commit message:** botão no Source Control. A extensão manda `git diff --cached` (truncado) ao proxy; o modelo devolve **uma** linha Conventional Commits; o usuário confirma no input nativo. Sem commit automático sem review.
+- [x] **Auto commit message:** botão no Source Control. A extensão manda `git diff --cached` (truncado) ao proxy; o modelo devolve **uma** linha Conventional Commits; o usuário confirma no input nativo. Sem commit automático sem review. Fetch no Node é URL absoluta `https://cs-<id>.corp` + token Git do codespace (não path relativo nem cookie do browser).
 - [x] Sem `docker.sock`. Sem VSIX Microsoft.
 
 ### 51.5 ENVs do projeto no XGIT (o codespace consome)

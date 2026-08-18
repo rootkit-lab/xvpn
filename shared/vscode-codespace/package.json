@@ -31,6 +31,16 @@
           "when": "scmProvider == git"
         }
       ]
+    },
+    "configuration": {
+      "title": "XCODESPACES",
+      "properties": {
+        "ihuull.codespace.id": {
+          "type": "string",
+          "default": "",
+          "description": "Public ID do codespace (12 hex). O helper grava isso nas Machine settings."
+        }
+      }
     }
   }
 }

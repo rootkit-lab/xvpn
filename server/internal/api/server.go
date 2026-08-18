@@ -277,6 +277,15 @@ func NewRouter(app *App) *gin.Engine {
 			svcAgent.POST("/:id/status", app.handleSvcAgentStatus)
 		}
 
+		// Assistente do codespace: JWE (painel) ou token Git do
+		// container (extensão Node — sem cookie do browser).
+		llm := apiGroup.Group("")
+		llm.Use(app.requireCodespaceLLMHost(), app.requireLLMCaller(), app.refreshCallerFromDB())
+		{
+			llm.POST("/xcodespaces/llm/chat", rateLimit(app.llmLimiter), app.handleLLMChat)
+			llm.POST("/xcodespaces/llm/commit-message", rateLimit(app.llmLimiter), app.handleLLMCommitMessage)
+		}
+
 		// authed: qualquer papel autenticado (inclusive member) — só
 		// identidade própria, sem telas de admin (ver PLAN.md §6.7,
 		// tabela de papéis: "member: sem telas de admin, portal
@@ -349,8 +358,6 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/projects/:slug/star", app.handleToggleProjectStar)
 			authed.GET("/xcodespaces", app.handleListCodespaces)
 			authed.POST("/xcodespaces", app.handleCreateCodespace)
-			authed.POST("/xcodespaces/llm/chat", app.requireCodespaceLLMHost(), rateLimit(app.llmLimiter), app.handleLLMChat)
-			authed.POST("/xcodespaces/llm/commit-message", app.requireCodespaceLLMHost(), rateLimit(app.llmLimiter), app.handleLLMCommitMessage)
 			authed.GET("/xcodespaces/:id", app.handleGetCodespace)
 			authed.POST("/xcodespaces/:id/start", app.handleStartCodespace)
 			authed.POST("/xcodespaces/:id/stop", app.handleStopCodespace)

@@ -376,7 +376,7 @@ func csCreate(r CsRunner, spec CsSpec) error {
 			extraSettings = dc.Settings
 		}
 	}
-	if err := applyMachineSettings(r, spec.Workspace, extraSettings); err != nil {
+	if err := applyMachineSettings(r, spec, extraSettings); err != nil {
 		return err
 	}
 	if err := writeRuntimeEnvFile(r, spec.Workspace, spec.Env); err != nil {
@@ -495,14 +495,18 @@ func defaultCodespaceSettings() map[string]any {
 	}
 }
 
-func applyMachineSettings(r CsRunner, workspace string, extra map[string]any) error {
-	path := machineSettingsHostPath(workspace)
+func applyMachineSettings(r CsRunner, spec CsSpec, extra map[string]any) error {
+	path := machineSettingsHostPath(spec.Workspace)
 	settings := defaultCodespaceSettings()
 	for k, v := range extra {
 		if k == "" || v == nil {
 			continue
 		}
 		settings[k] = v
+	}
+	if codespaceIDRe.MatchString(spec.ID) {
+		settings["ihuull.codespace.id"] = spec.ID
+		settings["ihuull.codespace.origin"] = "https://cs-" + spec.ID + ".corp.ihuull.com"
 	}
 	raw, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {

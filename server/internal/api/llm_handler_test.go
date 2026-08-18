@@ -104,6 +104,100 @@ func TestLLMCommitMessage_UsesAdminSettings(t *testing.T) {
 	}
 }
 
+func TestLLMCommitMessage_AcceptsCodespaceGitToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": "fix(codespace): usa url absoluta"}},
+			},
+		})
+	}))
+	t.Cleanup(upstream.Close)
+	app.llmHTTP = upstream.Client()
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", BaseURL: upstream.URL, Model: "glm-4-flash", APIKey: "test-llm-key-value-xx",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create project: %d %s", rec.Code, rec.Body.String())
+	}
+	var admin store.User
+	if err := app.Store.DB.Where("username = ?", "admin").First(&admin).Error; err != nil {
+		t.Fatal(err)
+	}
+	var lab store.Project
+	if err := app.Store.DB.Where("slug = ?", "lab").First(&lab).Error; err != nil {
+		t.Fatal(err)
+	}
+	gitTok := "tokentokentoken1"
+	cs := store.CodeSpace{
+		PublicID:     "aabbccddeeff",
+		UserID:       admin.ID,
+		ProjectID:    lab.ID,
+		Branch:       "main",
+		RelPath:      "admin/lab/aabbccddeeff",
+		Kind:         store.CodespaceKindRemote,
+		Status:       store.CodespaceRunning,
+		GitTokenHash: hashCodespaceToken(gitTok),
+	}
+	if err := app.Store.DB.Create(&cs).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec = doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/commit-message", llmCommitRequest{
+		Diff: "diff --git a/x.go b/x.go\n+func main() {}",
+	}, gitTok, "cs-aabbccddeeff.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("git token no cs-*: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doLLMPost(t, router, "/api/xcodespaces/llm/commit-message", llmCommitRequest{Diff: "x"}, gitTok, "xcodespaces.corp.ihuull.com", map[string]string{
+		codespaceIDHeader: "aabbccddeeff",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("git token + header: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/commit-message", llmCommitRequest{Diff: "x"}, gitTok, "xvpn.ihuull.com")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("host público: %d", rec.Code)
+	}
+
+	rec = doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/commit-message", llmCommitRequest{Diff: "x"}, "wrongtokenwrongtok", "cs-aabbccddeeff.corp.ihuull.com")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("token errado: %d", rec.Code)
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/xcodespaces", nil, gitTok, "xcodespaces.corp.ihuull.com")
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("token git não pode listar codespaces: %d", rec.Code)
+	}
+}
+
+func doLLMPost(t *testing.T, router http.Handler, path string, body any, token, host string, extra map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(string(raw)))
+	req.Host = host
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	for k, v := range extra {
+		req.Header.Set(k, v)
+	}
+	out := httptest.NewRecorder()
+	router.ServeHTTP(out, req)
+	return out
+}
+
 func TestCodespaceHostAllowsLLMNotControlAPI(t *testing.T) {
 	_, router, adminTok := setupGitApp(t)
 	host := "cs-aabbccddeeff.corp.ihuull.com"

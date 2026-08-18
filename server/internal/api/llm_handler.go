@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/rootkit-lab/xvpn/server/internal/auth"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -309,6 +310,69 @@ func (a *App) loadOrInitCodespaceSettings() (store.CodespaceSettings, error) {
 		return s, nil
 	}
 	return s, err
+}
+
+const codespaceIDHeader = "X-Codespace-ID"
+
+func (a *App) requireLLMCaller() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if a.bindJWELLM(c) || a.bindCodespaceGitLLM(c) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "credenciais ausentes"})
+	}
+}
+
+func (a *App) bindJWELLM(c *gin.Context) bool {
+	if a == nil || a.Tokens == nil {
+		return false
+	}
+	token := auth.TokenFromRequest(c)
+	if token == "" {
+		return false
+	}
+	claims, err := a.Tokens.Parse(token)
+	if err != nil {
+		ck, ckErr := c.Request.Cookie(auth.SessionCookieName)
+		if ckErr == nil && ck != nil {
+			if alt := strings.TrimSpace(ck.Value); alt != "" && alt != token {
+				claims, err = a.Tokens.Parse(alt)
+			}
+		}
+	}
+	if err != nil {
+		return false
+	}
+	c.Set(auth.ContextUserIDKey, claims.UserID)
+	c.Set(auth.ContextUsernameKey, claims.Username)
+	c.Set(auth.ContextRoleKey, claims.Role)
+	return true
+}
+
+func (a *App) bindCodespaceGitLLM(c *gin.Context) bool {
+	tok := ""
+	if h := c.GetHeader("Authorization"); strings.HasPrefix(strings.ToLower(h), "bearer ") {
+		tok = strings.TrimSpace(h[7:])
+	}
+	if tok == "" {
+		return false
+	}
+	id := codespaceRuntimeHost(c.Request.Host)
+	if id == "" {
+		id = strings.ToLower(strings.TrimSpace(c.GetHeader(codespaceIDHeader)))
+	}
+	if id == "" {
+		return false
+	}
+	user, _, ok := a.authenticateCodespaceGit("codespace-"+id, tok)
+	if !ok {
+		return false
+	}
+	c.Set(auth.ContextUserIDKey, user.ID)
+	c.Set(auth.ContextUsernameKey, user.Username)
+	c.Set(auth.ContextRoleKey, user.Role)
+	return true
 }
 
 func (a *App) requireCodespaceLLMHost() gin.HandlerFunc {

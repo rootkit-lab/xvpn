@@ -8,6 +8,9 @@
     "vscode": "^1.90.0"
   },
   "categories": ["Themes"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
   "contributes": {
     "themes": [
       {
@@ -27,11 +30,11 @@
           {
             "id": "welcome",
             "title": "Bem-vindo ao XCODESPACES",
-            "description": "Tema ihuull Dark, repo em **project/**, IDE fora do Git.\n[Abrir o Welcome](command:workbench.action.openWalkthrough)",
+            "description": "Tema ihuull Dark, repo em **project/**, IDE fora do Git.\n[Abrir o Explorer](command:workbench.view.explorer)",
             "media": {
               "markdown": "walkthrough/welcome.md"
             },
-            "completionEvents": ["onStepSelected"]
+            "completionEvents": ["onCommand:workbench.view.explorer"]
           },
           {
             "id": "git",
@@ -45,11 +48,11 @@
           {
             "id": "xgit",
             "title": "XGIT e a intranet",
-            "description": "Push em `xgit.corp`. Hosts `*.corp` só na VPN.",
+            "description": "Push em `xgit.corp`. ENVs em Settings → Codespaces.\n[Abrir o Terminal](command:workbench.action.terminal.new)",
             "media": {
               "markdown": "walkthrough/xgit.md"
             },
-            "completionEvents": ["onStepSelected"]
+            "completionEvents": ["onCommand:workbench.action.terminal.new"]
           }
         ]
       }
@@ -57,7 +60,10 @@
     "configurationDefaults": {
       "workbench.colorTheme": "ihuull Dark",
       "workbench.startupEditor": "welcomePage",
-      "workbench.welcomePage.walkthroughs.openOnInstall": true
+      "workbench.welcomePage.walkthroughs.openOnInstall": true,
+      "experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
+      "experiments.override.gettingStarted.overrideCategory.Setup.when": "false",
+      "experiments.override.gettingStarted.overrideCategory.Beginner.when": "false"
     }
   }
 }

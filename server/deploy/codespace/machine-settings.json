@@ -4,5 +4,8 @@
   "editor.minimap.enabled": false,
   "workbench.startupEditor": "welcomePage",
   "workbench.welcomePage.walkthroughs.openOnInstall": true,
-  "git.openRepositoryInParentFolders": "never"
+  "git.openRepositoryInParentFolders": "never",
+  "experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
+  "experiments.override.gettingStarted.overrideCategory.Setup.when": "false",
+  "experiments.override.gettingStarted.overrideCategory.Beginner.when": "false"
 }

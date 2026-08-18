@@ -1,0 +1,9 @@
+{
+  "name": "teste-web",
+  "private": true,
+  "type": "module",
+  "description": "Mini script Node do playground XCODESPACES (sem deps).",
+  "scripts": {
+    "start": "node index.mjs"
+  }
+}

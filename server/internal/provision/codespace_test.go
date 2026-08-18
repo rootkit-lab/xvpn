@@ -154,6 +154,12 @@ func TestDockerRunArgs_NoSocketOrPrivileged(t *testing.T) {
 	if !strings.Contains(joined, "no-new-privileges") || !strings.Contains(joined, "cap-drop") {
 		t.Fatalf("hardening em falta: %s", joined)
 	}
+	if !strings.Contains(joined, "--add-host xgit.corp.ihuull.com:10.66.66.1") {
+		t.Fatal("codespace precisa resolver xgit.corp sem o DNS da VPC")
+	}
+	if !strings.Contains(joined, "--add-host cs-aabbccddeeff.corp.ihuull.com:10.66.66.1") {
+		t.Fatal("codespace precisa resolver o próprio cs-* para o LLM")
+	}
 }
 
 func TestDockerRunArgs_InjectsEnvOmitsLLM(t *testing.T) {

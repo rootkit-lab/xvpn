@@ -23,11 +23,14 @@ func TestCodespaceSettings_KeyIsWriteOnly(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "f9d3") || strings.Contains(rec.Body.String(), `"api_key"`) {
 		t.Fatal("GET não pode devolver a key")
 	}
+	if !strings.Contains(rec.Body.String(), `"glm-4.7-flash"`) {
+		t.Fatal("GET deve incluir o catálogo de modelos")
+	}
 
 	rec = doJSON(t, router, http.MethodPatch, "/api/config/xcodespaces", patchCodespaceSettingsRequest{
 		Provider: ptr("glm"),
 		APIKey:   ptr("sk-test-key-not-a-real-secret-xx"),
-		Model:    ptr("glm-4-flash"),
+		Model:    ptr("glm-4.7-flash"),
 	}, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PATCH: %d %s", rec.Code, rec.Body.String())
@@ -36,7 +39,7 @@ func TestCodespaceSettings_KeyIsWriteOnly(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if !got.HasKey || got.Provider != "glm" || got.Model != "glm-4-flash" {
+	if !got.HasKey || got.Provider != "glm" || got.Model != "glm-4.7-flash" {
 		t.Fatalf("settings: %+v", got)
 	}
 	if strings.Contains(rec.Body.String(), "sk-test") {
@@ -48,6 +51,39 @@ func TestCodespaceSettings_KeyIsWriteOnly(t *testing.T) {
 	}, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PATCH keep: %d", rec.Code)
+	}
+}
+
+func TestLLMSettings_TestPingUsesDraft(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer draft-llm-key-value-xx" {
+			t.Errorf("auth: %s", r.Header.Get("Authorization"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": "ok"}},
+			},
+		})
+	}))
+	t.Cleanup(upstream.Close)
+	app.llmHTTP = upstream.Client()
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", BaseURL: upstream.URL, Model: "glm-4-flash", APIKey: "stored-key-not-used-xx",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doJSON(t, router, http.MethodPost, "/api/config/xcodespaces/test", testCodespaceLLMRequest{
+		Model:  ptr("glm-4.7-flash"),
+		APIKey: ptr("draft-llm-key-value-xx"),
+	}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("test: %d %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"ok":true`) {
+		t.Fatalf("body: %s", rec.Body.String())
 	}
 }
 

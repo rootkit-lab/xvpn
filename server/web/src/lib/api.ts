@@ -303,11 +303,17 @@ export interface ConfigResponse {
 
 export type CodespaceLLMProvider = 'glm' | 'openai' | 'anthropic' | 'compatible'
 
+export interface CodespaceLLMModelOption {
+  id: string
+  label: string
+}
+
 export interface CodespaceLLMSettings {
   provider: CodespaceLLMProvider
   base_url: string
   model: string
   has_key: boolean
+  catalog?: Record<string, CodespaceLLMModelOption[]>
 }
 
 export type BackupKind = 'sftp' | 'b2' | 's3' | 'webdav' | 'drive' | 'xdriver'
@@ -1080,6 +1086,16 @@ export const api = {
     model?: string
     api_key?: string
   }) => request<CodespaceLLMSettings>('/config/xcodespaces', { method: 'PATCH', body: JSON.stringify(body) }),
+  testCodespaceLLM: (body: {
+    provider?: CodespaceLLMProvider
+    base_url?: string
+    model?: string
+    api_key?: string
+  }) =>
+    request<{ ok: boolean; model: string; text: string }>('/config/xcodespaces/test', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   getBackupSettings: () => request<BackupSettings>('/backups/settings'),
   updateBackupSettings: (body: Partial<BackupSettings>) =>

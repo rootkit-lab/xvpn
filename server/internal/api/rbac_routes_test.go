@@ -146,6 +146,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"provision-waitlist", http.MethodPost, "/api/waitlist/{waitlist}/provision", provisionWaitlistRequest{Username: "gerado-pelo-teste-2"}, "adminOnly"},
 	{"update-config", http.MethodPatch, "/api/config", updateConfigRequest{InviteTokenTTLMinutes: intPtr(30)}, "adminOnly"},
 	{"update-xcodespaces-settings", http.MethodPatch, "/api/config/xcodespaces", patchCodespaceSettingsRequest{Provider: ptr("glm")}, "adminOnly"},
+	{"test-xcodespaces-llm", http.MethodPost, "/api/config/xcodespaces/test", testCodespaceLLMRequest{Model: ptr("glm-4.7-flash")}, "adminOnly"},
 	{"update-dns", http.MethodPatch, "/api/dns", updateDNSSettingsRequest{CacheSize: intPtr(200)}, "adminOnly"},
 	{"create-dns-record", http.MethodPost, "/api/dns/records", upsertDNSRecordRequest{Hostname: "lab.corp.ihuull.com", IPv4: "10.66.66.9"}, "adminOnly"},
 	{"apply-dns", http.MethodPost, "/api/dns/apply", nil, "adminOnly"},

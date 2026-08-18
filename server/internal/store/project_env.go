@@ -36,16 +36,25 @@ func ValidProjectEnvName(name string) bool {
 
 func BlockedProjectEnvName(name string) bool {
 	switch name {
-	case "PATH", "HOME", "ENV", "BASH_ENV", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS",
-		"PS0", "PS1", "PS2", "PS3", "PS4", "HISTFILE",
+	case "PATH", "HOME", "SHELL", "USER", "LOGNAME", "PWD", "OLDPWD",
+		"ENV", "BASH_ENV", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS",
+		"PS0", "PS1", "PS2", "PS3", "PS4", "HISTFILE", "IFS", "CDPATH",
 		"NODE_OPTIONS", "NODE_PATH",
 		"PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME",
 		"PERL5OPT", "PERL5LIB", "RUBYOPT", "RUBYLIB",
 		"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS",
-		"GOFLAGS", "GOTOOLCHAIN", "SSLKEYLOGFILE":
+		"GOFLAGS", "GOTOOLCHAIN", "GOPATH", "GOROOT", "SSLKEYLOGFILE",
+		"GCONV_PATH", "LOCPATH", "NLSPATH", "GLIBC_TUNABLES",
+		"DOTNET_STARTUP_HOOKS", "HOSTALIASES", "RES_OPTIONS", "TZDIR",
+		"TERMINFO", "TERMPATH", "INPUTRC", "MAIL", "MAILPATH",
+		"FPATH", "ZDOTDIR", "TMPDIR", "TZ", "TERM", "LANG", "LANGUAGE", "LC_ALL",
+		"EDITOR", "VISUAL", "PAGER", "DISPLAY":
 		return true
 	}
-	for _, p := range []string{"LD_", "SSH_", "DOCKER_", "NODE_", "PYTHON", "GIT_", "OPENSSL_", "NPM_CONFIG"} {
+	for _, p := range []string{
+		"LD_", "SSH_", "DOCKER_", "NODE_", "PYTHON", "GIT_", "OPENSSL_", "NPM_CONFIG",
+		"DOTNET_", "GLIBC_", "GCONV_", "LC_", "XDG_", "JAVA_", "JDK_", "PERL", "RUBY",
+	} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}

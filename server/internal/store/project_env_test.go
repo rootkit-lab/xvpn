@@ -30,6 +30,11 @@ func TestBlockedAndLLMProjectEnv(t *testing.T) {
 	if !BlockedProjectEnvName("PS1") || !BlockedProjectEnvName("PS4") {
 		t.Fatal("PS1/PS4 bloqueados")
 	}
+	for _, n := range []string{"IFS", "CDPATH", "GCONV_PATH", "DOTNET_STARTUP_HOOKS", "GLIBC_TUNABLES"} {
+		if !BlockedProjectEnvName(n) {
+			t.Fatalf("deveria bloquear %s", n)
+		}
+	}
 	if BlockedProjectEnvName("APP_URL") {
 		t.Fatal("APP_URL livre")
 	}

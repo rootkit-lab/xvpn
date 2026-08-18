@@ -282,6 +282,9 @@ func (a *App) applyCodespace(ctx context.Context, cs *store.CodeSpace, action st
 	if spec.Image == "" {
 		spec.Image = provision.DefaultCodespaceImage
 	}
+	if action == "create" {
+		spec.Env = a.codespaceRuntimeEnvs(cs.ProjectID)
+	}
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return err

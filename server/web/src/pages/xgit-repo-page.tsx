@@ -30,6 +30,7 @@ import {
   RulesForm,
   RulesRead,
 } from '@/pages/project-detail-page'
+import { CodespacesEnvCard } from '@/pages/xgit-codespaces-settings'
 
 const TABS = [
   { to: '', label: 'Code', end: true },
@@ -706,6 +707,9 @@ export function XgitRepoSettingsPage() {
         <a href="#branches" className="px-2 py-1.5 text-muted-foreground hover:text-foreground">
           Branches
         </a>
+        <a href="#codespaces" className="px-2 py-1.5 text-muted-foreground hover:text-foreground">
+          Codespaces
+        </a>
       </aside>
       <div className="flex flex-col gap-6">
         <section id="general">{canWrite ? <RulesForm project={data} onSaved={reload} /> : <RulesRead project={data} />}</section>
@@ -714,6 +718,9 @@ export function XgitRepoSettingsPage() {
         </section>
         <section id="branches">
           <GitCard slug={slug} username={user?.username ?? ''} canWrite={canWrite} />
+        </section>
+        <section id="codespaces">
+          <CodespacesEnvCard slug={slug} myRole={data.members?.find((m) => m.user_id === user?.id)?.role} />
         </section>
       </div>
     </div>

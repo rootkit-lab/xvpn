@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -40,17 +41,18 @@ var allowedCodespaceImages = map[string]struct{}{
 
 // CsSpec é o JSON do subcomando cs-apply (stdin).
 type CsSpec struct {
-	Action          string `json:"action"`
-	ID              string `json:"id"`
-	Workspace       string `json:"workspace"`
-	BarePath        string `json:"bare_path,omitempty"`
-	Branch          string `json:"branch,omitempty"`
-	Image           string `json:"image,omitempty"`
-	Port            uint16 `json:"port,omitempty"`
-	CloneURL        string `json:"clone_url,omitempty"`
-	GitUser         string `json:"git_user,omitempty"`
-	GitToken        string `json:"git_token,omitempty"`
-	ConnectionToken string `json:"connection_token,omitempty"`
+	Action          string            `json:"action"`
+	ID              string            `json:"id"`
+	Workspace       string            `json:"workspace"`
+	BarePath        string            `json:"bare_path,omitempty"`
+	Branch          string            `json:"branch,omitempty"`
+	Image           string            `json:"image,omitempty"`
+	Port            uint16            `json:"port,omitempty"`
+	CloneURL        string            `json:"clone_url,omitempty"`
+	GitUser         string            `json:"git_user,omitempty"`
+	GitToken        string            `json:"git_token,omitempty"`
+	ConnectionToken string            `json:"connection_token,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
 }
 
 // CsRunner isola git/docker para ApplyCodespace ser testável sem root.
@@ -209,7 +211,28 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 	if spec.GitUser != "" && !ValidUsername(spec.GitUser) && spec.GitUser != "codespace-"+spec.ID {
 		return CsSpec{}, fmt.Errorf("git_user inválido")
 	}
+	if err := validateCodespaceEnv(spec.Env); err != nil {
+		return CsSpec{}, err
+	}
 	return spec, nil
+}
+
+func validateCodespaceEnv(env map[string]string) error {
+	if len(env) == 0 {
+		return nil
+	}
+	if len(env) > store.MaxProjectEnvs {
+		return fmt.Errorf("env acima do teto")
+	}
+	for k, v := range env {
+		if !store.ValidProjectEnvName(k) || store.BlockedProjectEnvName(k) || store.IsLLMProjectEnv(k) {
+			return fmt.Errorf("env inválido")
+		}
+		if !store.ValidProjectEnvValue(v) {
+			return fmt.Errorf("env inválido")
+		}
+	}
+	return nil
 }
 
 func safeUnderRoot(root, raw string) (string, error) {
@@ -386,6 +409,22 @@ func machineSettingsHostPath(workspace string) string {
 	return filepath.Join(filepath.Dir(workspace), "machine-settings.json")
 }
 
+func dockerEnvArgs(env map[string]string) []string {
+	if len(env) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	args := make([]string, 0, len(keys)*2)
+	for _, k := range keys {
+		args = append(args, "-e", k+"="+env[k])
+	}
+	return args
+}
+
 func dockerRunArgs(spec CsSpec) []string {
 	name := containerName(spec.ID)
 	args := []string{
@@ -402,6 +441,9 @@ func dockerRunArgs(spec CsSpec) []string {
 		"-v", spec.Workspace + ":" + codespaceProjectDir + ":rw",
 		"-v", machineSettingsHostPath(spec.Workspace) + ":" + codespaceMachineDest + ":ro",
 		"--label", "xvpn.codespace=" + spec.ID,
+	}
+	if extra := dockerEnvArgs(spec.Env); len(extra) > 0 {
+		args = append(args, extra...)
 	}
 	if openvscodeNeedsEntrypoint(spec.Image) {
 		// A imagem-base injeta --without-connection-token no ENTRYPOINT.

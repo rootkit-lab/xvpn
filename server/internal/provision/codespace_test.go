@@ -156,6 +156,27 @@ func TestDockerRunArgs_NoSocketOrPrivileged(t *testing.T) {
 	}
 }
 
+func TestDockerRunArgs_InjectsEnvOmitsLLM(t *testing.T) {
+	spec := CsSpec{
+		ID:              "aabbccddeeff",
+		Workspace:       "/opt/xvpn/data/codespaces/alice/lab/aabbccddeeff/workspace",
+		Image:           DefaultCodespaceImage,
+		Port:            19000,
+		ConnectionToken: "tokentokentoken1",
+		Env:             map[string]string{"APP_URL": "https://xgit.corp"},
+	}
+	joined := strings.Join(dockerRunArgs(spec), " ")
+	if !strings.Contains(joined, "-e APP_URL=https://xgit.corp") {
+		t.Fatalf("ENV ausente: %s", joined)
+	}
+	if err := validateCodespaceEnv(map[string]string{"XCS_LLM_KEY": "sk"}); err == nil {
+		t.Fatal("key LLM não pode ir ao container")
+	}
+	if err := validateCodespaceEnv(map[string]string{"PATH": "/bin"}); err == nil {
+		t.Fatal("PATH bloqueado")
+	}
+}
+
 func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	root := t.TempDir()
 	csRoot := filepath.Join(root, "codespaces")

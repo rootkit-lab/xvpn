@@ -1453,10 +1453,10 @@ O assistente é **nosso** (painel na extensão `ihuull.codespace`, tema ihuull).
 
 Settings do repo em `xgit.corp` (`/:slug/settings`): seção **Codespaces** (ao lado de General / Collaborators / Branches). É o equivalente às *Codespaces secrets* do GitHub — o container recebe no start.
 
-- [ ] Modelo: nome `^[A-Z][A-Z0-9_]{1,63}$`, valor, flag `secret`. Secret: write-only depois de gravar (UI mostra `••••`); plaintext: maintainer+ lê. maintainer+ / `forge` escreve; developer+ usa no codespace; guest/reporter não vê valores.
-- [ ] Provedor de IA do projeto (GLM, OpenAI, Anthropic, compatível) mora **aqui** como secrets (`XCS_LLM_PROVIDER`, `XCS_LLM_BASE_URL`, `XCS_LLM_MODEL`, `XCS_LLM_KEY`) — o proxy lê no servidor; **não** injeta a key no container.
-- [ ] Demais ENVs (app, testes): helper injeta no `docker run` (`-e`). Bloquear override de `PATH`, `LD_*`, `HOME`, `SSH_*`, `DOCKER_*`. Teto ~32 pares / 4 KiB por valor.
-- [ ] Valores **não** vão para o bare, para o XGROUP, nem para log do CI. Teste: secret não volta no GET; ENV aparece no `env` do terminal; key LLM não aparece.
+- [x] Modelo: nome `^[A-Z][A-Z0-9_]{1,63}$`, valor, flag `secret`. Secret: write-only depois de gravar (UI mostra `••••`); plaintext: maintainer+ lê. maintainer+ / `forge` escreve; developer+ usa no codespace; guest/reporter não vê valores.
+- [x] Provedor de IA do projeto (GLM, OpenAI, Anthropic, compatível) mora **aqui** como secrets (`XCS_LLM_PROVIDER`, `XCS_LLM_BASE_URL`, `XCS_LLM_MODEL`, `XCS_LLM_KEY`) — o proxy lê no servidor; **não** injeta a key no container.
+- [x] Demais ENVs (app, testes): helper injeta no `docker run` (`-e`). Bloquear override de `PATH`, `LD_*`, `HOME`, `SSH_*`, `DOCKER_*`. Teto ~32 pares / 4 KiB por valor.
+- [x] Valores **não** vão para o bare, para o XGROUP, nem para log do CI. Teste: secret não volta no GET; ENV aparece no `env` do terminal; key LLM não aparece.
 
 **Critério de saída:** Create no repo XVPN abre VS Code com tema ihuull, Go/ESLint ativos, `go version` + `node -v` ok; Settings → Codespaces grava um ENV e um secret GLM; o terminal vê o ENV e **não** vê a key; o chat ihuull responde via GLM; o botão de commit preenche uma mensagem Conventional Commits para o usuário confirmar; `docker.sock` ausente; Recreate pega imagem nova.
 

@@ -36,4 +36,5 @@
 - Imagem `ihuull/codespace:1.98.2` (Go + Node + tema). Create novo usa essa tag; codespace antigo fica na imagem em que nasceu até Recreate.
 - Tema **ihuull Dark** + Welcome XCODESPACES: `shared/vscode-theme` (gerar com `node shared/vscode-theme/gen.mjs`). Settings em `machine-settings.json` ao lado do volume (Machine do IDE), **não** em `.vscode/` do clone.
 - Se o Source Control listar `.cache` / `.openvscode-server`, o container ainda monta o clone no HOME — **Recreate** (start de container antigo não troca o mount).
-- Chat / generate commit / ENVs no XGIT: ainda pendentes (51.4–51.5). Sem Copilot/Continue; sem `docker.sock`; key de LLM não entra no container.
+- ENVs do projeto: Settings do repo → **Codespaces** (`PUT /api/projects/:slug/codespaces/envs`). Entram no Create (`docker run -e`). `XCS_LLM_*` o proxy lê no servidor; a key **não** vai ao container. Mudança de ENV = Recreate.
+- Chat / generate commit: ainda pendentes (51.4). Sem Copilot/Continue; sem `docker.sock`.

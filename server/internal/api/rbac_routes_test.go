@@ -172,6 +172,8 @@ var rbacRouteCases = []rbacRouteCase{
 	{"update-project", http.MethodPatch, "/api/projects/missing", updateProjectRequest{}, "adminOnly"},
 	{"set-project-members", http.MethodPut, "/api/projects/missing/members", setProjectMembersRequest{Members: []projectMemberIn{{UserID: 1, Role: store.ProjectRoleOwner}}}, "adminOnly"},
 	{"get-project-git", http.MethodGet, "/api/projects/missing/git", nil, "any"},
+	{"get-project-codespace-envs", http.MethodGet, "/api/projects/missing/codespaces/envs", nil, "any"},
+	{"put-project-codespace-envs", http.MethodPut, "/api/projects/missing/codespaces/envs", putProjectEnvsRequest{}, "any"},
 	{"init-project-git", http.MethodPost, "/api/projects/missing/git", nil, "adminOnly"},
 	{"set-protected-branches", http.MethodPut, "/api/projects/missing/protected-branches", setProtectedBranchesRequest{Branches: []protectedBranchJSON{{Pattern: "main", MinPushRole: store.ProjectRoleMaintainer}}}, "adminOnly"},
 	{"list-project-branches", http.MethodGet, "/api/projects/missing/branches", nil, "any"},

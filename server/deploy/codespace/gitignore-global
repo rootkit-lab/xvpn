@@ -1,0 +1,5 @@
+# Runtime do openvscode — nunca no clone do projeto
+.cache/
+.openvscode-server/
+.vscode-server/
+*.log

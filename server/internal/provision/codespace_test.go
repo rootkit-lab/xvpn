@@ -139,6 +139,18 @@ func TestDockerRunArgs_NoSocketOrPrivileged(t *testing.T) {
 	if !strings.Contains(joined, "127.0.0.1:19000:3000") {
 		t.Fatalf("publish deve ser loopback: %s", joined)
 	}
+	if !strings.Contains(joined, ":"+codespaceProjectDir+":rw") {
+		t.Fatalf("clone deve montar em %s: %s", codespaceProjectDir, joined)
+	}
+	if strings.Contains(joined, ":/home/workspace:rw") {
+		t.Fatalf("HOME do IDE não pode ser o clone: %s", joined)
+	}
+	if !strings.Contains(joined, "--default-folder "+codespaceProjectDir) {
+		t.Fatalf("default-folder deve ser o clone: %s", joined)
+	}
+	if !strings.Contains(joined, machineSettingsHostPath(spec.Workspace)+":"+codespaceMachineDest+":ro") {
+		t.Fatalf("settings Machine ausentes: %s", joined)
+	}
 	if !strings.Contains(joined, "no-new-privileges") || !strings.Contains(joined, "cap-drop") {
 		t.Fatalf("hardening em falta: %s", joined)
 	}
@@ -182,7 +194,10 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
 		t.Fatalf("container não monta bare nem socket: %s", joined)
 	}
-	settings := filepath.Join(ws, ".vscode", "settings.json")
+	if _, ok := f.writes[filepath.Join(ws, ".vscode", "settings.json")]; ok {
+		t.Fatal("settings do IDE não podem ir no clone")
+	}
+	settings := machineSettingsHostPath(ws)
 	if !strings.Contains(f.writes[settings], "ihuull Dark") {
 		t.Fatalf("tema não gravado: %v", f.writes)
 	}
@@ -199,6 +214,9 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	}
 	if !strings.Contains(text, "ihuull.theme") {
 		t.Fatal("tema ihuull deve ir na imagem")
+	}
+	if !strings.Contains(text, "gitignore-global") {
+		t.Fatal("gitignore global deve ir na imagem")
 	}
 }
 

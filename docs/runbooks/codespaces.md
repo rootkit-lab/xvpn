@@ -15,7 +15,8 @@
 
 ## Disco e teto
 
-- Clone: `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace`
+- Clone: `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` → no container: `/home/workspace/project` (HOME do IDE ≠ clone)
+- Settings do workbench: `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/machine-settings.json` (fora do Git)
 - Bare do forge **não** é montado no container.
 - 1 codespace em execução; ~1,5 GiB / 1 vCPU; idle-stop 30 min (volume fica).
 - Delete apaga container + volume.
@@ -33,5 +34,6 @@
 ## DX (Fase 51)
 
 - Imagem `ihuull/codespace:1.98.2` (Go + Node + tema). Create novo usa essa tag; codespace antigo fica na imagem em que nasceu até Recreate.
-- Tema **ihuull Dark**: `shared/vscode-theme` (gerar com `node shared/vscode-theme/gen.mjs`). Settings em `.vscode/settings.json` no volume.
+- Tema **ihuull Dark** + Welcome XCODESPACES: `shared/vscode-theme` (gerar com `node shared/vscode-theme/gen.mjs`). Settings em `machine-settings.json` ao lado do volume (Machine do IDE), **não** em `.vscode/` do clone.
+- Se o Source Control listar `.cache` / `.openvscode-server`, o container ainda monta o clone no HOME — **Recreate** (start de container antigo não troca o mount).
 - Chat / generate commit / ENVs no XGIT: ainda pendentes (51.4–51.5). Sem Copilot/Continue; sem `docker.sock`; key de LLM não entra no container.

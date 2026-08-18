@@ -1,0 +1,8 @@
+{
+  "workbench.colorTheme": "ihuull Dark",
+  "editor.fontFamily": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+  "editor.minimap.enabled": false,
+  "workbench.startupEditor": "welcomePage",
+  "workbench.welcomePage.walkthroughs.openOnInstall": true,
+  "git.openRepositoryInParentFolders": "never"
+}

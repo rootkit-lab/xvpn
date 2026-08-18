@@ -480,6 +480,7 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 				coreWrite.PATCH("/config", app.handleUpdateConfig)
 				coreWrite.PATCH("/config/xcodespaces", app.handlePatchCodespaceSettings)
+				coreWrite.POST("/config/xcodespaces/test", rateLimit(app.llmLimiter), app.handleTestCodespaceLLM)
 				coreWrite.PATCH("/backups/settings", app.handlePatchBackupSettings)
 				coreWrite.POST("/backups/destinations", app.handleCreateBackupDestination)
 				coreWrite.PATCH("/backups/destinations/:id", app.handlePatchBackupDestination)

@@ -22,7 +22,7 @@ import (
 
 const (
 	defaultGLMBaseURL = "https://open.bigmodel.cn/api/paas/v4"
-	defaultGLMModel   = "glm-4-flash"
+	defaultGLMModel   = "glm-4.7-flash"
 	maxLLMKeyLen      = 256
 	maxLLMDiffBytes   = 8 << 10
 	maxLLMMsgBytes    = 4 << 10
@@ -39,10 +39,18 @@ var allowedLLMHosts = map[string]struct{}{
 }
 
 type codespaceSettingsJSON struct {
-	Provider string `json:"provider"`
-	BaseURL  string `json:"base_url"`
-	Model    string `json:"model"`
-	HasKey   bool   `json:"has_key"`
+	Provider string                      `json:"provider"`
+	BaseURL  string                      `json:"base_url"`
+	Model    string                      `json:"model"`
+	HasKey   bool                        `json:"has_key"`
+	Catalog  map[string][]llmModelOption `json:"catalog"`
+}
+
+type testCodespaceLLMRequest struct {
+	Provider *string `json:"provider"`
+	BaseURL  *string `json:"base_url"`
+	Model    *string `json:"model"`
+	APIKey   *string `json:"api_key"`
 }
 
 type patchCodespaceSettingsRequest struct {
@@ -76,6 +84,7 @@ func (a *App) handleGetCodespaceSettings(c *gin.Context) {
 		BaseURL:  displayLLMBaseURL(row.BaseURL, row.Provider),
 		Model:    displayLLMModel(row.Model, row.Provider),
 		HasKey:   strings.TrimSpace(row.APIKey) != "",
+		Catalog:  llmModelCatalog(),
 	})
 }
 
@@ -133,6 +142,69 @@ func (a *App) handlePatchCodespaceSettings(c *gin.Context) {
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "xcodespaces.settings", row.Provider)
 	a.handleGetCodespaceSettings(c)
+}
+
+func (a *App) handleTestCodespaceLLM(c *gin.Context) {
+	var req testCodespaceLLMRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido"})
+		return
+	}
+	row, err := a.loadOrInitCodespaceSettings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao ler settings"})
+		return
+	}
+	if req.Provider != nil {
+		p := normalizeLLMProvider(*req.Provider)
+		if p == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "provider inválido"})
+			return
+		}
+		row.Provider = p
+	}
+	if req.BaseURL != nil {
+		row.BaseURL = strings.TrimSpace(*req.BaseURL)
+	}
+	if req.Model != nil {
+		m := strings.TrimSpace(*req.Model)
+		if utf8.RuneCountInString(m) > 64 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "modelo inválido"})
+			return
+		}
+		row.Model = m
+	}
+	if req.APIKey != nil {
+		key := strings.TrimSpace(*req.APIKey)
+		if key != "" {
+			if len(key) > maxLLMKeyLen || strings.ContainsAny(key, "\n\r") {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "api_key inválida"})
+				return
+			}
+			row.APIKey = key
+		}
+	}
+	if strings.TrimSpace(row.APIKey) == "" {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "configure a key em xadmin → Settings"})
+		return
+	}
+	base := displayLLMBaseURL(row.BaseURL, row.Provider)
+	u, err := parseLLMBaseURL(base)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	model := displayLLMModel(row.Model, row.Provider)
+	provider := displayLLMProvider(row.Provider)
+	text, err := a.completeLLM(u, provider, model, row.APIKey, []llmMessage{
+		{Role: "user", Content: "Responda só: ok"},
+	}, 8)
+	if err != nil {
+		writeLLMError(c, err)
+		return
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "xcodespaces.llm.test", provider+" "+model)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "model": model, "text": firstLine(text)})
 }
 
 func (a *App) handleLLMChat(c *gin.Context) {
@@ -234,7 +306,7 @@ func completeOpenAICompat(client *http.Client, base *url.URL, model, key string,
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode >= 300 {
-		return "", errLLM("provedor recusou o pedido", http.StatusBadGateway)
+		return "", errLLM(providerRejectMessage(raw, resp.StatusCode), http.StatusBadGateway)
 	}
 	var out struct {
 		Choices []struct {
@@ -286,7 +358,7 @@ func completeAnthropic(client *http.Client, base *url.URL, model, key string, ms
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode >= 300 {
-		return "", errLLM("provedor recusou o pedido", http.StatusBadGateway)
+		return "", errLLM(providerRejectMessage(raw, resp.StatusCode), http.StatusBadGateway)
 	}
 	var out struct {
 		Content []struct {
@@ -496,6 +568,28 @@ func sanitizeLLMMessages(in []llmMessage) ([]llmMessage, error) {
 		return nil, fmt.Errorf("mensagem vazia")
 	}
 	return out, nil
+}
+
+func providerRejectMessage(raw []byte, status int) string {
+	var e struct {
+		Error json.RawMessage `json:"error"`
+		Msg   string          `json:"msg"`
+	}
+	if json.Unmarshal(raw, &e) == nil {
+		var obj struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(e.Error, &obj) == nil && strings.TrimSpace(obj.Message) != "" {
+			return firstLine(obj.Message)
+		}
+		if s := strings.Trim(string(e.Error), `"`); s != "" && !strings.HasPrefix(s, "{") {
+			return firstLine(s)
+		}
+		if strings.TrimSpace(e.Msg) != "" {
+			return firstLine(e.Msg)
+		}
+	}
+	return fmt.Sprintf("provedor recusou o pedido (%d)", status)
 }
 
 func firstLine(s string) string {

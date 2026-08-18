@@ -459,6 +459,12 @@ func dockerRunArgs(spec CsSpec) []string {
 		"-v", spec.Workspace + ":" + codespaceProjectDir + ":rw",
 		"-v", machineSettingsHostPath(spec.Workspace) + ":" + codespaceMachineDest + ":ro",
 		"--label", "xvpn.codespace=" + spec.ID,
+		// *.corp só resolve no dnsmasq da wg0; o container usa o DNS da VPC.
+		"--add-host", "xgit.corp.ihuull.com:10.66.66.1",
+		"--add-host", "xcodespaces.corp.ihuull.com:10.66.66.1",
+	}
+	if codespaceIDRe.MatchString(spec.ID) {
+		args = append(args, "--add-host", "cs-"+spec.ID+".corp.ihuull.com:10.66.66.1")
 	}
 	if len(spec.Env) > 0 {
 		args = append(args, "--env-file", runtimeEnvHostPath(spec.Workspace))

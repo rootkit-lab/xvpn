@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	DefaultCodespaceImage = "gitpod/openvscode-server:1.98.2"
+	DefaultCodespaceImage = "ihuull/codespace:1.98.2"
 	CodespacePortMin      = 19000
 	CodespacePortMax      = 19007
 	codespaceMem          = "1536m"
@@ -33,6 +33,7 @@ var (
 )
 
 var allowedCodespaceImages = map[string]struct{}{
+	"ihuull/codespace":         {},
 	"gitpod/openvscode-server": {},
 	"codercom/code-server":     {},
 }
@@ -247,22 +248,44 @@ func validateCodespaceImage(image string) error {
 	return nil
 }
 
-// ParseDevcontainerImage lê image de .devcontainer/devcontainer.json se estiver na allowlist.
-func ParseDevcontainerImage(raw []byte) (string, error) {
-	var doc struct {
-		Image string `json:"image"`
-	}
+// Devcontainer é o recorte que o helper honra (imagem + settings do VS Code).
+type Devcontainer struct {
+	Image    string
+	Settings map[string]any
+}
+
+type devcontainerDoc struct {
+	Image          string `json:"image"`
+	Customizations struct {
+		VSCode struct {
+			Settings map[string]any `json:"settings"`
+		} `json:"vscode"`
+	} `json:"customizations"`
+}
+
+// ParseDevcontainer lê image + settings de .devcontainer/devcontainer.json.
+func ParseDevcontainer(raw []byte) (Devcontainer, error) {
+	var doc devcontainerDoc
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return "", fmt.Errorf("devcontainer inválido")
+		return Devcontainer{}, fmt.Errorf("devcontainer inválido")
 	}
 	img := strings.TrimSpace(doc.Image)
 	if img == "" {
-		return "", fmt.Errorf("sem image")
+		return Devcontainer{}, fmt.Errorf("sem image")
 	}
 	if err := validateCodespaceImage(img); err != nil {
+		return Devcontainer{}, err
+	}
+	return Devcontainer{Image: img, Settings: doc.Customizations.VSCode.Settings}, nil
+}
+
+// ParseDevcontainerImage lê image de .devcontainer/devcontainer.json se estiver na allowlist.
+func ParseDevcontainerImage(raw []byte) (string, error) {
+	dc, err := ParseDevcontainer(raw)
+	if err != nil {
 		return "", err
 	}
-	return img, nil
+	return dc.Image, nil
 }
 
 func validCodespaceCloneURL(u string) bool {
@@ -323,10 +346,15 @@ func csCreate(r CsRunner, spec CsSpec) error {
 	if err := csWriteGitCreds(r, spec); err != nil {
 		return err
 	}
+	var extraSettings map[string]any
 	if raw, err := r.ReadFile(filepath.Join(spec.Workspace, ".devcontainer", "devcontainer.json")); err == nil {
-		if img, err := ParseDevcontainerImage(raw); err == nil {
-			spec.Image = img
+		if dc, err := ParseDevcontainer(raw); err == nil {
+			spec.Image = dc.Image
+			extraSettings = dc.Settings
 		}
+	}
+	if err := applyWorkspaceSettings(r, spec.Workspace, extraSettings); err != nil {
+		return err
 	}
 	if err := r.ChownRecursive(spec.Workspace, 1000, 1000); err != nil {
 		return err
@@ -365,8 +393,8 @@ func dockerRunArgs(spec CsSpec) []string {
 		"-v", spec.Workspace + ":/home/workspace:rw",
 		"--label", "xvpn.codespace=" + spec.ID,
 	}
-	if strings.HasPrefix(spec.Image, "gitpod/openvscode-server") {
-		// A imagem injeta --without-connection-token no ENTRYPOINT.
+	if openvscodeNeedsEntrypoint(spec.Image) {
+		// A imagem-base injeta --without-connection-token no ENTRYPOINT.
 		args = append(args, "--entrypoint", openvscodeServerBin)
 	}
 	args = append(args, spec.Image,
@@ -376,4 +404,43 @@ func dockerRunArgs(spec CsSpec) []string {
 		"--default-folder", "/home/workspace",
 	)
 	return args
+}
+
+func openvscodeNeedsEntrypoint(image string) bool {
+	return strings.HasPrefix(image, "gitpod/openvscode-server") || strings.HasPrefix(image, "ihuull/codespace")
+}
+
+func defaultCodespaceSettings() map[string]any {
+	return map[string]any{
+		"workbench.colorTheme":   "ihuull Dark",
+		"editor.fontFamily":      "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+		"editor.minimap.enabled": false,
+	}
+}
+
+func applyWorkspaceSettings(r CsRunner, workspace string, extra map[string]any) error {
+	dir := filepath.Join(workspace, ".vscode")
+	path := filepath.Join(dir, "settings.json")
+	exists, err := r.FileExists(path)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	settings := defaultCodespaceSettings()
+	for k, v := range extra {
+		if k == "" || v == nil {
+			continue
+		}
+		settings[k] = v
+	}
+	raw, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := r.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	return r.WriteFile(path, string(raw)+"\n", 0o644)
 }

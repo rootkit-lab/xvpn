@@ -86,6 +86,9 @@ func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 }
 
 func TestParseDevcontainerImage_Allowlist(t *testing.T) {
+	if _, err := ParseDevcontainerImage([]byte(`{"image":"ihuull/codespace:1.98.2"}`)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := ParseDevcontainerImage([]byte(`{"image":"gitpod/openvscode-server:1.98.2"}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +97,20 @@ func TestParseDevcontainerImage_Allowlist(t *testing.T) {
 	}
 	if _, err := ParseDevcontainerImage([]byte(`{"image":"gitpod/openvscode-server:1.98.2@sha256:abc"}`)); err == nil {
 		t.Fatal("digest @ recusado")
+	}
+}
+
+func TestParseDevcontainer_Settings(t *testing.T) {
+	raw := []byte(`{
+		"image":"ihuull/codespace:1.98.2",
+		"customizations":{"vscode":{"settings":{"workbench.colorTheme":"ihuull Dark"}}}
+	}`)
+	dc, err := ParseDevcontainer(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dc.Settings["workbench.colorTheme"] != "ihuull Dark" {
+		t.Fatalf("settings: %#v", dc.Settings)
 	}
 }
 
@@ -164,6 +181,24 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	joined := strings.Join(f.docker[0], " ")
 	if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
 		t.Fatalf("container não monta bare nem socket: %s", joined)
+	}
+	settings := filepath.Join(ws, ".vscode", "settings.json")
+	if !strings.Contains(f.writes[settings], "ihuull Dark") {
+		t.Fatalf("tema não gravado: %v", f.writes)
+	}
+}
+
+func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "Dockerfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if strings.Contains(text, "/var/run/docker.sock") || strings.Contains(text, "--privileged") {
+		t.Fatal("Dockerfile do codespace não pode ter socket nem privileged")
+	}
+	if !strings.Contains(text, "ihuull.theme") {
+		t.Fatal("tema ihuull deve ir na imagem")
 	}
 }
 

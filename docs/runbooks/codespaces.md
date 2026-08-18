@@ -37,5 +37,5 @@
 - Tema **ihuull Dark** + Welcome **XCODESPACES** (não o *Get Started* da Microsoft): `shared/vscode-theme` (gerar com `node shared/vscode-theme/gen.mjs`). `extension.js` abre o walkthrough ihuull no first-open; Machine settings escondem `SetupWeb`. Settings em `machine-settings.json` ao lado do volume (Machine do IDE), **não** em `.vscode/` do clone.
 - Playground XGIT **`teste`**: fonte em `server/deploy/codespace/sample-teste/`. Re-semear o bare no VPS: `sudo -u xvpn ./server/deploy/codespace/seed-teste.sh`. Delete + Create do codespace (ou `git pull` no volume) para ver os arquivos. Checklist no README do repo.
 - Se o Source Control listar `.cache` / `.openvscode-server`, o container ainda monta o clone no HOME — **Recreate** (start de container antigo não troca o mount).
-- ENVs do projeto: Settings do repo → **Codespaces**. Entram no Create via `--env-file` ao lado do volume (não no argv). `XCS_LLM_*` o proxy lê no servidor; a key **não** vai ao container. Mudança de ENV = Recreate.
-- Chat / generate commit: ainda pendentes (51.4). Sem Copilot/Continue; sem `docker.sock`.
+- ENVs do projeto: Settings do repo → **Codespaces**. Entram no Create via `--env-file` ao lado do volume (não no argv). Mudança de ENV = Recreate.
+- Assistente (GLM / generate commit): **xadmin → Settings**. Key write-only no VPS. A extensão `ihuull.codespace` chama `POST /api/xcodespaces/llm/*` no host `cs-*` (same-origin). Sem Copilot/Continue; sem `docker.sock`.

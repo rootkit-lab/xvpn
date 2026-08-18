@@ -158,9 +158,10 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 | GitHub Copilot oficial (VSIX Microsoft) | Familiar | Marketplace MS (openvscode usa Open VSX); login GitHub sai da intranet; token no volume | **Rejeitado** |
 | Continue.dev / Cline no container | Rápido | Chrome de terceiro; chave no volume; não é produto ihuull | **Rejeitado** |
 | Extensão `ihuull.codespace` + proxy LLM no monólito | Chat nosso; GLM e outros; chave só no VPS; JWE `aud=xcodespaces` | Mais trabalho | **Escolhido** |
-| ENVs no Settings do repo (XGIT) | Codespace e proxy leem a mesma fonte | Precisa write-only em secret | **Escolhido** |
+| Assistente no Settings do **xadmin** | Uma key para a org; write-only | Repo não escolhe provedor | **Escolhido** |
+| ENVs no Settings do repo (XGIT) | App/testes no Create | Não carrega key de LLM | **Escolhido** (só app) |
 
-Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem. Chat e *generate commit message* passam pelo proxy (GLM / OpenAI-compatível / Anthropic). ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fase 51.
+Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem. Chat e *generate commit message* passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fase 51.
 
 ---
 
@@ -743,7 +744,7 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — remoto (Fase 50).** O Create de verdade (estilo GitHub Codespaces): helper sobe um **container Docker**, faz **`git clone`** do slug (smart HTTP `xgit.corp`, token de curta duração) para o volume do workspace, e serve **openvscode-server** em `https://cs-<id>.corp.ihuull.com` (proxy Nginx → `127.0.0.1:19000–19007`). Terminal, LSP e Git do VS Code rodam **dentro** do container. Idle-stop; teto de concorrência no VPS. **Não** é KVM. **Não** é bash na 22. Decisão e invariantes: §3.6.
 
-**XCODESPACES — DX (Fase 51).** Imagem `ihuull/codespace` (FROM openvscode + Go/Node) + `.devcontainer/devcontainer.json`. Tema **ihuull Dark** (tokens SASS) e Welcome XCODESPACES. Clone em `/home/workspace/project` (HOME do IDE fora do Git). Extensão **nossa** (`ihuull.codespace`): chat ihuull + generate commit (Conventional Commits, usuário confirma). Proxy LLM no monólito: GLM (Zhipu / OpenAI-compatível), OpenAI, Anthropic, `base_url` allowlist. Settings do repo no XGIT (`/:slug/settings` → **Codespaces**): ENVs/secrets no Create (`docker run -e`); keys de provedor o proxy lê no servidor e **não** vão ao container. Sem Continue, sem Copilot oficial, sem `docker.sock`. §3.6.
+**XCODESPACES — DX (Fase 51).** Imagem `ihuull/codespace` (FROM openvscode + Go/Node) + `.devcontainer/devcontainer.json`. Tema **ihuull Dark** (tokens SASS) e Welcome XCODESPACES. Clone em `/home/workspace/project` (HOME do IDE fora do Git). Extensão **nossa** (`ihuull.codespace`): chat ihuull + generate commit (Conventional Commits, usuário confirma). Proxy LLM no monólito: GLM (Zhipu / OpenAI-compatível), OpenAI, Anthropic, `base_url` allowlist. **Provedor e key** em xadmin → Settings (singleton `CodespaceSettings`; GET write-only). ENVs de app no XGIT (`/:slug/settings` → **Codespaces**) entram no Create; key de LLM **não**. Sem Continue, sem Copilot oficial, sem `docker.sock`. §3.6.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 

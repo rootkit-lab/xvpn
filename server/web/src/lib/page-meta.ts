@@ -244,7 +244,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Core VPN',
       title: 'Gerais',
-      description: 'Rede WireGuard (somente leitura) e TTLs de convite/sessão.',
+      description: 'Rede WireGuard (somente leitura), assistente XCODESPACES e TTLs de convite/sessão.',
     },
   },
   {

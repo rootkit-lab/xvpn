@@ -1430,9 +1430,9 @@ Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot of
 
 ### 51.2 Extensões (Open VSX)
 
-- [ ] Bake na imagem (não download no first-open): Go, ESLint, Prettier, theme ihuull. IDs só do Open VSX. Lista canônica no `devcontainer.json`.
-- [ ] Sem VSIX da Microsoft Store. Sem Copilot/`GitHub.copilot` na allowlist.
-- [ ] Extensão **nossa** (`ihuull.codespace`): tema, chat ihuull, generate commit, links XGIT/xadmin. Não é Continue.dev nem Copilot. Não pede login Microsoft.
+- [ ] Bake na imagem (não download no first-open): Go, ESLint, Prettier. IDs só do Open VSX. Lista canônica no `devcontainer.json`.
+- [x] Sem VSIX da Microsoft Store. Sem Copilot/`GitHub.copilot` na allowlist.
+- [x] Extensão **nossa** (`ihuull.codespace`): chat ihuull + generate commit. Tema continua em `ihuull.ihuull-theme`. Não é Continue.dev nem Copilot. Não pede login Microsoft.
 
 ### 51.3 Tema inspirado no frontend
 
@@ -1444,21 +1444,21 @@ Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot of
 
 O assistente é **nosso** (painel na extensão `ihuull.codespace`, tema ihuull). Não empacotar Continue.dev nem Copilot. A extensão só fala com o monólito (`aud=xcodespaces`, só VPN); o VPS chama o provedor. Chave **nunca** no Git, na imagem nem no volume do codespace.
 
-- [ ] Proxy LLM no `xvpn-server`: OpenAI-compatível (GLM / Zhipu, OpenAI, Groq, endpoint custom) + Anthropic. `provider` + `base_url` + `model` por projeto (51.5). Allowlist de hosts do `base_url` (https). Rate limit. Sem porta pública nova.
-- [ ] Chat na extensão: histórico curto, seletor de modelo, watch-face / acento neon. Sem chrome de terceiro.
-- [ ] **Auto commit message:** botão no Source Control (caixa *Message* / ao lado de Commit). A extensão manda `git diff --cached` (truncado) ao proxy; o modelo devolve **uma** linha Conventional Commits (`feat`/`fix`/`docs`…), o usuário confirma no input nativo. Sem commit automático sem review.
-- [ ] Sem `docker.sock`. Sem VSIX Microsoft.
+- [x] Proxy LLM no `xvpn-server`: OpenAI-compatível (GLM / Zhipu, OpenAI, Groq) + Anthropic. Fonte: **xadmin → Settings** (`CodespaceSettings`, key write-only). Allowlist de hosts do `base_url` (https). Rate limit. Só hosts `cs-*` / `xcodespaces.corp`. Sem porta pública nova.
+- [x] Chat na extensão (`ihuull.codespace`): painel simples. Sem chrome de terceiro.
+- [x] **Auto commit message:** botão no Source Control. A extensão manda `git diff --cached` (truncado) ao proxy; o modelo devolve **uma** linha Conventional Commits; o usuário confirma no input nativo. Sem commit automático sem review.
+- [x] Sem `docker.sock`. Sem VSIX Microsoft.
 
 ### 51.5 ENVs do projeto no XGIT (o codespace consome)
 
 Settings do repo em `xgit.corp` (`/:slug/settings`): seção **Codespaces** (ao lado de General / Collaborators / Branches). É o equivalente às *Codespaces secrets* do GitHub — o container recebe no start.
 
 - [x] Modelo: nome `^[A-Z][A-Z0-9_]{1,63}$`, valor, flag `secret`. Secret: write-only depois de gravar (UI mostra `••••`); plaintext: maintainer+ lê. maintainer+ / `forge` escreve; developer+ usa no codespace; guest/reporter não vê valores.
-- [x] Provedor de IA do projeto (GLM, OpenAI, Anthropic, compatível) mora **aqui** como secrets (`XCS_LLM_PROVIDER`, `XCS_LLM_BASE_URL`, `XCS_LLM_MODEL`, `XCS_LLM_KEY`) — o proxy lê no servidor; **não** injeta a key no container.
+- [x] Provedor de IA (GLM, OpenAI, Anthropic, compatível) mora em **xadmin → Settings** (não no repo). `XCS_LLM_*` no projeto, se existir, **não** vai ao container.
 - [x] Demais ENVs (app, testes): helper injeta via `--env-file` (fora do argv). Denylist de runtime/shell/loader (`PATH`, `NODE_OPTIONS`, `PS1`, `IFS`, `GCONV_PATH`, `DOTNET_*`, `GIT_*`…). Teto ~32 pares / 4 KiB por valor.
 - [x] Valores **não** vão para o bare, para o XGROUP, nem para log do CI. Teste: secret não volta no GET; ENV aparece no `env` do terminal; key LLM não aparece.
 
-**Critério de saída:** Create no repo XVPN abre VS Code com tema ihuull, Go/ESLint ativos, `go version` + `node -v` ok; Settings → Codespaces grava um ENV e um secret GLM; o terminal vê o ENV e **não** vê a key; o chat ihuull responde via GLM; o botão de commit preenche uma mensagem Conventional Commits para o usuário confirmar; `docker.sock` ausente; Recreate pega imagem nova.
+**Critério de saída:** Create no repo XVPN abre VS Code com tema ihuull, `go version` + `node -v` ok; xadmin → Settings grava o GLM (key write-only); Settings do repo grava um ENV de app; o terminal vê o ENV e **não** vê a key; o chat ihuull responde via GLM; o botão de commit preenche uma mensagem Conventional Commits para o usuário confirmar; `docker.sock` ausente; Recreate pega imagem nova. Go/ESLint bakeados ainda pendentes.
 
 ### 51.6 HOME ≠ clone + Welcome ihuull
 
@@ -1470,7 +1470,7 @@ O openvscode usa `/home/workspace` como HOME. Montar o clone aí faz o IDE grava
 - [x] Recreate obrigatório para codespace já criado (start não troca o `-v`).
 - [x] Playground XGIT **`teste`** (`server/deploy/codespace/sample-teste/`): Go + Node + `.devcontainer` + tasks + checklist no README. Seed: `seed-teste.sh`.
 
-**Ordem:** 51.1 + 51.3 + 51.6 (imagem/tema/HOME/Welcome) → 51.5 (ENVs no XGIT, o chat precisa) → 51.2/51.4 (extensão: chat + generate commit). Sem misturar Settings de secret com o Dockerfile na mesma PR.
+**Ordem:** 51.1 + 51.3 + 51.6 (imagem/tema/HOME/Welcome) → 51.5 (ENVs de app no XGIT) → 51.2/51.4 (extensão + proxy; key no xadmin). Bake Go/ESLint Open VSX ainda pendente.
 
 ---
 

@@ -81,9 +81,9 @@ export function CodespacesEnvCard({
       <CardHeader>
         <CardTitle className="text-base">Codespaces</CardTitle>
         <CardDescription>
-          ENVs injetados no <code className="text-xs">docker run</code> no Create. Secrets de LLM (
-          <code className="text-xs">XCS_LLM_*</code>) o proxy lê no servidor — a key não entra no container.
-          Mudança de ENV exige Recreate do codespace.
+          ENVs injetados no <code className="text-xs">docker run</code> no Create. Assistente (GLM /
+          generate commit) fica em xadmin → Settings, não aqui. Mudança de ENV exige Recreate do
+          codespace.
         </CardDescription>
       </CardHeader>
       <CardContent>

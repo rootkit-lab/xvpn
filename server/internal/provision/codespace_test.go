@@ -252,6 +252,23 @@ func TestDefaultCodespaceSettings_HidesBuiltinWelcome(t *testing.T) {
 	}
 }
 
+func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
+	pkg, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-codespace", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(pkg), "ihuull.generateCommitMessage") {
+		t.Fatal("extensão precisa do comando generate commit")
+	}
+	js, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-codespace", "extension.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(js), "/api/xcodespaces/llm/commit-message") {
+		t.Fatal("generate commit deve chamar o proxy")
+	}
+}
+
 func TestCodespaceThemeExtension_OpensIhuullWalkthrough(t *testing.T) {
 	pkg, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-theme", "package.json"))
 	if err != nil {
@@ -311,6 +328,9 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	}
 	if !strings.Contains(text, "ihuull.theme") {
 		t.Fatal("tema ihuull deve ir na imagem")
+	}
+	if !strings.Contains(text, "ihuull.codespace") {
+		t.Fatal("extensão ihuull.codespace deve ir na imagem")
 	}
 	if !strings.Contains(text, "gitignore-global") {
 		t.Fatal("gitignore global deve ir na imagem")

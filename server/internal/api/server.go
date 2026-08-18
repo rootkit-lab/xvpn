@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -134,6 +135,11 @@ type App struct {
 	// provisionador — ver sshKeyRateLimitMax.
 	sshKeyLimiter *ipRateLimiter
 
+	// llmLimiter limita chat/generate commit por usuário.
+	llmLimiter *ipRateLimiter
+	// llmHTTP é injetado nos testes (httptest). Nil = http.Client padrão.
+	llmHTTP *http.Client
+
 	// Hub entrega eventos do social (Fase 19.3) em memória. Um node.
 	Hub *Hub
 
@@ -204,6 +210,9 @@ func NewRouter(app *App) *gin.Engine {
 	}
 	if app.sshKeyLimiter == nil {
 		app.sshKeyLimiter = newIPRateLimiter(sshKeyRateLimitMax, sshKeyRateLimitWindow)
+	}
+	if app.llmLimiter == nil {
+		app.llmLimiter = newIPRateLimiter(20, time.Minute)
 	}
 	if app.Hub == nil {
 		app.Hub = newHub()
@@ -340,6 +349,8 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/projects/:slug/star", app.handleToggleProjectStar)
 			authed.GET("/xcodespaces", app.handleListCodespaces)
 			authed.POST("/xcodespaces", app.handleCreateCodespace)
+			authed.POST("/xcodespaces/llm/chat", app.requireCodespaceLLMHost(), rateLimit(app.llmLimiter), app.handleLLMChat)
+			authed.POST("/xcodespaces/llm/commit-message", app.requireCodespaceLLMHost(), rateLimit(app.llmLimiter), app.handleLLMCommitMessage)
 			authed.GET("/xcodespaces/:id", app.handleGetCodespace)
 			authed.POST("/xcodespaces/:id/start", app.handleStartCodespace)
 			authed.POST("/xcodespaces/:id/stop", app.handleStopCodespace)
@@ -409,6 +420,7 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/waitlist", app.handleListWaitlist)
 			viewerUp.GET("/audit", app.handleListAudit)
 			viewerUp.GET("/config", app.handleGetConfig)
+			viewerUp.GET("/config/xcodespaces", app.handleGetCodespaceSettings)
 			viewerUp.GET("/dns", app.handleGetDNS)
 			viewerUp.GET("/dns/recursor", app.handleDNSRecursor)
 			viewerUp.GET("/dns/public/settings", app.handleGetPublicDNSSettings)
@@ -460,6 +472,7 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
 				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
 				coreWrite.PATCH("/config", app.handleUpdateConfig)
+				coreWrite.PATCH("/config/xcodespaces", app.handlePatchCodespaceSettings)
 				coreWrite.PATCH("/backups/settings", app.handlePatchBackupSettings)
 				coreWrite.POST("/backups/destinations", app.handleCreateBackupDestination)
 				coreWrite.PATCH("/backups/destinations/:id", app.handlePatchBackupDestination)

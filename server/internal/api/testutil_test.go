@@ -106,7 +106,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
-		&store.PanelSettings{}, &store.ForgeSettings{},
+		&store.PanelSettings{}, &store.ForgeSettings{}, &store.CodespaceSettings{},
 		&store.DNSSettings{}, &store.DNSRecord{},
 		&store.CloudflareAccount{}, &store.PublicZone{}, &store.PublicRecord{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},

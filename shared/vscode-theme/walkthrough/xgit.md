@@ -3,7 +3,8 @@
 | O quê | Onde |
 |---|---|
 | Repositório | `https://xgit.corp.ihuull.com/<slug>` |
-| Settings / ENVs | `xgit.corp/:slug/settings` → **Codespaces** |
+| Settings / ENVs | `xgit.corp/:slug/settings` → **Codespaces** (app) |
+| Assistente GLM | `xadmin.corp/admin/settings` |
 | Console | `xadmin.corp` |
 | Catálogo | `xcodespaces.corp` |
 | Este IDE | `cs-<id>.corp.ihuull.com` |

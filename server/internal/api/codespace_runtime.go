@@ -70,11 +70,6 @@ func newCodespaceToken() (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
-func isCodespaceSSOPath(path string) bool {
-	p := strings.TrimRight(path, "/")
-	return p == "/api/auth/session" || p == "/api/auth/redeem"
-}
-
 func (a *App) maybeCodespaceProxy() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := codespaceRuntimeHost(c.Request.Host)
@@ -82,7 +77,7 @@ func (a *App) maybeCodespaceProxy() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		if isCodespaceSSOPath(c.Request.URL.Path) {
+		if isCodespaceGinPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}

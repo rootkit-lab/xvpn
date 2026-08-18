@@ -10,7 +10,7 @@
         "editor.minimap.enabled": false,
         "files.trimTrailingWhitespace": true
       },
-      "extensions": []
+      "extensions": ["ihuull.codespace"]
     }
   },
   "postCreateCommand": "go version && node -v"

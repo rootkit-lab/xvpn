@@ -301,6 +301,15 @@ export interface ConfigResponse {
   jwt_token_ttl_minutes: number
 }
 
+export type CodespaceLLMProvider = 'glm' | 'openai' | 'anthropic' | 'compatible'
+
+export interface CodespaceLLMSettings {
+  provider: CodespaceLLMProvider
+  base_url: string
+  model: string
+  has_key: boolean
+}
+
 export type BackupKind = 'sftp' | 'b2' | 's3' | 'webdav' | 'drive' | 'xdriver'
 
 export interface BackupSettings {
@@ -1064,6 +1073,13 @@ export const api = {
   getConfig: () => request<ConfigResponse>('/config'),
   updateConfig: (body: { invite_token_ttl_minutes?: number; jwt_token_ttl_minutes?: number }) =>
     request<ConfigResponse>('/config', { method: 'PATCH', body: JSON.stringify(body) }),
+  getCodespaceLLMSettings: () => request<CodespaceLLMSettings>('/config/xcodespaces'),
+  updateCodespaceLLMSettings: (body: {
+    provider?: CodespaceLLMProvider
+    base_url?: string
+    model?: string
+    api_key?: string
+  }) => request<CodespaceLLMSettings>('/config/xcodespaces', { method: 'PATCH', body: JSON.stringify(body) }),
 
   getBackupSettings: () => request<BackupSettings>('/backups/settings'),
   updateBackupSettings: (body: Partial<BackupSettings>) =>

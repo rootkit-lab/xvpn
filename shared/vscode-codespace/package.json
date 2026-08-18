@@ -1,0 +1,36 @@
+{
+  "name": "codespace",
+  "displayName": "XCODESPACES",
+  "description": "Chat ihuull e generate commit no codespace remoto.",
+  "version": "0.1.0",
+  "publisher": "ihuull",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "ihuull.generateCommitMessage",
+        "title": "Generate commit message",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "ihuull.openChat",
+        "title": "XCODESPACES: Chat"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "ihuull.generateCommitMessage",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ]
+    }
+  }
+}

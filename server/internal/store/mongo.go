@@ -31,7 +31,7 @@ func allModels() []any {
 	return []any{
 		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
-		&PanelSettings{}, &ForgeSettings{},
+		&PanelSettings{}, &ForgeSettings{}, &CodespaceSettings{},
 		&DNSSettings{}, &DNSRecord{},
 		&CloudflareAccount{}, &PublicZone{}, &PublicRecord{},
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},

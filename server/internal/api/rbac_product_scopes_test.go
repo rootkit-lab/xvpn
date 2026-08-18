@@ -65,6 +65,10 @@ func TestAdminWithoutCoreScopeCannotPatchConfig(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("admin sem core não deveria alterar config, obtido %d: %s", rec.Code, rec.Body.String())
 	}
+	rec = doJSON(t, f.router, http.MethodPatch, "/api/config/xcodespaces", patchCodespaceSettingsRequest{Provider: ptr("glm")}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin sem core não deveria alterar o assistente, obtido %d: %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestAdminWithoutManagedScopeCannotCreateService(t *testing.T) {

@@ -1466,8 +1466,9 @@ O openvscode usa `/home/workspace` como HOME. Montar o clone aí faz o IDE grava
 
 - [x] Helper monta o clone em `/home/workspace/project`; `--default-folder` nesse path. HOME do container fica fora do Git.
 - [x] Settings (tema, Welcome) em `…/<id>/machine-settings.json` → Machine do IDE (`:ro`). Sem `.vscode/settings.json` gerado no clone.
-- [x] `shared/vscode-theme` contribui walkthrough **XCODESPACES** (pt-BR). gitignore global na imagem (`.cache`, `.openvscode-server`) como defesa.
+- [x] `shared/vscode-theme` contribui walkthrough **XCODESPACES** (pt-BR) e `extension.js` abre esse guia no first-open (esconde o builtin `SetupWeb`). gitignore global na imagem (`.cache`, `.openvscode-server`) como defesa.
 - [x] Recreate obrigatório para codespace já criado (start não troca o `-v`).
+- [x] Playground XGIT **`teste`** (`server/deploy/codespace/sample-teste/`): Go + Node + `.devcontainer` + tasks + checklist no README. Seed: `seed-teste.sh`.
 
 **Ordem:** 51.1 + 51.3 + 51.6 (imagem/tema/HOME/Welcome) → 51.5 (ENVs no XGIT, o chat precisa) → 51.2/51.4 (extensão: chat + generate commit). Sem misturar Settings de secret com o Dockerfile na mesma PR.
 

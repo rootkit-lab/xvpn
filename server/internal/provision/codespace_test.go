@@ -229,12 +229,74 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if !strings.Contains(f.writes[settings], "ihuull Dark") {
 		t.Fatalf("tema não gravado: %v", f.writes)
 	}
+	if !strings.Contains(f.writes[settings], "SetupWeb") {
+		t.Fatal("Welcome builtin SetupWeb deve ser ocultado nas Machine settings")
+	}
 	envFile := runtimeEnvHostPath(ws)
 	if !strings.Contains(f.writes[envFile], "APP_URL=https://xgit.corp") {
 		t.Fatalf("env-file não gravado: %v", f.writes)
 	}
 	if strings.Contains(joined, "https://xgit.corp") {
 		t.Fatalf("valor de ENV no argv: %s", joined)
+	}
+}
+
+func TestDefaultCodespaceSettings_HidesBuiltinWelcome(t *testing.T) {
+	s := defaultCodespaceSettings()
+	if s["workbench.startupEditor"] != "welcomePage" {
+		t.Fatalf("startupEditor: %v", s["workbench.startupEditor"])
+	}
+	hide := "experiments.override.gettingStarted.overrideCategory.SetupWeb.when"
+	if s[hide] != "false" {
+		t.Fatalf("SetupWeb deve ficar oculto: %v", s[hide])
+	}
+}
+
+func TestCodespaceThemeExtension_OpensIhuullWalkthrough(t *testing.T) {
+	pkg, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-theme", "package.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(pkg)
+	if !strings.Contains(text, `"main": "./extension.js"`) {
+		t.Fatal("tema precisa de extension.js para abrir o walkthrough XCODESPACES")
+	}
+	if !strings.Contains(text, "onStartupFinished") {
+		t.Fatal("activation onStartupFinished ausente")
+	}
+	js, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-theme", "extension.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(js), "ihuull.ihuull-theme#ihuull.codespace") {
+		t.Fatal("extension.js deve abrir o walkthrough ihuull")
+	}
+}
+
+func TestSampleTeste_HasPlaygroundFiles(t *testing.T) {
+	root := filepath.Join("..", "..", "deploy", "codespace", "sample-teste")
+	for _, rel := range []string{
+		"README.md",
+		"go.mod",
+		"cmd/hello/main.go",
+		"cmd/hello/main_test.go",
+		"web/index.mjs",
+		"web/package.json",
+		"scripts/check.sh",
+		".devcontainer/devcontainer.json",
+		".gitignore",
+		".vscode/tasks.json",
+	} {
+		if _, err := os.Stat(filepath.Join(root, rel)); err != nil {
+			t.Fatalf("sample-teste sem %s: %v", rel, err)
+		}
+	}
+	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(readme), "XCODESPACES") {
+		t.Fatal("README do teste deve ser o checklist do codespace")
 	}
 }
 

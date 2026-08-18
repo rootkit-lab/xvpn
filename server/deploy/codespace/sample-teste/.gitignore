@@ -1,0 +1,17 @@
+# Build / deps
+/bin/
+dist/
+node_modules/
+*.exe
+coverage.out
+
+# Segredos e lixo local
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE no HOME do codespace (defesa; o mount já isola)
+.cache/
+.openvscode-server/

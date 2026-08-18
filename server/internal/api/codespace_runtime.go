@@ -134,25 +134,63 @@ func (a *App) serveCodespaceRuntime(c *gin.Context, id string) {
 		base(req)
 		prepareCodespaceUpstream(req, connTok)
 	}
-	proxy.ModifyResponse = func(resp *http.Response) error {
-		resp.Header.Del("Set-Cookie")
-		return nil
-	}
+	proxy.ModifyResponse = filterCodespaceSetCookie
 	proxy.ServeHTTP(c.Writer, c.Request)
 }
 
+const vscodeTokenCookie = "vscode-tkn"
+
+// prepareCodespaceUpstream tira a sessão ihuull do IDE e autentica o
+// openvscode via cookie vscode-tkn. Injetar ?tkn= em todo request faz o
+// servidor 302 para / (para esconder o token) e o proxy recolocava o
+// parâmetro — ERR_TOO_MANY_REDIRECTS.
 func prepareCodespaceUpstream(req *http.Request, connTok string) {
-	req.Header.Del("Cookie")
 	req.Header.Del("Authorization")
-	if connTok == "" {
-		return
+	keep := make([]string, 0, 4)
+	hasVSCodeTkn := false
+	for _, ck := range req.Cookies() {
+		if ck.Name == auth.SessionCookieName {
+			continue
+		}
+		if ck.Name == vscodeTokenCookie {
+			hasVSCodeTkn = true
+			if connTok != "" {
+				ck.Value = connTok
+			}
+		}
+		keep = append(keep, ck.Name+"="+ck.Value)
 	}
-	req.Header.Set("X-Connection-Token", connTok)
+	if connTok != "" && !hasVSCodeTkn {
+		keep = append(keep, vscodeTokenCookie+"="+connTok)
+	}
+	if len(keep) == 0 {
+		req.Header.Del("Cookie")
+	} else {
+		req.Header.Set("Cookie", strings.Join(keep, "; "))
+	}
+	if connTok != "" {
+		req.Header.Set("X-Connection-Token", connTok)
+	}
 	q := req.URL.Query()
-	if q.Get("tkn") == "" {
-		q.Set("tkn", connTok)
+	if q.Get("tkn") != "" {
+		q.Del("tkn")
 		req.URL.RawQuery = q.Encode()
 	}
+}
+
+func filterCodespaceSetCookie(resp *http.Response) error {
+	if resp == nil {
+		return nil
+	}
+	cookies := resp.Cookies()
+	resp.Header.Del("Set-Cookie")
+	for _, ck := range cookies {
+		if ck.Name == auth.SessionCookieName || !strings.HasPrefix(ck.Name, "vscode") {
+			continue
+		}
+		resp.Header.Add("Set-Cookie", ck.String())
+	}
+	return nil
 }
 
 func (a *App) codespaceConnectionToken(id string) string {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Editor from '@monaco-editor/react'
 import { toast } from 'sonner'
@@ -6,7 +6,7 @@ import { File, Folder } from 'lucide-react'
 import { api, ApiError } from '@/lib/api'
 import { defineIhuullTheme, languageForPath } from '@/lib/monaco'
 import { usePollingData } from '@/hooks/use-polling-data'
-import { XGIT_CORP_ORIGIN } from '@/lib/product-host'
+import { XGIT_CORP_ORIGIN, codespaceOpenHref } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,6 +44,12 @@ export function XcodespacesIdePage() {
 
   const crumbs = useMemo(() => (dir ? dir.split('/') : []), [dir])
 
+  useEffect(() => {
+    if (cs?.kind === 'remote') {
+      window.location.replace(codespaceOpenHref(cs))
+    }
+  }, [cs])
+
   if (loading || !cs) {
     return error ? <p className="p-6 text-sm text-destructive">{error}</p> : <Skeleton className="m-6 h-64" />
   }
@@ -80,16 +86,42 @@ export function XcodespacesIdePage() {
           <span className="font-mono text-xs">{cs.branch}</span>
         </p>
         <div className="flex items-center gap-2">
-          {cs.kind === 'remote' && cs.runtime_url ? (
-            <Button asChild size="sm" variant="outline">
-              <a href={cs.runtime_url}>Abrir VS Code</a>
+          {cs.kind === 'quick' ? (
+            <Button
+              type="button"
+              size="sm"
+              className="btn-glow"
+              disabled={busy}
+              onClick={() => {
+                setBusy(true)
+                void api
+                  .createCodespace({ slug: cs.slug, branch: cs.branch, kind: 'remote' })
+                  .then((created) => {
+                    window.location.href = codespaceOpenHref(created)
+                  })
+                  .catch((err) => {
+                    toast.error(err instanceof ApiError ? err.message : 'Falha ao criar codespace')
+                    setBusy(false)
+                  })
+              }}
+            >
+              {busy ? 'Criando VS Code…' : 'Abrir no VS Code'}
             </Button>
-          ) : null}
+          ) : (
+            <Button asChild size="sm" variant="outline">
+              <a href={codespaceOpenHref(cs)}>Abrir VS Code</a>
+            </Button>
+          )}
           <Button type="button" className="btn-glow" size="sm" disabled={!dirty || !cs.can_write} onClick={() => setOpen(true)}>
             Commit
           </Button>
         </div>
       </div>
+      {cs.kind === 'quick' ? (
+        <p className="border-b border-border/60 px-4 py-2 text-xs text-muted-foreground">
+          Editor rápido (Monaco). O VS Code com terminal fica em Create codespace no XGIT, ou no botão acima.
+        </p>
+      ) : null}
       <div className="grid min-h-0 flex-1 md:grid-cols-[220px_minmax(0,1fr)]">
         <aside className="min-h-0 overflow-y-auto border-r border-border/60 p-3 text-sm">
           <p className="hud-label mb-2 text-muted-foreground/70">Files</p>

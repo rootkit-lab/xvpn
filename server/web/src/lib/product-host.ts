@@ -266,3 +266,11 @@ export function ssoLogoutURL(returnTo?: string): string {
 export function isLoggedOutParam(search: string): boolean {
   return new URLSearchParams(search).get('logged_out') === '1'
 }
+
+export function codespaceRuntimeURL(id: string): string {
+  return `https://cs-${id}.corp.ihuull.com`
+}
+
+export function codespaceOpenHref(cs: { id: string; runtime_url?: string }): string {
+  return cs.runtime_url || codespaceRuntimeURL(cs.id)
+}

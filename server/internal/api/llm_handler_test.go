@@ -103,12 +103,46 @@ func TestParseLLMBaseURL_Allowlist(t *testing.T) {
 	}
 }
 
+func TestDisableGLMThinking(t *testing.T) {
+	if !disableGLMThinking("glm", "glm-4.7-flash") {
+		t.Fatal("4.7-flash deve desligar thinking")
+	}
+	if disableGLMThinking("glm", "glm-5.3") {
+		t.Fatal("5.3 rejeita thinking disabled")
+	}
+	if disableGLMThinking("openai", "gpt-4o-mini") {
+		t.Fatal("openai não manda thinking")
+	}
+}
+
+func TestExtractOpenAIChatText(t *testing.T) {
+	got, err := extractOpenAIChatText([]byte(`{"choices":[{"message":{"content":"","reasoning_content":"feat(x): y"}}]}`))
+	if err != nil || got != "feat(x): y" {
+		t.Fatalf("reasoning: %q %v", got, err)
+	}
+	got, err = extractOpenAIChatText([]byte(`{"choices":[{"message":{"content":[{"type":"text","text":"ok"}]}}]}`))
+	if err != nil || got != "ok" {
+		t.Fatalf("parts: %q %v", got, err)
+	}
+	if _, err := extractOpenAIChatText([]byte(`{"choices":[{"message":{"content":""}}]}`)); err == nil {
+		t.Fatal("vazio deveria falhar")
+	}
+}
+
 func TestLLMCommitMessage_UsesAdminSettings(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	app, router, adminTok := setupGitApp(t)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-llm-key-value-xx" {
 			t.Errorf("auth: %s", r.Header.Get("Authorization"))
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		thinking, _ := body["thinking"].(map[string]any)
+		if thinking["type"] != "disabled" {
+			t.Errorf("thinking: %#v", body["thinking"])
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"choices": []map[string]any{
@@ -137,6 +171,61 @@ func TestLLMCommitMessage_UsesAdminSettings(t *testing.T) {
 	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces/llm/commit-message", llmCommitRequest{Diff: "x"}, adminTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("host público deveria bloquear: %d", rec.Code)
+	}
+}
+
+func TestLLMCommitMessage_UsesReasoningWhenContentEmpty(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": "", "reasoning_content": "feat(codespace): gera commit"}},
+			},
+		})
+	}))
+	t.Cleanup(upstream.Close)
+	app.llmHTTP = upstream.Client()
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", BaseURL: upstream.URL, Model: "glm-4.7-flash", APIKey: "test-llm-key-value-xx",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/commit-message", llmCommitRequest{
+		Diff: "diff --git a/x.go b/x.go\n+func main() {}",
+	}, adminTok, "xcodespaces.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("commit-message: %d %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "feat(codespace):") {
+		t.Fatalf("body: %s", rec.Body.String())
+	}
+}
+
+func TestLLMCommitMessage_EmptyProviderResponse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": ""}},
+			},
+		})
+	}))
+	t.Cleanup(upstream.Close)
+	app.llmHTTP = upstream.Client()
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", BaseURL: upstream.URL, Model: "glm-4.7-flash", APIKey: "test-llm-key-value-xx",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/commit-message", llmCommitRequest{
+		Diff: "diff --git a/x.go b/x.go\n+func main() {}",
+	}, adminTok, "xcodespaces.corp.ihuull.com")
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("vazio: %d %s", rec.Code, rec.Body.String())
 	}
 }
 

@@ -229,6 +229,12 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if !strings.Contains(f.writes[settings], "ihuull Dark") {
 		t.Fatalf("tema não gravado: %v", f.writes)
 	}
+	if !strings.Contains(f.writes[settings], `"ihuull.codespace.id": "aabbccddeeff"`) {
+		t.Fatal("Machine settings devem gravar o id do codespace")
+	}
+	if !strings.Contains(f.writes[settings], "https://cs-aabbccddeeff.corp.ihuull.com") {
+		t.Fatal("Machine settings devem gravar a origin cs-*")
+	}
 	if !strings.Contains(f.writes[settings], "SetupWeb") {
 		t.Fatal("Welcome builtin SetupWeb deve ser ocultado nas Machine settings")
 	}
@@ -266,6 +272,12 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	}
 	if !strings.Contains(string(js), "/api/xcodespaces/llm/commit-message") {
 		t.Fatal("generate commit deve chamar o proxy")
+	}
+	if strings.Contains(string(js), `fetch(path,`) {
+		t.Fatal("fetch relativo quebra no Node do extension host")
+	}
+	if !strings.Contains(string(js), "https://cs-") || !strings.Contains(string(js), "xvpn-credentials") {
+		t.Fatal("extensão precisa de origin absoluta e do token Git do codespace")
 	}
 }
 

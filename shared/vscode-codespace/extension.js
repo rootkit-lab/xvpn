@@ -1,10 +1,14 @@
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const vscode = require("vscode");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 
 const execFileAsync = promisify(execFile);
+const ID_RE = /^[a-f0-9]{12}$/;
+const DEFAULT_ORIGIN = "https://xcodespaces.corp.ihuull.com";
 
 function activate(context) {
   context.subscriptions.push(
@@ -37,7 +41,7 @@ async function generateCommit() {
     return;
   }
   try {
-    const data = await llmFetch("/api/xcodespaces/llm/commit-message", { diff: diff.slice(0, 8192) });
+    const data = await llmFetch(cwd, "/api/xcodespaces/llm/commit-message", { diff: diff.slice(0, 8192) });
     const msg = (data.message || "").trim();
     if (!msg) {
       throw new Error("resposta vazia");
@@ -65,8 +69,10 @@ function openChat(context) {
     if (msg?.type !== "ask" || !msg.text) {
       return;
     }
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const cwd = folder?.uri.fsPath || "";
     try {
-      const data = await llmFetch("/api/xcodespaces/llm/chat", {
+      const data = await llmFetch(cwd, "/api/xcodespaces/llm/chat", {
         messages: [{ role: "user", content: String(msg.text) }],
       });
       panel.webview.postMessage({ type: "reply", text: data.text || "" });
@@ -80,11 +86,55 @@ function openChat(context) {
   context.subscriptions.push(panel);
 }
 
-async function llmFetch(path, body) {
-  const res = await fetch(path, {
+function readCodespaceAuth(cwd) {
+  let id = "";
+  let token = "";
+  if (cwd) {
+    try {
+      const raw = fs.readFileSync(path.join(cwd, ".git", "xvpn-credentials"), "utf8");
+      const m = String(raw).match(/https:\/\/codespace-([a-f0-9]{12}):([^@\s]+)@/i);
+      if (m) {
+        id = m[1].toLowerCase();
+        token = m[2];
+      }
+    } catch (_) {
+      /* Create antigo sem credencial — cai no setting / ENV */
+    }
+  }
+  if (!ID_RE.test(id)) {
+    const cfg = vscode.workspace.getConfiguration("ihuull.codespace").get("id");
+    if (typeof cfg === "string" && ID_RE.test(cfg)) {
+      id = cfg;
+    } else if (typeof process.env.XCS_CODESPACE_ID === "string" && ID_RE.test(process.env.XCS_CODESPACE_ID)) {
+      id = process.env.XCS_CODESPACE_ID;
+    }
+  }
+  return { id, token };
+}
+
+function llmOrigin(id) {
+  if (ID_RE.test(id)) {
+    return "https://cs-" + id + ".corp.ihuull.com";
+  }
+  return DEFAULT_ORIGIN;
+}
+
+async function llmFetch(cwd, apiPath, body) {
+  const auth = readCodespaceAuth(cwd);
+  if (!auth.token) {
+    throw new Error("sem token do codespace — Recreate o workspace");
+  }
+  const url = llmOrigin(auth.id) + apiPath;
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: "Bearer " + auth.token,
+  };
+  if (auth.id) {
+    headers["X-Codespace-ID"] = auth.id;
+  }
+  const res = await fetch(url, {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));

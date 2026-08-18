@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–49** em produção. **Fase 50** (XCODESPACES remoto) nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–50** em produção. **Fase 51** (DX do codespace: imagem, tema, extensões, assistente) é a próxima. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1311,7 +1311,7 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 - [ ] Pages (Nginx + blob).
 - [ ] Snippets, SAST, feature flags.
 
-Não misturar com 35–44 nem com 46–50 (Issues / PRs / editor / XCODESPACES).
+Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES).
 
 ---
 
@@ -1414,6 +1414,56 @@ Decisão e invariantes: `PLAN.md` §3.6. **Não** é KVM. **Não** é bash na 22
 
 ---
 
+## Fase 51 — XCODESPACES DX (imagem, tema, extensões, assistente)
+
+A Fase 50 entrega o runtime (clone + openvscode + proxy). O container de hoje é a imagem nua `gitpod/openvscode-server`: sem Go/Node de verdade, sem extensões, tema default do VS Code, sem assistente. Esta fase deixa o codespace **usável para desenvolver o monorepo** — o Docker configura o ambiente **na imagem / no create**, não com `docker.sock` dentro do container (`PLAN.md` §3.6).
+
+Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot oficial (VSIX Microsoft + login GitHub) **não** entra na imagem: quebra no OSS, vaza credencial no volume e sai da intranet.
+
+### 51.1 Imagem ihuull + `.devcontainer`
+
+- [ ] `server/deploy/codespace/Dockerfile`: `FROM gitpod/openvscode-server:1.98.2` + Go + Node LTS + git + build-essential. Sem Docker Engine, sem socket. Tag `ihuull/codespace:<ver>` na allowlist do helper (além de `gitpod/openvscode-server` / `codercom/code-server`).
+- [ ] `.devcontainer/devcontainer.json` na raiz do monorepo: `image`, `customizations.vscode.extensions`, `settings` (tema ihuull, fontes), `postCreateCommand` leve (`go mod download` / `npm ci` só onde couber no teto de RAM). Sem `privileged`, sem mount de `/var/run/docker.sock`.
+- [ ] Helper lê mais que `image`: aplica `customizations` (extensões já bakeadas na imagem; settings em `~/.openvscode-server/data/Machine/settings.json` no volume).
+- [ ] Build da imagem no VPS (ou CI) + `docker pull` no runbook. Create novo usa `ihuull/codespace`; codespace antigo continua na imagem em que nasceu até Recreate.
+- [ ] Teste: allowlist rejeita imagem fora; `go version` e `node -v` no terminal do container.
+
+### 51.2 Extensões (Open VSX)
+
+- [ ] Bake na imagem (não download no first-open): Go, ESLint, Prettier, theme ihuull. IDs só do Open VSX. Lista canônica no `devcontainer.json`.
+- [ ] Sem VSIX da Microsoft Store. Sem Copilot/`GitHub.copilot` na allowlist.
+- [ ] Extensão **nossa** (`ihuull.codespace`): tema, chat ihuull, generate commit, links XGIT/xadmin. Não é Continue.dev nem Copilot. Não pede login Microsoft.
+
+### 51.3 Tema inspirado no frontend
+
+- [ ] Pacote `shared/vscode-theme` (ou equivalente): `ihuull Dark` gerado dos tokens `$dark` em `shared/ui/scss/_color-system.scss` (skill `design-system` — não copiar hex à mão). Fundo ~oklch 0.11, acento primary 230, card 0.18, glow.
+- [ ] Fonte do editor: JetBrains Mono / Outfit se o pacote couber; senão `editor.fontFamily` apontando o que a imagem já tem.
+- [ ] Default: `"workbench.colorTheme": "ihuull Dark"` no Machine settings do codespace. Sem `:root` no painel.
+
+### 51.4 Chat ihuull + GLM e outros provedores
+
+O assistente é **nosso** (painel na extensão `ihuull.codespace`, tema ihuull). Não empacotar Continue.dev nem Copilot. A extensão só fala com o monólito (`aud=xcodespaces`, só VPN); o VPS chama o provedor. Chave **nunca** no Git, na imagem nem no volume do codespace.
+
+- [ ] Proxy LLM no `xvpn-server`: OpenAI-compatível (GLM / Zhipu, OpenAI, Groq, endpoint custom) + Anthropic. `provider` + `base_url` + `model` por projeto (51.5). Allowlist de hosts do `base_url` (https). Rate limit. Sem porta pública nova.
+- [ ] Chat na extensão: histórico curto, seletor de modelo, watch-face / acento neon. Sem chrome de terceiro.
+- [ ] **Auto commit message:** botão no Source Control (caixa *Message* / ao lado de Commit). A extensão manda `git diff --cached` (truncado) ao proxy; o modelo devolve **uma** linha Conventional Commits (`feat`/`fix`/`docs`…), o usuário confirma no input nativo. Sem commit automático sem review.
+- [ ] Sem `docker.sock`. Sem VSIX Microsoft.
+
+### 51.5 ENVs do projeto no XGIT (o codespace consome)
+
+Settings do repo em `xgit.corp` (`/:slug/settings`): seção **Codespaces** (ao lado de General / Collaborators / Branches). É o equivalente às *Codespaces secrets* do GitHub — o container recebe no start.
+
+- [ ] Modelo: nome `^[A-Z][A-Z0-9_]{1,63}$`, valor, flag `secret`. Secret: write-only depois de gravar (UI mostra `••••`); plaintext: maintainer+ lê. maintainer+ / `forge` escreve; developer+ usa no codespace; guest/reporter não vê valores.
+- [ ] Provedor de IA do projeto (GLM, OpenAI, Anthropic, compatível) mora **aqui** como secrets (`XCS_LLM_PROVIDER`, `XCS_LLM_BASE_URL`, `XCS_LLM_MODEL`, `XCS_LLM_KEY`) — o proxy lê no servidor; **não** injeta a key no container.
+- [ ] Demais ENVs (app, testes): helper injeta no `docker run` (`-e`). Bloquear override de `PATH`, `LD_*`, `HOME`, `SSH_*`, `DOCKER_*`. Teto ~32 pares / 4 KiB por valor.
+- [ ] Valores **não** vão para o bare, para o XGROUP, nem para log do CI. Teste: secret não volta no GET; ENV aparece no `env` do terminal; key LLM não aparece.
+
+**Critério de saída:** Create no repo XVPN abre VS Code com tema ihuull, Go/ESLint ativos, `go version` + `node -v` ok; Settings → Codespaces grava um ENV e um secret GLM; o terminal vê o ENV e **não** vê a key; o chat ihuull responde via GLM; o botão de commit preenche uma mensagem Conventional Commits para o usuário confirmar; `docker.sock` ausente; Recreate pega imagem nova.
+
+**Ordem:** 51.1 + 51.3 (imagem/tema) → 51.5 (ENVs no XGIT, o chat precisa) → 51.2/51.4 (extensão: chat + generate commit). Sem misturar Settings de secret com o Dockerfile na mesma PR.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1429,7 +1479,7 @@ Decisão e invariantes: `PLAN.md` §3.6. **Não** é KVM. **Não** é bash na 22
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–50):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49 — não misturar Monaco e container na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–51):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51** (imagem + tema + extensões + assistente) vem depois da 50 — não misturar runtime e DX na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

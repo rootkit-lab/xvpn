@@ -29,3 +29,7 @@
 - Host `cs-*` não serve a API de controle (`/api/xcodespaces`, `/api/projects`); só SSO (`/api/auth/session`, `/api/auth/redeem`) passa no Gin
 - openvscode exige connection token; o proxy injeta o cookie `vscode-tkn` (não `?tkn=` — isso 302-loop) e remove `ihuull_session`/`Authorization` antes do container
 - Token Git do codespace vale só para o slug daquele workspace e some no stop/idle-stop
+
+## DX (Fase 51 — pendente)
+
+Imagem, tema ihuull, chat próprio (GLM e outros via proxy), generate commit e ENVs no Settings do repo: `ROADMAP.md` Fase 51 e `PLAN.md` §3.6. Sem Copilot/Continue na imagem; sem `docker.sock`; key de LLM não entra no container.

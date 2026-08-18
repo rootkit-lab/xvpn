@@ -148,6 +148,20 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 - Token de clone: credencial de curta duração injetada no container (não a senha da conta; não JWE de humano em variável de ambiente logável).
 - Guest/reporter: não criam codespace; read-only no editor rápido (Fase 49).
 
+**DX do codespace (Fase 51).** A imagem nua do openvscode não é ambiente de desenvolvimento. O Docker **configura** o ambiente ao *buildar* `ihuull/codespace` e no `postCreate` — **não** montando `docker.sock` no container (isso continua proibido).
+
+| Abordagem | Prós | Contras | Decisão |
+|---|---|---|---|
+| Imagem nua `gitpod/openvscode-server` | Menor, já em produção | Sem Go/Node/LSP; tema default | **Base do FROM** (51), não o runtime final |
+| DinD / `docker.sock` no codespace | Compose “igual produção” | Viola §3.6; o container vira root no host | **Rejeitado** |
+| `ihuull/codespace` + `.devcontainer` | Toolchain + extensões + settings no Create | Imagem maior; rebuild no VPS | **Escolhido** |
+| GitHub Copilot oficial (VSIX Microsoft) | Familiar | Marketplace MS (openvscode usa Open VSX); login GitHub sai da intranet; token no volume | **Rejeitado** |
+| Continue.dev / Cline no container | Rápido | Chrome de terceiro; chave no volume; não é produto ihuull | **Rejeitado** |
+| Extensão `ihuull.codespace` + proxy LLM no monólito | Chat nosso; GLM e outros; chave só no VPS; JWE `aud=xcodespaces` | Mais trabalho | **Escolhido** |
+| ENVs no Settings do repo (XGIT) | Codespace e proxy leem a mesma fonte | Precisa write-only em secret | **Escolhido** |
+
+Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). Extensões só Open VSX, bakeadas na imagem. Chat e *generate commit message* passam pelo proxy (GLM / OpenAI-compatível / Anthropic). ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fase 51.
+
 ---
 
 ## 4. Arquitetura geral
@@ -284,7 +298,7 @@ Hardcode de IP no app **não** substitui (1)+(2). `/etc/hosts` sozinho também n
 | `PATCH /api/dns` / `POST /api/dns/records` / `POST /api/dns/apply` | Admin+ com escopo `core` (Fase 35+: `dns`). Apply recarrega dnsmasq via provisioner. Zona pública (§6.17) é outra API |
 
 ### 6.3 Painel Web (React + Tailwind + shadcn/ui)
-Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44; Issues/PRs/editor/XCODESPACES nas 46–50.
+Páginas (Fase 35+ no host `xadmin.corp`): **Login**, **Dashboard**, **Usuários**, **Dispositivos**, **Compartilhamentos**, **Gerais**, **DNS** (intranet + público), **Marketplace** (Catálogo ≠ ACL), **XGIT** (repositórios + settings), **Compute**, **Serviços**, **Backups**, **Auditoria**. O `AdminShell` vive só em `xadmin.corp`; `xvpn.ihuull.com/admin` redireciona. Telas de forge/compute/serviços/backups entram nas Fases 36–44; Issues/PRs/editor/XCODESPACES nas 46–51.
 
 **Visual:** o mesmo design system dos apps desktop (`shared/ui`, SASS) — inclusive a landing `/`. Preto profundo, `watch-face`, cards `watch-complication`, `icon-well`, `field-glass`, Outfit, acento `--safe` / `power-safe`. Não há paleta navy/Workspace nem marketing paralela. Ver [§6.12](#612-design-system-e-color-system).
 
@@ -727,7 +741,9 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — editor rápido (Fase 49).** Produto `xcodespaces`, host `xcodespaces.corp.ihuull.com`, `aud=xcodespaces`, Nginx só `10.66.66.1:443`. Equivalente ao **github.dev**: worktree em `/opt/xvpn/data/codespaces/…` (bare intocado), tree + Monaco multi-tab + commit/push + abrir PR. Entrada: popover Code → aba XCODESPACES. Sem terminal, sem toolchain. Guest/reporter read-only. Permanece como caminho sem container.
 
-**XCODESPACES — remoto (Fase 50).** O Create de verdade (estilo GitHub Codespaces): helper sobe um **container Docker**, faz **`git clone`** do slug (smart HTTP `xgit.corp`, token de curta duração) para o volume do workspace, e serve **openvscode-server** em `https://cs-<id>.corp.ihuull.com` (proxy Nginx → `127.0.0.1:19000–19007`). Terminal, LSP e Git do VS Code rodam **dentro** do container. `.devcontainer/devcontainer.json` no repo, se existir, escolhe a imagem; senão imagem base ihuull (git + go + node). Idle-stop; teto de concorrência no VPS. **Não** é KVM. **Não** é bash na 22. Decisão e invariantes: §3.6.
+**XCODESPACES — remoto (Fase 50).** O Create de verdade (estilo GitHub Codespaces): helper sobe um **container Docker**, faz **`git clone`** do slug (smart HTTP `xgit.corp`, token de curta duração) para o volume do workspace, e serve **openvscode-server** em `https://cs-<id>.corp.ihuull.com` (proxy Nginx → `127.0.0.1:19000–19007`). Terminal, LSP e Git do VS Code rodam **dentro** do container. Idle-stop; teto de concorrência no VPS. **Não** é KVM. **Não** é bash na 22. Decisão e invariantes: §3.6.
+
+**XCODESPACES — DX (Fase 51).** Imagem `ihuull/codespace` (FROM openvscode + Go/Node) + `.devcontainer/devcontainer.json`. Tema **ihuull Dark** (tokens SASS). Extensão **nossa** (`ihuull.codespace`): chat ihuull + generate commit (Conventional Commits, usuário confirma). Proxy LLM no monólito: GLM (Zhipu / OpenAI-compatível), OpenAI, Anthropic, `base_url` allowlist. Settings do repo no XGIT (`/:slug/settings` → **Codespaces**): ENVs/secrets que o start injeta; keys de provedor o proxy lê no servidor e **não** vão ao container. Sem Continue, sem Copilot oficial, sem `docker.sock`. §3.6.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
@@ -974,8 +990,9 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **48. Editor Monaco** | `/edit` + commit (ou branch+PR) | Salvar = commit; protected branch respeitada |
 | **49. XCODESPACES (editor)** | `xcodespaces.corp` + worktree + Monaco | github.dev; sem terminal; só VPN |
 | **50. XCODESPACES (remoto)** | clone + Docker + openvscode-server | Shell só no container; `cs-<id>.corp`; §3.6 |
+| **51. XCODESPACES DX** | imagem + tema + chat ihuull + ENVs no XGIT | GLM e outros via proxy; generate commit; sem Copilot MS |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–50 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–51 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 
 ---
 

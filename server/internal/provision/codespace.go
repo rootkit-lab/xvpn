@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -40,17 +41,18 @@ var allowedCodespaceImages = map[string]struct{}{
 
 // CsSpec é o JSON do subcomando cs-apply (stdin).
 type CsSpec struct {
-	Action          string `json:"action"`
-	ID              string `json:"id"`
-	Workspace       string `json:"workspace"`
-	BarePath        string `json:"bare_path,omitempty"`
-	Branch          string `json:"branch,omitempty"`
-	Image           string `json:"image,omitempty"`
-	Port            uint16 `json:"port,omitempty"`
-	CloneURL        string `json:"clone_url,omitempty"`
-	GitUser         string `json:"git_user,omitempty"`
-	GitToken        string `json:"git_token,omitempty"`
-	ConnectionToken string `json:"connection_token,omitempty"`
+	Action          string            `json:"action"`
+	ID              string            `json:"id"`
+	Workspace       string            `json:"workspace"`
+	BarePath        string            `json:"bare_path,omitempty"`
+	Branch          string            `json:"branch,omitempty"`
+	Image           string            `json:"image,omitempty"`
+	Port            uint16            `json:"port,omitempty"`
+	CloneURL        string            `json:"clone_url,omitempty"`
+	GitUser         string            `json:"git_user,omitempty"`
+	GitToken        string            `json:"git_token,omitempty"`
+	ConnectionToken string            `json:"connection_token,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
 }
 
 // CsRunner isola git/docker para ApplyCodespace ser testável sem root.
@@ -209,7 +211,28 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 	if spec.GitUser != "" && !ValidUsername(spec.GitUser) && spec.GitUser != "codespace-"+spec.ID {
 		return CsSpec{}, fmt.Errorf("git_user inválido")
 	}
+	if err := validateCodespaceEnv(spec.Env); err != nil {
+		return CsSpec{}, err
+	}
 	return spec, nil
+}
+
+func validateCodespaceEnv(env map[string]string) error {
+	if len(env) == 0 {
+		return nil
+	}
+	if len(env) > store.MaxProjectEnvs {
+		return fmt.Errorf("env acima do teto")
+	}
+	for k, v := range env {
+		if !store.ValidProjectEnvName(k) || store.BlockedProjectEnvName(k) || store.IsLLMProjectEnv(k) {
+			return fmt.Errorf("env inválido")
+		}
+		if !store.ValidProjectEnvValue(v) {
+			return fmt.Errorf("env inválido")
+		}
+	}
+	return nil
 }
 
 func safeUnderRoot(root, raw string) (string, error) {
@@ -356,6 +379,9 @@ func csCreate(r CsRunner, spec CsSpec) error {
 	if err := applyMachineSettings(r, spec.Workspace, extraSettings); err != nil {
 		return err
 	}
+	if err := writeRuntimeEnvFile(r, spec.Workspace, spec.Env); err != nil {
+		return err
+	}
 	if err := r.ChownRecursive(spec.Workspace, 1000, 1000); err != nil {
 		return err
 	}
@@ -386,6 +412,37 @@ func machineSettingsHostPath(workspace string) string {
 	return filepath.Join(filepath.Dir(workspace), "machine-settings.json")
 }
 
+func runtimeEnvHostPath(workspace string) string {
+	return filepath.Join(filepath.Dir(workspace), "runtime.env")
+}
+
+func writeRuntimeEnvFile(r CsRunner, workspace string, env map[string]string) error {
+	path := runtimeEnvHostPath(workspace)
+	if err := r.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	return r.WriteFile(path, formatEnvFile(env), 0o600)
+}
+
+func formatEnvFile(env map[string]string) string {
+	if len(env) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(env[k])
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
 func dockerRunArgs(spec CsSpec) []string {
 	name := containerName(spec.ID)
 	args := []string{
@@ -402,6 +459,9 @@ func dockerRunArgs(spec CsSpec) []string {
 		"-v", spec.Workspace + ":" + codespaceProjectDir + ":rw",
 		"-v", machineSettingsHostPath(spec.Workspace) + ":" + codespaceMachineDest + ":ro",
 		"--label", "xvpn.codespace=" + spec.ID,
+	}
+	if len(spec.Env) > 0 {
+		args = append(args, "--env-file", runtimeEnvHostPath(spec.Workspace))
 	}
 	if openvscodeNeedsEntrypoint(spec.Image) {
 		// A imagem-base injeta --without-connection-token no ENTRYPOINT.

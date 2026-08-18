@@ -329,6 +329,8 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/xgit/repos", app.handleCreateProjectAuthed)
 			authed.GET("/projects/:slug", app.handleGetProject)
 			authed.GET("/projects/:slug/git", app.handleGetProjectGit)
+			authed.GET("/projects/:slug/codespaces/envs", app.handleGetProjectCodespaceEnvs)
+			authed.PUT("/projects/:slug/codespaces/envs", app.handlePutProjectCodespaceEnvs)
 			authed.GET("/projects/:slug/tree", app.handleListTree)
 			authed.GET("/projects/:slug/blob", app.handleGetBlob)
 			authed.GET("/projects/:slug/commits", app.handleListCommits)

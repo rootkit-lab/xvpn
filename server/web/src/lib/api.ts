@@ -767,6 +767,13 @@ export interface ProtectedBranch {
   min_push_role: ProjectRole
 }
 
+export interface ProjectCodespaceEnv {
+  name: string
+  secret: boolean
+  value?: string
+  has_value: boolean
+}
+
 export interface ProjectGit {
   clone_url: string
   exists: boolean
@@ -1242,6 +1249,13 @@ export const api = {
     request<Project>(`/projects/${encodeURIComponent(slug)}/members`, {
       method: 'PUT',
       body: JSON.stringify({ members }),
+    }),
+  getProjectCodespaceEnvs: (slug: string) =>
+    request<{ items: ProjectCodespaceEnv[] }>(`/projects/${encodeURIComponent(slug)}/codespaces/envs`),
+  putProjectCodespaceEnvs: (slug: string, items: { name: string; value: string; secret: boolean }[]) =>
+    request<{ items: ProjectCodespaceEnv[] }>(`/projects/${encodeURIComponent(slug)}/codespaces/envs`, {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
     }),
   getProjectGit: (slug: string) => request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`),
   initProjectGit: (slug: string) =>

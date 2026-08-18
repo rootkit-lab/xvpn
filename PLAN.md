@@ -152,7 +152,7 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 
 | Abordagem | Prós | Contras | Decisão |
 |---|---|---|---|
-| Imagem nua `gitpod/openvscode-server` | Menor, já em produção | Sem Go/Node/LSP; tema default | **Base do FROM** (51), não o runtime final |
+| Imagem nua `gitpod/openvscode-server` | Menor | Sem Go/Node/LSP; tema default | **FROM** da `ihuull/codespace` |
 | DinD / `docker.sock` no codespace | Compose “igual produção” | Viola §3.6; o container vira root no host | **Rejeitado** |
 | `ihuull/codespace` + `.devcontainer` | Toolchain + extensões + settings no Create | Imagem maior; rebuild no VPS | **Escolhido** |
 | GitHub Copilot oficial (VSIX Microsoft) | Familiar | Marketplace MS (openvscode usa Open VSX); login GitHub sai da intranet; token no volume | **Rejeitado** |

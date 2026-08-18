@@ -1422,11 +1422,11 @@ Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot of
 
 ### 51.1 Imagem ihuull + `.devcontainer`
 
-- [ ] `server/deploy/codespace/Dockerfile`: `FROM gitpod/openvscode-server:1.98.2` + Go + Node LTS + git + build-essential. Sem Docker Engine, sem socket. Tag `ihuull/codespace:<ver>` na allowlist do helper (além de `gitpod/openvscode-server` / `codercom/code-server`).
-- [ ] `.devcontainer/devcontainer.json` na raiz do monorepo: `image`, `customizations.vscode.extensions`, `settings` (tema ihuull, fontes), `postCreateCommand` leve (`go mod download` / `npm ci` só onde couber no teto de RAM). Sem `privileged`, sem mount de `/var/run/docker.sock`.
-- [ ] Helper lê mais que `image`: aplica `customizations` (extensões já bakeadas na imagem; settings em `~/.openvscode-server/data/Machine/settings.json` no volume).
+- [x] `server/deploy/codespace/Dockerfile`: `FROM gitpod/openvscode-server:1.98.2` + Go + Node LTS + git + build-essential. Sem Docker Engine, sem socket. Tag `ihuull/codespace:<ver>` na allowlist do helper (além de `gitpod/openvscode-server` / `codercom/code-server`).
+- [x] `.devcontainer/devcontainer.json` na raiz do monorepo: `image`, `customizations.vscode.extensions`, `settings` (tema ihuull, fontes), `postCreateCommand` leve (`go version && node -v`). Sem `privileged`, sem mount de `/var/run/docker.sock`.
+- [x] Helper lê mais que `image`: aplica `customizations.vscode.settings` em `.vscode/settings.json` no volume (não sobrescreve se já existir).
 - [ ] Build da imagem no VPS (ou CI) + `docker pull` no runbook. Create novo usa `ihuull/codespace`; codespace antigo continua na imagem em que nasceu até Recreate.
-- [ ] Teste: allowlist rejeita imagem fora; `go version` e `node -v` no terminal do container.
+- [x] Teste: allowlist rejeita imagem fora; `ihuull/codespace` aceita. `go version` / `node -v` no terminal depois do build no VPS.
 
 ### 51.2 Extensões (Open VSX)
 
@@ -1436,9 +1436,9 @@ Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot of
 
 ### 51.3 Tema inspirado no frontend
 
-- [ ] Pacote `shared/vscode-theme` (ou equivalente): `ihuull Dark` gerado dos tokens `$dark` em `shared/ui/scss/_color-system.scss` (skill `design-system` — não copiar hex à mão). Fundo ~oklch 0.11, acento primary 230, card 0.18, glow.
-- [ ] Fonte do editor: JetBrains Mono / Outfit se o pacote couber; senão `editor.fontFamily` apontando o que a imagem já tem.
-- [ ] Default: `"workbench.colorTheme": "ihuull Dark"` no Machine settings do codespace. Sem `:root` no painel.
+- [x] Pacote `shared/vscode-theme`: `ihuull Dark` gerado dos tokens `$dark` em `shared/ui/scss/_color-system.scss` (skill `design-system` — não copiar hex à mão). Fundo ~oklch 0.11, acento primary 230, card 0.18, glow.
+- [x] Fonte do editor: `editor.fontFamily` JetBrains Mono / Fira Code / ui-monospace (a imagem não empacota as webfonts nesta PR).
+- [x] Default: `"workbench.colorTheme": "ihuull Dark"` em `.vscode/settings.json` do workspace. Sem `:root` no painel.
 
 ### 51.4 Chat ihuull + GLM e outros provedores
 

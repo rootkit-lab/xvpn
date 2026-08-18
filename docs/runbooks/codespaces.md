@@ -8,7 +8,7 @@
 ## Operação no VPS
 
 1. Instalar Docker (socket Unix; **não** pôr o user `xvpn` no grupo `docker`).
-2. `docker pull gitpod/openvscode-server:1.98.2`
+2. Build da imagem DX (raiz do clone): `docker build -f server/deploy/codespace/Dockerfile -t ihuull/codespace:1.98.2 .` (FROM `gitpod/openvscode-server:1.98.2`). Sem `docker.sock`.
 3. Deploy do `xvpn-server` **e** do `xvpn-user-provision` (subcomando `cs-apply`).
 4. Nginx: server block `~^cs-[a-f0-9]+\.corp\.ihuull\.com$` em `server/deploy/nginx/corp.conf` — `nginx -t && systemctl reload nginx`.
 5. Catch-all `*.corp` no dnsmasq já resolve `cs-<id>.corp`. Sem A público.
@@ -30,6 +30,8 @@
 - openvscode exige connection token; o proxy injeta o cookie `vscode-tkn` (não `?tkn=` — isso 302-loop) e remove `ihuull_session`/`Authorization` antes do container
 - Token Git do codespace vale só para o slug daquele workspace e some no stop/idle-stop
 
-## DX (Fase 51 — pendente)
+## DX (Fase 51)
 
-Imagem, tema ihuull, chat próprio (GLM e outros via proxy), generate commit e ENVs no Settings do repo: `ROADMAP.md` Fase 51 e `PLAN.md` §3.6. Sem Copilot/Continue na imagem; sem `docker.sock`; key de LLM não entra no container.
+- Imagem `ihuull/codespace:1.98.2` (Go + Node + tema). Create novo usa essa tag; codespace antigo fica na imagem em que nasceu até Recreate.
+- Tema **ihuull Dark**: `shared/vscode-theme` (gerar com `node shared/vscode-theme/gen.mjs`). Settings em `.vscode/settings.json` no volume.
+- Chat / generate commit / ENVs no XGIT: ainda pendentes (51.4–51.5). Sem Copilot/Continue; sem `docker.sock`; key de LLM não entra no container.

@@ -36,7 +36,8 @@ func ValidProjectEnvName(name string) bool {
 
 func BlockedProjectEnvName(name string) bool {
 	switch name {
-	case "PATH", "HOME", "ENV", "BASH_ENV", "PROMPT_COMMAND", "SHELLOPTS",
+	case "PATH", "HOME", "ENV", "BASH_ENV", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS",
+		"PS0", "PS1", "PS2", "PS3", "PS4", "HISTFILE",
 		"NODE_OPTIONS", "NODE_PATH",
 		"PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME",
 		"PERL5OPT", "PERL5LIB", "RUBYOPT", "RUBYLIB",

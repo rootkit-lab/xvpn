@@ -27,6 +27,9 @@ func TestBlockedAndLLMProjectEnv(t *testing.T) {
 	if !BlockedProjectEnvName("NODE_OPTIONS") || !BlockedProjectEnvName("BASH_ENV") || !BlockedProjectEnvName("PROMPT_COMMAND") {
 		t.Fatal("runtime-control bloqueado")
 	}
+	if !BlockedProjectEnvName("PS1") || !BlockedProjectEnvName("PS4") {
+		t.Fatal("PS1/PS4 bloqueados")
+	}
 	if BlockedProjectEnvName("APP_URL") {
 		t.Fatal("APP_URL livre")
 	}

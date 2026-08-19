@@ -65,10 +65,16 @@ func (f *fakeCsRunner) WriteFile(path, content string, _ os.FileMode) error {
 	return nil
 }
 func (f *fakeCsRunner) RemoveAll(string) error { return nil }
-func (f *fakeCsRunner) FileExists(string) (bool, error) {
-	return false, nil
+func (f *fakeCsRunner) FileExists(path string) (bool, error) {
+	_, ok := f.writes[path]
+	return ok, nil
 }
-func (f *fakeCsRunner) ReadFile(string) ([]byte, error)       { return nil, os.ErrNotExist }
+func (f *fakeCsRunner) ReadFile(path string) ([]byte, error) {
+	if s, ok := f.writes[path]; ok {
+		return []byte(s), nil
+	}
+	return nil, os.ErrNotExist
+}
 func (f *fakeCsRunner) ChownRecursive(string, int, int) error { return nil }
 
 func TestParseCsSpec_RejectsUnsafe(t *testing.T) {

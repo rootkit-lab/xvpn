@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/rootkit-lab/xvpn/server/internal/corpdns"
 )
 
 func TestValidDemoName(t *testing.T) {
@@ -58,12 +60,13 @@ func TestApplyCodespace_DemoWritesDnsmasq(t *testing.T) {
 	if err := ApplyCodespace(f, strings.NewReader(payload), csRoot, gitRoot); err != nil {
 		t.Fatal(err)
 	}
+	hosts := f.writes[corpdns.DemoHostsPath]
+	if !strings.Contains(hosts, "10.66.66.254 demo-vite.corp.ihuull.com") {
+		t.Fatalf("demo.hosts: %q", hosts)
+	}
 	conf := f.writes[demoDnsmasqConf]
 	if strings.Contains(conf, "address=/") {
 		t.Fatalf("address=/ perde pro catch-all: %q", conf)
-	}
-	if !strings.Contains(conf, "host-record=demo-vite.corp.ihuull.com,10.66.66.254") {
-		t.Fatalf("dnsmasq: %q", conf)
 	}
 	joined := ""
 	for _, c := range f.host {
@@ -86,6 +89,24 @@ func TestApplyCodespace_DemoWritesDnsmasq(t *testing.T) {
 	}
 	if strings.Contains(joined, "10.66.66.1") && strings.Contains(joined, "DNAT") && strings.Contains(joined, "-d 10.66.66.1") {
 		t.Fatal("DNAT não pode usar o IP do Samba/Nginx")
+	}
+}
+
+func TestReloadDemoDnsmasq_RestartsWhenAddnHostsMissing(t *testing.T) {
+	f := newFakeCs()
+	f.writes[dnsmasqMainPath] = "listen-address=10.66.66.1\naddn-hosts=/etc/xvpn/dnsmasq-records.hosts\n"
+	if err := reloadDemoDnsmasq(f); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(f.writes[dnsmasqMainPath], "addn-hosts=/etc/xvpn/demo.hosts") {
+		t.Fatalf("main: %s", f.writes[dnsmasqMainPath])
+	}
+	joined := ""
+	for _, c := range f.host {
+		joined += strings.Join(c, " ") + "\n"
+	}
+	if !strings.Contains(joined, "systemctl restart dnsmasq") {
+		t.Fatalf("esperava restart: %s", joined)
 	}
 }
 

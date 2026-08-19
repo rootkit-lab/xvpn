@@ -205,10 +205,10 @@ func (osRunner) ReloadDnsmasq() error {
 	if out, err := exec.Command("dnsmasq", "--test").CombinedOutput(); err != nil {
 		return fmt.Errorf("dnsmasq --test rejeitou a config: %w: %s", err, string(out))
 	}
-	if err := exec.Command("systemctl", "reload", "dnsmasq").Run(); err != nil {
-		if err2 := exec.Command("systemctl", "restart", "dnsmasq").Run(); err2 != nil {
-			return fmt.Errorf("recarregando dnsmasq: %w", err2)
-		}
+	// SIGHUP (reload) relê /etc/hosts e addn-hosts, mas não os .conf.
+	// dns-apply reescreve xvpn-corp.conf — precisa de restart.
+	if err := exec.Command("systemctl", "restart", "dnsmasq").Run(); err != nil {
+		return fmt.Errorf("reiniciando dnsmasq: %w", err)
 	}
 	return nil
 }

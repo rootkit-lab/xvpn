@@ -1616,7 +1616,7 @@ Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado
 
 ### 56.2 DNS e nome
 
-- [x] `demo-<nome>.corp.ihuull.com` em `/etc/dnsmasq.d/xvpn-demo.conf` (mais específico que o catch-all → `.1`).
+- [x] `demo-<nome>.corp.ihuull.com` em `/etc/xvpn/demo.hosts` (`addn-hosts=`; SIGHUP relê. `host-record=` / `address=/demo-…/` não vencem o catch-all após um mero `reload`).
 - [x] `PATCH /api/xcodespaces/:id/demo`. Create remoto usa o slug como nome default. Sem A público.
 
 ### 56.3 UI
@@ -1652,7 +1652,7 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 - [x] Layout: **Ports** em `viewsContainers.panel` (painel inferior — `workbench.panel` caía no Explorer), **XCODESPACES** na auxiliary bar.
 - [x] Chat compacto na barra direita + **Sempre** / Auto: `write_file` e `apply_patch` sem Aplicar a cada ficheiro (`ihuull.codespace.autoApply`). Terminal continua a confirmar.
 - [x] Ports: hostname `demo-*` completo (sem ellipsis); **Abrir** via `window.open` no clique (openExternal no webview é no-op).
-- [x] Demo DNS: `host-record=` vence o catch-all `address=/corp.ihuull.com/` (senão `:8080` cai no landing em `10.66.66.1`).
+- [x] Demo DNS: A em `/etc/xvpn/demo.hosts` (`addn-hosts=`). `reload`/SIGHUP não relê `host-record=` — o preview caía no landing em `10.66.66.1:8080`.
 - [x] CI: `client-linux` / `client-windows-crosscompile` só com diff em `apps/xvpn-client/**` (`dorny/paths-filter`).
 
 **Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). Aba **Ports** lista `:8080` → `http://demo-cs-<id>.corp:8080/health` → `{"ok":true}`. PR só codespace: CI ~3 min (sem Wails client).

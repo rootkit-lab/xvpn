@@ -21,6 +21,12 @@ func TestApplyDNSWritesBindAndReloads(t *testing.T) {
 	if !strings.Contains(main, "addn-hosts=/etc/xvpn/dnsmasq-records.hosts") {
 		t.Fatalf("hosts fora de dnsmasq.d: %s", main)
 	}
+	if !strings.Contains(main, "addn-hosts=/etc/xvpn/demo.hosts") {
+		t.Fatalf("demo.hosts no main: %s", main)
+	}
+	if !strings.Contains(r.files["/etc/xvpn/demo.hosts"], "sem demo") {
+		t.Fatalf("demo.hosts vazio: %s", r.files["/etc/xvpn/demo.hosts"])
+	}
 	if !strings.Contains(r.files[dnsmasqHostsPath], "xchat.corp.ihuull.com") {
 		t.Fatalf("hosts: %s", r.files[dnsmasqHostsPath])
 	}

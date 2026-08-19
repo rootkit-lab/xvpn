@@ -35,7 +35,7 @@
 
 O botão **Ports → Forward a Port** do OpenVSCode tenta túnel Microsoft (internet). Não use.
 
-Na VPN: `http://demo-<nome>.corp.ihuull.com:<porta>` chega no processo **dentro do container** (VIP `10.66.66.254` → DNAT). O A do demo é `host-record=` em `00-xvpn-demo.conf` — `address=/demo-…/` perde para o catch-all `*.corp` → `.1` (landing em `:8080`). Nome no painel XCODESPACES → **Demo**. O app tem que escutar `0.0.0.0` (Vite: `--host`). Sem A público. Deploy do helper `xvpn-user-provision` **e** do `xvpn-server`.
+Na VPN: `http://demo-<nome>.corp.ihuull.com:<porta>` chega no processo **dentro do container** (VIP `10.66.66.254` → DNAT). O A do demo é `/etc/xvpn/demo.hosts` (`addn-hosts=`). `systemctl reload` (SIGHUP) relê esse ficheiro; `host-record=` em `00-xvpn-demo.conf` **não** entra no processo até um `restart` — o preview caía no landing em `.1:8080`. `address=/demo-…/` perde para o catch-all `*.corp`. Nome no painel XCODESPACES → **Demo**. O app tem que escutar `0.0.0.0` (Vite: `--host`). Sem A público. Deploy do helper `xvpn-user-provision` **e** do `xvpn-server`.
 
 ## DX (Fase 51)
 

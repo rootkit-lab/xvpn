@@ -101,13 +101,14 @@ func applyDemoForward(r CsRunner, spec CsSpec) error {
 		return err
 	}
 	host := DemoHostname(name)
-	// host-record vence address=/corp.ihuull.com/ (catch-all). address=/demo-…/
-	// e addn-hosts em /etc/dnsmasq.d/*.hosts quebram o start (Ubuntu lê tudo
-	// como config). Sem isso o preview caía em 10.66.66.1:8080 (landing).
+	// A do demo vive em /etc/xvpn/demo.hosts (addn-hosts). SIGHUP relê
+	// isso; host-record= em /etc/dnsmasq.d/ só entra após restart.
+	// address=/demo-…/ perde para o catch-all → .1:8080 (landing).
+	// .hosts em /etc/dnsmasq.d/ quebra o start (Ubuntu lê tudo como config).
 	if err := writeDemoDnsmasq(r, host); err != nil {
 		return err
 	}
-	if err := r.HostCmd("systemctl", "reload", "dnsmasq"); err != nil {
+	if err := reloadDemoDnsmasq(r); err != nil {
 		return err
 	}
 	return applyDemoNginx(r, host)
@@ -116,21 +117,57 @@ func applyDemoForward(r CsRunner, spec CsSpec) error {
 func clearDemoForward(r CsRunner) error {
 	_ = applyDemoNAT(r, "")
 	_ = writeDemoDnsmasq(r, "")
-	_ = r.HostCmd("systemctl", "reload", "dnsmasq")
+	_ = reloadDemoDnsmasq(r)
 	return applyDemoNginx(r, "")
 }
 
 func writeDemoDnsmasq(r CsRunner, host string) error {
-	body := "# sem demo ativo\n"
-	if host != "" {
-		body = "host-record=" + host + "," + DemoVIP + "\n"
+	if err := r.MkdirAll("/etc/xvpn", 0755); err != nil {
+		return fmt.Errorf("mkdir /etc/xvpn: %w", err)
 	}
-	if err := r.WriteFile(demoDnsmasqConf, body, 0644); err != nil {
+	hosts := "# demo ports — addn-hosts (SIGHUP relê). Não pôr em /etc/dnsmasq.d/\n"
+	if host != "" {
+		hosts += DemoVIP + " " + host + "\n"
+	}
+	if err := r.WriteFile(corpdns.DemoHostsPath, hosts, 0644); err != nil {
+		return fmt.Errorf("gravando hosts demo: %w", err)
+	}
+	conf := "# A do demo: " + corpdns.DemoHostsPath + " (addn-hosts). SIGHUP não relê este ficheiro.\n"
+	if host != "" {
+		conf += "host-record=" + host + "," + DemoVIP + "\n"
+	}
+	if err := r.WriteFile(demoDnsmasqConf, conf, 0644); err != nil {
 		return fmt.Errorf("gravando dnsmasq demo: %w", err)
 	}
-	// Arquivo antigo (address=/) perdia para o catch-all e não deve ficar.
-	_ = r.WriteFile(demoDnsmasqConfLegacy, "# superseded by 00-xvpn-demo.conf\n", 0644)
+	_ = r.WriteFile(demoDnsmasqConfLegacy, "# superseded — see "+corpdns.DemoHostsPath+"\n", 0644)
 	return nil
+}
+
+func reloadDemoDnsmasq(r CsRunner) error {
+	needRestart, err := ensureDemoAddnHosts(r)
+	if err != nil {
+		return err
+	}
+	if needRestart {
+		return r.HostCmd("systemctl", "restart", "dnsmasq")
+	}
+	return r.HostCmd("systemctl", "reload", "dnsmasq")
+}
+
+func ensureDemoAddnHosts(r CsRunner) (bool, error) {
+	raw, err := r.ReadFile(dnsmasqMainPath)
+	if err != nil {
+		return false, nil
+	}
+	line := "addn-hosts=" + corpdns.DemoHostsPath
+	if strings.Contains(string(raw), line) {
+		return false, nil
+	}
+	body := strings.TrimRight(string(raw), "\n") + "\n" + line + "\n"
+	if err := r.WriteFile(dnsmasqMainPath, body, 0644); err != nil {
+		return false, fmt.Errorf("addn-hosts demo: %w", err)
+	}
+	return true, nil
 }
 
 func containerBridgeIP(r CsRunner, id string) (string, error) {

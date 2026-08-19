@@ -402,6 +402,35 @@ func TestLLMChat_ContextAndToolCalls(t *testing.T) {
 	}
 }
 
+func TestSanitizeLLMMessages_AllowsLongToolLoop(t *testing.T) {
+	in := make([]llmMessage, 0, 49)
+	in = append(in, llmMessage{Role: "user", Content: "explore o repo"})
+	for i := 0; i < 24; i++ {
+		in = append(in, llmMessage{
+			Role: "assistant",
+			ToolCalls: []llmToolCall{{
+				ID: "c1", Name: "read_file", Arguments: `{"path":"go.mod"}`,
+			}},
+		})
+		in = append(in, llmMessage{
+			Role: "tool", ToolCallID: "c1", Name: "read_file", Content: "module x",
+		})
+	}
+	if _, err := sanitizeLLMMessages(in, "", "agent"); err != nil {
+		t.Fatalf("loop de 24 tools deveria caber: %v", err)
+	}
+}
+
+func TestSanitizeLLMMessages_RejectsOverCap(t *testing.T) {
+	in := make([]llmMessage, maxLLMChatMsgs+1)
+	for i := range in {
+		in[i] = llmMessage{Role: "user", Content: "x"}
+	}
+	if _, err := sanitizeLLMMessages(in, "", "ask"); err == nil {
+		t.Fatal("acima do cap deveria falhar")
+	}
+}
+
 func TestSanitizeLLMMessages_CapsContext(t *testing.T) {
 	huge := strings.Repeat("x", maxLLMContextBytes+80)
 	out, err := sanitizeLLMMessages([]llmMessage{{Role: "user", Content: "oi"}}, huge, "agent")

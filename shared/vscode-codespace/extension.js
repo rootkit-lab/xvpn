@@ -9,11 +9,15 @@ const { stripBannedAssistants, hideNativeChat, showAgentChat } = require("./bann
 const { buildContext, listSkills } = require("./context");
 const { needsConfirm, confirmDetail, runTool } = require("./tools");
 const { toolsForMode } = require("./tool-specs");
+const { toolCardTitle, exploreLabel } = require("./chat-ui");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
 const DEFAULT_ORIGIN = "https://xcodespaces.corp.ihuull.com";
-const MAX_AGENT_TURNS = 8;
+const MAX_AGENT_TURNS = 24;
+const MAX_HISTORY = 40;
+const MAX_LLM_MSGS = 76;
+const CEILING_PROMPT = "Teto de tools. Responda com o que já descobriu; não peça mais tools.";
 
 function activate(context) {
   const provider = new AgentViewProvider(context);
@@ -179,10 +183,11 @@ class AgentViewProvider {
   async runAgent(cwd, userText, ctx, mode, model) {
     const messages = this.history.concat([{ role: "user", content: userText }]);
     const tools = toolsForMode(mode);
+    const used = [];
     for (let i = 0; i < MAX_AGENT_TURNS; i++) {
-      this.post({ type: "status", text: i ? "tool " + i + "…" : "pensando…" });
+      this.post({ type: "status", phase: i ? "exploring" : "thinking" });
       const data = await llmFetch(cwd, "/api/xcodespaces/llm/chat", {
-        messages,
+        messages: trimMessages(messages),
         context: ctx.text || "",
         tools,
         mode,
@@ -215,17 +220,49 @@ class AgentViewProvider {
             name: tc.name,
             content: result,
           });
-          this.post({ type: "tool", text: tc.name + ": " + String(result).slice(0, 240) });
+          used.push(tc.name);
+          this.post({
+            type: "tool",
+            name: tc.name,
+            title: toolCardTitle(tc.name, safeParse(tc.arguments)),
+            text: String(result).slice(0, 320),
+            summary: exploreLabel(used),
+          });
         }
         continue;
       }
       const reply = (data.text || "").trim() || "resposta vazia";
-      this.history = messages.concat([{ role: "assistant", content: reply }]).slice(-20);
+      this.history = messages.concat([{ role: "assistant", content: reply }]).slice(-MAX_HISTORY);
       this.post({ type: "reply", text: reply });
       return;
     }
-    this.post({ type: "reply", text: "teto de tools atingido — reformule o pedido." });
+    await this.finishCeiling(cwd, messages, ctx, model);
   }
+
+  async finishCeiling(cwd, messages, ctx, model) {
+    this.post({ type: "status", phase: "summarizing" });
+    try {
+      const data = await llmFetch(cwd, "/api/xcodespaces/llm/chat", {
+        messages: trimMessages(messages.concat([{ role: "user", content: CEILING_PROMPT }])),
+        context: ctx.text || "",
+        tools: [],
+        mode: "ask",
+        model,
+      });
+      const reply = (data.text || "").trim() || "teto de tools — continue numa nova mensagem com o que falta.";
+      this.history = messages.concat([{ role: "assistant", content: reply }]).slice(-MAX_HISTORY);
+      this.post({ type: "reply", text: reply });
+    } catch (_) {
+      this.post({ type: "reply", text: "teto de tools — continue numa nova mensagem com o que falta." });
+    }
+  }
+}
+
+function trimMessages(msgs) {
+  if (!Array.isArray(msgs) || msgs.length <= MAX_LLM_MSGS) {
+    return msgs;
+  }
+  return msgs.slice(-MAX_LLM_MSGS);
 }
 
 async function ensureGitIdentity(cwd, name, email) {
@@ -380,220 +417,7 @@ async function llmFetch(cwd, apiPath, body) {
 }
 
 function agentHTML() {
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-:root {
-  --bg: oklch(0.11 0.012 260);
-  --fg: oklch(0.98 0.005 260);
-  --card: oklch(0.18 0.014 260);
-  --muted: oklch(0.2 0.012 260);
-  --muted-fg: oklch(0.7 0.02 260);
-  --primary: oklch(0.72 0.14 230);
-  --primary-fg: oklch(0.16 0.02 230);
-  --secondary: oklch(0.22 0.016 260);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --product: oklch(0.76 0.16 300);
-}
-html, body { height: 100%; }
-body {
-  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
-  background: var(--bg); color: var(--fg);
-  margin: 0; display: flex; flex-direction: column; height: 100%;
-}
-.bar {
-  display: flex; gap: 8px; align-items: center;
-  padding: 8px 10px; border-bottom: 1px solid var(--border);
-}
-.sel { position: relative; min-width: 0; }
-.sel.grow { flex: 1; }
-select {
-  appearance: none; width: 100%;
-  background: var(--secondary); color: var(--fg);
-  border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 22px 6px 10px; font-size: 12px;
-}
-.sel::after {
-  content: "▾"; position: absolute; right: 8px; top: 50%;
-  transform: translateY(-50%); color: var(--muted-fg); font-size: 10px; pointer-events: none;
-}
-#log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
-.bubble { padding: 8px 12px; border-radius: 12px; max-width: 94%; white-space: pre-wrap; font-size: 13px; }
-.me { align-self: flex-end; background: color-mix(in oklch, var(--primary) 28%, var(--card)); }
-.bot { align-self: flex-start; background: var(--card); }
-.tool, .status { align-self: stretch; color: var(--muted-fg); font-size: 12px; }
-.warn { align-self: stretch; color: var(--muted-fg); font-size: 12px; padding: 0 2px; }
-#confirm {
-  display: none; margin: 0 12px 8px; padding: 10px; background: var(--card);
-  border: 1px solid var(--border); border-radius: 12px; font-size: 13px;
-}
-#confirm.show { display: block; }
-#confirm .row { display: flex; gap: 8px; margin-top: 8px; }
-footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; }
-.ctx {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin: 0 0 8px; padding: 3px 8px; border-radius: 999px;
-  background: var(--muted); color: var(--muted-fg); font-size: 11px; max-width: 100%;
-}
-.ctx[hidden] { display: none; }
-.ctx b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-form { display: flex; flex-direction: column; gap: 8px; }
-textarea {
-  width: 100%; box-sizing: border-box; resize: none; min-height: 56px; max-height: 160px;
-  background: var(--muted); color: inherit; border: 1px solid var(--input);
-  border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px;
-}
-.composer-row { display: flex; align-items: center; gap: 8px; }
-#chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
-#chips button {
-  background: var(--muted); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 999px; padding: 3px 8px; font-size: 11px; cursor: pointer;
-}
-button.go {
-  background: var(--product); color: var(--primary-fg); border: 0;
-  border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
-}
-button.ok { background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 6px 10px; }
-button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
-</style>
-</head>
-<body>
-<header class="bar">
-  <label class="sel">
-    <select id="mode" title="Modo do agente">
-      <option value="agent">Agent</option>
-      <option value="ask">Ask</option>
-      <option value="debug">Debug</option>
-      <option value="plan">Plan</option>
-    </select>
-  </label>
-  <label class="sel grow">
-    <select id="model" title="Modelo"></select>
-  </label>
-</header>
-<div id="log"></div>
-<div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="no" id="no">Recusar</button></div></div>
-<footer>
-  <div id="ctx" class="ctx" hidden>arquivo <b id="ctxfile"></b></div>
-  <form id="f">
-    <textarea id="q" placeholder="Pergunte ou /skills" rows="2"></textarea>
-    <div class="composer-row">
-      <div id="chips">
-        <button type="button" data-q="/help">/help</button>
-        <button type="button" data-q="/skills">/skills</button>
-        <button type="button" data-q="/commit">/commit</button>
-        <button type="button" data-q="/explain">/explain</button>
-      </div>
-      <button class="go" type="submit">Enviar</button>
-    </div>
-  </form>
-</footer>
-<script>
-const vscode = acquireVsCodeApi();
-const log = document.getElementById('log');
-const box = document.getElementById('confirm');
-const modeEl = document.getElementById('mode');
-const modelEl = document.getElementById('model');
-const q = document.getElementById('q');
-const ctx = document.getElementById('ctx');
-const ctxfile = document.getElementById('ctxfile');
-let confirmId = '';
-const saved = vscode.getState() || {};
-if (saved.mode) modeEl.value = saved.mode;
-function persist() {
-  vscode.setState({ mode: modeEl.value, model: modelEl.value });
-}
-function add(cls, text) {
-  const d = document.createElement('div');
-  d.className = 'bubble ' + cls;
-  d.textContent = text;
-  log.appendChild(d);
-  log.scrollTop = log.scrollHeight;
-}
-function send(text) {
-  add('me', text);
-  vscode.postMessage({ type: 'ask', text, mode: modeEl.value, model: modelEl.value });
-}
-function fillModels(m) {
-  const catalog = m.catalog || [];
-  const current = m.model || saved.model || '';
-  modelEl.innerHTML = '';
-  if (!catalog.length) {
-    const o = document.createElement('option');
-    o.value = current;
-    o.textContent = current || 'modelo (xadmin)';
-    modelEl.appendChild(o);
-  } else {
-    for (const item of catalog) {
-      const o = document.createElement('option');
-      o.value = item.id;
-      o.textContent = item.label || item.id;
-      modelEl.appendChild(o);
-    }
-  }
-  if (current) modelEl.value = current;
-  if (m.mode) modeEl.value = m.mode;
-  persist();
-  if (m.error) add('warn', m.error);
-  else if (m.has_key === false) add('warn', 'Sem key LLM — configure em xadmin → Settings.');
-}
-document.getElementById('f').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const text = q.value.trim();
-  if (!text) return;
-  q.value = '';
-  send(text);
-});
-q.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    document.getElementById('f').requestSubmit();
-  }
-});
-document.getElementById('chips').addEventListener('click', (e) => {
-  const chip = e.target.getAttribute('data-q');
-  if (chip) send(chip);
-});
-modeEl.addEventListener('change', () => {
-  persist();
-  vscode.postMessage({ type: 'setMode', mode: modeEl.value });
-});
-modelEl.addEventListener('change', () => {
-  persist();
-  vscode.postMessage({ type: 'setModel', model: modelEl.value });
-});
-document.getElementById('yes').onclick = () => {
-  box.classList.remove('show');
-  vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: true });
-};
-document.getElementById('no').onclick = () => {
-  box.classList.remove('show');
-  vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: false });
-};
-window.addEventListener('message', (e) => {
-  const m = e.data || {};
-  if (m.type === 'reply') add('bot', m.text || '');
-  if (m.type === 'tool') add('tool', m.text || '');
-  if (m.type === 'status') add('status', m.text || '');
-  if (m.type === 'models') fillModels(m);
-  if (m.type === 'file') {
-    const name = m.file || '';
-    ctx.hidden = !name;
-    ctxfile.textContent = name;
-  }
-  if (m.type === 'confirm') {
-    confirmId = m.id;
-    document.getElementById('cdetail').textContent = (m.kind || '') + ': ' + (m.detail || '');
-    box.classList.add('show');
-  }
-});
-vscode.postMessage({ type: 'ready' });
-</script>
-</body>
-</html>`;
+  return fs.readFileSync(path.join(__dirname, "agent.html"), "utf8");
 }
 
 function deactivate() {}

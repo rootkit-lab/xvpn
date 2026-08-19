@@ -1489,11 +1489,12 @@ A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda m
 
 - [x] Varrer o folder aberto: `AGENTS.md` (~8 KiB), `.cursor/skills/*/SKILL.md` (catálogo name+description), `.cursor/rules/*.mdc`, arquivo/seleção atuais.
 - [x] Slash: `/help`, `/skills`, `/commit`, `/explain`, `/<skill>`.
-- [x] `POST /api/xcodespaces/llm/chat` aceita `context` (cap ~24 KiB) e prefixa o system. `maxLLMChatMsgs` 32; chat até 2048 tokens.
+- [x] `POST /api/xcodespaces/llm/chat` aceita `context` (cap ~24 KiB) e prefixa o system. `maxLLMChatMsgs` 80 (cabe um loop de 24 tools); chat até 2048 tokens.
 
 ### 52.3 Loop de ferramentas (no container)
 
-- [x] Proxy OpenAI-compat devolve `content` **ou** `tool_calls`. Sem loop no servidor — a extensão itera (teto 8).
+- [x] Proxy OpenAI-compat devolve `content` **ou** `tool_calls`. Sem loop no servidor — a extensão itera (teto 24).
+- [x] No teto: uma chamada em Ask (sem tools) pede o que já descobriu — não só “reformule o pedido”.
 - [x] Tools no extension host, path só no clone (`..` rejeitado): `read_file`, `list_dir`, `grep`, `read_skill`, `write_file` / `apply_patch` (usuário confirma), `run_terminal` (allowlist: git/go/npm/npx/node/python3/ls/cat/head/rg; block docker/sudo/ssh; timeout; stdout truncado).
 - [x] Thinking GLM continua desligado. Sem `docker.sock`.
 
@@ -1501,6 +1502,7 @@ A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda m
 
 - [x] OpenVSCode **1.98** não registra `viewsContainers.secondarySidebar` (só `activitybar`/`panel`). A view entra em `workbench.panel.chat` — o container nativo da **direita**. Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate fecha o Chat/Edits nativos e foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
 - [x] Chrome do webview: seletor de modo **Agent / Ask / Debug / Plan**, seletor de modelo, arquivo atual, composer (Enter envia, Shift+Enter quebra linha).
+- [x] Timeline Cursor-like: **Thinking**, resumo expansível (“Explorou N arquivos, M buscas”), cards `>_` com título + tag + preview — sem dump `tool 6…`.
 - [x] `GET /api/xcodespaces/llm/models` (mesmo grupo llm: host `cs-*` / `xcodespaces.corp` + JWE ou token Git). Devolve `provider`, `model`, `has_key`, `catalog` — sem a key.
 - [x] `POST /chat` aceita `mode` e `model` (override por request, allowlist do catálogo do provedor; Settings do xadmin continua a fonte). Ask não encaminha tools; Plan só read.
 

@@ -28,7 +28,7 @@ const (
 	maxLLMDiffBytes       = 8 << 10
 	maxLLMMsgBytes        = 4 << 10
 	maxLLMToolResultBytes = 16 << 10
-	maxLLMChatMsgs        = 32
+	maxLLMChatMsgs        = 80
 	maxLLMContextBytes    = 24 << 10
 	maxLLMChatTokens      = 2048
 	maxLLMTools           = 16

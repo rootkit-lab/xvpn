@@ -10,6 +10,7 @@
   --border: oklch(1 0 0 / 8%);
   --primary: oklch(0.72 0.14 230);
   --safe: oklch(0.72 0.17 150);
+  --warn: oklch(0.78 0.16 85);
   --font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
 }
 html, body { height: 100%; margin: 0; }
@@ -34,15 +35,23 @@ body {
   width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
   background: var(--safe); box-shadow: 0 0 8px color-mix(in oklch, var(--safe) 60%, transparent);
 }
+.dot.warn {
+  background: var(--warn);
+  box-shadow: 0 0 8px color-mix(in oklch, var(--warn) 50%, transparent);
+}
 .port { font-family: var(--font-mono); font-weight: 600; min-width: 4.5rem; }
+.meta { flex: 1; min-width: 0; }
 .url {
-  flex: 1; font-family: var(--font-mono); font-size: 12px;
+  font-family: var(--font-mono); font-size: 12px;
   color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.bind { font-size: 11px; color: var(--muted-fg); margin-top: 2px; }
+.bind.warn { color: var(--warn); }
 .btn {
   background: color-mix(in oklch, var(--primary) 18%, transparent);
   color: var(--primary); border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent);
   border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+  flex-shrink: 0;
 }
 .btn:hover { background: color-mix(in oklch, var(--primary) 28%, transparent); }
 .empty {
@@ -70,12 +79,16 @@ window.addEventListener("message", (ev) => {
 
 function render(ports) {
   if (!ports.length) {
-    list.innerHTML = '<div class="empty">Nenhuma porta pública (0.0.0.0).<br>Ex.: <code>npm run dev -- --host</code> ou <code>python3 -m http.server 8080 --bind 0.0.0.0</code></div>';
+    list.innerHTML = '<div class="empty">Nenhuma porta detectada.<br>Flask: <code>python3 web/flask/app.py</code> (0.0.0.0:8080)</div>';
     return;
   }
   list.innerHTML = ports.map((p) => {
-    const url = demoHost ? `http://${demoHost}:${p}` : `:${p}`;
-    return `<div class="row"><span class="dot" title="online"></span><span class="port">:${p}</span><span class="url">${url}</span><button class="btn" data-u="${url}">Abrir</button></div>`;
+    const port = typeof p === "number" ? p : p.port;
+    const addr = typeof p === "object" && p.addr ? p.addr : "0.0.0.0";
+    const ok = typeof p === "object" ? p.public !== false : true;
+    const url = demoHost ? `http://${demoHost}:${port}` : `:${port}`;
+    const bind = ok ? `bind ${addr}` : `bind ${addr} — use 0.0.0.0 p/ demo-*`;
+    return `<div class="row"><span class="dot${ok ? "" : " warn"}" title="online"></span><span class="port">:${port}</span><div class="meta"><div class="url">${url}</div><div class="bind${ok ? "" : " warn"}">${bind}</div></div><button class="btn" data-u="${url}">Abrir</button></div>`;
   }).join("");
   list.querySelectorAll(".btn").forEach((b) => {
     b.onclick = () => vscode.postMessage({ type: "open", url: b.dataset.u });

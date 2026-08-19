@@ -16,4 +16,6 @@ run_terminal:
   wait: true
 ```
 
-Use `python3 -c` para one-liners. Espere o resultado (`wait` default). Sem bash. Stdlib apenas (sem pip).
+Use `python3 -c` para one-liners. Espere o resultado (`wait` default). Sem bash. Stdlib + `python3-flask` na imagem.
+
+Servidor Flask (playground `teste`): `argv: ["python3", "web/flask/app.py"]`. O runtime **não espera 120s** — sobe no terminal XCODESPACES ao vivo (`PYTHONUNBUFFERED=1`) e devolve em ~8s ainda rodando. Ctrl+C no terminal ou Stop no chat mata o job. Não use `./scripts/demo-flask.sh` (bash bloqueado).

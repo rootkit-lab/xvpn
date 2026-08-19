@@ -333,7 +333,7 @@ function setThought(phase, file) {
   t.thought.classList.add('live');
   t.thought.hidden = false;
   if (phase === 'summarizing') t.thought.textContent = 'Resumindo…';
-  else if (phase === 'waiting') t.thought.textContent = 'Waiting for shell';
+  else if (phase === 'waiting') t.thought.textContent = 'Rodando no terminal…';
   else if (phase === 'stopped') t.thought.textContent = 'parado.';
   else if (phase === 'editing') t.thought.textContent = 'Editing ' + (file || 'arquivo');
   else if (phase === 'exploring' || t.names.length) t.thought.textContent = 'Explorando…';

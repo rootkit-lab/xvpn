@@ -104,8 +104,8 @@ test("loop do agente tem Stop, Review, artifact, wait e MCP", () => {
   assert.match(src, /writeArtifact/);
   assert.match(src, /fileDelta/);
   assert.match(src, /phase: "editing"/);
-  assert.match(src, /parsed.background && parsed.wait === false/);
-  assert.match(src, /finishAgentTerminal/);
+  assert.match(src, /looksLikeLongRunning/);
+  assert.match(src, /attachAgentTerminal/);
   assert.match(src, /this.abort.signal/);
   assert.match(src, /list_mcp/);
 });
@@ -152,6 +152,24 @@ test("MCP think responde e python3 espera env", async () => {
     );
     assert.match(String(out), /Agente/);
   } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("run_terminal Flask não trava 120s", async () => {
+  const { runTool } = require("./tools");
+  const { abortAll } = require("./jobs");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "xcs-flask-"));
+  try {
+    fs.mkdirSync(path.join(root, "web", "flask"), { recursive: true });
+    fs.writeFileSync(path.join(root, "web", "flask", "app.py"), "import time\ntime.sleep(90)\n");
+    const t0 = Date.now();
+    const out = await runTool(root, "run_terminal", { argv: ["python3", "web/flask/app.py"] }, { extRoot: __dirname });
+    const dt = Date.now() - t0;
+    assert.ok(dt < 15000, "demorou " + dt + "ms");
+    assert.match(String(out), /background j\d+/);
+  } finally {
+    abortAll();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

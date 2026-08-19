@@ -90,7 +90,7 @@ const AGENT_TOOLS = [
     function: {
       name: "run_terminal",
       description:
-        "Roda argv allowlisted no clone (sem shell). Espere o resultado (wait default true, até 120s). Não use VAR=valor no argv — passe env:{KEY:valor}. Prefira python3 para parse/JSON. background+wait:false só para jobs longos (depois job_status).",
+        "Roda argv allowlisted no clone (sem shell). Comandos curtos: espera até 120s. Servidor (Flask, app.py, 0.0.0.0, vite) sobe no terminal ao vivo e devolve em ~8s ainda rodando — não bloqueia. Não use VAR=valor no argv — passe env:{KEY:valor}. background+wait:false para jobs longos (depois job_status).",
       parameters: {
         type: "object",
         properties: {

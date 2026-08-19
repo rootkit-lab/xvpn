@@ -6,6 +6,7 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { resolveWorkspacePath, allowTerminal, mergeEnv, sanitizeEnv } = require("./sandbox");
 const { startJob, snapshot, waitFor } = require("./jobs");
+const { looksLikeLongRunning, SERVER_WAIT_MS } = require("./terminal-agent");
 const { listSkills } = require("./context");
 const { listMcp, callMcp, BAKED } = require("./mcp-host");
 const { AGENT_TOOLS, READ_TOOLS, toolsForMode } = require("./tool-specs");
@@ -195,24 +196,28 @@ async function runTool(root, name, rawArgs, opts) {
         throw new Error(gate.reason);
       }
       const extra = sanitizeEnv(args.env);
-      const timeout = waitMs(args.wait_ms);
-      const wait = args.wait !== false;
-      if (args.background && !wait) {
-        const rec = startJob(root, argv, undefined, extra);
-        return "background " + rec.id + " " + argv.join(" ") + " (job_status depois)";
+      const onChunk = opts && typeof opts.onChunk === "function" ? opts.onChunk : undefined;
+      const long = looksLikeLongRunning(argv);
+      const rec = startJob(root, argv, undefined, extra, onChunk);
+      let cap = waitMs(args.wait_ms);
+      if (long) {
+        cap = Math.min(cap, SERVER_WAIT_MS);
+      } else if (args.wait === false) {
+        cap = 400;
       }
-      if (args.background && wait) {
-        const rec = startJob(root, argv, undefined, extra);
-        const done = await waitFor(rec.id, timeout);
-        return formatJob(done);
+      const done = await waitFor(rec.id, cap);
+      if (done && done.status === "running") {
+        return (
+          "background " +
+          rec.id +
+          " " +
+          argv.join(" ") +
+          (long ? " — servidor no terminal (job_status / Stop)" : " (job_status depois)") +
+          "\n" +
+          (done.out || "")
+        ).slice(0, OUT_CAP);
       }
-      const { stdout, stderr } = await execFileAsync(argv[0], argv.slice(1), {
-        cwd: root,
-        env: mergeEnv(extra),
-        maxBuffer: OUT_CAP,
-        timeout,
-      });
-      return ((stdout || "") + (stderr ? "\n" + stderr : "")).slice(0, OUT_CAP) || "(ok)";
+      return formatJob(done);
     }
     case "list_mcp":
       return listMcp(root, extRoot);

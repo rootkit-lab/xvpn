@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–56** no codespace (56 merged). **Fase 57** (canário Flask + espelho de terminal do agente) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–57** no codespace (57 merged: Flask canário + heredoc do terminal). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1638,14 +1638,14 @@ Paralelo: corrigir o **`run_terminal`** no painel Terminal — o prefixo `# agen
 
 - [x] `web/flask/app.py` + `scripts/demo-flask.sh` (bind `0.0.0.0:8080`).
 - [x] Task VS Code **demo (flask)** + `check.sh` importa `flask`.
-- [x] Imagem `ihuull/codespace:1.98.2`: pacote `python3-flask` (apt).
-- [ ] Re-seed: `server/deploy/codespace/seed-teste.sh` no VPS.
+- [x] Imagem `ihuull/codespace:1.98.2`: pacote `python3-flask` (apt). Rebuild no VPS após #154.
+- [x] Re-seed: `server/deploy/codespace/seed-teste.sh` no VPS (`teste.git` HEAD `39011dd` — `web/flask/app.py`). O Flask **não** é um segundo repo no XGIT: vive **dentro** de `teste`.
 
 ### 57.2 Terminal do agente
 
-- [x] Módulo `terminal-agent.js`: heredoc + `%q` por argv; sem execução no PTY antes do gate.
-- [x] Extensão `ihuull.codespace` 0.5.2.
-- [ ] Recreate do codespace para bake da extensão.
+- [x] Módulo `terminal-agent.js`: heredoc + quoting por argv; sem execução no PTY antes do gate.
+- [x] Extensão `ihuull.codespace` 0.5.2 (imagem bakeada).
+- [ ] Recreate do codespace no painel (start antigo não troca a layer).
 
 **Critério de saída:** VPN ligada, `./scripts/demo-flask.sh` no codespace de `teste`, `curl http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`. Agente roda `go run ./cmd/hello` — terminal **XCODESPACES** mostra `$ go run …` + saída (heredoc, quebras corretas, Enter automático).
 

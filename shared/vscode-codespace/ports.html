@@ -6,67 +6,83 @@
 :root {
   --bg: oklch(0.11 0.012 260);
   --fg: oklch(0.98 0.005 260);
-  --muted-fg: oklch(0.7 0.02 260);
+  --muted: oklch(0.7 0.02 260);
+  --card: oklch(0.18 0.014 260);
   --border: oklch(1 0 0 / 8%);
   --primary: oklch(0.72 0.14 230);
   --safe: oklch(0.72 0.17 150);
   --warn: oklch(0.78 0.16 85);
-  --font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  --font: Outfit, ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 html, body { height: 100%; margin: 0; }
 body {
-  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
-  background: var(--bg); color: var(--fg);
+  font-family: var(--font); background: var(--bg); color: var(--fg);
   display: flex; flex-direction: column; height: 100%;
 }
 .bar {
-  padding: 10px 12px; border-bottom: 1px solid var(--border);
-  font-size: 12px; color: var(--muted-fg);
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
 }
-.bar strong {
-  color: var(--fg); font-weight: 600;
-  font-family: var(--font-mono); font-size: 11px;
-  word-break: break-all; overflow-wrap: anywhere;
+.bar .label {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted);
 }
-#list { flex: 1; overflow: auto; padding: 8px 0; }
+.bar .host {
+  margin-top: 4px; font-family: var(--mono); font-size: 12px;
+  word-break: break-all; color: var(--fg);
+}
+.bar .hint {
+  margin-top: 6px; font-size: 11px; line-height: 1.4; color: var(--muted);
+}
+#list { flex: 1; overflow: auto; padding: 8px; }
 .row {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 8px 12px; border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
 }
-.row:hover { background: oklch(1 0 0 / 4%); }
-.dot {
-  width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
-  margin-top: 6px;
-  background: var(--safe); box-shadow: 0 0 8px color-mix(in oklch, var(--safe) 60%, transparent);
+.port {
+  font-family: var(--mono); font-weight: 600; font-size: 14px;
 }
-.dot.warn {
-  background: var(--warn);
-  box-shadow: 0 0 8px color-mix(in oklch, var(--warn) 50%, transparent);
-}
-.port { font-family: var(--font-mono); font-weight: 600; min-width: 4.5rem; padding-top: 2px; }
-.meta { flex: 1; min-width: 0; }
+.meta { min-width: 0; }
 .url {
-  font-family: var(--font-mono); font-size: 12px;
-  color: var(--primary); word-break: break-all; overflow-wrap: anywhere;
-  text-decoration: underline; cursor: pointer;
+  display: block;
+  font-family: var(--mono); font-size: 11px;
+  color: var(--primary); word-break: break-all;
+  text-decoration: none;
 }
-.bind { font-size: 11px; color: var(--muted-fg); margin-top: 2px; }
+.url:hover { text-decoration: underline; }
+.bind { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .bind.warn { color: var(--warn); }
+.actions { display: flex; gap: 6px; flex-shrink: 0; }
 .btn {
-  background: color-mix(in oklch, var(--primary) 18%, transparent);
-  color: var(--primary); border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent);
-  border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;
-  flex-shrink: 0; margin-top: 2px;
+  background: transparent; color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px; font-size: 11px; cursor: pointer;
+  font-family: var(--font);
 }
-.btn:hover { background: color-mix(in oklch, var(--primary) 28%, transparent); }
+.btn.primary {
+  background: var(--primary); color: oklch(0.16 0.02 230); border-color: transparent;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .empty {
-  padding: 24px 16px; text-align: center; color: var(--muted-fg); font-size: 13px; line-height: 1.5;
+  padding: 28px 16px; text-align: center; color: var(--muted);
+  font-size: 13px; line-height: 1.5;
 }
 </style>
 </head>
 <body>
-<div class="bar">Preview intranet<br><strong id="host">aguardando hostname demo-…</strong></div>
+<div class="bar">
+  <div class="label">Preview intranet</div>
+  <div class="host" id="host">a resolver hostname…</div>
+  <div class="hint">HTTP em <code>demo-*</code>. Não uses <code>cs-*:porta</code> — o IDE tem HSTS e o browser sobe para HTTPS.</div>
+</div>
 <div id="list"><div class="empty">Escaneando portas…</div></div>
 <script>
 const vscode = acquireVsCodeApi();
@@ -79,7 +95,7 @@ window.addEventListener("message", (ev) => {
   if (msg?.type === "ports") {
     const next = String(msg.demoHost || "");
     demoHost = /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i.test(next) ? next.toLowerCase() : "";
-    hostEl.textContent = demoHost || "aguardando hostname demo-…";
+    hostEl.textContent = demoHost || "hostname demo-* ainda não chegou — Recreate o codespace";
     render(msg.ports || []);
   }
 });
@@ -101,12 +117,14 @@ function openUrl(url) {
   if (!isDemoPreviewUrl(url)) {
     return;
   }
-  try {
-    window.open(url, "_blank", "noopener,noreferrer");
-  } catch (_) {
-    /* webview pode bloquear; o host tenta openExternal */
-  }
   vscode.postMessage({ type: "open", url });
+}
+
+function copyUrl(url) {
+  if (!isDemoPreviewUrl(url)) {
+    return;
+  }
+  vscode.postMessage({ type: "copy", url });
 }
 
 function render(ports) {
@@ -114,10 +132,10 @@ function render(ports) {
   if (!ports.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.append("Nenhuma porta detectada.", document.createElement("br"), "Flask: ");
+    empty.append("Nenhuma porta em 0.0.0.0.", document.createElement("br"), "Flask: ");
     const code = document.createElement("code");
     code.textContent = "python3 web/flask/app.py";
-    empty.append(code, " (0.0.0.0:8080)");
+    empty.append(code);
     list.appendChild(empty);
     return;
   }
@@ -126,39 +144,57 @@ function render(ports) {
     const addr = typeof p === "object" && p.addr ? String(p.addr) : "0.0.0.0";
     const ok = typeof p === "object" ? p.public !== false : true;
     const url = demoHost ? "http://" + demoHost + ":" + port : "";
+    const ready = Boolean(url && isDemoPreviewUrl(url));
+
     const row = document.createElement("div");
     row.className = "row";
-    const dot = document.createElement("span");
-    dot.className = "dot" + (ok ? "" : " warn");
-    dot.title = "online";
+
     const portEl = document.createElement("span");
     portEl.className = "port";
     portEl.textContent = ":" + port;
+
     const meta = document.createElement("div");
     meta.className = "meta";
-    const link = document.createElement(url && isDemoPreviewUrl(url) ? "a" : "span");
-    link.className = "url";
-    link.textContent = url || (":" + port);
-    if (link.tagName === "A") {
+    if (ready) {
+      const link = document.createElement("a");
+      link.className = "url";
       link.href = url;
       link.target = "_blank";
-      link.rel = "noopener";
+      link.rel = "noopener noreferrer";
+      link.textContent = url;
       link.addEventListener("click", (ev) => {
         ev.preventDefault();
         openUrl(url);
       });
+      meta.appendChild(link);
+    } else {
+      const miss = document.createElement("span");
+      miss.className = "url";
+      miss.textContent = "à espera do hostname demo-*";
+      meta.appendChild(miss);
     }
     const bind = document.createElement("div");
     bind.className = "bind" + (ok ? "" : " warn");
-    bind.textContent = ok ? "bind " + addr : "bind " + addr + " — use 0.0.0.0 p/ demo-*";
-    meta.append(link, bind);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn";
-    btn.textContent = "Abrir";
-    btn.disabled = !url || !isDemoPreviewUrl(url);
-    btn.addEventListener("click", () => openUrl(url));
-    row.append(dot, portEl, meta, btn);
+    bind.textContent = ok ? "bind " + addr : "bind " + addr + " — usa 0.0.0.0";
+    meta.appendChild(bind);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const copy = document.createElement("button");
+    copy.type = "button";
+    copy.className = "btn";
+    copy.textContent = "Copiar";
+    copy.disabled = !ready;
+    copy.addEventListener("click", () => copyUrl(url));
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "btn primary";
+    open.textContent = "Abrir";
+    open.disabled = !ready;
+    open.addEventListener("click", () => openUrl(url));
+    actions.append(copy, open);
+
+    row.append(portEl, meta, actions);
     list.appendChild(row);
   });
 }

@@ -613,7 +613,11 @@ func applyMachineSettings(r CsRunner, spec CsSpec, extra map[string]any) error {
 		settings["ihuull.codespace.id"] = spec.ID
 		settings["ihuull.codespace.origin"] = "https://cs-" + spec.ID + ".corp.ihuull.com"
 	}
-	if h := DemoHostname(spec.DemoName); h != "" {
+	demoName := spec.DemoName
+	if demoName == "" {
+		demoName = DefaultDemoName(spec.ID)
+	}
+	if h := DemoHostname(demoName); h != "" {
 		settings["ihuull.codespace.demoHost"] = h
 	}
 	if name, email, ok := CodespaceGitIdentity(spec.GitAuthor); ok && spec.GitEmail == email {

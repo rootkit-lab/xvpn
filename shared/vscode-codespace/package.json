@@ -2,7 +2,7 @@
   "name": "codespace",
   "displayName": "XCODESPACES",
   "description": "Agente ihuull, skills e generate commit no codespace remoto.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "ihuull",
   "engines": {
     "vscode": "^1.90.0"
@@ -20,7 +20,7 @@
       },
       {
         "command": "ihuull.openChat",
-        "title": "XCODESPACES: Agente"
+        "title": "XCODESPACES: Chat"
       }
     ],
     "menus": {
@@ -33,7 +33,7 @@
       ]
     },
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "ihuull-agent",
           "title": "XCODESPACES",
@@ -46,7 +46,7 @@
         {
           "type": "webview",
           "id": "ihuull.agentView",
-          "name": "Agente"
+          "name": "Chat"
         }
       ]
     },
@@ -57,6 +57,16 @@
           "type": "string",
           "default": "",
           "description": "Public ID do codespace (12 hex). O helper grava isso nas Machine settings."
+        },
+        "ihuull.codespace.gitName": {
+          "type": "string",
+          "default": "",
+          "description": "user.name do Git no clone (dono do codespace)."
+        },
+        "ihuull.codespace.gitEmail": {
+          "type": "string",
+          "default": "",
+          "description": "user.email do Git no clone (username@corp.ihuull.com)."
         }
       }
     }

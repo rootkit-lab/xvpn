@@ -282,6 +282,7 @@ func NewRouter(app *App) *gin.Engine {
 		llm := apiGroup.Group("")
 		llm.Use(app.requireCodespaceLLMHost(), app.requireLLMCaller(), app.refreshCallerFromDB())
 		{
+			llm.GET("/xcodespaces/llm/models", app.handleLLMModels)
 			llm.POST("/xcodespaces/llm/chat", rateLimit(app.llmLimiter), app.handleLLMChat)
 			llm.POST("/xcodespaces/llm/commit-message", rateLimit(app.llmLimiter), app.handleLLMCommitMessage)
 		}

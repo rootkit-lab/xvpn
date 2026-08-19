@@ -45,5 +45,6 @@ test("allowTerminal blocklist", () => {
   assert.equal(allowTerminal(["bash", "-c", "ls"]).ok, false);
   assert.equal(allowTerminal(["git", "status", "&&", "sudo", "id"]).ok, false);
   assert.equal(allowTerminal(["rg", "--pre", "sh"]).ok, false);
+  assert.equal(allowTerminal(["git", "commit", "--no-verify"]).ok, false);
   assert.equal(allowTerminal([]).ok, false);
 });

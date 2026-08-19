@@ -143,6 +143,21 @@ function buildContext(root, extraSkill) {
   }
   if (agents) {
     parts.push("## AGENTS.md\n" + agents);
+  } else {
+    parts.push(
+      "## Contrato ihuull\n" +
+        "Sem AGENTS.md neste clone. Conventional Commits (feat/fix/docs/chore/refactor/test/security). " +
+        "Não commitar em main — crie feat/ ou fix/. Não commitar segredos nem artefatos. " +
+        "Skills em .cursor/skills; rules em .cursor/rules. Use glob/grep antes de editar.",
+    );
+  }
+  try {
+    const contributing = readLimited(resolveWorkspacePath(root, "CONTRIBUTING.md"), RULE_CAP);
+    if (contributing) {
+      parts.push("## CONTRIBUTING.md\n" + contributing);
+    }
+  } catch (_) {
+    /* repo sem CONTRIBUTING */
   }
   const skills = listSkills(root);
   if (skills.length) {

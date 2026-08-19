@@ -51,6 +51,8 @@ type CsSpec struct {
 	CloneURL        string            `json:"clone_url,omitempty"`
 	GitUser         string            `json:"git_user,omitempty"`
 	GitToken        string            `json:"git_token,omitempty"`
+	GitAuthor       string            `json:"git_author,omitempty"`
+	GitEmail        string            `json:"git_email,omitempty"`
 	ConnectionToken string            `json:"connection_token,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
 }
@@ -152,6 +154,8 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 	spec.CloneURL = strings.TrimSpace(spec.CloneURL)
 	spec.GitUser = strings.TrimSpace(spec.GitUser)
 	spec.GitToken = strings.TrimSpace(spec.GitToken)
+	spec.GitAuthor = strings.TrimSpace(spec.GitAuthor)
+	spec.GitEmail = strings.TrimSpace(spec.GitEmail)
 	spec.ConnectionToken = strings.TrimSpace(spec.ConnectionToken)
 	switch spec.Action {
 	case "create", "start", "stop", "rm":
@@ -210,6 +214,12 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 	}
 	if spec.GitUser != "" && !ValidUsername(spec.GitUser) && spec.GitUser != "codespace-"+spec.ID {
 		return CsSpec{}, fmt.Errorf("git_user inválido")
+	}
+	if spec.GitAuthor != "" || spec.GitEmail != "" {
+		wantName, wantEmail, ok := CodespaceGitIdentity(spec.GitAuthor)
+		if !ok || spec.GitAuthor != wantName || spec.GitEmail != wantEmail {
+			return CsSpec{}, fmt.Errorf("git author inválido")
+		}
 	}
 	if err := validateCodespaceEnv(spec.Env); err != nil {
 		return CsSpec{}, err
@@ -338,6 +348,9 @@ func ApplyCodespace(r CsRunner, stdin io.Reader, codespacesRoot, gitRoot string)
 		if err := csWriteGitCreds(r, spec); err != nil {
 			return err
 		}
+		if err := csWriteGitIdentity(r, spec); err != nil {
+			return err
+		}
 		return r.Docker("start", containerName(spec.ID))
 	case "stop":
 		return r.Docker("stop", containerName(spec.ID))
@@ -367,6 +380,9 @@ func csCreate(r CsRunner, spec CsSpec) error {
 		}
 	}
 	if err := csWriteGitCreds(r, spec); err != nil {
+		return err
+	}
+	if err := csWriteGitIdentity(r, spec); err != nil {
 		return err
 	}
 	var extraSettings map[string]any
@@ -400,6 +416,17 @@ func csWriteGitCreds(r CsRunner, spec CsSpec) error {
 	}
 	_ = r.Git("-C", spec.Workspace, "config", "credential.helper", "store --file=.git/xvpn-credentials")
 	return nil
+}
+
+func csWriteGitIdentity(r CsRunner, spec CsSpec) error {
+	name, email, ok := CodespaceGitIdentity(spec.GitAuthor)
+	if !ok || spec.GitEmail != email {
+		return nil
+	}
+	if err := r.Git("-C", spec.Workspace, "config", "user.name", name); err != nil {
+		return err
+	}
+	return r.Git("-C", spec.Workspace, "config", "user.email", email)
 }
 
 const (
@@ -495,7 +522,7 @@ func defaultCodespaceSettings() map[string]any {
 		"workbench.welcomePage.walkthroughs.openOnInstall": true,
 		"git.openRepositoryInParentFolders":                "never",
 		"chat.commandCenter.enabled":                       false,
-		"workbench.secondarySideBar.defaultVisibility":     "hidden",
+		"workbench.secondarySideBar.defaultVisibility":     "visible",
 		"github.copilot.enable":                            map[string]any{"*": false},
 		// Builtin "Get Started with VS Code for the Web" (SetupWeb) — o nosso é ihuull.codespace.
 		"experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
@@ -516,6 +543,10 @@ func applyMachineSettings(r CsRunner, spec CsSpec, extra map[string]any) error {
 	if codespaceIDRe.MatchString(spec.ID) {
 		settings["ihuull.codespace.id"] = spec.ID
 		settings["ihuull.codespace.origin"] = "https://cs-" + spec.ID + ".corp.ihuull.com"
+	}
+	if name, email, ok := CodespaceGitIdentity(spec.GitAuthor); ok && spec.GitEmail == email {
+		settings["ihuull.codespace.gitName"] = name
+		settings["ihuull.codespace.gitEmail"] = email
 	}
 	raw, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {

@@ -78,6 +78,7 @@ func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://evil.example/lab"}`,
 		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab","image":"evil/pwn:latest"}`,
 		`{"action":"pwn","id":"` + id + `","workspace":"` + ws + `"}`,
+		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab","git_author":"alice","git_email":"eve@evil.com","image":"gitpod/openvscode-server:1.98.2","connection_token":"tokentokentoken1"}`,
 	}
 	for _, raw := range bads {
 		if _, err := ParseCsSpec([]byte(raw), csRoot, gitRoot); err == nil {
@@ -202,6 +203,7 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 		"bare_path":"` + bare + `","branch":"main","port":19003,
 		"clone_url":"https://xgit.corp.ihuull.com/lab",
 		"git_user":"codespace-` + id + `","git_token":"tokentokentoken1",
+		"git_author":"alice","git_email":"alice@corp.ihuull.com",
 		"connection_token":"tokentokentoken1",
 		"env":{"APP_URL":"https://xgit.corp"}
 	}`
@@ -248,6 +250,17 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if !strings.Contains(f.writes[settings], "chat.commandCenter.enabled") {
 		t.Fatal("Machine settings devem desligar o chat nativo")
 	}
+	if !strings.Contains(f.writes[settings], `"ihuull.codespace.gitName": "alice"`) {
+		t.Fatal("Machine settings devem gravar a identidade Git")
+	}
+	var gitFlat []string
+	for _, g := range f.git {
+		gitFlat = append(gitFlat, strings.Join(g, " "))
+	}
+	joinedAllGit := strings.Join(gitFlat, " | ")
+	if !strings.Contains(joinedAllGit, "user.name") || !strings.Contains(joinedAllGit, "alice") {
+		t.Fatalf("clone precisa de user.name: %v", f.git)
+	}
 	envFile := runtimeEnvHostPath(ws)
 	if !strings.Contains(f.writes[envFile], "APP_URL=https://xgit.corp") {
 		t.Fatalf("env-file não gravado: %v", f.writes)
@@ -269,8 +282,8 @@ func TestDefaultCodespaceSettings_HidesBuiltinWelcome(t *testing.T) {
 	if s["chat.commandCenter.enabled"] != false {
 		t.Fatal("command center do chat nativo deve ficar off")
 	}
-	if s["workbench.secondarySideBar.defaultVisibility"] != "hidden" {
-		t.Fatal("secondary sidebar (CHAT/COPILOT EDITS) deve ficar hidden")
+	if s["workbench.secondarySideBar.defaultVisibility"] != "visible" {
+		t.Fatal("secondary sidebar deve ficar visible para o chat ihuull")
 	}
 }
 
@@ -296,7 +309,16 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 		t.Fatal("extensão precisa de origin absoluta e do token Git do codespace")
 	}
 	if !strings.Contains(string(pkg), `"id": "ihuull.agentView"`) {
-		t.Fatal("extensão precisa da view do agente no activity bar")
+		t.Fatal("extensão precisa da view do agente")
+	}
+	if !strings.Contains(string(pkg), `"secondarySidebar"`) || strings.Contains(string(pkg), `"activitybar"`) {
+		t.Fatal("agente deve viver na secondary sidebar, não no activity bar")
+	}
+	if !strings.Contains(string(js), "/api/xcodespaces/llm/models") {
+		t.Fatal("chat precisa listar modelos no proxy")
+	}
+	if !strings.Contains(string(js), "user.email") {
+		t.Fatal("extensão deve gravar user.name/email do dono")
 	}
 	banned, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-codespace", "banned.js"))
 	if err != nil {
@@ -305,11 +327,17 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	if !strings.Contains(string(banned), "GitHub.copilot") || !strings.Contains(string(banned), "Continue.continue") {
 		t.Fatal("ban list deve incluir Copilot e Continue")
 	}
+	if strings.Contains(string(banned), "closeAuxiliaryBar") {
+		t.Fatal("não fechar a auxiliary bar — o chat ihuull mora lá")
+	}
+	if !strings.Contains(string(banned), "focusAuxiliaryBar") {
+		t.Fatal("activate deve focar a auxiliary bar")
+	}
 }
 
 func TestCodespaceAgentSandbox(t *testing.T) {
 	dir := filepath.Join("..", "..", "..", "shared", "vscode-codespace")
-	cmd := exec.Command("node", "--test", "sandbox.test.js")
+	cmd := exec.Command("node", "--test", "sandbox.test.js", "tools.test.js")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

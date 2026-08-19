@@ -5,9 +5,10 @@ const path = require("path");
 const vscode = require("vscode");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
-const { stripBannedAssistants, hideNativeChat } = require("./banned");
+const { stripBannedAssistants, hideNativeChat, showAgentChat } = require("./banned");
 const { buildContext, listSkills } = require("./context");
-const { AGENT_TOOLS, needsConfirm, confirmDetail, runTool } = require("./tools");
+const { needsConfirm, confirmDetail, runTool } = require("./tools");
+const { toolsForMode } = require("./tool-specs");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -21,17 +22,14 @@ function activate(context) {
       webviewOptions: { retainContextWhenHidden: true },
     }),
     vscode.commands.registerCommand("ihuull.generateCommitMessage", () => generateCommit()),
-    vscode.commands.registerCommand("ihuull.openChat", () =>
-      vscode.commands.executeCommand("ihuull.agentView.focus"),
-    ),
+    vscode.commands.registerCommand("ihuull.openChat", () => showAgentChat()),
+    vscode.window.onDidChangeActiveTextEditor(() => provider.postFile()),
     vscode.extensions.onDidChange(() => {
       stripBannedAssistants().catch(() => {});
     }),
   );
   setTimeout(() => {
-    stripBannedAssistants()
-      .then(() => vscode.commands.executeCommand("ihuull.agentView.focus"))
-      .catch(() => {});
+    stripBannedAssistants().catch(() => {});
   }, 800);
 }
 
@@ -41,6 +39,8 @@ class AgentViewProvider {
     this.view = undefined;
     this.pending = new Map();
     this.history = [];
+    this.mode = "agent";
+    this.model = "";
   }
 
   resolveWebviewView(webviewView) {
@@ -48,11 +48,46 @@ class AgentViewProvider {
     webviewView.webview.options = { enableScripts: true };
     webviewView.webview.html = agentHTML();
     webviewView.webview.onDidReceiveMessage((msg) => this.onMessage(msg));
-    hideNativeChat().catch(() => {});
+    hideNativeChat()
+      .then(() => this.syncChrome())
+      .catch(() => {});
   }
 
   post(msg) {
     this.view?.webview.postMessage(msg);
+  }
+
+  postFile() {
+    this.post({ type: "file", file: currentFileLabel() });
+  }
+
+  async syncChrome() {
+    this.postFile();
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const cwd = folder?.uri.fsPath || "";
+    try {
+      const data = await llmFetch(cwd, "/api/xcodespaces/llm/models");
+      if (data.model && !this.model) {
+        this.model = data.model;
+      }
+      await ensureGitIdentity(cwd, data.git_name, data.git_email);
+      this.post({
+        type: "models",
+        provider: data.provider || "",
+        model: this.model || data.model || "",
+        has_key: Boolean(data.has_key),
+        catalog: Array.isArray(data.catalog) ? data.catalog : [],
+        mode: this.mode,
+      });
+    } catch (err) {
+      this.post({
+        type: "models",
+        error: err instanceof Error ? err.message : "falha ao listar modelos",
+        catalog: [],
+        model: this.model,
+        mode: this.mode,
+      });
+    }
   }
 
   askConfirm(kind, detail) {
@@ -64,6 +99,18 @@ class AgentViewProvider {
   }
 
   async onMessage(msg) {
+    if (msg?.type === "ready") {
+      await this.syncChrome();
+      return;
+    }
+    if (msg?.type === "setMode" && typeof msg.mode === "string") {
+      this.mode = normalizeMode(msg.mode);
+      return;
+    }
+    if (msg?.type === "setModel" && typeof msg.model === "string") {
+      this.model = msg.model.trim();
+      return;
+    }
     if (msg?.type === "confirmResult") {
       const fn = this.pending.get(msg.id);
       if (fn) {
@@ -75,16 +122,22 @@ class AgentViewProvider {
     if (msg?.type !== "ask" || !msg.text) {
       return;
     }
+    if (typeof msg.mode === "string") {
+      this.mode = normalizeMode(msg.mode);
+    }
+    if (typeof msg.model === "string" && msg.model.trim()) {
+      this.model = msg.model.trim();
+    }
     const folder = vscode.workspace.workspaceFolders?.[0];
     const cwd = folder?.uri.fsPath || "";
     try {
-      await this.handleAsk(cwd, String(msg.text));
+      await this.handleAsk(cwd, String(msg.text), this.mode, this.model);
     } catch (err) {
       this.post({ type: "reply", text: err instanceof Error ? err.message : "falha no agente" });
     }
   }
 
-  async handleAsk(cwd, text) {
+  async handleAsk(cwd, text, mode, model) {
     const slash = text.trim().match(/^\/([A-Za-z0-9._-]+)(?:\s+([\s\S]*))?$/);
     if (slash) {
       const cmd = slash[1].toLowerCase();
@@ -92,7 +145,10 @@ class AgentViewProvider {
       if (cmd === "help") {
         this.post({
           type: "reply",
-          text: "Comandos: /help /skills /commit /explain /<skill>\nTools: read_file list_dir grep read_skill write_file apply_patch run_terminal",
+          text:
+            "Modos: Agent (tools), Ask (só pergunta), Debug (inspeciona erro), Plan (plano, só leitura).\n" +
+            "Comandos: /help /skills /commit /explain /<skill>\n" +
+            "Tools: read_file list_dir grep glob read_skill write_file apply_patch run_terminal",
         });
         return;
       }
@@ -113,21 +169,24 @@ class AgentViewProvider {
       } else if (cmd !== "explain") {
         text = rest || "Siga a skill " + cmd + ".";
         const ctx = buildContext(cwd, cmd);
-        await this.runAgent(cwd, text, ctx);
+        await this.runAgent(cwd, text, ctx, mode, model);
         return;
       }
     }
-    await this.runAgent(cwd, text, buildContext(cwd));
+    await this.runAgent(cwd, text, buildContext(cwd), mode, model);
   }
 
-  async runAgent(cwd, userText, ctx) {
+  async runAgent(cwd, userText, ctx, mode, model) {
     const messages = this.history.concat([{ role: "user", content: userText }]);
+    const tools = toolsForMode(mode);
     for (let i = 0; i < MAX_AGENT_TURNS; i++) {
       this.post({ type: "status", text: i ? "tool " + i + "…" : "pensando…" });
       const data = await llmFetch(cwd, "/api/xcodespaces/llm/chat", {
         messages,
         context: ctx.text || "",
-        tools: AGENT_TOOLS,
+        tools,
+        mode,
+        model,
       });
       if (data.tool_calls && data.tool_calls.length) {
         messages.push({
@@ -167,6 +226,49 @@ class AgentViewProvider {
     }
     this.post({ type: "reply", text: "teto de tools atingido — reformule o pedido." });
   }
+}
+
+async function ensureGitIdentity(cwd, name, email) {
+  if (!cwd) {
+    return;
+  }
+  const cfg = vscode.workspace.getConfiguration("ihuull.codespace");
+  const fromCfgName = typeof cfg.get("gitName") === "string" ? cfg.get("gitName").trim() : "";
+  const fromCfgEmail = typeof cfg.get("gitEmail") === "string" ? cfg.get("gitEmail").trim() : "";
+  const user = String(name || fromCfgName || "").trim();
+  const mail = String(email || fromCfgEmail || "").trim();
+  if (!user || !mail || !mail.endsWith("@corp.ihuull.com")) {
+    return;
+  }
+  try {
+    await execFileAsync("git", ["config", "user.name", user], { cwd });
+    await execFileAsync("git", ["config", "user.email", mail], { cwd });
+  } catch (_) {
+    /* clone ainda sem .git */
+  }
+}
+
+function normalizeMode(mode) {
+  const m = String(mode || "").toLowerCase();
+  if (m === "ask" || m === "plan" || m === "debug") {
+    return m;
+  }
+  return "agent";
+}
+
+function currentFileLabel() {
+  const ed = vscode.window.activeTextEditor;
+  if (!ed || ed.document.isUntitled) {
+    return "";
+  }
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (folder) {
+    const rel = path.relative(folder.uri.fsPath, ed.document.uri.fsPath);
+    if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) {
+      return rel;
+    }
+  }
+  return path.basename(ed.document.fileName);
 }
 
 function safeParse(raw) {
@@ -265,11 +367,11 @@ async function llmFetch(cwd, apiPath, body) {
   if (auth.id) {
     headers["X-Codespace-ID"] = auth.id;
   }
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
+  const opts = { method: body === undefined ? "GET" : "POST", headers };
+  if (body !== undefined) {
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data.error || "HTTP " + res.status);
@@ -291,7 +393,10 @@ function agentHTML() {
   --muted-fg: oklch(0.7 0.02 260);
   --primary: oklch(0.72 0.14 230);
   --primary-fg: oklch(0.16 0.02 230);
+  --secondary: oklch(0.22 0.016 260);
   --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --product: oklch(0.76 0.16 300);
 }
 html, body { height: 100%; }
 body {
@@ -299,49 +404,108 @@ body {
   background: var(--bg); color: var(--fg);
   margin: 0; display: flex; flex-direction: column; height: 100%;
 }
-header { padding: 12px 14px 8px; font-size: 12px; letter-spacing: .08em; color: var(--muted-fg); text-transform: uppercase; }
-#chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 8px; }
-#chips button {
-  background: var(--muted); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 999px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+.bar {
+  display: flex; gap: 8px; align-items: center;
+  padding: 8px 10px; border-bottom: 1px solid var(--border);
 }
-#log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 14px 12px; }
+.sel { position: relative; min-width: 0; }
+.sel.grow { flex: 1; }
+select {
+  appearance: none; width: 100%;
+  background: var(--secondary); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 22px 6px 10px; font-size: 12px;
+}
+.sel::after {
+  content: "▾"; position: absolute; right: 8px; top: 50%;
+  transform: translateY(-50%); color: var(--muted-fg); font-size: 10px; pointer-events: none;
+}
+#log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
 .bubble { padding: 8px 12px; border-radius: 12px; max-width: 94%; white-space: pre-wrap; font-size: 13px; }
 .me { align-self: flex-end; background: color-mix(in oklch, var(--primary) 28%, var(--card)); }
 .bot { align-self: flex-start; background: var(--card); }
 .tool, .status { align-self: stretch; color: var(--muted-fg); font-size: 12px; }
+.warn { align-self: stretch; color: var(--muted-fg); font-size: 12px; padding: 0 2px; }
 #confirm {
-  display: none; margin: 0 14px 8px; padding: 10px; background: var(--card);
+  display: none; margin: 0 12px 8px; padding: 10px; background: var(--card);
   border: 1px solid var(--border); border-radius: 12px; font-size: 13px;
 }
 #confirm.show { display: block; }
 #confirm .row { display: flex; gap: 8px; margin-top: 8px; }
-form { display: flex; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid var(--border); }
-input {
-  flex: 1; background: var(--muted); color: inherit; border: 1px solid var(--border);
-  border-radius: 8px; padding: 8px;
+footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; }
+.ctx {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin: 0 0 8px; padding: 3px 8px; border-radius: 999px;
+  background: var(--muted); color: var(--muted-fg); font-size: 11px; max-width: 100%;
 }
-button.go { background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 8px 12px; }
+.ctx[hidden] { display: none; }
+.ctx b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+form { display: flex; flex-direction: column; gap: 8px; }
+textarea {
+  width: 100%; box-sizing: border-box; resize: none; min-height: 56px; max-height: 160px;
+  background: var(--muted); color: inherit; border: 1px solid var(--input);
+  border-radius: 10px; padding: 8px 10px; font: inherit; font-size: 13px;
+}
+.composer-row { display: flex; align-items: center; gap: 8px; }
+#chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+#chips button {
+  background: var(--muted); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+}
+button.go {
+  background: var(--product); color: var(--primary-fg); border: 0;
+  border-radius: 8px; padding: 6px 12px; font-size: 12px; cursor: pointer;
+}
 button.ok { background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 6px 10px; }
 button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
 </style>
 </head>
 <body>
-<header>XCODESPACES · Agente</header>
-<div id="chips">
-  <button data-q="/help">/help</button>
-  <button data-q="/skills">/skills</button>
-  <button data-q="/commit">/commit</button>
-  <button data-q="/explain">/explain</button>
-</div>
+<header class="bar">
+  <label class="sel">
+    <select id="mode" title="Modo do agente">
+      <option value="agent">Agent</option>
+      <option value="ask">Ask</option>
+      <option value="debug">Debug</option>
+      <option value="plan">Plan</option>
+    </select>
+  </label>
+  <label class="sel grow">
+    <select id="model" title="Modelo"></select>
+  </label>
+</header>
 <div id="log"></div>
 <div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="no" id="no">Recusar</button></div></div>
-<form id="f"><input id="q" placeholder="Pergunte ou /skills" autocomplete="off"><button class="go">Enviar</button></form>
+<footer>
+  <div id="ctx" class="ctx" hidden>arquivo <b id="ctxfile"></b></div>
+  <form id="f">
+    <textarea id="q" placeholder="Pergunte ou /skills" rows="2"></textarea>
+    <div class="composer-row">
+      <div id="chips">
+        <button type="button" data-q="/help">/help</button>
+        <button type="button" data-q="/skills">/skills</button>
+        <button type="button" data-q="/commit">/commit</button>
+        <button type="button" data-q="/explain">/explain</button>
+      </div>
+      <button class="go" type="submit">Enviar</button>
+    </div>
+  </form>
+</footer>
 <script>
 const vscode = acquireVsCodeApi();
 const log = document.getElementById('log');
 const box = document.getElementById('confirm');
+const modeEl = document.getElementById('mode');
+const modelEl = document.getElementById('model');
+const q = document.getElementById('q');
+const ctx = document.getElementById('ctx');
+const ctxfile = document.getElementById('ctxfile');
 let confirmId = '';
+const saved = vscode.getState() || {};
+if (saved.mode) modeEl.value = saved.mode;
+function persist() {
+  vscode.setState({ mode: modeEl.value, model: modelEl.value });
+}
 function add(cls, text) {
   const d = document.createElement('div');
   d.className = 'bubble ' + cls;
@@ -351,19 +515,55 @@ function add(cls, text) {
 }
 function send(text) {
   add('me', text);
-  vscode.postMessage({ type: 'ask', text });
+  vscode.postMessage({ type: 'ask', text, mode: modeEl.value, model: modelEl.value });
+}
+function fillModels(m) {
+  const catalog = m.catalog || [];
+  const current = m.model || saved.model || '';
+  modelEl.innerHTML = '';
+  if (!catalog.length) {
+    const o = document.createElement('option');
+    o.value = current;
+    o.textContent = current || 'modelo (xadmin)';
+    modelEl.appendChild(o);
+  } else {
+    for (const item of catalog) {
+      const o = document.createElement('option');
+      o.value = item.id;
+      o.textContent = item.label || item.id;
+      modelEl.appendChild(o);
+    }
+  }
+  if (current) modelEl.value = current;
+  if (m.mode) modeEl.value = m.mode;
+  persist();
+  if (m.error) add('warn', m.error);
+  else if (m.has_key === false) add('warn', 'Sem key LLM — configure em xadmin → Settings.');
 }
 document.getElementById('f').addEventListener('submit', (e) => {
   e.preventDefault();
-  const q = document.getElementById('q');
   const text = q.value.trim();
   if (!text) return;
   q.value = '';
   send(text);
 });
+q.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('f').requestSubmit();
+  }
+});
 document.getElementById('chips').addEventListener('click', (e) => {
-  const q = e.target.getAttribute('data-q');
-  if (q) send(q);
+  const chip = e.target.getAttribute('data-q');
+  if (chip) send(chip);
+});
+modeEl.addEventListener('change', () => {
+  persist();
+  vscode.postMessage({ type: 'setMode', mode: modeEl.value });
+});
+modelEl.addEventListener('change', () => {
+  persist();
+  vscode.postMessage({ type: 'setModel', model: modelEl.value });
 });
 document.getElementById('yes').onclick = () => {
   box.classList.remove('show');
@@ -378,12 +578,19 @@ window.addEventListener('message', (e) => {
   if (m.type === 'reply') add('bot', m.text || '');
   if (m.type === 'tool') add('tool', m.text || '');
   if (m.type === 'status') add('status', m.text || '');
+  if (m.type === 'models') fillModels(m);
+  if (m.type === 'file') {
+    const name = m.file || '';
+    ctx.hidden = !name;
+    ctxfile.textContent = name;
+  }
   if (m.type === 'confirm') {
     confirmId = m.id;
     document.getElementById('cdetail').textContent = (m.kind || '') + ': ' + (m.detail || '');
     box.classList.add('show');
   }
 });
+vscode.postMessage({ type: 'ready' });
 </script>
 </body>
 </html>`;

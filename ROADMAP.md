@@ -1476,12 +1476,12 @@ O openvscode usa `/home/workspace` como HOME. Montar o clone aí faz o IDE grava
 
 ## Fase 52 — Agente ihuull (skills, commands, tools)
 
-A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda mostra o painel nativo **CHAT / COPILOT EDITS** — não é a nossa extensão. Esta fase **remove essa superfície** (e desinstala Copilot/Continue/Cline se o usuário instalar) e coloca o **agente ihuull** no activity bar. O agente lê `AGENTS.md`, `.cursor/skills`, `.cursor/rules` e corre um loop de ferramentas **só no container** (`PLAN.md` §3.6). O VPS continua só como proxy — não lê o workspace.
+A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda mostra o painel nativo **CHAT / COPILOT EDITS** — não é a nossa extensão. Esta fase **remove essa superfície** (e desinstala Copilot/Continue/Cline se o usuário instalar) e coloca o **agente ihuull** na **secondary sidebar** (direita), no lugar do Chat nativo. O agente lê `AGENTS.md`, `.cursor/skills`, `.cursor/rules` e corre um loop de ferramentas **só no container** (`PLAN.md` §3.6). O VPS continua só como proxy — não lê o workspace.
 
 ### 52.1 Esconder Chat/Copilot nativo
 
-- [x] Machine settings: `chat.commandCenter.enabled=false`, secondary sidebar hidden, Copilot desligado. Helper grava o mesmo em `defaultCodespaceSettings`.
-- [x] Extensão `ihuull.codespace`: view **XCODESPACES / Agente** no activity bar (webview). `ihuull.openChat` foca essa view, não um painel editor.
+- [x] Machine settings: `chat.commandCenter.enabled=false`, Copilot desligado. Helper grava o mesmo em `defaultCodespaceSettings`.
+- [x] Extensão `ihuull.codespace`: view **XCODESPACES / Chat** na secondary sidebar (webview). `ihuull.openChat` foca essa view, não um painel editor.
 - [x] No activate: desinstala/desabilita `GitHub.copilot`, `GitHub.copilot-chat`, Continue, Cline; fecha o chat/edits nativos; `onDidChange` se o usuário instalar de novo.
 - [x] Tokens `$dark` (oklch) no webview — sem hex inventado. Sem Copilot/Continue bakeados.
 
@@ -1497,9 +1497,27 @@ A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda m
 - [x] Tools no extension host, path só no clone (`..` rejeitado): `read_file`, `list_dir`, `grep`, `read_skill`, `write_file` / `apply_patch` (usuário confirma), `run_terminal` (allowlist: git/go/npm/npx/node/python3/ls/cat/head/rg; block docker/sudo/ssh; timeout; stdout truncado).
 - [x] Thinking GLM continua desligado. Sem `docker.sock`.
 
-**Critério de saída:** codespace abre sem tabs CHAT/COPILOT EDITS; o activity bar mostra o agente ihuull; `/skills` lista as skills do repo; o agente lê `AGENTS.md` e pode aplicar um patch depois do **Aplicar**; terminal allowlisted no clone; instalar Copilot some no reload; Recreate pega a extensão nova.
+### 52.4 Chat à direita (Cursor-like)
 
-**Ordem:** 52.1 (UI) → 52.2 (contexto) → 52.3 (tools). Rebuild da imagem + Recreate — start antigo não troca a layer.
+- [x] View no `secondarySidebar` (não no activity bar). Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate fecha o Chat/Edits nativos e foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
+- [x] Chrome do webview: seletor de modo **Agent / Ask / Debug / Plan**, seletor de modelo, arquivo atual, composer (Enter envia, Shift+Enter quebra linha).
+- [x] `GET /api/xcodespaces/llm/models` (mesmo grupo llm: host `cs-*` / `xcodespaces.corp` + JWE ou token Git). Devolve `provider`, `model`, `has_key`, `catalog` — sem a key.
+- [x] `POST /chat` aceita `mode` e `model` (override por request, allowlist do catálogo do provedor; Settings do xadmin continua a fonte). Ask não encaminha tools; Plan só read.
+
+**Critério de saída:** codespace abre o chat ihuull à direita (não CHAT/COPILOT EDITS); dá para escolher modelo e modo; `/skills` lista as skills do repo; o agente lê `AGENTS.md` e pode aplicar um patch depois do **Aplicar**; terminal allowlisted no clone; instalar Copilot some no reload; Recreate pega a extensão nova.
+
+### 52.5 Identidade Git + paridade Cursor
+
+O Source Control do OpenVSCode recusa commit sem `user.name`/`user.email` (o clone nascia só com credential helper). O agente também não achava arquivos por glob — o Cursor usa isso o tempo todo.
+
+- [x] Helper grava `git config user.name/email` no clone (`username@corp.ihuull.com`, igual ao commit do XGIT). `git_author` no `CsSpec` validado — não mistura com `git_user` do token HTTP (`codespace-<id>`).
+- [x] `GET /models` devolve `git_name`/`git_email` do caller (JWE ou token Git). A extensão chama `git config` no activate — codespace já rodando não precisa esperar só o Recreate.
+- [x] Tool `glob` (`rg --files -g`). Plan/Ask/Agent respeitam o mesmo recorte de tools. `git --no-verify` bloqueado no terminal.
+- [x] Sem `AGENTS.md` no clone: contrato ihuull no context (Conventional Commits, sem commit em `main`, skills/rules). Se existir `CONTRIBUTING.md`, entra no context. Playground `teste` ganha `AGENTS.md`.
+
+**Critério de saída:** codespace abre o chat ihuull à direita (não CHAT/COPILOT EDITS); dá para escolher modelo e modo; Source Control commita sem o diálogo de `user.name`; `/skills` lista as skills do repo; o agente lê `AGENTS.md` (ou o contrato default), usa `glob` e pode aplicar um patch depois do **Aplicar**; terminal allowlisted no clone; instalar Copilot some no reload; Recreate pega a extensão nova.
+
+**Ordem:** 52.1 (UI) → 52.2 (contexto) → 52.3 (tools) → 52.4 (direita + modos/modelos) → 52.5 (git + glob). Rebuild da imagem + Recreate — start antigo não troca a layer. Troca do proxy (`/models`, `mode`, `model`, identidade Git) = deploy do `xvpn-server`. Helper novo = `xvpn-user-provision` no VPS.
 
 ---
 

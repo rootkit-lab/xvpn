@@ -1632,22 +1632,21 @@ Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado
 
 Repo **`teste`** no XGIT (owner **`rootkit`**) ganha um servidor **Flask** mínimo para validar a Fase 56 sem depender de Vite/Go manual. O processo escuta **`0.0.0.0:8080`** no container; na VPN abre `http://demo-cs-<id>.corp.ihuull.com:8080/` (ou o hostname da aba **Ports**).
 
-Paralelo: corrigir o **`run_terminal`** no painel Terminal — o prefixo `# agent:` virava comentário de shell e `sendText(..., false)` não submetia a linha. Depois de `execFile`/`spawn`, espelha **`$ argv`** + stdout via **heredoc** (`cat <<EOF`) com quoting por argumento e strip de `\r` — **sem** executar argv cru no PTY (evita `;|&&` fora do sandbox).
+Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar para pintar o terminal. `run_terminal` faz **spawn** no PTY **XCODESPACES** (stdout ao vivo, `PYTHONUNBUFFERED=1`). Flask/`app.py`/`0.0.0.0` não bloqueiam 120s — ~8s e o job segue em background. Ctrl+C no PTY ou Stop no chat. Sem argv cru no bash (quoting + allowlist).
 
 ### 57.1 Playground `teste`
 
 - [x] `web/flask/app.py` + `scripts/demo-flask.sh` (bind `0.0.0.0:8080`).
 - [x] Task VS Code **demo (flask)** + `check.sh` importa `flask`.
 - [x] Imagem `ihuull/codespace:1.98.2`: pacote `python3-flask` (apt).
-- [ ] Re-seed: `server/deploy/codespace/seed-teste.sh` no VPS.
+- [x] Re-seed: `server/deploy/codespace/seed-teste.sh` no VPS (`web/flask/app.py` no tree de `teste`).
 
 ### 57.2 Terminal do agente
 
-- [x] Módulo `terminal-agent.js`: heredoc + `%q` por argv; sem execução no PTY antes do gate.
-- [x] Extensão `ihuull.codespace` 0.5.2.
-- [ ] Recreate do codespace para bake da extensão.
+- [x] Extensão `ihuull.codespace` **0.5.3**: PTY ao vivo + Flask sem hang de 120s.
+- [ ] Rebuild da imagem + Recreate do codespace (start antigo não troca a layer).
 
-**Critério de saída:** VPN ligada, `./scripts/demo-flask.sh` no codespace de `teste`, `curl http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`. Agente roda `go run ./cmd/hello` — terminal **XCODESPACES** mostra `$ go run …` + saída (heredoc, quebras corretas, Enter automático).
+**Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). `http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`.
 
 **Ordem:** código monorepo → rebuild imagem → seed `teste` → Recreate. Sem mudança no helper DNAT.
 

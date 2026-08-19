@@ -10,7 +10,7 @@ const MAX_RUNNING = 3;
 let seq = 0;
 const jobs = new Map();
 
-function startJob(root, argv, onUpdate, extraEnv) {
+function startJob(root, argv, onUpdate, extraEnv, onChunk) {
   const gate = allowTerminal(argv);
   if (!gate.ok) {
     throw new Error(gate.reason);
@@ -19,11 +19,18 @@ function startJob(root, argv, onUpdate, extraEnv) {
     throw new Error("teto de terminais em background");
   }
   const id = "j" + ++seq;
-  const child = spawn(argv[0], argv.slice(1), { cwd: root, env: mergeEnv(extraEnv) });
+  const env = mergeEnv(extraEnv);
+  if (!env.PYTHONUNBUFFERED) {
+    env.PYTHONUNBUFFERED = "1";
+  }
+  const child = spawn(argv[0], argv.slice(1), { cwd: root, env });
   const rec = { id, argv, status: "running", out: "", code: null, child };
   jobs.set(id, rec);
   const push = (chunk) => {
     rec.out = (rec.out + chunk).slice(-OUT_CAP);
+    if (typeof onChunk === "function") {
+      onChunk(chunk);
+    }
     if (onUpdate) {
       onUpdate(snapshot(id));
     }

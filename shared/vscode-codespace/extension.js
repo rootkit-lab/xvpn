@@ -14,7 +14,7 @@ const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices, dollarCh
 const { runningCount, abortAll } = require("./jobs");
 const { writeArtifact, fileDelta } = require("./artifacts");
 const { resolveWorkspacePath } = require("./sandbox");
-const { finishAgentTerminal } = require("./terminal-agent");
+const { attachAgentTerminal, looksLikeLongRunning } = require("./terminal-agent");
 const { readHooks } = require("./hooks");
 const { listListeningPorts } = require("./ports");
 
@@ -359,15 +359,19 @@ class AgentViewProvider {
                   }
                 }
                 if (tc.name === "run_terminal") {
+                  const session = attachAgentTerminal(vscode, cwd, parsed);
                   this.post({
                     type: "status",
-                    phase: parsed.background && parsed.wait === false ? "exploring" : "waiting",
+                    phase:
+                      looksLikeLongRunning(parsed.argv) || parsed.wait === false ? "exploring" : "waiting",
                   });
-                }
-                result = await runTool(cwd, tc.name, tc.arguments, { extRoot: __dirname });
-                if (tc.name === "run_terminal") {
-                  finishAgentTerminal(vscode, cwd, parsed, result);
+                  result = await runTool(cwd, tc.name, tc.arguments, {
+                    extRoot: __dirname,
+                    onChunk: (chunk) => session.write(chunk),
+                  });
                   this.post({ type: "jobs", count: runningCount() });
+                } else {
+                  result = await runTool(cwd, tc.name, tc.arguments, { extRoot: __dirname });
                 }
               }
             } catch (err) {

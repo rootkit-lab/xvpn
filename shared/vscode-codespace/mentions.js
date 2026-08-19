@@ -5,11 +5,12 @@ const path = require("path");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { resolveWorkspacePath } = require("./sandbox");
+const { listJobs } = require("./jobs");
 
 const execFileAsync = promisify(execFile);
 const FILE_CAP = 4 * 1024;
 const SLASH_BUILTINS = [
-  { id: "help", label: "/help — modos, @ # / e tools" },
+  { id: "help", label: "/help — modos, @ # $ / e tools" },
   { id: "skills", label: "/skills — skills do repo" },
   { id: "commit", label: "/commit — generate commit" },
   { id: "explain", label: "/explain — explica o arquivo atual" },
@@ -17,6 +18,7 @@ const SLASH_BUILTINS = [
 const DOC_FILES = ["AGENTS.md", "README.md", "PLAN.md", "CONTRIBUTING.md", "ROADMAP.md", "SECURITY.md"];
 const HASH_GIT = new Set(["git", "diff", "status", "log"]);
 const HASH_DOCS = new Set(["docs", "doc"]);
+const DOLLAR_TERM = new Set(["term", "jobs", "terminal", "shell"]);
 
 function parseMentions(text) {
   const files = [];
@@ -30,13 +32,21 @@ function parseMentions(text) {
     hashes.push(p.toLowerCase());
     return "";
   });
+  const dollars = [];
+  src.replace(/\$([A-Za-z0-9._/-]+)/g, (_, p) => {
+    dollars.push(p.toLowerCase());
+    return "";
+  });
   const uniq = (xs) => [...new Set(xs)];
   const h = uniq(hashes);
+  const d = uniq(dollars);
   return {
     files: uniq(files),
     hashes: h,
+    dollars: d,
     git: h.some((x) => HASH_GIT.has(x)),
     docs: h.some((x) => HASH_DOCS.has(x) || DOC_FILES.some((d) => d.toLowerCase() === x)),
+    term: d.some((x) => DOLLAR_TERM.has(x)),
     folders: h.filter((x) => !HASH_GIT.has(x) && !HASH_DOCS.has(x) && !DOC_FILES.some((d) => d.toLowerCase() === x)),
   };
 }
@@ -95,6 +105,19 @@ async function mentionContext(root, text) {
       parts.push("## #git\n(git indisponível)");
     }
   }
+  if (m.term) {
+    const recs = listJobs();
+    if (!recs.length) {
+      parts.push("## $term\n(nenhum job)");
+    } else {
+      parts.push(
+        "## $term\n" +
+          recs
+            .map((j) => j.id + " " + j.status + (j.log ? " " + j.log : "") + "\n" + (j.out || ""))
+            .join("\n---\n"),
+      );
+    }
+  }
   return parts.join("\n\n").slice(0, 16 * 1024);
 }
 
@@ -144,6 +167,13 @@ function listWorkspaceFolders(root) {
   }
 }
 
+function dollarChoices() {
+  return [
+    { id: "term", label: "$term — stdout dos jobs" },
+    { id: "jobs", label: "$jobs — status dos background" },
+  ];
+}
+
 function hashChoices(root) {
   const docs = DOC_FILES.filter((n) => {
     try {
@@ -167,6 +197,7 @@ module.exports = {
   listWorkspaceFiles,
   listWorkspaceFolders,
   hashChoices,
+  dollarChoices,
   SLASH_BUILTINS,
   DOC_FILES,
 };

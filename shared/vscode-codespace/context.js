@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const vscode = require("vscode");
 const { resolveWorkspacePath } = require("./sandbox");
 
 const AGENTS_CAP = 8 * 1024;
@@ -36,13 +35,7 @@ function parseFrontmatter(raw) {
   return { meta, body: m[2].trim() };
 }
 
-function listSkills(root) {
-  let dir;
-  try {
-    dir = resolveWorkspacePath(root, path.join(".cursor", "skills"));
-  } catch (_) {
-    return [];
-  }
+function listSkillDir(dir, baked) {
   let names = [];
   try {
     names = fs.readdirSync(dir);
@@ -54,11 +47,17 @@ function listSkills(root) {
     if (!/^[A-Za-z0-9._-]+$/.test(name)) {
       continue;
     }
-    let file;
-    try {
-      file = resolveWorkspacePath(root, path.join(".cursor", "skills", name, "SKILL.md"));
-    } catch (_) {
-      continue;
+    const file = path.join(dir, name, "SKILL.md");
+    if (baked) {
+      try {
+        const realDir = fs.realpathSync(dir);
+        const real = fs.realpathSync(file);
+        if (!real.startsWith(realDir + path.sep)) {
+          continue;
+        }
+      } catch (_) {
+        continue;
+      }
     }
     const raw = readLimited(file, 32 * 1024);
     if (!raw) {
@@ -70,9 +69,28 @@ function listSkills(root) {
       description: parsed.meta.description || "",
       body: parsed.body,
       file,
+      baked: Boolean(baked),
     });
   }
-  return out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
+}
+
+function listSkills(root, bakedRoot) {
+  const baked = bakedRoot ? listSkillDir(path.join(bakedRoot, "skills"), true) : [];
+  let repo = [];
+  try {
+    repo = listSkillDir(resolveWorkspacePath(root, path.join(".cursor", "skills")), false);
+  } catch (_) {
+    repo = [];
+  }
+  const byName = new Map();
+  for (const s of baked) {
+    byName.set(s.name.toLowerCase(), s);
+  }
+  for (const s of repo) {
+    byName.set(s.name.toLowerCase(), s);
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function listRules(root) {
@@ -111,6 +129,12 @@ function listRules(root) {
 }
 
 function currentFileSnippet() {
+  let vscode;
+  try {
+    vscode = require("vscode");
+  } catch (_) {
+    return "";
+  }
   const ed = vscode.window.activeTextEditor;
   if (!ed) {
     return "";
@@ -133,8 +157,16 @@ function currentFileSnippet() {
   return "Arquivo atual: " + rel + "\n```\n" + text + "\n```";
 }
 
-function buildContext(root, extraSkill) {
+function buildContext(root, extraSkill, bakedRoot) {
   const parts = [];
+  parts.push(
+    "## Terminal, Python e MCP\n" +
+      "argv allowlist (git, go, python3, npm, node, rg…). Sem bash/sudo/docker/ssh. " +
+      "VAR=valor no argv é recusado — use env:{KEY:valor} e argv:['python3',...]. " +
+      "Prefira python3 para parse, JSON e scripts. Espere o comando terminar (wait default). " +
+      "MCP bakeados: think, memory, docs — list_mcp / call_mcp. " +
+      "Este workspace é um git clone do slug em xgit.corp (volume do container), nunca o GitHub nem um fork.",
+  );
   let agents = "";
   try {
     agents = readLimited(resolveWorkspacePath(root, "AGENTS.md"), AGENTS_CAP);
@@ -148,7 +180,8 @@ function buildContext(root, extraSkill) {
       "## Contrato ihuull\n" +
         "Sem AGENTS.md neste clone. Conventional Commits (feat/fix/docs/chore/refactor/test/security). " +
         "Não commitar em main — crie feat/ ou fix/. Não commitar segredos nem artefatos. " +
-        "Skills em .cursor/skills; rules em .cursor/rules. Use glob/grep antes de editar.",
+        "Skills em .cursor/skills; rules em .cursor/rules. Use glob/grep antes de editar. " +
+        "python3 + env + wait; MCP think/memory/docs.",
     );
   }
   try {
@@ -159,7 +192,7 @@ function buildContext(root, extraSkill) {
   } catch (_) {
     /* repo sem CONTRIBUTING */
   }
-  const skills = listSkills(root);
+  const skills = listSkills(root, bakedRoot);
   if (skills.length) {
     parts.push(
       "## Skills\n" +

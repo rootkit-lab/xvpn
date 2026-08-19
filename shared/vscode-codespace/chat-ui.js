@@ -27,9 +27,17 @@ function toolCardTitle(name, args) {
       return "Mapa Go do workspace";
     case "job_status":
       return "Job " + (a.id || "");
+    case "list_mcp":
+      return "MCP servidores";
+    case "call_mcp":
+      return "MCP " + (a.server || "server") + " " + (a.name || "");
     case "run_terminal": {
       const argv = Array.isArray(a.argv) ? a.argv.map(String).join(" ") : "";
-      return (a.background ? "Background " : "Rodou ") + (argv || "terminal").slice(0, 48);
+      const waiting = a.wait !== false;
+      if (a.background && !waiting) {
+        return "Background " + (argv || "terminal").slice(0, 48);
+      }
+      return (waiting ? "Aguardou " : "Rodou ") + (argv || "terminal").slice(0, 48);
     }
     default:
       return String(name || "tool");
@@ -58,6 +66,10 @@ function exploreLabel(names) {
       case "run_terminal":
       case "job_status":
         cmds += 1;
+        break;
+      case "list_mcp":
+      case "call_mcp":
+        searches += 1;
         break;
       case "analyze_project":
         files += 1;

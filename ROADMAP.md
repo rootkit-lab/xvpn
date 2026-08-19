@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–51** em produção (DX do codespace: imagem, tema, proxy LLM, generate commit). **Fase 52** (agente ihuull no lugar do Chat/Copilot nativo) é a próxima. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–54** no codespace (imagem, tema, proxy, agente, composer, Review). **Fase 55** (python3 + espera + MCP) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1549,6 +1549,59 @@ O chat da Fase 52 já itera tools, mas o composer ainda é um textarea + chips. 
 
 **Ordem:** 53.3 (analyzer) → 53.2 (jobs) → 53.1/53.4 (composer/UI) + 51.2 (Open VSX). Rebuild + Recreate. Helper não muda. Proxy não muda.
 
+## Fase 54 — Review, Stop e logs de comando (Cursor-like)
+
+O Cursor mostra diffs inline, um painel **Review** (N files, +/−, Stop) e manda stdout longo para ficheiro (`.cursor` ou `/tmp`) — o chat só vê o preview. O chrome tem **Waiting for shell**, terminais em background e toolbar `@` `#` `$`. O XCODESPACES da Fase 53 já tem cards `>_` e chip de jobs; falta o resto. Tudo **no container** (`PLAN.md` §3.6). Hooks `.cursor/hooks.json` são **só inspecionados** — não corremos o `command` (seria bash; o beforeShell nosso é a allowlist em `sandbox.js`).
+
+### 54.1 Artifacts de comando
+
+- [x] `run_terminal` / `grep` / `analyze_project` (e stdout longo) gravam `.cursor/agent/<id>.log` no clone; se não der, `/tmp/xcs-agent/`.
+- [x] O card do chat mostra preview curto + path do log. `.cursor/agent/` no `.gitignore` (e no `gitignore-global` da imagem).
+- [x] Job em background também grava o log ao fechar.
+
+### 54.2 Review + Stop + Editing
+
+- [x] Painel **N Files** com +/− dos `write_file` / `apply_patch` do turno; botão **Review** expande a lista.
+- [x] **Stop** aborta o `fetch` do LLM, o loop e os jobs em background (`AbortController` + `SIGTERM`).
+- [x] Status `Editing <ficheiro>` e `Waiting for shell` enquanto o terminal bloqueia.
+
+### 54.3 `$term` e hooks (inspect)
+
+- [x] Composer `$term` / `$jobs` anexa stdout/status dos jobs (palette + chip `$` ao lado de `@` `#` `/`).
+- [x] Chip “hooks …” se existir `.cursor/hooks.json`. **Não** executa o `command` do hook — invariante §3.6.
+
+### 54.4 UI
+
+- [x] Barra Review/Stop no rodapé do turno; artifact no card; placeholder `@` `#` `$` `/`. Tokens `$dark`.
+
+**Critério de saída:** Recreate: um `go test` longo aparece no card com path `.cursor/agent/…`; write gera linha no Review; Stop para o loop; `$term` entra no context; `hooks.json` do repo não dispara bash.
+
+**Ordem:** 54.1 (log) → 54.2 (Review/Stop) → 54.3/54.4 (composer/UI). Rebuild da imagem + Recreate. Helper e proxy **não** mudam.
+
+## Fase 55 — Python3, espera o terminal, MCP
+
+O Cursor espera o comando e usa o stdout no raciocínio. No XCODESPACES o modelo tentava `TESTE_WHO=Agente python3` (sintaxe de shell) e disparava background sem ler o resultado. `python3` passa a ser o interpretador de scripts; MCP stdio no container dá think/memory/docs. Create continua **clone** do slug `xgit.corp` — não GitHub, não fork (`PLAN.md` §3.6).
+
+### 55.1 Espera + env + python3
+
+- [x] `run_terminal` espera por default (até 120s). `background` + `wait:false` só para jobs longos; senão `waitFor` devolve stdout.
+- [x] Campo `env:{KEY:valor}`. `KEY=valor` no argv é recusado com dica. `PATH`/`LD_*` bloqueados.
+- [x] `python3` na imagem (`apt`) e na allowlist. Skill bakeada `python3`.
+
+### 55.2 MCP (stdio no container)
+
+- [x] Tools `list_mcp` / `call_mcp`. Servidores bakeados: **think**, **memory**, **docs** (GET https allowlisted: Python/Go/PyPI/context7).
+- [x] Extra no clone: `.cursor/mcp.json` só `command: python3` + `.cursor/mcp/*.py`. Sem Mongo MCP, sem npx arbitrário.
+- [x] Skill bakeada `mcp`.
+
+### 55.3 Clone, não fork
+
+- [x] Contrato no context: workspace = `git clone` de `https://xgit.corp.ihuull.com/<slug>` no volume. Fork GitHub/forge **rejeitado**.
+
+**Critério de saída:** Recreate: `python3 --version`; `env TESTE_WHO` via campo `env` imprime no card; o agente não dispara `VAR=valor`; `list_mcp` mostra think/memory/docs; `docker.sock` ausente.
+
+**Ordem:** 55.1 → 55.2. Rebuild da imagem + Recreate. Helper não muda. Proxy não muda.
+
 ---
 
 ## Como usar este arquivo
@@ -1566,7 +1619,7 @@ O chat da Fase 52 já itera tools, mas o composer ainda é um textarea + chips. 
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–53):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51** (imagem + tema + extensões + proxy) vem depois da 50. **52** (agente ihuull no lugar do Chat nativo) vem depois da 51. **53** (composer `@`/`#`/`/`, terminal background, mapa Go) vem depois da 52 — não misturar runtime e DX na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–55):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51** (imagem + tema + extensões + proxy) vem depois da 50. **52** (agente ihuull no lugar do Chat nativo) vem depois da 51. **53** (composer `@`/`#`/`/`, terminal background, mapa Go) vem depois da 52. **54** (Review/Stop, logs `.cursor/agent` ou `/tmp`, `$term`) vem depois da 53. **55** (python3 + espera + MCP) vem depois da 54 — não misturar runtime e DX na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

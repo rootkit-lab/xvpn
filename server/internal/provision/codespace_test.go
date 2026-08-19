@@ -411,8 +411,18 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	if !strings.Contains(text, "ripgrep") {
 		t.Fatal("imagem precisa de rg para a tool grep do agente")
 	}
+	if !strings.Contains(text, "python3") {
+		t.Fatal("imagem precisa de python3 para o agente")
+	}
 	if !strings.Contains(text, "gitignore-global") {
 		t.Fatal("gitignore global deve ir na imagem")
+	}
+	gi, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "gitignore-global"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(gi), ".cursor/agent/") {
+		t.Fatal("gitignore-global deve ignorar logs do agente")
 	}
 	if !strings.Contains(text, "xcs-analyze") {
 		t.Fatal("analyzer Go deve ir na imagem")

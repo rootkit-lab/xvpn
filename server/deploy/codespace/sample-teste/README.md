@@ -12,8 +12,7 @@ Marque na primeira sessão (Welcome deve ser **XCODESPACES**, não *Get Started 
 2. **Tema** ihuull Dark (fundo quase preto, acento violeta)
 3. **Terminal** (`Ctrl+\``):
    ```bash
-   go version
-   node -v
+   python3 --version
    ./scripts/check.sh
    ```
 4. **Source Control** lista só arquivos deste repo (nada do HOME do IDE)

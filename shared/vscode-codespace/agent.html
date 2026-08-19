@@ -108,6 +108,10 @@ select {
   max-height: 7.5em; overflow: auto;
 }
 .tool-out:empty { display: none; }
+.tool-art {
+  margin: 6px 0 0; color: var(--muted-fg); font-size: 11px;
+  font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .bot { font-size: 13px; line-height: 1.55; display: flex; flex-direction: column; gap: 8px; }
 .bot .prose { white-space: pre-wrap; }
 .code-card {
@@ -124,16 +128,39 @@ select {
 #confirm.show { display: block; }
 #confirm .row { display: flex; gap: 8px; margin-top: 8px; }
 footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; position: relative; }
-.ctx, .jobs, .pins {
+.ctx, .jobs, .hooks, .pins {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin: 0 0 8px;
 }
-.ctx, .jobs {
+.ctx, .jobs, .hooks {
   padding: 3px 8px; border-radius: 999px;
   background: var(--muted); color: var(--muted-fg); font-size: 11px; max-width: 100%;
 }
-.ctx[hidden], .jobs[hidden], .pins:empty { display: none; }
+.ctx[hidden], .jobs[hidden], .hooks[hidden], .pins:empty { display: none; }
 .ctx b, .jobs b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review {
+  display: none; margin: 0 12px 8px; padding: 8px 10px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+}
+.review.show { display: block; }
+.review-head { display: flex; align-items: center; gap: 8px; }
+.review-n { flex: 1; font-size: 12px; color: var(--muted-fg); }
+.review ul { list-style: none; margin: 8px 0 0; padding: 0; display: none; }
+.review.open ul { display: block; }
+.review li {
+  display: flex; gap: 8px; font-size: 12px; font-family: var(--font-mono);
+  padding: 3px 0; color: var(--fg);
+}
+.review .add { color: var(--safe); }
+.review .del { color: oklch(0.72 0.16 25); }
+button.stop {
+  background: var(--muted); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+button.rev {
+  background: var(--primary); color: var(--primary-fg); border: 0;
+  border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
 .pin {
   border: 1px solid var(--border); background: var(--card); color: var(--fg);
   border-radius: 999px; padding: 2px 8px; font-size: 11px;
@@ -189,14 +216,23 @@ button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--
   </label>
 </header>
 <div id="log"></div>
+<div id="review" class="review" hidden>
+  <div class="review-head">
+    <span class="review-n" id="reviewn">0 Files</span>
+    <button type="button" class="stop" id="stop" hidden>Stop</button>
+    <button type="button" class="rev" id="reviewbtn" hidden>Review</button>
+  </div>
+  <ul id="reviewlist"></ul>
+</div>
 <div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="no" id="no">Recusar</button></div></div>
 <footer>
   <div id="ctx" class="ctx" hidden>arquivo <b id="ctxfile"></b></div>
   <div id="jobs" class="jobs" hidden><b id="jobn">0</b> terminais em background</div>
+  <div id="hooks" class="hooks" hidden>hooks <b id="hookn"></b></div>
   <div id="pins" class="pins"></div>
   <div id="palette" class="palette" role="listbox"></div>
   <form id="f">
-    <textarea id="q" placeholder="Pergunte, @arquivo, #git ou /skills" rows="2"></textarea>
+    <textarea id="q" placeholder="Pergunte, @arquivo, #git, $term ou /skills" rows="2"></textarea>
     <div class="composer-row">
       <div id="chips">
         <button type="button" data-q="/help">/help</button>
@@ -205,6 +241,7 @@ button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--
         <button type="button" data-q="/explain">/explain</button>
         <button type="button" data-insert="@">@</button>
         <button type="button" data-insert="#">#</button>
+        <button type="button" data-insert="$">$</button>
         <button type="button" data-insert="/">/</button>
       </div>
       <button class="go" type="submit" title="Enviar" aria-label="Enviar">↑</button>
@@ -224,9 +261,18 @@ const pins = document.getElementById('pins');
 const palette = document.getElementById('palette');
 const jobsEl = document.getElementById('jobs');
 const jobn = document.getElementById('jobn');
+const hooksEl = document.getElementById('hooks');
+const hookn = document.getElementById('hookn');
+const reviewEl = document.getElementById('review');
+const reviewn = document.getElementById('reviewn');
+const reviewlist = document.getElementById('reviewlist');
+const reviewbtn = document.getElementById('reviewbtn');
+const stopBtn = document.getElementById('stop');
+const goBtn = document.querySelector('button.go');
 let confirmId = '';
 let turn = null;
-let pal = { commands: [], files: [], hashes: [] };
+let busy = false;
+let pal = { commands: [], files: [], hashes: [], dollars: [] };
 let palItems = [];
 let palIdx = 0;
 const saved = vscode.getState() || {};
@@ -282,11 +328,14 @@ function beginTurn() {
 function currentTurn() {
   return turn || beginTurn();
 }
-function setThought(phase) {
+function setThought(phase, file) {
   const t = currentTurn();
   t.thought.classList.add('live');
   t.thought.hidden = false;
   if (phase === 'summarizing') t.thought.textContent = 'Resumindo…';
+  else if (phase === 'waiting') t.thought.textContent = 'Waiting for shell';
+  else if (phase === 'stopped') t.thought.textContent = 'parado.';
+  else if (phase === 'editing') t.thought.textContent = 'Editing ' + (file || 'arquivo');
   else if (phase === 'exploring' || t.names.length) t.thought.textContent = 'Explorando…';
   else t.thought.textContent = 'Thinking';
 }
@@ -317,6 +366,12 @@ function addTool(m) {
     out.className = 'tool-out';
     out.textContent = m.text;
     card.appendChild(out);
+  }
+  if (m.artifact) {
+    const art = document.createElement('div');
+    art.className = 'tool-art';
+    art.textContent = m.artifact;
+    card.appendChild(art);
   }
   t.tools.appendChild(card);
   t.explore.classList.add('show');
@@ -359,9 +414,41 @@ function finishReply(text) {
   turn = null;
   scrollLog();
 }
+function setBusy(on) {
+  busy = Boolean(on);
+  stopBtn.hidden = !busy;
+  if (goBtn) goBtn.hidden = busy;
+  if (busy) reviewEl.classList.add('show');
+  reviewEl.hidden = !busy && !reviewlist.children.length;
+}
+function renderReview(files) {
+  const list = Array.isArray(files) ? files : [];
+  reviewlist.replaceChildren();
+  list.forEach((f) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = f.path || '';
+    const add = document.createElement('span');
+    add.className = 'add';
+    add.textContent = '+' + (f.add || 0);
+    const del = document.createElement('span');
+    del.className = 'del';
+    del.textContent = '-' + (f.del || 0);
+    li.appendChild(name);
+    li.appendChild(add);
+    li.appendChild(del);
+    reviewlist.appendChild(li);
+  });
+  reviewn.textContent = list.length + (list.length === 1 ? ' File' : ' Files');
+  reviewbtn.hidden = list.length < 1;
+  reviewEl.hidden = !busy && list.length < 1;
+  if (list.length || busy) reviewEl.classList.add('show');
+  else reviewEl.classList.remove('show');
+}
 function send(text) {
   addUser(text);
   beginTurn();
+  setBusy(true);
   vscode.postMessage({ type: 'ask', text, mode: modeEl.value, model: modelEl.value });
 }
 function fillModels(m) {
@@ -397,7 +484,7 @@ document.getElementById('f').addEventListener('submit', (e) => {
 function tokenAtCursor() {
   const start = q.selectionStart || 0;
   const before = q.value.slice(0, start);
-  const m = before.match(/([@#/])([A-Za-z0-9._/-]*)$/);
+  const m = before.match(/([@#/$])([A-Za-z0-9._/-]*)$/);
   if (!m) return null;
   return { kind: m[1], query: m[2].toLowerCase(), from: start - m[0].length, to: start };
 }
@@ -412,6 +499,7 @@ function renderPalette() {
   let items = [];
   if (tok.kind === '/') items = pal.commands || [];
   else if (tok.kind === '@') items = (pal.files || []).map((f) => ({ id: f, label: '@' + f }));
+  else if (tok.kind === '$') items = pal.dollars || [];
   else items = pal.hashes || [];
   items = items.filter((it) => String(it.label || it.id).toLowerCase().includes(tok.query)).slice(0, 12);
   palItems = items;
@@ -430,11 +518,11 @@ function applyPal(i) {
   const tok = tokenAtCursor();
   const it = palItems[i];
   if (!tok || !it) return;
-  const insert = tok.kind === '/' ? '/' + it.id : tok.kind === '@' ? '@' + it.id : '#' + it.id;
+  const insert = tok.kind === '/' ? '/' + it.id : tok.kind === '@' ? '@' + it.id : tok.kind === '$' ? '$' + it.id : '#' + it.id;
   q.value = q.value.slice(0, tok.from) + insert + ' ' + q.value.slice(tok.to);
   q.focus();
   palette.classList.remove('show');
-  if (tok.kind === '@' || tok.kind === '#') {
+  if (tok.kind === '@' || tok.kind === '#' || tok.kind === '$') {
     const chip = document.createElement('span');
     chip.className = 'pin';
     chip.textContent = insert;
@@ -485,17 +573,33 @@ document.getElementById('no').onclick = () => {
   box.classList.remove('show');
   vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: false });
 };
+stopBtn.onclick = () => vscode.postMessage({ type: 'stop' });
+reviewbtn.onclick = () => reviewEl.classList.toggle('open');
+function finishReplyBusy(text) {
+  finishReply(text);
+  setBusy(false);
+}
 window.addEventListener('message', (e) => {
   const m = e.data || {};
-  if (m.type === 'reply') finishReply(m.text || '');
+  if (m.type === 'reply') finishReplyBusy(m.text || '');
   if (m.type === 'tool') addTool(m);
-  if (m.type === 'status') setThought(m.phase || '');
+  if (m.type === 'status') setThought(m.phase || '', m.file || '');
   if (m.type === 'models') fillModels(m);
-  if (m.type === 'palette') pal = { commands: m.commands || [], files: m.files || [], hashes: m.hashes || [] };
+  if (m.type === 'palette') pal = { commands: m.commands || [], files: m.files || [], hashes: m.hashes || [], dollars: m.dollars || [] };
   if (m.type === 'jobs') {
     const n = Number(m.count || 0);
     jobsEl.hidden = n < 1;
     jobn.textContent = String(n);
+  }
+  if (m.type === 'hooks') {
+    const ev = Array.isArray(m.events) ? m.events : [];
+    hooksEl.hidden = ev.length < 1;
+    hookn.textContent = ev.join(', ');
+  }
+  if (m.type === 'review') renderReview(m.files || []);
+  if (m.type === 'busy') {
+    setBusy(m.on);
+    if (Array.isArray(m.review)) renderReview(m.review);
   }
   if (m.type === 'file') {
     const name = m.file || '';

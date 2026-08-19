@@ -10,8 +10,11 @@ const { buildContext, listSkills } = require("./context");
 const { needsConfirm, confirmDetail, runTool } = require("./tools");
 const { toolsForMode } = require("./tool-specs");
 const { toolCardTitle, exploreLabel } = require("./chat-ui");
-const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices } = require("./mentions");
-const { runningCount } = require("./jobs");
+const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices, dollarChoices } = require("./mentions");
+const { runningCount, abortAll } = require("./jobs");
+const { writeArtifact, fileDelta } = require("./artifacts");
+const { resolveWorkspacePath } = require("./sandbox");
+const { readHooks } = require("./hooks");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -49,6 +52,9 @@ class AgentViewProvider {
     this.model = "";
     this.projectMap = "";
     this.projectMapAt = 0;
+    this.stopped = false;
+    this.review = [];
+    this.abort = null;
   }
 
   resolveWebviewView(webviewView) {
@@ -75,6 +81,7 @@ class AgentViewProvider {
     this.post({ type: "jobs", count: runningCount() });
     const folder = vscode.workspace.workspaceFolders?.[0];
     const cwd = folder?.uri.fsPath || "";
+    this.post({ type: "hooks", events: readHooks(cwd).events });
     try {
       const data = await llmFetch(cwd, "/api/xcodespaces/llm/models");
       if (data.model && !this.model) {
@@ -129,6 +136,14 @@ class AgentViewProvider {
       }
       return;
     }
+    if (msg?.type === "stop") {
+      this.stopped = true;
+      this.abort?.abort();
+      abortAll();
+      this.post({ type: "jobs", count: runningCount() });
+      this.post({ type: "status", phase: "stopped" });
+      return;
+    }
     if (msg?.type !== "ask" || !msg.text) {
       return;
     }
@@ -157,14 +172,15 @@ class AgentViewProvider {
           type: "reply",
           text:
             "Modos: Agent (tools), Ask (só pergunta), Debug (inspeciona erro), Plan (plano, só leitura).\n" +
-            "Composer: @arquivo  #git|#docs|#pasta  /help /skills /commit /explain /<skill>\n" +
-            "Tools: read_file list_dir grep glob read_skill analyze_project write_file apply_patch run_terminal job_status\n" +
-            "Terminal: allowlist no container; background=true não bloqueia o chat.",
+            "Composer: @arquivo  #git|#docs|#pasta  $term  /help /skills /commit /explain /<skill>\n" +
+            "Tools: read_file list_dir grep glob read_skill analyze_project write_file apply_patch run_terminal job_status list_mcp call_mcp\n" +
+            "Terminal: sem shell. python3 + env:{KEY:valor}. wait default (até 120s). MCP: think, memory, docs.\n" +
+            "Logs em .cursor/agent/ (ou /tmp/xcs-agent). Review + Stop. Clone do xgit.corp, nunca GitHub.",
         });
         return;
       }
       if (cmd === "skills") {
-        const names = listSkills(cwd)
+        const names = listSkills(cwd, __dirname)
           .map((s) => s.name + " — " + s.description)
           .join("\n");
         this.post({ type: "reply", text: names || "Nenhuma skill em .cursor/skills" });
@@ -188,14 +204,14 @@ class AgentViewProvider {
   }
 
   async richContext(cwd, userText, extraSkill) {
-    const ctx = buildContext(cwd, extraSkill);
+    const ctx = buildContext(cwd, extraSkill, __dirname);
     const extra = await mentionContext(cwd, userText);
     if (extra) {
       ctx.text = (ctx.text + "\n\n" + extra).slice(0, 24 * 1024);
     }
     if (!this.projectMap || Date.now() - this.projectMapAt > 60000) {
       try {
-        this.projectMap = await runTool(cwd, "analyze_project", {});
+        this.projectMap = await runTool(cwd, "analyze_project", {}, { extRoot: __dirname });
         this.projectMapAt = Date.now();
       } catch (_) {
         this.projectMap = "";
@@ -212,76 +228,129 @@ class AgentViewProvider {
     const cwd = folder?.uri.fsPath || "";
     this.post({
       type: "palette",
-      commands: slashCommands(listSkills(cwd).map((s) => s.name)),
+      commands: slashCommands(listSkills(cwd, __dirname).map((s) => s.name)),
       files: listWorkspaceFiles(cwd),
       hashes: hashChoices(cwd),
+      dollars: dollarChoices(),
     });
   }
 
   async runAgent(cwd, userText, ctx, mode, model) {
+    this.stopped = false;
+    this.review = [];
+    this.abort = new AbortController();
+    this.post({ type: "busy", on: true });
+    this.post({ type: "review", files: [] });
     const messages = this.history.concat([{ role: "user", content: userText }]);
     const tools = toolsForMode(mode);
     const used = [];
-    for (let i = 0; i < MAX_AGENT_TURNS; i++) {
-      this.post({ type: "status", phase: i ? "exploring" : "thinking" });
-      const data = await llmFetch(cwd, "/api/xcodespaces/llm/chat", {
-        messages: trimMessages(messages),
-        context: ctx.text || "",
-        tools,
-        mode,
-        model,
-      });
-      if (data.tool_calls && data.tool_calls.length) {
-        messages.push({
-          role: "assistant",
-          content: "",
-          tool_calls: data.tool_calls,
-        });
-        for (const tc of data.tool_calls) {
-          let result = "";
-          try {
-            if (needsConfirm(tc.name)) {
-              const ok = await this.askConfirm(tc.name, confirmDetail(tc.name, safeParse(tc.arguments)));
-              if (!ok) {
-                result = "usuário recusou";
-              }
-            }
-            if (result !== "usuário recusou") {
-              const parsed = safeParse(tc.arguments);
-              if (tc.name === "run_terminal") {
-                echoAgentTerminal(cwd, parsed);
-              }
-              result = await runTool(cwd, tc.name, tc.arguments);
-              if (tc.name === "run_terminal") {
-                this.post({ type: "jobs", count: runningCount() });
-              }
-            }
-          } catch (err) {
-            result = err instanceof Error ? err.message : "tool falhou";
-          }
-          messages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            name: tc.name,
-            content: result,
-          });
-          used.push(tc.name);
-          this.post({
-            type: "tool",
-            name: tc.name,
-            title: toolCardTitle(tc.name, safeParse(tc.arguments)),
-            text: String(result).slice(0, 320),
-            summary: exploreLabel(used),
-          });
+    try {
+      for (let i = 0; i < MAX_AGENT_TURNS; i++) {
+        if (this.stopped) {
+          this.post({ type: "reply", text: "parado." });
+          return;
         }
-        continue;
+        this.post({ type: "status", phase: i ? "exploring" : "thinking" });
+        let data;
+        try {
+          data = await llmFetch(
+            cwd,
+            "/api/xcodespaces/llm/chat",
+            {
+              messages: trimMessages(messages),
+              context: ctx.text || "",
+              tools,
+              mode,
+              model,
+            },
+            this.abort.signal,
+          );
+        } catch (err) {
+          if (this.stopped || isAbort(err)) {
+            this.post({ type: "reply", text: "parado." });
+            return;
+          }
+          throw err;
+        }
+        if (data.tool_calls && data.tool_calls.length) {
+          messages.push({
+            role: "assistant",
+            content: "",
+            tool_calls: data.tool_calls,
+          });
+          for (const tc of data.tool_calls) {
+            if (this.stopped) {
+              this.post({ type: "reply", text: "parado." });
+              return;
+            }
+            let result = "";
+            let parsed = {};
+            let before = "";
+            try {
+              parsed = safeParse(tc.arguments);
+              if (needsConfirm(tc.name)) {
+                const ok = await this.askConfirm(tc.name, confirmDetail(tc.name, parsed));
+                if (!ok) {
+                  result = "usuário recusou";
+                }
+              }
+              if (result !== "usuário recusou") {
+                if (tc.name === "write_file" || tc.name === "apply_patch") {
+                  this.post({ type: "status", phase: "editing", file: parsed.path || "" });
+                  try {
+                    before = fs.readFileSync(resolveWorkspacePath(cwd, parsed.path), "utf8");
+                  } catch (_) {
+                    before = "";
+                  }
+                }
+                if (tc.name === "run_terminal") {
+                  this.post({
+                    type: "status",
+                    phase: parsed.background && parsed.wait === false ? "exploring" : "waiting",
+                  });
+                  echoAgentTerminal(cwd, parsed);
+                }
+                result = await runTool(cwd, tc.name, tc.arguments, { extRoot: __dirname });
+                if (tc.name === "run_terminal") {
+                  this.post({ type: "jobs", count: runningCount() });
+                }
+              }
+            } catch (err) {
+              result = err instanceof Error ? err.message : "tool falhou";
+            }
+            const delta = fileDelta(tc.name, parsed, before);
+            if (delta) {
+              this.review.push(delta);
+              this.post({ type: "review", files: this.review });
+            }
+            const dump = writeArtifact(cwd, tc.name, toolCardTitle(tc.name, parsed), result);
+            messages.push({
+              role: "tool",
+              tool_call_id: tc.id,
+              name: tc.name,
+              content: result,
+            });
+            used.push(tc.name);
+            this.post({
+              type: "tool",
+              name: tc.name,
+              title: toolCardTitle(tc.name, parsed),
+              text: dump.preview,
+              artifact: dump.path,
+              summary: exploreLabel(used),
+            });
+          }
+          continue;
+        }
+        const reply = (data.text || "").trim() || "resposta vazia";
+        this.history = messages.concat([{ role: "assistant", content: reply }]).slice(-MAX_HISTORY);
+        this.post({ type: "reply", text: reply });
+        return;
       }
-      const reply = (data.text || "").trim() || "resposta vazia";
-      this.history = messages.concat([{ role: "assistant", content: reply }]).slice(-MAX_HISTORY);
-      this.post({ type: "reply", text: reply });
-      return;
+      await this.finishCeiling(cwd, messages, ctx, model);
+    } finally {
+      this.post({ type: "busy", on: false, review: this.review });
     }
-    await this.finishCeiling(cwd, messages, ctx, model);
   }
 
   async finishCeiling(cwd, messages, ctx, model) {
@@ -328,6 +397,10 @@ async function ensureGitIdentity(cwd, name, email) {
   } catch (_) {
     /* clone ainda sem .git */
   }
+}
+
+function isAbort(err) {
+  return Boolean(err && (err.name === "AbortError" || /aborted/i.test(String(err.message || ""))));
 }
 
 function normalizeMode(mode) {
@@ -436,7 +509,7 @@ function llmOrigin(id) {
   return DEFAULT_ORIGIN;
 }
 
-async function llmFetch(cwd, apiPath, body) {
+async function llmFetch(cwd, apiPath, body, signal) {
   const auth = readCodespaceAuth(cwd);
   if (!auth.token) {
     throw new Error("sem token do codespace — Recreate o workspace");
@@ -452,6 +525,9 @@ async function llmFetch(cwd, apiPath, body) {
   const opts = { method: body === undefined ? "GET" : "POST", headers };
   if (body !== undefined) {
     opts.body = JSON.stringify(body);
+  }
+  if (signal) {
+    opts.signal = signal;
   }
   const res = await fetch(url, opts);
   const data = await res.json().catch(() => ({}));

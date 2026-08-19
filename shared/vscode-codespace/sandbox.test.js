@@ -36,6 +36,7 @@ test("allowTerminal allowlist", () => {
   assert.equal(allowTerminal(["go", "test", "./..."]).ok, true);
   assert.equal(allowTerminal(["npm", "test"]).ok, true);
   assert.equal(allowTerminal(["rg", "foo", "server"]).ok, true);
+  assert.equal(allowTerminal(["python3", "-c", "print(1)"]).ok, true);
   assert.equal(allowTerminal(["xcs-analyze", "."]).ok, true);
   assert.equal(allowTerminal(["gofmt", "-w", "main.go"]).ok, true);
 });
@@ -45,8 +46,16 @@ test("allowTerminal blocklist", () => {
   assert.equal(allowTerminal(["sudo", "ls"]).ok, false);
   assert.equal(allowTerminal(["ssh", "root@host"]).ok, false);
   assert.equal(allowTerminal(["bash", "-c", "ls"]).ok, false);
+  assert.equal(allowTerminal(["TESTE_WHO=Agente", "python3", "-c", "print(1)"]).ok, false);
+  assert.match(allowTerminal(["TESTE_WHO=Agente", "python3"]).reason, /não é shell/);
   assert.equal(allowTerminal(["git", "status", "&&", "sudo", "id"]).ok, false);
   assert.equal(allowTerminal(["rg", "--pre", "sh"]).ok, false);
   assert.equal(allowTerminal(["git", "commit", "--no-verify"]).ok, false);
   assert.equal(allowTerminal([]).ok, false);
+});
+
+test("sanitizeEnv recusa PATH e aceita TESTE_WHO", () => {
+  const { sanitizeEnv } = require("./sandbox");
+  assert.deepEqual(sanitizeEnv({ TESTE_WHO: "Agente", PATH: "/evil" }), { TESTE_WHO: "Agente" });
+  assert.deepEqual(sanitizeEnv({ "x": "1" }), {});
 });

@@ -4,14 +4,34 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
-const { resolveWorkspacePath, allowTerminal } = require("./sandbox");
-const { startJob, snapshot } = require("./jobs");
+const { resolveWorkspacePath, allowTerminal, mergeEnv, sanitizeEnv } = require("./sandbox");
+const { startJob, snapshot, waitFor } = require("./jobs");
 const { listSkills } = require("./context");
+const { listMcp, callMcp } = require("./mcp-host");
 const { AGENT_TOOLS, READ_TOOLS, toolsForMode } = require("./tool-specs");
 
 const execFileAsync = promisify(execFile);
 const READ_CAP = 12 * 1024;
 const OUT_CAP = 8 * 1024;
+const TERM_WAIT_DEFAULT = 120000;
+const TERM_WAIT_MAX = 180000;
+
+function waitMs(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return TERM_WAIT_DEFAULT;
+  }
+  return Math.min(Math.max(n, 1000), TERM_WAIT_MAX);
+}
+
+function formatJob(rec) {
+  if (!rec) {
+    return "job desapareceu";
+  }
+  const head = rec.id + " " + rec.status + (rec.code == null ? "" : " exit " + rec.code);
+  const log = rec.log ? "\nlog " + rec.log : "";
+  return (head + log + "\n" + (rec.out || "")).slice(0, OUT_CAP);
+}
 
 function parseArgs(raw) {
   if (!raw) {
@@ -33,7 +53,9 @@ function needsConfirm(name) {
 
 function confirmDetail(name, args) {
   if (name === "run_terminal") {
-    return (args.argv || []).join(" ");
+    const argv = (args.argv || []).join(" ");
+    const keys = args.env && typeof args.env === "object" ? Object.keys(args.env) : [];
+    return argv + (keys.length ? " env " + keys.join(",") : "");
   }
   if (name === "write_file") {
     return "Escrever " + args.path + " (" + String(args.content || "").length + " bytes)";
@@ -44,8 +66,9 @@ function confirmDetail(name, args) {
   return name;
 }
 
-async function runTool(root, name, rawArgs) {
+async function runTool(root, name, rawArgs, opts) {
   const args = parseArgs(rawArgs);
+  const extRoot = opts && opts.extRoot ? opts.extRoot : __dirname;
   switch (name) {
     case "read_file": {
       const abs = resolveWorkspacePath(root, args.path);
@@ -114,7 +137,7 @@ async function runTool(root, name, rawArgs) {
       }
     }
     case "read_skill": {
-      const hit = listSkills(root).find((s) => s.name.toLowerCase() === String(args.name || "").toLowerCase());
+      const hit = listSkills(root, extRoot).find((s) => s.name.toLowerCase() === String(args.name || "").toLowerCase());
       if (!hit) {
         throw new Error("skill não encontrada");
       }
@@ -161,19 +184,30 @@ async function runTool(root, name, rawArgs) {
       if (!gate.ok) {
         throw new Error(gate.reason);
       }
-      if (args.background) {
-        const rec = startJob(root, argv);
-        return "background " + rec.id + " " + argv.join(" ");
+      const extra = sanitizeEnv(args.env);
+      const timeout = waitMs(args.wait_ms);
+      const wait = args.wait !== false;
+      if (args.background && !wait) {
+        const rec = startJob(root, argv, undefined, extra);
+        return "background " + rec.id + " " + argv.join(" ") + " (job_status depois)";
+      }
+      if (args.background && wait) {
+        const rec = startJob(root, argv, undefined, extra);
+        const done = await waitFor(rec.id, timeout);
+        return formatJob(done);
       }
       const { stdout, stderr } = await execFileAsync(argv[0], argv.slice(1), {
         cwd: root,
+        env: mergeEnv(extra),
         maxBuffer: OUT_CAP,
-        timeout: 20000,
+        timeout,
       });
       return ((stdout || "") + (stderr ? "\n" + stderr : "")).slice(0, OUT_CAP) || "(ok)";
     }
-    default:
-      throw new Error("tool desconhecida: " + name);
+    case "list_mcp":
+      return listMcp(root, extRoot);
+    case "call_mcp":
+      return callMcp(root, extRoot, args.server, args.name, args.arguments || args.args || {});
   }
 }
 

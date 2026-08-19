@@ -38,14 +38,15 @@ test("loop do agente sobe o teto e resume em vez de só pedir reformular", () =>
 test("toolCardTitle e exploreLabel no estilo Cursor", () => {
   assert.equal(toolCardTitle("read_file", { path: "web/index.mjs" }), "Leu index.mjs");
   assert.equal(toolCardTitle("grep", { pattern: "greeting" }), "Buscou greeting");
-  assert.equal(toolCardTitle("run_terminal", { argv: ["go", "test", "./..."] }), "Rodou go test ./...");
+  assert.equal(toolCardTitle("run_terminal", { argv: ["go", "test", "./..."] }), "Aguardou go test ./...");
   assert.equal(exploreLabel(["read_file", "read_file", "grep"]), "Explorou 2 arquivos, 1 busca");
 });
 
-test("parseMentions lê @arquivo #git e /", () => {
-  const m = parseMentions("olha @go.mod e #git depois /explain");
+test("parseMentions lê @arquivo #git $term e /", () => {
+  const m = parseMentions("olha @go.mod e #git $term depois /explain");
   assert.deepEqual(m.files, ["go.mod"]);
   assert.equal(m.git, true);
+  assert.equal(m.term, true);
   assert.ok(slashCommands([]).some((c) => c.id === "explain"));
 });
 
@@ -63,5 +64,72 @@ test("webview do chat tem timeline Thought / cards / composer", () => {
   assert.match(html, /aria-label="Enviar"/);
   assert.match(html, /@arquivo/);
   assert.match(html, /id="palette"/);
+  assert.match(html, /id="review"/);
+  assert.match(html, /id="stop"/);
+  assert.match(html, /data-insert="\$"/);
   assert.doesNotMatch(html, /tool 6/);
+});
+
+test("writeArtifact grava em .cursor/agent e fileDelta conta linhas", () => {
+  const os = require("node:os");
+  const { writeArtifact, fileDelta, shouldDump } = require("./artifacts");
+  const { readHooks } = require("./hooks");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "xcs-art-"));
+  try {
+    assert.equal(shouldDump("read_file", "curto"), false);
+    assert.equal(shouldDump("run_terminal", "ok"), true);
+    const dump = writeArtifact(root, "run_terminal", "Rodou ls", "a".repeat(80));
+    assert.match(dump.path, /^\.cursor\/agent\//);
+    assert.ok(fs.existsSync(path.join(root, dump.path)));
+    assert.ok(dump.preview.length <= 240);
+    const delta = fileDelta("write_file", { path: "a.go", content: "1\n2\n3\n" }, "old\n");
+    assert.equal(delta.path, "a.go");
+    assert.equal(delta.add, 4);
+    assert.equal(delta.del, 2);
+    fs.mkdirSync(path.join(root, ".cursor"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, ".cursor", "hooks.json"),
+      JSON.stringify({ version: 1, hooks: { beforeShellExecution: [], afterFileEdit: [] } }),
+    );
+    assert.deepEqual(readHooks(root).events.sort(), ["afterFileEdit", "beforeShellExecution"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("loop do agente tem Stop, Review, artifact, wait e MCP", () => {
+  const src = fs.readFileSync(path.join(__dirname, "extension.js"), "utf8");
+  assert.match(src, /type === "stop"/);
+  assert.match(src, /writeArtifact/);
+  assert.match(src, /fileDelta/);
+  assert.match(src, /phase: "editing"/);
+  assert.match(src, /parsed.background && parsed.wait === false/);
+  assert.match(src, /this.abort.signal/);
+  assert.match(src, /list_mcp/);
+});
+
+test("MCP think responde e python3 espera env", async () => {
+  const { callMcp, listMcp } = require("./mcp-host");
+  const { runTool } = require("./tools");
+  const os = require("node:os");
+  const listed = JSON.parse(await listMcp(__dirname, __dirname));
+  assert.ok(listed.some((s) => s.server === "think" && s.tools.some((t) => t.name === "think")));
+  const thought = await callMcp(__dirname, __dirname, "think", "think", { thought: "usar python3" });
+  assert.match(thought, /python3/);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "xcs-py-"));
+  try {
+    const out = await runTool(
+      root,
+      "run_terminal",
+      {
+        argv: ["python3", "-c", "import os; print(os.environ.get('TESTE_WHO','missing'))"],
+        env: { TESTE_WHO: "Agente" },
+        wait: true,
+      },
+      { extRoot: __dirname },
+    );
+    assert.match(String(out), /Agente/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

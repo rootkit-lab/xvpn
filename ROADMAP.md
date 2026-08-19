@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–55** no codespace. **Fase 56** (demo ports `demo-<nome>.corp:*`) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–56** no codespace (56 merged). **Fase 57** (canário Flask + espelho de terminal do agente) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1628,6 +1628,29 @@ Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado
 
 **Ordem:** helper `cs-apply` + API + UI. Deploy do `xvpn-user-provision` **e** do `xvpn-server`. Imagem: Recreate para o setting `autoForwardPorts`. Sem porta no ufw.
 
+## Fase 57 — Canário Flask (`demo-*`) + terminal do agente
+
+Repo **`teste`** no XGIT (owner **`rootkit`**) ganha um servidor **Flask** mínimo para validar a Fase 56 sem depender de Vite/Go manual. O processo escuta **`0.0.0.0:8080`** no container; na VPN abre `http://demo-cs-<id>.corp.ihuull.com:8080/` (ou o hostname da aba **Ports**).
+
+Paralelo: corrigir o **`run_terminal`** no painel Terminal — o prefixo `# agent:` virava comentário de shell e `sendText(..., false)` não submetia a linha. Depois de `execFile`/`spawn`, espelha **`$ argv`** + stdout via **heredoc** (`cat <<EOF`) com quoting por argumento e strip de `\r` — **sem** executar argv cru no PTY (evita `;|&&` fora do sandbox).
+
+### 57.1 Playground `teste`
+
+- [x] `web/flask/app.py` + `scripts/demo-flask.sh` (bind `0.0.0.0:8080`).
+- [x] Task VS Code **demo (flask)** + `check.sh` importa `flask`.
+- [x] Imagem `ihuull/codespace:1.98.2`: pacote `python3-flask` (apt).
+- [ ] Re-seed: `server/deploy/codespace/seed-teste.sh` no VPS.
+
+### 57.2 Terminal do agente
+
+- [x] Módulo `terminal-agent.js`: heredoc + `%q` por argv; sem execução no PTY antes do gate.
+- [x] Extensão `ihuull.codespace` 0.5.2.
+- [ ] Recreate do codespace para bake da extensão.
+
+**Critério de saída:** VPN ligada, `./scripts/demo-flask.sh` no codespace de `teste`, `curl http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`. Agente roda `go run ./cmd/hello` — terminal **XCODESPACES** mostra `$ go run …` + saída (heredoc, quebras corretas, Enter automático).
+
+**Ordem:** código monorepo → rebuild imagem → seed `teste` → Recreate. Sem mudança no helper DNAT.
+
 ---
 
 ## Como usar este arquivo
@@ -1645,7 +1668,7 @@ Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–56):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) vem depois da 55 — não misturar runtime e DX na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–57):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) → **57** (canário Flask no repo `teste` + espelho de terminal). 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

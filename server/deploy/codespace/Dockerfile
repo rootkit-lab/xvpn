@@ -9,7 +9,7 @@ ARG NODE_VER=22.18.0
 
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git build-essential ripgrep python3 \
+    && apt-get install -y --no-install-recommends ca-certificates curl git build-essential ripgrep python3 python3-flask \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://go.dev/dl/go${GO_VER}.linux-amd64.tar.gz" | tar -C /usr/local -xz \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VER}/node-v${NODE_VER}-linux-x64.tar.xz" \

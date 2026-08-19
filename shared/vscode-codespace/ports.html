@@ -23,27 +23,33 @@ body {
   padding: 10px 12px; border-bottom: 1px solid var(--border);
   font-size: 12px; color: var(--muted-fg);
 }
-.bar strong { color: var(--fg); font-weight: 600; }
+.bar strong {
+  color: var(--fg); font-weight: 600;
+  font-family: var(--font-mono); font-size: 11px;
+  word-break: break-all; overflow-wrap: anywhere;
+}
 #list { flex: 1; overflow: auto; padding: 8px 0; }
 .row {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   padding: 8px 12px; border-bottom: 1px solid var(--border);
   font-size: 13px;
 }
 .row:hover { background: oklch(1 0 0 / 4%); }
 .dot {
   width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
+  margin-top: 6px;
   background: var(--safe); box-shadow: 0 0 8px color-mix(in oklch, var(--safe) 60%, transparent);
 }
 .dot.warn {
   background: var(--warn);
   box-shadow: 0 0 8px color-mix(in oklch, var(--warn) 50%, transparent);
 }
-.port { font-family: var(--font-mono); font-weight: 600; min-width: 4.5rem; }
+.port { font-family: var(--font-mono); font-weight: 600; min-width: 4.5rem; padding-top: 2px; }
 .meta { flex: 1; min-width: 0; }
 .url {
   font-family: var(--font-mono); font-size: 12px;
-  color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--primary); word-break: break-all; overflow-wrap: anywhere;
+  text-decoration: underline; cursor: pointer;
 }
 .bind { font-size: 11px; color: var(--muted-fg); margin-top: 2px; }
 .bind.warn { color: var(--warn); }
@@ -51,7 +57,7 @@ body {
   background: color-mix(in oklch, var(--primary) 18%, transparent);
   color: var(--primary); border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent);
   border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;
-  flex-shrink: 0;
+  flex-shrink: 0; margin-top: 2px;
 }
 .btn:hover { background: color-mix(in oklch, var(--primary) 28%, transparent); }
 .empty {
@@ -60,7 +66,7 @@ body {
 </style>
 </head>
 <body>
-<div class="bar">Preview intranet · <strong id="host">demo-…</strong></div>
+<div class="bar">Preview intranet<br><strong id="host">aguardando hostname demo-…</strong></div>
 <div id="list"><div class="empty">Escaneando portas…</div></div>
 <script>
 const vscode = acquireVsCodeApi();
@@ -71,27 +77,89 @@ let demoHost = "";
 window.addEventListener("message", (ev) => {
   const msg = ev.data;
   if (msg?.type === "ports") {
-    demoHost = msg.demoHost || demoHost;
-    if (demoHost) hostEl.textContent = demoHost;
+    const next = String(msg.demoHost || "");
+    demoHost = /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i.test(next) ? next.toLowerCase() : "";
+    hostEl.textContent = demoHost || "aguardando hostname demo-…";
     render(msg.ports || []);
   }
 });
 
-function render(ports) {
-  if (!ports.length) {
-    list.innerHTML = '<div class="empty">Nenhuma porta detectada.<br>Flask: <code>python3 web/flask/app.py</code> (0.0.0.0:8080)</div>';
+function isDemoPreviewUrl(raw) {
+  try {
+    const u = new URL(String(raw || ""));
+    if (u.protocol !== "http:" || u.username || u.password) return false;
+    if ((u.pathname && u.pathname !== "/") || u.search || u.hash) return false;
+    const port = Number(u.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+    return /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i.test(u.hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
+function openUrl(url) {
+  if (!isDemoPreviewUrl(url)) {
     return;
   }
-  list.innerHTML = ports.map((p) => {
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch (_) {
+    /* webview pode bloquear; o host tenta openExternal */
+  }
+  vscode.postMessage({ type: "open", url });
+}
+
+function render(ports) {
+  list.replaceChildren();
+  if (!ports.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.append("Nenhuma porta detectada.", document.createElement("br"), "Flask: ");
+    const code = document.createElement("code");
+    code.textContent = "python3 web/flask/app.py";
+    empty.append(code, " (0.0.0.0:8080)");
+    list.appendChild(empty);
+    return;
+  }
+  ports.forEach((p) => {
     const port = typeof p === "number" ? p : p.port;
-    const addr = typeof p === "object" && p.addr ? p.addr : "0.0.0.0";
+    const addr = typeof p === "object" && p.addr ? String(p.addr) : "0.0.0.0";
     const ok = typeof p === "object" ? p.public !== false : true;
-    const url = demoHost ? `http://${demoHost}:${port}` : `:${port}`;
-    const bind = ok ? `bind ${addr}` : `bind ${addr} — use 0.0.0.0 p/ demo-*`;
-    return `<div class="row"><span class="dot${ok ? "" : " warn"}" title="online"></span><span class="port">:${port}</span><div class="meta"><div class="url">${url}</div><div class="bind${ok ? "" : " warn"}">${bind}</div></div><button class="btn" data-u="${url}">Abrir</button></div>`;
-  }).join("");
-  list.querySelectorAll(".btn").forEach((b) => {
-    b.onclick = () => vscode.postMessage({ type: "open", url: b.dataset.u });
+    const url = demoHost ? "http://" + demoHost + ":" + port : "";
+    const row = document.createElement("div");
+    row.className = "row";
+    const dot = document.createElement("span");
+    dot.className = "dot" + (ok ? "" : " warn");
+    dot.title = "online";
+    const portEl = document.createElement("span");
+    portEl.className = "port";
+    portEl.textContent = ":" + port;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const link = document.createElement(url && isDemoPreviewUrl(url) ? "a" : "span");
+    link.className = "url";
+    link.textContent = url || (":" + port);
+    if (link.tagName === "A") {
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        openUrl(url);
+      });
+    }
+    const bind = document.createElement("div");
+    bind.className = "bind" + (ok ? "" : " warn");
+    bind.textContent = ok ? "bind " + addr : "bind " + addr + " — use 0.0.0.0 p/ demo-*";
+    meta.append(link, bind);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    btn.textContent = "Abrir";
+    btn.disabled = !url || !isDemoPreviewUrl(url);
+    btn.addEventListener("click", () => openUrl(url));
+    row.append(dot, portEl, meta, btn);
+    list.appendChild(row);
   });
 }
 

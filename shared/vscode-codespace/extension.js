@@ -8,7 +8,8 @@ const { promisify } = require("util");
 const { stripBannedAssistants, hideNativeChat, showAgentChat } = require("./banned");
 const { applyCodespaceLayout } = require("./layout");
 const { buildContext, listSkills } = require("./context");
-const { needsConfirm, confirmDetail, runTool } = require("./tools");
+const { confirmDetail, runTool } = require("./tools");
+const { shouldPromptConfirm } = require("./auto-apply");
 const { toolsForMode } = require("./tool-specs");
 const { toolCardTitle, exploreLabel } = require("./chat-ui");
 const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices, dollarChoices } = require("./mentions");
@@ -17,7 +18,7 @@ const { writeArtifact, fileDelta } = require("./artifacts");
 const { resolveWorkspacePath } = require("./sandbox");
 const { attachAgentTerminal, looksLikeLongRunning } = require("./terminal-agent");
 const { readHooks } = require("./hooks");
-const { listListeningPorts } = require("./ports");
+const { listListeningPorts, isDemoHost, isDemoPreviewUrl } = require("./ports");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -80,7 +81,8 @@ class PortsViewProvider {
   }
 
   demoHost() {
-    return vscode.workspace.getConfiguration("ihuull.codespace").get("demoHost") || "";
+    const raw = vscode.workspace.getConfiguration("ihuull.codespace").get("demoHost") || "";
+    return isDemoHost(raw) ? String(raw).toLowerCase() : "";
   }
 
   async refresh() {
@@ -93,8 +95,17 @@ class PortsViewProvider {
       this.refresh().catch(() => {});
       return;
     }
-    if (msg?.type === "open" && typeof msg.url === "string" && msg.url.startsWith("http://")) {
-      vscode.env.openExternal(vscode.Uri.parse(msg.url));
+    if (msg?.type === "open" && typeof msg.url === "string" && isDemoPreviewUrl(msg.url)) {
+      const uri = vscode.Uri.parse(msg.url);
+      Promise.resolve(vscode.env.openExternal(uri)).then((ok) => {
+        if (ok === false) {
+          vscode.env.clipboard.writeText(msg.url);
+          vscode.window.showInformationMessage("URL copiada — cole no browser da VPN: " + msg.url);
+        }
+      }).catch(() => {
+        vscode.env.clipboard.writeText(msg.url);
+        vscode.window.showInformationMessage("URL copiada — cole no browser da VPN: " + msg.url);
+      });
     }
   }
 }
@@ -112,6 +123,7 @@ class AgentViewProvider {
     this.stopped = false;
     this.review = [];
     this.abort = null;
+    this.autoApply = vscode.workspace.getConfiguration("ihuull.codespace").get("autoApply") === true;
   }
 
   resolveWebviewView(webviewView) {
@@ -139,6 +151,7 @@ class AgentViewProvider {
     const folder = vscode.workspace.workspaceFolders?.[0];
     const cwd = folder?.uri.fsPath || "";
     this.post({ type: "hooks", events: readHooks(cwd).events });
+    this.post({ type: "autoApply", on: this.autoApply });
     try {
       const data = await llmFetch(cwd, "/api/xcodespaces/llm/models");
       if (data.model && !this.model) {
@@ -164,6 +177,20 @@ class AgentViewProvider {
     }
   }
 
+  async setAutoApply(on) {
+    this.autoApply = Boolean(on);
+    try {
+      await vscode.workspace.getConfiguration("ihuull.codespace").update(
+        "autoApply",
+        this.autoApply,
+        vscode.ConfigurationTarget.Global,
+      );
+    } catch (_) {
+      /* Machine settings podem ser read-only no 1.98 */
+    }
+    this.post({ type: "autoApply", on: this.autoApply });
+  }
+
   askConfirm(kind, detail) {
     const id = "c" + Date.now() + Math.random().toString(16).slice(2);
     return new Promise((resolve) => {
@@ -185,10 +212,17 @@ class AgentViewProvider {
       this.model = msg.model.trim();
       return;
     }
+    if (msg?.type === "setAutoApply") {
+      this.setAutoApply(Boolean(msg.on)).catch(() => {});
+      return;
+    }
     if (msg?.type === "confirmResult") {
       const fn = this.pending.get(msg.id);
       if (fn) {
         this.pending.delete(msg.id);
+        if (msg.always && msg.ok) {
+          this.setAutoApply(true).catch(() => {});
+        }
         fn(Boolean(msg.ok));
       }
       return;
@@ -232,6 +266,7 @@ class AgentViewProvider {
             "Composer: @arquivo  #git|#docs|#pasta  $term  /help /skills /commit /explain /<skill>\n" +
             "Tools: read_file list_dir grep glob read_skill analyze_project write_file apply_patch run_terminal job_status list_mcp call_mcp\n" +
             "Terminal: sem shell. python3 + env:{KEY:valor}. wait default (até 120s). MCP: think, memory, docs.\n" +
+            "Edições: Aplicar, Sempre (grava auto-apply) ou Recusar. Terminal ainda confirma.\n" +
             "Logs em .cursor/agent/ (ou /tmp/xcs-agent). Review + Stop. Clone do xgit.corp, nunca GitHub.",
         });
         return;
@@ -345,7 +380,7 @@ class AgentViewProvider {
             let before = "";
             try {
               parsed = safeParse(tc.arguments);
-              if (needsConfirm(tc.name, parsed)) {
+              if (shouldPromptConfirm(tc.name, parsed, this.autoApply)) {
                 const ok = await this.askConfirm(tc.name, confirmDetail(tc.name, parsed));
                 if (!ok) {
                   result = "usuário recusou";

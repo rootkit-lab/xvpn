@@ -68,7 +68,7 @@ Fonte da verdade da zona. Depois do deploy do `xvpn-server` + `xvpn-user-provisi
 2. Confira bind `10.66.66.1:53` e a consulta de `corp.ihuull.com`
 3. Ajuste forwarders se precisar (só IPv4 públicos)
 4. Crie A extras (`app.corp.ihuull.com` → `10.66.66.x`)
-5. **Aplicar no dnsmasq** — grava `/etc/dnsmasq.d/xvpn-corp.conf` e `xvpn-records.hosts`
+5. **Aplicar no dnsmasq** — grava `/etc/dnsmasq.d/xvpn-corp.conf` e `/etc/xvpn/dnsmasq-records.hosts` (nunca `.hosts` dentro de `/etc/dnsmasq.d/` — o start do Ubuntu lê tudo como config)
 
 Sem apply, o snippet estático deste runbook continua valendo. Depois do primeiro apply, o painel passa a ser a fonte.
 

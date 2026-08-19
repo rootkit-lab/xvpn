@@ -1500,7 +1500,7 @@ A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda m
 
 ### 52.4 Chat à direita (Cursor-like)
 
-- [x] OpenVSCode **1.98** não registra `viewsContainers.secondarySidebar` (só `activitybar`/`panel`). A view entra em `workbench.panel.chat` — o container nativo da **direita**. Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate fecha o Chat/Edits nativos e foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
+- [x] OpenVSCode **1.98** só declara `viewsContainers.activitybar`/`panel` (`additionalProperties:false`). `workbench.panel.chat` com AI off **não existe** e a view cai no Explorer (esquerda). A imagem aplica `patch-auxiliary-bar.js` (schema + switch → AuxiliaryBar) e a view mora em `viewsContainers.secondarySideBar` (`ihuull-agent`). Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
 - [x] Chrome do webview: seletor de modo **Agent / Ask / Debug / Plan**, seletor de modelo, arquivo atual, composer (Enter envia, Shift+Enter quebra linha).
 - [x] Timeline Cursor-like: **Thinking**, resumo expansível (“Explorou N arquivos, M buscas”), cards `>_` com título + tag + preview — sem dump `tool 6…`.
 - [x] `GET /api/xcodespaces/llm/models` (mesmo grupo llm: host `cs-*` / `xcodespaces.corp` + JWE ou token Git). Devolve `provider`, `model`, `has_key`, `catalog` — sem a key.
@@ -1643,13 +1643,16 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 
 ### 57.2 Terminal do agente
 
-- [x] Extensão `ihuull.codespace` **0.5.4**: PTY ao vivo + Flask sem hang de 120s.
-- [x] Rebuild da imagem + Recreate do codespace (start antigo não troca a layer).
+- [x] Extensão `ihuull.codespace` **0.5.7**: PTY ao vivo + Flask sem hang; **XCODESPACES** na barra direita; chat compacto + auto-aplicar edições.
+- [x] Rebuild da imagem no VPS (Recreate / Stop→Start no codespace — start antigo não troca a layer).
 
 ### 57.3 Ports + layout + CI
 
 - [x] Aba **Ports**: `/proc/net/tcp` + `ss` (`iproute2` na imagem); lista `:8080` com bind e aviso se ≠ `0.0.0.0`.
-- [x] Layout: **Ports** no painel inferior, **XCODESPACES** na auxiliary bar (`layout.js` + machine settings).
+- [x] Layout: **Ports** em `viewsContainers.panel` (painel inferior — `workbench.panel` caía no Explorer), **XCODESPACES** na auxiliary bar.
+- [x] Chat compacto na barra direita + **Sempre** / Auto: `write_file` e `apply_patch` sem Aplicar a cada ficheiro (`ihuull.codespace.autoApply`). Terminal continua a confirmar.
+- [x] Ports: hostname `demo-*` completo (sem ellipsis); **Abrir** via `window.open` no clique (openExternal no webview é no-op).
+- [x] Demo DNS: `host-record=` vence o catch-all `address=/corp.ihuull.com/` (senão `:8080` cai no landing em `10.66.66.1`).
 - [x] CI: `client-linux` / `client-windows-crosscompile` só com diff em `apps/xvpn-client/**` (`dorny/paths-filter`).
 
 **Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). Aba **Ports** lista `:8080` → `http://demo-cs-<id>.corp:8080/health` → `{"ok":true}`. PR só codespace: CI ~3 min (sem Wails client).

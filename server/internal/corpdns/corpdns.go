@@ -193,7 +193,7 @@ func RenderMain(p ApplyPayload) string {
 	b.WriteString("bogus-priv\n")
 	b.WriteString("no-resolv\n")
 	b.WriteString(fmt.Sprintf("cache-size=%d\n", p.CacheSize))
-	b.WriteString("addn-hosts=/etc/dnsmasq.d/xvpn-records.hosts\n")
+	b.WriteString("addn-hosts=/etc/xvpn/dnsmasq-records.hosts\n")
 	if p.CatchAll {
 		b.WriteString("address=/" + Zone + "/" + ListenIP + "\n")
 	}

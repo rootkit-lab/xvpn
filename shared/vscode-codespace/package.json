@@ -2,7 +2,7 @@
   "name": "codespace",
   "displayName": "XCODESPACES",
   "description": "Agente ihuull, skills e generate commit no codespace remoto.",
-  "version": "0.5.4",
+  "version": "0.5.7",
   "publisher": "ihuull",
   "engines": {
     "vscode": "^1.90.0"
@@ -36,15 +36,31 @@
         }
       ]
     },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "ihuull-ports",
+          "title": "Ports",
+          "icon": "media/ports.svg"
+        }
+      ],
+      "secondarySideBar": [
+        {
+          "id": "ihuull-agent",
+          "title": "XCODESPACES",
+          "icon": "media/agent.svg"
+        }
+      ]
+    },
     "views": {
-      "workbench.panel": [
+      "ihuull-ports": [
         {
           "type": "webview",
           "id": "ihuull.portsView",
           "name": "Ports"
         }
       ],
-      "workbench.panel.chat": [
+      "ihuull-agent": [
         {
           "type": "webview",
           "id": "ihuull.agentView",
@@ -74,6 +90,11 @@
           "type": "string",
           "default": "",
           "description": "Hostname demo-<nome>.corp.ihuull.com para preview intranet (Fase 56)."
+        },
+        "ihuull.codespace.autoApply": {
+          "type": "boolean",
+          "default": false,
+          "description": "Aplica write_file e apply_patch sem pedir Aplicar. Terminal e MCP extra continuam a confirmar."
         }
       }
     }

@@ -59,7 +59,10 @@ func TestApplyCodespace_DemoWritesDnsmasq(t *testing.T) {
 		t.Fatal(err)
 	}
 	conf := f.writes[demoDnsmasqConf]
-	if !strings.Contains(conf, "address=/demo-vite.corp.ihuull.com/10.66.66.254") {
+	if strings.Contains(conf, "address=/") {
+		t.Fatalf("address=/ perde pro catch-all: %q", conf)
+	}
+	if !strings.Contains(conf, "host-record=demo-vite.corp.ihuull.com,10.66.66.254") {
 		t.Fatalf("dnsmasq: %q", conf)
 	}
 	joined := ""

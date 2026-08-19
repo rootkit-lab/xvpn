@@ -770,7 +770,7 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — demo ports (Fase 56).** O painel Ports do OpenVSCode (“Forward a Port” para a internet) **não** é o produto. Preview na intranet: hostname `demo-<nome>.corp.ihuull.com` (um rótulo; cert `*.corp`) aponta para o VIP `10.66.66.254` no `wg0`. O helper faz DNAT TCP/UDP `:*` desse VIP para o IP docker0 do container, só com origem `10.66.66.0/24`. Não é DNAT em `10.66.66.1` (Samba/Nginx/API). Processo no container escuta `0.0.0.0`. Sem A público, sem ufw, sem `--network=host`. §3.6 / §5.
 
-**XCODESPACES — canário Flask (Fase 57).** Repo playground **`teste`** no XGIT (owner **`rootkit`**) inclui `web/flask/app.py` + `scripts/demo-flask.sh` escutando **`0.0.0.0:8080`**. Imagem bakeia `python3-flask`. Terminal do agente: spawn no PTY ao vivo (estilo Cursor), não heredoc depois do hang. §3.6.
+**XCODESPACES — canário Flask (Fase 57).** Repo playground **`teste`** no XGIT (owner **`rootkit`**) inclui `web/flask/app.py` + `scripts/demo-flask.sh` escutando **`0.0.0.0:8080`**. Imagem bakeia `python3-flask` + `iproute2`. Terminal: spawn no PTY ao vivo. Aba **Ports**: `/proc/net/tcp` + `ss`; layout Ports no painel inferior, chat na auxiliary bar. CI: jobs Wails do cliente só com diff em `apps/xvpn-client/**`. §3.6.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
@@ -1023,7 +1023,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **54. Review + artifacts** | logs `.cursor/agent` ou `/tmp`, Review/Stop, `$term` | hooks.json só inspect; sem bash no agente |
 | **55. Python + MCP** | espera o terminal, `python3`+`env`, MCP think/memory/docs | clone do xgit, não fork/GitHub; sem Mongo MCP |
 | **56. Demo ports** | `demo-<nome>.corp` → VIP `.254` → DNAT `:*` no container | só VPN; não é o Ports da Microsoft |
-| **57. Canário Flask** | repo `teste` (rootkit) + Flask `0.0.0.0:8080` + PTY ao vivo | smoke-test da 56; sem A público |
+| **57. Canário Flask** | repo `teste` + Flask + PTY ao vivo + Ports `/proc` | smoke-test demo-*; CI client condicional |
 
 Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–57 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 

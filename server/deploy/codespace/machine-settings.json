@@ -6,7 +6,9 @@
   "workbench.welcomePage.walkthroughs.openOnInstall": true,
   "git.openRepositoryInParentFolders": "never",
   "chat.commandCenter.enabled": false,
-	"remote.autoForwardPorts": false,
+  "remote.autoForwardPorts": false,
+  "workbench.panel.opensMaximized": "never",
+  "workbench.auxiliaryBar.enabled": true,
   "workbench.secondarySideBar.defaultVisibility": "visible",
   "github.copilot.enable": {
     "*": false

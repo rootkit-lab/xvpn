@@ -1643,10 +1643,16 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 
 ### 57.2 Terminal do agente
 
-- [x] Extensão `ihuull.codespace` **0.5.3**: PTY ao vivo + Flask sem hang de 120s.
+- [x] Extensão `ihuull.codespace` **0.5.4**: PTY ao vivo + Flask sem hang de 120s.
 - [ ] Rebuild da imagem + Recreate do codespace (start antigo não troca a layer).
 
-**Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). `http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`.
+### 57.3 Ports + layout + CI
+
+- [x] Aba **Ports**: `/proc/net/tcp` + `ss` (`iproute2` na imagem); lista `:8080` com bind e aviso se ≠ `0.0.0.0`.
+- [x] Layout: **Ports** no painel inferior, **XCODESPACES** na auxiliary bar (`layout.js` + machine settings).
+- [x] CI: `client-linux` / `client-windows-crosscompile` só com diff em `apps/xvpn-client/**` (`dorny/paths-filter`).
+
+**Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). Aba **Ports** lista `:8080` → `http://demo-cs-<id>.corp:8080/health` → `{"ok":true}`. PR só codespace: CI ~3 min (sem Wails client).
 
 **Ordem:** código monorepo → rebuild imagem → seed `teste` → Recreate. Sem mudança no helper DNAT.
 

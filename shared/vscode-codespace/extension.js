@@ -6,6 +6,7 @@ const vscode = require("vscode");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { stripBannedAssistants, hideNativeChat, showAgentChat } = require("./banned");
+const { applyCodespaceLayout } = require("./layout");
 const { buildContext, listSkills } = require("./context");
 const { needsConfirm, confirmDetail, runTool } = require("./tools");
 const { toolsForMode } = require("./tool-specs");
@@ -46,6 +47,7 @@ function activate(context) {
   );
   setTimeout(() => {
     stripBannedAssistants().catch(() => {});
+    applyCodespaceLayout(vscode).catch(() => {});
   }, 800);
 }
 

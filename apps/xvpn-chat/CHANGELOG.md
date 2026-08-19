@@ -2,6 +2,22 @@
 
 Changelog do componente `xvpn-chat`, mantido pelo release-please. Ver o CHANGELOG na raiz do monorepo para mudanças de projeto.
 
+## [0.1.5](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.4...xvpn-chat-v0.1.5) (2026-08-19)
+
+
+### Features
+
+* **server:** adiciona merge requests com thread XCHAT e merge no xadmin ([#125](https://github.com/rootkit-lab/xvpn/issues/125)) ([5c24b06](https://github.com/rootkit-lab/xvpn/commit/5c24b06e6318c8c59f357887563abd82601aac4a))
+* **server:** modal de perfil com avatar e capa no XGROUP ([#109](https://github.com/rootkit-lab/xvpn/issues/109)) ([ed6eef0](https://github.com/rootkit-lab/xvpn/commit/ed6eef0a7ba4b1d68c111a278c254502a6c22810))
+* **server:** paleta de cor no perfil e modal de status em tela cheia ([#110](https://github.com/rootkit-lab/xvpn/issues/110)) ([1cb8c45](https://github.com/rootkit-lab/xvpn/commit/1cb8c45326aacf7f6f1cd5a1754b565759fc215c))
+* **server:** separa catálogo e ACL do marketplace ([#117](https://github.com/rootkit-lab/xvpn/issues/117)) ([290ac9b](https://github.com/rootkit-lab/xvpn/commit/290ac9b0bb8a5db65f86269d18e6db473899d16f))
+
+
+### Bug Fixes
+
+* **server:** cookie SSO vale mesmo com Bearer velho no painel ([#106](https://github.com/rootkit-lab/xvpn/issues/106)) ([7052265](https://github.com/rootkit-lab/xvpn/commit/7052265a2b7885f0c129a37a5385a565100ebd93))
+* **server:** títulos por produto e escrita Samba no Drive ([#104](https://github.com/rootkit-lab/xvpn/issues/104)) ([9b07dcf](https://github.com/rootkit-lab/xvpn/commit/9b07dcf9afc1b74743978d6b8042d7744d9c5a7a))
+
 ## [0.1.4](https://github.com/rootkit-lab/xvpn/compare/xvpn-chat-v0.1.3...xvpn-chat-v0.1.4) (2026-08-16)
 
 

@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–56** no codespace (56 merged). **Fase 57** (canário Flask + espelho de terminal do agente) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–57** no codespace (57 merged). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1644,7 +1644,7 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 ### 57.2 Terminal do agente
 
 - [x] Extensão `ihuull.codespace` **0.5.7**: PTY ao vivo + Flask sem hang; **XCODESPACES** na barra direita; chat compacto + auto-aplicar edições.
-- [ ] Rebuild da imagem + Recreate do codespace (start antigo não troca a layer).
+- [x] Rebuild da imagem no VPS (Recreate / Stop→Start no codespace — start antigo não troca a layer).
 
 ### 57.3 Ports + layout + CI
 

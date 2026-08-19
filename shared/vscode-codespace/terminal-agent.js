@@ -21,17 +21,21 @@ function hereDocDelimiter(body) {
   return delim;
 }
 
+function sanitizeTerminalMirror(text) {
+  return String(text || "")
+    .replace(/\r/g, "")
+    .replace(/\0/g, "")
+    .slice(0, 8000);
+}
+
 function sendTerminalHereDoc(term, body) {
-  const text = String(body || "").replace(/\r/g, "");
+  const text = sanitizeTerminalMirror(body);
   if (!text) {
     return;
   }
   const delim = hereDocDelimiter(text);
-  term.sendText(`cat <<'${delim}'\n${text}\n${delim}`, true);
-}
-
-function isBackgroundFireAndForget(args) {
-  return Boolean(args && args.background && args.wait === false);
+  const cmd = `cat <<'${delim}'\n${text}\n${delim}`;
+  term.sendText(cmd.replace(/\r/g, ""), true);
 }
 
 function prepareAgentTerminal(vscode, cwd, args) {
@@ -44,11 +48,15 @@ function prepareAgentTerminal(vscode, cwd, args) {
     sendTerminalHereDoc(term, `$ ${line}\n[agent · background — stdout no card; job_status para logs]`);
     return;
   }
-  term.sendText(line, true);
+  term.sendText(line.replace(/\r/g, ""), true);
+}
+
+function isBackgroundFireAndForget(args) {
+  return Boolean(args && args.background && args.wait === false);
 }
 
 function finishAgentTerminal(vscode, cwd, args, result) {
-  const out = String(result || "").trim();
+  const out = sanitizeTerminalMirror(String(result || "").trim());
   if (!out) {
     return;
   }
@@ -66,6 +74,7 @@ module.exports = {
   TERM_NAME,
   getAgentTerminal,
   sendTerminalHereDoc,
+  sanitizeTerminalMirror,
   prepareAgentTerminal,
   finishAgentTerminal,
   isBackgroundFireAndForget,

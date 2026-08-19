@@ -4,10 +4,7 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-const {
-  sendTerminalHereDoc,
-  isBackgroundFireAndForget,
-} = require("./terminal-agent");
+const { sendTerminalHereDoc, isBackgroundFireAndForget } = require("./terminal-agent");
 
 test("isBackgroundFireAndForget", () => {
   assert.equal(isBackgroundFireAndForget({ background: true, wait: false }), true);
@@ -17,14 +14,29 @@ test("isBackgroundFireAndForget", () => {
 
 test("sendTerminalHereDoc preserva quebras de linha", () => {
   const sent = [];
-  const term = { sendText(line, execute) {
-    sent.push({ line, execute });
-  } };
+  const term = {
+    sendText(line, execute) {
+      sent.push({ line, execute });
+    },
+  };
   sendTerminalHereDoc(term, "linha1\nlinha2\n");
   assert.equal(sent.length, 1);
   assert.equal(sent[0].execute, true);
   assert.match(sent[0].line, /^cat <<'XCS_/);
   assert.match(sent[0].line, /linha1\nlinha2/);
+});
+
+test("sendTerminalHereDoc remove \\r da saída espelhada", () => {
+  const sent = [];
+  const term = {
+    sendText(line, execute) {
+      sent.push({ line, execute });
+    },
+  };
+  sendTerminalHereDoc(term, "ok\r; curl evil\n");
+  assert.equal(sent.length, 1);
+  assert.doesNotMatch(sent[0].line, /\r/);
+  assert.match(sent[0].line, /ok; curl evil/);
 });
 
 test("extension não usa prefixo # agent:", () => {

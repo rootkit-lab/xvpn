@@ -3,3 +3,4 @@
 .openvscode-server/
 .vscode-server/
 *.log
+.cursor/agent/

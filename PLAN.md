@@ -133,13 +133,15 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 | Shell/SSH no VPS (`bash` na 22 ou `docker exec` no host) | Simples | Viola §6.9; um `rm -rf` acerta produção | **Rejeitado** — invariante |
 | VM KVM/QEMU por codespace | Isolamento forte | 8 GB RAM, 4 vCPU, disco compartilhado — inviável | **Rejeitado** |
 | vscode.dev / tunnel Microsoft | Zero runtime nosso | Sai da intranet; depende de terceiro; tira o clone do `xgit.corp` | **Rejeitado** |
-| Container Docker + VS Code web + `git clone` | Terminal, LSP, clone de verdade; limites de CPU/RAM; shell só no container | Docker no host de produção; precisa helper privilegiado e teto de concorrência | **Escolhido (Fase 50)** |
+| Container Docker + VS Code web + `git clone` do `xgit.corp` | Terminal, LSP, clone isolado; bare intocado | Docker no host; helper privilegiado | **Escolhido (Fase 50)** |
+| Fork GitHub / fork no forge | Cópia extra; PRs cruzados | Não é o fluxo ihuull; codespace não é contribuição a repo alheio | **Rejeitado** |
+| Checkout direto do GitHub no VPS | Já existe o clone de CI | Mistura produção/GitHub com workspace do agente | **Rejeitado** |
 
 **IDE remoto:** **openvscode-server** (VS Code OSS no browser — o mesmo motor do github.dev / Codespaces web) atrás do Nginx com JWE. **code-server** (Coder) é o fallback se o proxy WebSocket/path exigir. Não é o tunnel da Microsoft.
 
 **O que o container pode e não pode:**
 
-- Create = `git clone` do slug (smart HTTP em `xgit.corp`) **para um volume do container**. Não é worktree do bare; o bare em `/opt/xvpn/data/git/` continua intocado.
+- Create = `git clone` do slug (smart HTTP em `xgit.corp`) **para um volume do container**. Não é worktree do bare; o bare em `/opt/xvpn/data/git/` continua intocado. **Nunca** abre o checkout do GitHub nem um fork — o origin é só `https://xgit.corp.ihuull.com/<slug>`. Fork duplicaria o repo; o fluxo é GitHub Flow no **mesmo** slug (branch + PR).
 - Terminal = PTY do VS Code **dentro** do container (usuário sem root). Não é SSH no VPS. Não é o console xterm do Compute (§6.16).
 - Sem `--privileged`, sem `/var/run/docker.sock`, sem `--network=host`. Publish só `127.0.0.1:<porta>` (faixa em §5.3).
 - O `xvpn-server` **não** fala com o Docker: helper privilegiado no padrão do `xvpn-user-provision` (`cs-create` / `cs-start` / `cs-stop` / `cs-rm`, JSON no stdin). Socket Unix do daemon, nunca TCP.
@@ -160,10 +162,16 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 | Chat nativo OpenVSCode (CHAT / COPILOT EDITS) | Já vem no 1.98 | Chrome Microsoft; vazio sem Copilot; não lê skills/AGENTS.md | **Rejeitado** (Fase 52) |
 | Extensão `ihuull.codespace` + proxy LLM no monólito | Chat nosso; GLM e outros; chave só no VPS; JWE `aud=xcodespaces` | Mais trabalho | **Escolhido** |
 | Agente ihuull (skills, rules, tools no container) | Igual Cursor no codespace; tools só no clone | Loop e confirmação na extensão | **Escolhido** (Fase 52) |
+| Composer `@` `#` `/` + terminal background + `xcs-analyze` | Contexto e jobs como no Cursor; mapa Go no clone | Analyzer extra na imagem | **Escolhido** (Fase 53) |
+| Review/Stop + logs em `.cursor/agent` (ou `/tmp`) + `$term` | Chat leve; diffs do turno; Stop aborta o loop | Logs no volume do clone | **Escolhido** (Fase 54) |
+| `python3` + `env` + wait no `run_terminal` | Scripts/JSON sem bash; o LLM vê o stdout | Timeout 120s | **Escolhido** (Fase 55) |
+| MCP stdio no container (`think`/`memory`/`docs`) | Raciocínio, notas, docs allowlisted | Sem Mongo MCP; extra só `python3` + `.cursor/mcp/*.py` | **Escolhido** (Fase 55) |
+| MCP remoto arbitrário / Mongo MCP | Paridade Cursor desktop | Mongo só `127.0.0.1` no host; stdio não allowlisted vira RCE | **Rejeitado** |
+| Executar `.cursor/hooks.json` (`command` bash) no container | Paridade total com Cursor hooks | Viola §3.6 (bash arbitrário no agente) | **Rejeitado** — só inspect + allowlist |
 | Assistente no Settings do **xadmin** | Uma key para a org; write-only | Repo não escolhe provedor | **Escolhido** |
 | ENVs no Settings do repo (XGIT) | App/testes no Create | Não carrega key de LLM | **Escolhido** (só app) |
 
-Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem. O painel nativo CHAT/COPILOT EDITS **não** entra: a extensão desinstala Copilot/Continue/Cline se o usuário instalar e abre o chat ihuull à **direita** (container `workbench.panel.chat` — o 1.98 ignora `secondarySidebar`). O agente lê `AGENTS.md`, `.cursor/skills` e `.cursor/rules`; modos Agent/Ask/Debug/Plan e modelo vêm do proxy (`GET /models`, override por request na allowlist). O loop de tools roda no Node do container (path só no clone; write/term com confirmação). *Generate commit* e completions passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fases 51–52.
+Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem (Go, ESLint, Prettier, Markdown, YAML + as ihuull). O composer do agente aceita `@arquivo`, `#git`/`#docs`/`#pasta` e `/comando`. `run_terminal` pode ir em background (PTY `XCODESPACES` no container). `xcs-analyze` (Go, stdlib) mapeia módulos/packages/símbolos no clone e entra no context — o servidor **não** lê o workspace. O painel nativo CHAT/COPILOT EDITS **não** entra: a extensão desinstala Copilot/Continue/Cline se o usuário instalar e abre o chat ihuull à **direita** (container `workbench.panel.chat` — o 1.98 ignora `secondarySidebar`). O agente lê `AGENTS.md`, `.cursor/skills` e `.cursor/rules`; modos Agent/Ask/Debug/Plan e modelo vêm do proxy (`GET /models`, override por request na allowlist). O loop de tools roda no Node do container (path só no clone; write/term com confirmação). *Generate commit* e completions passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Stdout longo de `run_terminal`/`grep` vai para `.cursor/agent/` no clone (fallback `/tmp/xcs-agent`); o card mostra preview + path. O turno acumula um painel Review (ficheiros tocados, +/−) com **Stop** (`AbortController` + jobs). `$term` anexa stdout dos jobs. `.cursor/hooks.json` é listado no chrome — o `command` **não** corre (beforeShell = allowlist em `sandbox.js`). O `run_terminal` **espera** o comando (até 120s; `wait:false` só com background). `python3` na imagem; `env:{KEY:valor}` — `VAR=valor` no argv é recusado (não é shell). MCP stdio bakeados: think, memory, docs (`list_mcp` / `call_mcp`). Extra no clone: `.cursor/mcp.json` só `python3` + `.cursor/mcp/*.py`. Sem Mongo MCP. Detalhe no `ROADMAP.md` Fases 51–55.
 
 ---
 
@@ -748,7 +756,13 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — DX (Fase 51).** Imagem `ihuull/codespace` (FROM openvscode + Go/Node) + `.devcontainer/devcontainer.json`. Tema **ihuull Dark** (tokens SASS) e Welcome XCODESPACES. Clone em `/home/workspace/project` (HOME do IDE fora do Git). Extensão **nossa** (`ihuull.codespace`): generate commit (Conventional Commits, usuário confirma) + proxy LLM. Roda no Node do openvscode — proxy em `https://cs-<id>.corp` com o token Git do workspace (cookie SSO não existe no extension host). Proxy LLM no monólito: GLM (Zhipu / OpenAI-compatível), OpenAI, Anthropic, `base_url` allowlist. GLM-4.7+ liga thinking por default — o proxy manda `thinking.type=disabled` (exceto GLM-5.3) e lê `content` ou `reasoning_content`. **Provedor e key** em xadmin → Settings (singleton `CodespaceSettings`; GET write-only). ENVs de app no XGIT (`/:slug/settings` → **Codespaces**) entram no Create; key de LLM **não**. Sem Continue, sem Copilot oficial, sem `docker.sock`. §3.6.
 
-**XCODESPACES — agente (Fase 52).** O chat nativo CHAT/COPILOT EDITS do OpenVSCode **não** é o produto. A extensão mostra o chat ihuull à direita (container `workbench.panel.chat`; o 1.98 ignora `secondarySidebar`), com modos Agent/Ask/Debug/Plan e seletor de modelo, desinstala Copilot/Continue/Cline se o usuário instalar, e injeta `AGENTS.md` (ou contrato ihuull se o clone não tiver) + `CONTRIBUTING.md` + catálogo de `.cursor/skills` + `.cursor/rules`. Completions com `tools` (inclui `glob`); o loop (read/edit/term) corre no container, path só no clone, write e terminal com confirmação. Identidade Git do dono (`username@corp.ihuull.com`) no clone — sem isso o Source Control recusa commit. Allowlist de argv no terminal (`git --no-verify` bloqueado). Sem loop de tools no `xvpn-server`. §3.6.
+**XCODESPACES — agente (Fase 52).** O chat nativo CHAT/COPILOT EDITS do OpenVSCode **não** é o produto. A extensão mostra o chat ihuull à direita (container `workbench.panel.chat`; o 1.98 ignora `secondarySidebar`), com modos Agent/Ask/Debug/Plan, seletor de modelo e timeline Cursor-like (Thinking + cards de tool), desinstala Copilot/Continue/Cline se o usuário instalar, e injeta `AGENTS.md` (ou contrato ihuull se o clone não tiver) + `CONTRIBUTING.md` + catálogo de `.cursor/skills` + `.cursor/rules`. Completions com `tools` (inclui `glob`); o loop (read/edit/term) corre no container (teto 24; no teto resume sem tools), path só no clone, write e terminal com confirmação. Identidade Git do dono (`username@corp.ihuull.com`) no clone — sem isso o Source Control recusa commit. Allowlist de argv no terminal (`git --no-verify` bloqueado). Sem loop de tools no `xvpn-server`. §3.6.
+
+**XCODESPACES — composer e mapa (Fase 53).** `@` anexa arquivo, `#` anexa git/docs/pasta, `/` dispara comando (palette). Terminal do agente em background no container (não no host). CLI `xcs-analyze` (Go) gera o mapa do módulo para o LLM. Extensões Open VSX bakeadas (Go, ESLint, Prettier, Markdown, YAML). Sem Marketplace Microsoft. §3.6.
+
+**XCODESPACES — Review e artifacts (Fase 54).** O chat não dumpa stdout no feed: comando/grep vão para `.cursor/agent/<id>.log` (ou `/tmp/xcs-agent` se o clone não der). Painel **Review** lista `write_file`/`apply_patch` do turno (+/−); **Stop** aborta LLM e jobs. Status `Editing <ficheiro>` e `Waiting for shell`. Composer `$term`/`$jobs`. Hooks Cursor (`.cursor/hooks.json`) só inspecionados — sem executar bash. §3.6.
+
+**XCODESPACES — Python, espera e MCP (Fase 55).** O agente **aguarda** o terminal (stdout entra no próximo turno). `python3` na imagem; variáveis só pelo campo `env` (não `KEY=valor` no argv). Skills bakeadas `python3` e `mcp`. MCP stdio no container: **think**, **memory**, **docs** (GET https allowlisted). Sem fork: Create = clone do slug `xgit.corp` no volume. §3.6.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
@@ -996,9 +1010,12 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **49. XCODESPACES (editor)** | `xcodespaces.corp` + worktree + Monaco | github.dev; sem terminal; só VPN |
 | **50. XCODESPACES (remoto)** | clone + Docker + openvscode-server | Shell só no container; `cs-<id>.corp`; §3.6 |
 | **51. XCODESPACES DX** | imagem + tema + chat ihuull + ENVs no XGIT | GLM e outros via proxy; generate commit; sem Copilot MS |
-| **52. Agente ihuull** | chat à direita no lugar do Chat nativo | modos + modelo; identidade Git; glob; skills/AGENTS.md/rules |
+| **52. Agente ihuull** | chat à direita no lugar do Chat nativo | modos + modelo; identidade Git; glob; teto 24 + resumo; skills/AGENTS.md/rules |
+| **53. Composer + mapa Go** | `@` `#` `/`, terminal background, `xcs-analyze` | Open VSX Go/Markdown; tools só no clone |
+| **54. Review + artifacts** | logs `.cursor/agent` ou `/tmp`, Review/Stop, `$term` | hooks.json só inspect; sem bash no agente |
+| **55. Python + MCP** | espera o terminal, `python3`+`env`, MCP think/memory/docs | clone do xgit, não fork/GitHub; sem Mongo MCP |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–52 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–55 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 
 ---
 

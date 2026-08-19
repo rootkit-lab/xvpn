@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+:root {
+  --bg: oklch(0.11 0.012 260);
+  --fg: oklch(0.98 0.005 260);
+  --card: oklch(0.18 0.014 260);
+  --muted: oklch(0.2 0.012 260);
+  --muted-fg: oklch(0.7 0.02 260);
+  --primary: oklch(0.72 0.14 230);
+  --primary-fg: oklch(0.16 0.02 230);
+  --secondary: oklch(0.22 0.016 260);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --product: oklch(0.76 0.16 300);
+  --safe: oklch(0.72 0.17 150);
+  --font-mono: ui-monospace, "JetBrains Mono", "Fira Code", SFMono-Regular, Menlo, Consolas, monospace;
+}
+html, body { height: 100%; }
+body {
+  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg); color: var(--fg);
+  margin: 0; display: flex; flex-direction: column; height: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--fg) 28%, transparent) transparent;
+}
+#log::-webkit-scrollbar { width: 8px; }
+#log::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--fg) 22%, transparent);
+  border-radius: 999px;
+}
+.bar {
+  display: flex; gap: 8px; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(120% 80% at 50% 0%, color-mix(in oklch, var(--product) 22%, transparent) 0%, transparent 55%),
+    var(--bg);
+}
+.sel { position: relative; min-width: 0; }
+.sel.grow { flex: 1; }
+select {
+  appearance: none; width: 100%;
+  background: var(--secondary); color: var(--fg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 22px 6px 10px; font-size: 12px;
+}
+.sel::after {
+  content: "▾"; position: absolute; right: 8px; top: 50%;
+  transform: translateY(-50%); color: var(--muted-fg); font-size: 10px; pointer-events: none;
+}
+#log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 12px 14px 16px; }
+.me {
+  align-self: flex-end; max-width: 92%;
+  padding: 8px 12px; border-radius: 14px;
+  background: color-mix(in oklch, var(--safe) 22%, var(--card));
+  white-space: pre-wrap; font-size: 13px;
+}
+.turn { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
+.thought {
+  color: var(--muted-fg); font-size: 12px; padding: 0 2px;
+}
+.thought.live::after {
+  content: "";
+  display: inline-block; width: 4px; height: 4px; margin-left: 6px;
+  border-radius: 999px; background: var(--muted-fg); vertical-align: middle;
+  animation: pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse { 50% { opacity: 0.25; } }
+.explore {
+  display: none; align-items: center; gap: 6px;
+  background: none; border: 0; color: var(--muted-fg);
+  font: inherit; font-size: 12px; padding: 0 2px; cursor: pointer; text-align: left;
+}
+.explore.show { display: inline-flex; }
+.explore .chev { font-size: 10px; opacity: 0.7; }
+.tools { display: none; flex-direction: column; gap: 8px; }
+.tools.open { display: flex; }
+.tool-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--product) 10%, transparent);
+}
+.tool-head {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+}
+.tool-icon {
+  flex: 0 0 auto; color: var(--muted-fg);
+  font-family: var(--font-mono); font-size: 11px;
+}
+.tool-title {
+  flex: 1; min-width: 0; font-size: 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tool-tag {
+  flex: 0 0 auto; color: var(--muted-fg); font-size: 11px;
+  font-family: var(--font-mono);
+}
+.tool-out {
+  margin: 8px 0 0; padding: 8px;
+  background: color-mix(in oklch, var(--bg) 70%, var(--card));
+  border-radius: 8px; color: var(--muted-fg);
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 7.5em; overflow: auto;
+}
+.tool-out:empty { display: none; }
+.tool-art {
+  margin: 6px 0 0; color: var(--muted-fg); font-size: 11px;
+  font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bot { font-size: 13px; line-height: 1.55; display: flex; flex-direction: column; gap: 8px; }
+.bot .prose { white-space: pre-wrap; }
+.code-card {
+  margin: 0; padding: 10px 12px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word; overflow: auto; max-height: 18em;
+}
+.warn { color: var(--muted-fg); font-size: 12px; padding: 0 2px; }
+#confirm {
+  display: none; margin: 0 12px 8px; padding: 10px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 12px; font-size: 13px;
+}
+#confirm.show { display: block; }
+#confirm .row { display: flex; gap: 8px; margin-top: 8px; }
+footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; position: relative; }
+.ctx, .jobs, .hooks, .pins {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin: 0 0 8px;
+}
+.ctx, .jobs, .hooks {
+  padding: 3px 8px; border-radius: 999px;
+  background: var(--muted); color: var(--muted-fg); font-size: 11px; max-width: 100%;
+}
+.ctx[hidden], .jobs[hidden], .hooks[hidden], .pins:empty { display: none; }
+.ctx b, .jobs b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review {
+  display: none; margin: 0 12px 8px; padding: 8px 10px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+}
+.review.show { display: block; }
+.review-head { display: flex; align-items: center; gap: 8px; }
+.review-n { flex: 1; font-size: 12px; color: var(--muted-fg); }
+.review ul { list-style: none; margin: 8px 0 0; padding: 0; display: none; }
+.review.open ul { display: block; }
+.review li {
+  display: flex; gap: 8px; font-size: 12px; font-family: var(--font-mono);
+  padding: 3px 0; color: var(--fg);
+}
+.review .add { color: var(--safe); }
+.review .del { color: oklch(0.72 0.16 25); }
+button.stop {
+  background: var(--muted); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+button.rev {
+  background: var(--primary); color: var(--primary-fg); border: 0;
+  border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+}
+.pin {
+  border: 1px solid var(--border); background: var(--card); color: var(--fg);
+  border-radius: 999px; padding: 2px 8px; font-size: 11px;
+}
+.palette {
+  display: none; position: absolute; left: 10px; right: 10px; bottom: 100%;
+  max-height: 180px; overflow: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 32px color-mix(in oklch, var(--product) 16%, transparent);
+  padding: 4px; z-index: 4;
+}
+.palette.show { display: block; }
+.palette button {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: 0; color: var(--fg);
+  padding: 6px 8px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.palette button:hover, .palette button.active { background: var(--muted); }
+form { display: flex; flex-direction: column; gap: 8px; }
+textarea {
+  width: 100%; box-sizing: border-box; resize: none; min-height: 56px; max-height: 160px;
+  background: color-mix(in oklch, var(--muted) 80%, transparent); color: inherit;
+  border: 1px solid var(--input);
+  border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 13px;
+}
+.composer-row { display: flex; align-items: center; gap: 8px; }
+#chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+#chips button {
+  background: var(--muted); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+}
+button.go {
+  width: 32px; height: 32px; padding: 0;
+  background: var(--product); color: var(--primary-fg); border: 0;
+  border-radius: 999px; font-size: 16px; line-height: 1; cursor: pointer;
+}
+button.ok { background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 6px 10px; }
+button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <label class="sel">
+    <select id="mode" title="Modo do agente">
+      <option value="agent">Agent</option>
+      <option value="ask">Ask</option>
+      <option value="debug">Debug</option>
+      <option value="plan">Plan</option>
+    </select>
+  </label>
+  <label class="sel grow">
+    <select id="model" title="Modelo"></select>
+  </label>
+</header>
+<div id="log"></div>
+<div id="review" class="review" hidden>
+  <div class="review-head">
+    <span class="review-n" id="reviewn">0 Files</span>
+    <button type="button" class="stop" id="stop" hidden>Stop</button>
+    <button type="button" class="rev" id="reviewbtn" hidden>Review</button>
+  </div>
+  <ul id="reviewlist"></ul>
+</div>
+<div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="no" id="no">Recusar</button></div></div>
+<footer>
+  <div id="ctx" class="ctx" hidden>arquivo <b id="ctxfile"></b></div>
+  <div id="jobs" class="jobs" hidden><b id="jobn">0</b> terminais em background</div>
+  <div id="hooks" class="hooks" hidden>hooks <b id="hookn"></b></div>
+  <div id="pins" class="pins"></div>
+  <div id="palette" class="palette" role="listbox"></div>
+  <form id="f">
+    <textarea id="q" placeholder="Pergunte, @arquivo, #git, $term ou /skills" rows="2"></textarea>
+    <div class="composer-row">
+      <div id="chips">
+        <button type="button" data-q="/help">/help</button>
+        <button type="button" data-q="/skills">/skills</button>
+        <button type="button" data-q="/commit">/commit</button>
+        <button type="button" data-q="/explain">/explain</button>
+        <button type="button" data-insert="@">@</button>
+        <button type="button" data-insert="#">#</button>
+        <button type="button" data-insert="$">$</button>
+        <button type="button" data-insert="/">/</button>
+      </div>
+      <button class="go" type="submit" title="Enviar" aria-label="Enviar">↑</button>
+    </div>
+  </form>
+</footer>
+<script>
+const vscode = acquireVsCodeApi();
+const log = document.getElementById('log');
+const box = document.getElementById('confirm');
+const modeEl = document.getElementById('mode');
+const modelEl = document.getElementById('model');
+const q = document.getElementById('q');
+const ctx = document.getElementById('ctx');
+const ctxfile = document.getElementById('ctxfile');
+const pins = document.getElementById('pins');
+const palette = document.getElementById('palette');
+const jobsEl = document.getElementById('jobs');
+const jobn = document.getElementById('jobn');
+const hooksEl = document.getElementById('hooks');
+const hookn = document.getElementById('hookn');
+const reviewEl = document.getElementById('review');
+const reviewn = document.getElementById('reviewn');
+const reviewlist = document.getElementById('reviewlist');
+const reviewbtn = document.getElementById('reviewbtn');
+const stopBtn = document.getElementById('stop');
+const goBtn = document.querySelector('button.go');
+let confirmId = '';
+let turn = null;
+let busy = false;
+let pal = { commands: [], files: [], hashes: [], dollars: [] };
+let palItems = [];
+let palIdx = 0;
+const saved = vscode.getState() || {};
+if (saved.mode) modeEl.value = saved.mode;
+function persist() {
+  vscode.setState({ mode: modeEl.value, model: modelEl.value });
+}
+function scrollLog() {
+  log.scrollTop = log.scrollHeight;
+}
+function addUser(text) {
+  const d = document.createElement('div');
+  d.className = 'me';
+  d.textContent = text;
+  log.appendChild(d);
+  scrollLog();
+}
+function addWarn(text) {
+  const d = document.createElement('div');
+  d.className = 'warn';
+  d.textContent = text;
+  log.appendChild(d);
+  scrollLog();
+}
+function beginTurn() {
+  const root = document.createElement('div');
+  root.className = 'turn';
+  const thought = document.createElement('div');
+  thought.className = 'thought live';
+  thought.textContent = 'Thinking';
+  const explore = document.createElement('button');
+  explore.type = 'button';
+  explore.className = 'explore';
+  explore.innerHTML = '<span class="chev">▾</span><span class="lbl"></span>';
+  const tools = document.createElement('div');
+  tools.className = 'tools open';
+  const bot = document.createElement('div');
+  bot.className = 'bot';
+  root.appendChild(thought);
+  root.appendChild(explore);
+  root.appendChild(tools);
+  root.appendChild(bot);
+  log.appendChild(root);
+  const state = { root, thought, explore, tools, bot, names: [] };
+  explore.addEventListener('click', () => {
+    tools.classList.toggle('open');
+    explore.querySelector('.chev').textContent = tools.classList.contains('open') ? '▾' : '▸';
+  });
+  turn = state;
+  scrollLog();
+  return state;
+}
+function currentTurn() {
+  return turn || beginTurn();
+}
+function setThought(phase, file) {
+  const t = currentTurn();
+  t.thought.classList.add('live');
+  t.thought.hidden = false;
+  if (phase === 'summarizing') t.thought.textContent = 'Resumindo…';
+  else if (phase === 'waiting') t.thought.textContent = 'Waiting for shell';
+  else if (phase === 'stopped') t.thought.textContent = 'parado.';
+  else if (phase === 'editing') t.thought.textContent = 'Editing ' + (file || 'arquivo');
+  else if (phase === 'exploring' || t.names.length) t.thought.textContent = 'Explorando…';
+  else t.thought.textContent = 'Thinking';
+}
+function addTool(m) {
+  const t = currentTurn();
+  t.names.push(m.name || 'tool');
+  t.thought.textContent = 'Explorando…';
+  t.thought.classList.add('live');
+  const card = document.createElement('div');
+  card.className = 'tool-card';
+  const head = document.createElement('div');
+  head.className = 'tool-head';
+  const icon = document.createElement('span');
+  icon.className = 'tool-icon';
+  icon.textContent = '>_';
+  const title = document.createElement('span');
+  title.className = 'tool-title';
+  title.textContent = m.title || m.name || 'tool';
+  const tag = document.createElement('span');
+  tag.className = 'tool-tag';
+  tag.textContent = m.name || '';
+  head.appendChild(icon);
+  head.appendChild(title);
+  head.appendChild(tag);
+  card.appendChild(head);
+  if (m.text) {
+    const out = document.createElement('pre');
+    out.className = 'tool-out';
+    out.textContent = m.text;
+    card.appendChild(out);
+  }
+  if (m.artifact) {
+    const art = document.createElement('div');
+    art.className = 'tool-art';
+    art.textContent = m.artifact;
+    card.appendChild(art);
+  }
+  t.tools.appendChild(card);
+  t.explore.classList.add('show');
+  t.explore.querySelector('.lbl').textContent = m.summary || ('Explorou ' + t.names.length + ' tools');
+  t.tools.classList.add('open');
+  t.explore.querySelector('.chev').textContent = '▾';
+  scrollLog();
+}
+function renderReply(el, text) {
+  el.replaceChildren();
+  const parts = String(text || '').split(/```/);
+  parts.forEach((part, i) => {
+    if (i % 2 === 1) {
+      const pre = document.createElement('pre');
+      pre.className = 'code-card';
+      const nl = part.indexOf('\n');
+      pre.textContent = (nl >= 0 ? part.slice(nl + 1) : part).replace(/\n$/, '');
+      el.appendChild(pre);
+    } else if (part) {
+      const p = document.createElement('div');
+      p.className = 'prose';
+      p.textContent = part;
+      el.appendChild(p);
+    }
+  });
+}
+function finishReply(text) {
+  const t = currentTurn();
+  t.thought.classList.remove('live');
+  if (t.names.length) {
+    t.thought.hidden = true;
+    t.explore.classList.add('show');
+    t.tools.classList.remove('open');
+    t.explore.querySelector('.chev').textContent = '▸';
+  } else {
+    t.thought.hidden = true;
+    t.explore.classList.remove('show');
+  }
+  renderReply(t.bot, text || '');
+  turn = null;
+  scrollLog();
+}
+function setBusy(on) {
+  busy = Boolean(on);
+  stopBtn.hidden = !busy;
+  if (goBtn) goBtn.hidden = busy;
+  if (busy) reviewEl.classList.add('show');
+  reviewEl.hidden = !busy && !reviewlist.children.length;
+}
+function renderReview(files) {
+  const list = Array.isArray(files) ? files : [];
+  reviewlist.replaceChildren();
+  list.forEach((f) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.textContent = f.path || '';
+    const add = document.createElement('span');
+    add.className = 'add';
+    add.textContent = '+' + (f.add || 0);
+    const del = document.createElement('span');
+    del.className = 'del';
+    del.textContent = '-' + (f.del || 0);
+    li.appendChild(name);
+    li.appendChild(add);
+    li.appendChild(del);
+    reviewlist.appendChild(li);
+  });
+  reviewn.textContent = list.length + (list.length === 1 ? ' File' : ' Files');
+  reviewbtn.hidden = list.length < 1;
+  reviewEl.hidden = !busy && list.length < 1;
+  if (list.length || busy) reviewEl.classList.add('show');
+  else reviewEl.classList.remove('show');
+}
+function send(text) {
+  addUser(text);
+  beginTurn();
+  setBusy(true);
+  vscode.postMessage({ type: 'ask', text, mode: modeEl.value, model: modelEl.value });
+}
+function fillModels(m) {
+  const catalog = m.catalog || [];
+  const current = m.model || saved.model || '';
+  modelEl.innerHTML = '';
+  if (!catalog.length) {
+    const o = document.createElement('option');
+    o.value = current;
+    o.textContent = current || 'modelo (xadmin)';
+    modelEl.appendChild(o);
+  } else {
+    for (const item of catalog) {
+      const o = document.createElement('option');
+      o.value = item.id;
+      o.textContent = item.label || item.id;
+      modelEl.appendChild(o);
+    }
+  }
+  if (current) modelEl.value = current;
+  if (m.mode) modeEl.value = m.mode;
+  persist();
+  if (m.error) addWarn(m.error);
+  else if (m.has_key === false) addWarn('Sem key LLM — configure em xadmin → Settings.');
+}
+document.getElementById('f').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = q.value.trim();
+  if (!text) return;
+  q.value = '';
+  send(text);
+});
+function tokenAtCursor() {
+  const start = q.selectionStart || 0;
+  const before = q.value.slice(0, start);
+  const m = before.match(/([@#/$])([A-Za-z0-9._/-]*)$/);
+  if (!m) return null;
+  return { kind: m[1], query: m[2].toLowerCase(), from: start - m[0].length, to: start };
+}
+function renderPalette() {
+  const tok = tokenAtCursor();
+  palette.replaceChildren();
+  palItems = [];
+  if (!tok) {
+    palette.classList.remove('show');
+    return;
+  }
+  let items = [];
+  if (tok.kind === '/') items = pal.commands || [];
+  else if (tok.kind === '@') items = (pal.files || []).map((f) => ({ id: f, label: '@' + f }));
+  else if (tok.kind === '$') items = pal.dollars || [];
+  else items = pal.hashes || [];
+  items = items.filter((it) => String(it.label || it.id).toLowerCase().includes(tok.query)).slice(0, 12);
+  palItems = items;
+  palIdx = 0;
+  items.forEach((it, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label || it.id;
+    if (i === 0) b.className = 'active';
+    b.onclick = () => applyPal(i);
+    palette.appendChild(b);
+  });
+  palette.classList.toggle('show', items.length > 0);
+}
+function applyPal(i) {
+  const tok = tokenAtCursor();
+  const it = palItems[i];
+  if (!tok || !it) return;
+  const insert = tok.kind === '/' ? '/' + it.id : tok.kind === '@' ? '@' + it.id : tok.kind === '$' ? '$' + it.id : '#' + it.id;
+  q.value = q.value.slice(0, tok.from) + insert + ' ' + q.value.slice(tok.to);
+  q.focus();
+  palette.classList.remove('show');
+  if (tok.kind === '@' || tok.kind === '#' || tok.kind === '$') {
+    const chip = document.createElement('span');
+    chip.className = 'pin';
+    chip.textContent = insert;
+    pins.appendChild(chip);
+  }
+}
+q.addEventListener('input', renderPalette);
+q.addEventListener('keydown', (e) => {
+  if (palette.classList.contains('show')) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); palIdx = Math.min(palIdx + 1, palItems.length - 1); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); palIdx = Math.max(palIdx - 1, 0); }
+    [...palette.children].forEach((el, i) => el.classList.toggle('active', i === palIdx));
+    if (e.key === 'Tab' || (e.key === 'Enter' && palItems.length)) {
+      e.preventDefault();
+      applyPal(palIdx);
+      return;
+    }
+    if (e.key === 'Escape') { palette.classList.remove('show'); return; }
+  }
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('f').requestSubmit();
+  }
+});
+document.getElementById('chips').addEventListener('click', (e) => {
+  const chip = e.target.getAttribute('data-q');
+  const ins = e.target.getAttribute('data-insert');
+  if (chip) send(chip);
+  if (ins) {
+    q.value += (q.value && !q.value.endsWith(' ') ? ' ' : '') + ins;
+    q.focus();
+    renderPalette();
+  }
+});
+modeEl.addEventListener('change', () => {
+  persist();
+  vscode.postMessage({ type: 'setMode', mode: modeEl.value });
+});
+modelEl.addEventListener('change', () => {
+  persist();
+  vscode.postMessage({ type: 'setModel', model: modelEl.value });
+});
+document.getElementById('yes').onclick = () => {
+  box.classList.remove('show');
+  vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: true });
+};
+document.getElementById('no').onclick = () => {
+  box.classList.remove('show');
+  vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: false });
+};
+stopBtn.onclick = () => vscode.postMessage({ type: 'stop' });
+reviewbtn.onclick = () => reviewEl.classList.toggle('open');
+function finishReplyBusy(text) {
+  finishReply(text);
+  setBusy(false);
+}
+window.addEventListener('message', (e) => {
+  const m = e.data || {};
+  if (m.type === 'reply') finishReplyBusy(m.text || '');
+  if (m.type === 'tool') addTool(m);
+  if (m.type === 'status') setThought(m.phase || '', m.file || '');
+  if (m.type === 'models') fillModels(m);
+  if (m.type === 'palette') pal = { commands: m.commands || [], files: m.files || [], hashes: m.hashes || [], dollars: m.dollars || [] };
+  if (m.type === 'jobs') {
+    const n = Number(m.count || 0);
+    jobsEl.hidden = n < 1;
+    jobn.textContent = String(n);
+  }
+  if (m.type === 'hooks') {
+    const ev = Array.isArray(m.events) ? m.events : [];
+    hooksEl.hidden = ev.length < 1;
+    hookn.textContent = ev.join(', ');
+  }
+  if (m.type === 'review') renderReview(m.files || []);
+  if (m.type === 'busy') {
+    setBusy(m.on);
+    if (Array.isArray(m.review)) renderReview(m.review);
+  }
+  if (m.type === 'file') {
+    const name = m.file || '';
+    ctx.hidden = !name;
+    ctxfile.textContent = name;
+  }
+  if (m.type === 'confirm') {
+    confirmId = m.id;
+    document.getElementById('cdetail').textContent = (m.kind || '') + ': ' + (m.detail || '');
+    box.classList.add('show');
+  }
+});
+vscode.postMessage({ type: 'ready' });
+</script>
+</body>
+</html>

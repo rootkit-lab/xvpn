@@ -10,7 +10,11 @@
         "editor.minimap.enabled": false,
         "files.trimTrailingWhitespace": true
       },
-      "extensions": []
+      "extensions": [
+        "golang.go",
+        "yzhang.markdown-all-in-one",
+        "esbenp.prettier-vscode"
+      ]
     }
   },
   "postCreateCommand": "go version && node -v && ./scripts/check.sh"

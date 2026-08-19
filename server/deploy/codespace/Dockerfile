@@ -9,7 +9,7 @@ ARG NODE_VER=22.18.0
 
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git build-essential ripgrep \
+    && apt-get install -y --no-install-recommends ca-certificates curl git build-essential ripgrep python3 \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://go.dev/dl/go${GO_VER}.linux-amd64.tar.gz" | tar -C /usr/local -xz \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VER}/node-v${NODE_VER}-linux-x64.tar.xz" \
@@ -39,6 +39,14 @@ RUN mkdir -p /home/workspace/.config/git /home/.openvscode-server/data/Machine \
       /home/workspace/.config \
       /home/workspace/.gitconfig
 
+COPY server/deploy/codespace/xcs-analyze /tmp/xcs-analyze
+COPY server/deploy/codespace/install-ovsx.sh /tmp/install-ovsx.sh
+RUN chmod +x /tmp/install-ovsx.sh \
+    && cd /tmp/xcs-analyze && /usr/local/go/bin/go test ./... \
+    && /usr/local/go/bin/go build -trimpath -o /usr/local/bin/xcs-analyze . \
+    && rm -rf /tmp/xcs-analyze
+
 # A imagem-base injeta --without-connection-token no ENTRYPOINT; o proxy exige token.
 USER 1000
+RUN bash /tmp/install-ovsx.sh
 ENTRYPOINT ["/home/.openvscode-server/bin/openvscode-server"]

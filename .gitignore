@@ -92,3 +92,4 @@ Desktop.ini
 
 # ===== Cursor (estado local, não configuração versionada) =====
 .cursor/*.log
+.cursor/agent/

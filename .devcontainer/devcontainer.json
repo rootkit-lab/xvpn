@@ -10,7 +10,14 @@
         "editor.minimap.enabled": false,
         "files.trimTrailingWhitespace": true
       },
-      "extensions": ["ihuull.codespace"]
+      "extensions": [
+        "ihuull.codespace",
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "yzhang.markdown-all-in-one",
+        "redhat.vscode-yaml"
+      ]
     }
   },
   "postCreateCommand": "go version && node -v"

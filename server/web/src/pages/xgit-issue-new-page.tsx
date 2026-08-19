@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { MarkdownPreview } from '@/components/markdown-doc'
 
 const ROLE_RANK: Record<ProjectRole, number> = {
   guest: 0,
@@ -40,26 +41,6 @@ function insertAround(el: HTMLTextAreaElement, before: string, after = '', place
   const next = el.value.slice(0, start) + before + selected + after + el.value.slice(end)
   const cursor = start + before.length + selected.length + after.length
   return { next, cursor }
-}
-
-function MarkdownPreview({ text }: { text: string }) {
-  if (!text.trim()) {
-    return <p className="text-sm text-muted-foreground">Nada para pré-visualizar.</p>
-  }
-  return (
-    <div className="space-y-2 text-sm leading-relaxed">
-      {text.split('\n').map((line, i) => {
-        if (line.startsWith('### ')) return <h4 key={i} className="font-semibold">{line.slice(4)}</h4>
-        if (line.startsWith('## ')) return <h3 key={i} className="text-base font-semibold">{line.slice(3)}</h3>
-        if (line.startsWith('# ')) return <h2 key={i} className="text-lg font-semibold">{line.slice(2)}</h2>
-        if (line.startsWith('- [ ] ')) return <p key={i}>☐ {line.slice(6)}</p>
-        if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) return <p key={i}>☑ {line.slice(6)}</p>
-        if (line.startsWith('- ')) return <p key={i}>• {line.slice(2)}</p>
-        if (line.startsWith('> ')) return <p key={i} className="border-l-2 border-border pl-2 text-muted-foreground">{line.slice(2)}</p>
-        return <p key={i}>{line || '\u00a0'}</p>
-      })}
-    </div>
-  )
 }
 
 export function XgitIssueNewPage() {

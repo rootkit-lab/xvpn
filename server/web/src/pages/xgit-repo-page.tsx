@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { BookOpen, ChevronRight, Clock, Code2, Copy, Download, File, Folder, GitBranch, Lock, Pencil, Scale, Shield, Tag } from 'lucide-react'
+import { BookOpen, ChevronRight, Clock, Code2, Copy, Download, GitBranch, Lock, Pencil, Scale, Shield, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, ApiError, type GitLangStat, type GitTreeEntry, type Project } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format'
@@ -31,6 +31,9 @@ import {
   RulesRead,
 } from '@/pages/project-detail-page'
 import { CodespacesEnvCard } from '@/pages/xgit-codespaces-settings'
+import { GitFileIcon } from '@/components/git-file-icon'
+import { MarkdownDoc } from '@/components/markdown-doc'
+import { isMarkdownFile } from '@/lib/git-file'
 
 const TABS = [
   { to: '', label: 'Code', end: true },
@@ -265,7 +268,7 @@ export function XgitCodePage() {
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/40"
                       onClick={() => jumpToFile(e.name)}
                     >
-                      {e.type === 'tree' ? <Folder className="size-3.5" /> : <File className="size-3.5" />}
+                      <GitFileIcon name={e.name} type={e.type} className="size-3.5" />
                       {e.name}
                     </button>
                   </li>
@@ -424,6 +427,21 @@ export function XgitCodePage() {
           {filePath && blob ? (
             blob.binary ? (
               <p className="p-5 text-sm text-muted-foreground">Arquivo binário — clone para abrir.</p>
+            ) : isMarkdownFile(filePath) ? (
+              <MarkdownDoc
+                text={blob.content}
+                trailing={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => navigate(xgitPath(`${slug}/edit/${activeRef}/${filePath}`))}
+                  >
+                    <Pencil className="size-3.5" />
+                    Edit
+                  </Button>
+                }
+              />
             ) : (
               <div>
                 <div className="flex justify-end border-b border-border/60 px-3 py-1.5">
@@ -466,11 +484,7 @@ export function XgitCodePage() {
                           to={e.type === 'tree' ? xgitPath(`${slug}/tree/${e.path}`) : xgitPath(`${slug}/blob/${e.path}`)}
                           className="inline-flex items-center gap-2 hover:underline"
                         >
-                          {e.type === 'tree' ? (
-                            <Folder className="size-4 text-muted-foreground" />
-                          ) : (
-                            <File className="size-4 text-muted-foreground" />
-                          )}
+                          <GitFileIcon name={e.name} type={e.type} />
                           {e.name}
                         </Link>
                         {e.type === 'blob' ? (
@@ -503,9 +517,8 @@ export function XgitCodePage() {
         </div>
 
         {readmeBlob && !filePath && !readmeBlob.binary ? (
-          <div className="watch-complication rounded-[18px] p-5">
-            <p className="hud-label mb-3 text-muted-foreground/70">README</p>
-            <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs leading-relaxed">{readmeBlob.content}</pre>
+          <div className="watch-complication overflow-hidden rounded-[18px]">
+            <MarkdownDoc text={readmeBlob.content} label="README" />
           </div>
         ) : null}
 

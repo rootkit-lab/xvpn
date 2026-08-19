@@ -31,6 +31,12 @@
 - openvscode exige connection token; o proxy injeta o cookie `vscode-tkn` (não `?tkn=` — isso 302-loop) e remove `ihuull_session`/`Authorization` antes do container
 - Token Git do codespace vale só para o slug daquele workspace e some no stop/idle-stop
 
+## Demo ports (Fase 56)
+
+O botão **Ports → Forward a Port** do OpenVSCode tenta túnel Microsoft (internet). Não use.
+
+Na VPN: `http://demo-<nome>.corp.ihuull.com:<porta>` chega no processo **dentro do container** (VIP `10.66.66.254` → DNAT). Nome no painel XCODESPACES → **Demo**. O app tem que escutar `0.0.0.0` (Vite: `--host`). Sem A público. Deploy do helper `xvpn-user-provision` **e** do `xvpn-server`.
+
 ## DX (Fase 51)
 
 - Imagem `ihuull/codespace:1.98.2` (Go + Node + tema + Open VSX Go/ESLint/Prettier/Markdown/YAML + `xcs-analyze`). Create novo usa essa tag; codespace antigo fica na imagem em que nasceu até Recreate.

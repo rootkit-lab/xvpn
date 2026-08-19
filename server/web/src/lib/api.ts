@@ -910,6 +910,9 @@ export interface Codespace {
   can_write?: boolean
   open_url: string
   runtime_url?: string
+  demo_name?: string
+  demo_host?: string
+  demo_url?: string
 }
 
 export interface WorkProject {
@@ -1447,6 +1450,11 @@ export const api = {
     request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/start`, { method: 'POST' }),
   stopCodespace: (id: string) =>
     request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+  patchCodespaceDemo: (id: string, name: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/demo`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
   deleteCodespace: (id: string) =>
     request<void>(`/xcodespaces/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listCodespaceTree: (id: string, path?: string) => {

@@ -40,12 +40,20 @@ type codespaceJSON struct {
 	CanWrite   bool      `json:"can_write,omitempty"`
 	OpenURL    string    `json:"open_url"`
 	RuntimeURL string    `json:"runtime_url,omitempty"`
+	DemoName   string    `json:"demo_name,omitempty"`
+	DemoHost   string    `json:"demo_host,omitempty"`
+	DemoURL    string    `json:"demo_url,omitempty"`
 }
 
 type createCodespaceRequest struct {
-	Slug   string `json:"slug"`
-	Branch string `json:"branch"`
-	Kind   string `json:"kind"`
+	Slug     string `json:"slug"`
+	Branch   string `json:"branch"`
+	Kind     string `json:"kind"`
+	DemoName string `json:"demo_name"`
+}
+
+type patchCodespaceDemoRequest struct {
+	Name string `json:"name"`
 }
 
 type writeCodespaceRequest struct {
@@ -90,6 +98,11 @@ func (a *App) codespaceJSON(user store.User, proj store.Project, cs store.CodeSp
 	}
 	if kind == store.CodespaceKindRemote {
 		out.RuntimeURL = codespaceRuntimeURL(cs.PublicID)
+		if cs.DemoName != "" {
+			out.DemoName = cs.DemoName
+			out.DemoHost = provision.DemoHostname(cs.DemoName)
+			out.DemoURL = provision.DemoHTTPBase(cs.DemoName)
+		}
 	}
 	var author store.User
 	if a.Store.DB.First(&author, cs.UserID).Error == nil {
@@ -243,6 +256,13 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 			return
 		}
 		cs.GitTokenHash = hashCodespaceToken(tok)
+		demo := strings.TrimSpace(req.DemoName)
+		if demo == "" {
+			demo = proj.Slug
+		}
+		if n, err := provision.ValidDemoName(demo); err == nil {
+			cs.DemoName = n
+		}
 		cs.HostPort = port
 		cs.Status = store.CodespaceStarting
 		if err := a.Store.DB.Create(&cs).Error; err != nil {
@@ -352,6 +372,46 @@ func (a *App) handleStopCodespace(c *gin.Context) {
 	cs.HostPort = 0
 	cs.GitTokenHash = ""
 	_ = a.Store.DB.Model(&cs).Updates(map[string]any{"status": cs.Status, "host_port": 0, "git_token_hash": ""}).Error
+	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
+}
+
+func (a *App) handlePatchCodespaceDemo(c *gin.Context) {
+	user, proj, cs, ok := a.loadCodespace(c)
+	if !ok {
+		return
+	}
+	if cs.Kind != store.CodespaceKindRemote {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "não é um codespace remoto"})
+		return
+	}
+	if !a.canGitPush(user, proj) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "sem permissão"})
+		return
+	}
+	var req patchCodespaceDemoRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	name, err := provision.ValidDemoName(req.Name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "nome inválido — use demo-<rótulo> (um rótulo, letras/números)"})
+		return
+	}
+	var n int64
+	_ = a.Store.DB.Model(&store.CodeSpace{}).Where("demo_name = ? AND public_id <> ?", name, cs.PublicID).Count(&n).Error
+	if n > 0 {
+		c.JSON(http.StatusConflict, gin.H{"error": "esse demo já está em uso"})
+		return
+	}
+	cs.DemoName = name
+	_ = a.Store.DB.Model(&cs).Update("demo_name", name).Error
+	if cs.Status == store.CodespaceRunning {
+		if err := a.applyCodespace(c.Request.Context(), &cs, "demo", cs.HostPort, "", ""); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível aplicar o demo"})
+			return
+		}
+	}
 	c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
 }
 

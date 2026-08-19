@@ -362,6 +362,7 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/xcodespaces/:id", app.handleGetCodespace)
 			authed.POST("/xcodespaces/:id/start", app.handleStartCodespace)
 			authed.POST("/xcodespaces/:id/stop", app.handleStopCodespace)
+			authed.PATCH("/xcodespaces/:id/demo", app.handlePatchCodespaceDemo)
 			authed.DELETE("/xcodespaces/:id", app.handleDeleteCodespace)
 			authed.GET("/xcodespaces/:id/tree", app.handleCodespaceTree)
 			authed.GET("/xcodespaces/:id/blob", app.handleCodespaceBlob)

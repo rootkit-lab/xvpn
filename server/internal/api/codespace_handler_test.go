@@ -183,6 +183,19 @@ func TestCodespaceRemoteCreateUsesHelper(t *testing.T) {
 	if !strings.HasPrefix(cs.RuntimeURL, "https://cs-") {
 		t.Fatalf("runtime: %s", cs.RuntimeURL)
 	}
+	if cs.DemoName != "lab" || cs.DemoHost != "demo-lab.corp.ihuull.com" {
+		t.Fatalf("demo: %+v", cs)
+	}
+	rec = doJSON(t, router, http.MethodPatch, "/api/xcodespaces/"+cs.ID+"/demo", patchCodespaceDemoRequest{Name: "vite"}, adminTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("demo patch: %d %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &cs); err != nil {
+		t.Fatal(err)
+	}
+	if cs.DemoName != "vite" || !strings.HasPrefix(cs.DemoURL, "http://demo-vite.") {
+		t.Fatalf("demo url: %+v", cs)
+	}
 	joined := strings.Join(fp.calls, "\n")
 	if !strings.Contains(joined, "ApplyCodespace(") {
 		t.Fatalf("helper não chamado: %v", fp.calls)

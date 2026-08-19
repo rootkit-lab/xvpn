@@ -57,7 +57,10 @@ export function XcodespacesHomePage() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        const name = window.prompt('Nome do preview (vira demo-<nome>.corp.ihuull.com)', cs.demo_name || cs.slug)
+                        const name = window.prompt(
+                          'Nome do preview (vira demo-<nome>.corp.ihuull.com)',
+                          cs.demo_name || `cs-${cs.id}`,
+                        )
                         if (!name) return
                         void api
                           .patchCodespaceDemo(cs.id, name)

@@ -14,6 +14,7 @@ type fakeCsRunner struct {
 	git       [][]string
 	docker    [][]string
 	host      [][]string
+	hostFail  map[string]error
 	writes    map[string]string
 	mkdirs    []string
 	inspectIP string
@@ -53,6 +54,10 @@ func (f *fakeCsRunner) DockerOutput(args ...string) (string, error) {
 }
 func (f *fakeCsRunner) HostCmd(name string, args ...string) error {
 	f.host = append(f.host, append([]string{name}, args...))
+	key := strings.Join(append([]string{name}, args...), " ")
+	if err, ok := f.hostFail[key]; ok {
+		return err
+	}
 	return nil
 }
 func (f *fakeCsRunner) WriteFile(path, content string, _ os.FileMode) error {

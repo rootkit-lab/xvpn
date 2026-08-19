@@ -11,11 +11,14 @@ import (
 // DemoVIP is a /32 on wg0 reserved for codespace TCP/UDP preview (Fase 56).
 // Not 10.66.66.1 — DNAT of :* there would steal 53/443/445/8080.
 const (
-	DemoVIP         = "10.66.66.254"
-	demoDnsmasqConf = "/etc/dnsmasq.d/xvpn-demo.conf"
-	demoNatChain    = "XVPN-DEMO-NAT"
-	demoFwdChain    = "XVPN-DEMO-FWD"
-	demoPrefix      = "demo-"
+	DemoVIP          = "10.66.66.254"
+	demoDnsmasqConf  = "/etc/dnsmasq.d/xvpn-demo.conf"
+	demoNatChain     = "XVPN-DEMO-NAT"
+	demoFwdChain     = "XVPN-DEMO-FWD"
+	demoPrefix       = "demo-"
+	demoNginxSnippet = "/etc/nginx/snippets/xvpn-demo-vip.conf"
+	demoOfflineHTML  = "/var/www/xvpn-demo/demo-offline.html"
+	demoOfflineRoot  = "/var/www/xvpn-demo"
 )
 
 func ValidDemoName(raw string) (string, error) {
@@ -52,6 +55,15 @@ func DemoHTTPBase(name string) string {
 		return ""
 	}
 	return "http://" + h
+}
+
+// DefaultDemoName pairs cs-<id>.corp with demo-cs-<id>.corp (Fase 56).
+func DefaultDemoName(codespaceID string) string {
+	n, err := ValidDemoName("cs-" + codespaceID)
+	if err != nil {
+		return ""
+	}
+	return n
 }
 
 func validContainerIP(raw string) (string, error) {
@@ -92,14 +104,17 @@ func applyDemoForward(r CsRunner, spec CsSpec) error {
 	if err := r.WriteFile(demoDnsmasqConf, body, 0644); err != nil {
 		return fmt.Errorf("gravando dnsmasq demo: %w", err)
 	}
-	return r.HostCmd("systemctl", "reload", "dnsmasq")
+	if err := r.HostCmd("systemctl", "reload", "dnsmasq"); err != nil {
+		return err
+	}
+	return applyDemoNginx(r, host)
 }
 
 func clearDemoForward(r CsRunner) error {
 	_ = applyDemoNAT(r, "")
 	_ = r.WriteFile(demoDnsmasqConf, "# sem demo ativo\n", 0644)
 	_ = r.HostCmd("systemctl", "reload", "dnsmasq")
-	return nil
+	return applyDemoNginx(r, "")
 }
 
 func containerBridgeIP(r CsRunner, id string) (string, error) {
@@ -120,7 +135,9 @@ func ensureDemoVIP(r CsRunner) error {
 		return nil
 	}
 	low := strings.ToLower(err.Error())
-	if strings.Contains(low, "file exists") || strings.Contains(low, "exists") {
+	if strings.Contains(low, "file exists") ||
+		strings.Contains(low, "already assigned") ||
+		strings.Contains(low, "exists") {
 		return nil
 	}
 	return err
@@ -154,7 +171,7 @@ func applyDemoNAT(r CsRunner, containerIP string) error {
 	if containerIP == "" {
 		return nil
 	}
-	if err := r.HostCmd("iptables", "-t", "nat", "-A", demoNatChain, "-p", "tcp", "-j", "DNAT", "--to-destination", containerIP); err != nil {
+	if err := r.HostCmd("iptables", "-t", "nat", "-A", demoNatChain, "-p", "tcp", "-m", "multiport", "!", "--dports", "80,443", "-j", "DNAT", "--to-destination", containerIP); err != nil {
 		return err
 	}
 	if err := r.HostCmd("iptables", "-t", "nat", "-A", demoNatChain, "-p", "udp", "-j", "DNAT", "--to-destination", containerIP); err != nil {
@@ -171,3 +188,55 @@ func applyDemoNAT(r CsRunner, containerIP string) error {
 	}
 	return nil
 }
+
+func applyDemoNginx(r CsRunner, host string) error {
+	if err := r.MkdirAll(demoOfflineRoot, 0755); err != nil {
+		return fmt.Errorf("mkdir demo offline: %w", err)
+	}
+	if err := r.WriteFile(demoOfflineHTML, demoOfflinePage, 0644); err != nil {
+		return fmt.Errorf("gravando demo-offline.html: %w", err)
+	}
+	snippet := "# sem demo vip\n"
+	if host != "" {
+		snippet = demoNginxVIP(host)
+	}
+	if err := r.WriteFile(demoNginxSnippet, snippet, 0644); err != nil {
+		return fmt.Errorf("gravando nginx demo: %w", err)
+	}
+	if err := r.HostCmd("nginx", "-t"); err != nil {
+		return err
+	}
+	return r.HostCmd("systemctl", "reload", "nginx")
+}
+
+func demoNginxVIP(host string) string {
+	return fmt.Sprintf(`# Gerado por cs-apply (Fase 56). Não edite.
+server {
+    listen %s:80;
+    server_name %s;
+    allow 10.66.66.0/24;
+    deny all;
+    root /var/www/xvpn-demo;
+    default_type text/html;
+    location / { try_files /demo-offline.html =503; }
+}
+server {
+    listen %s:443 ssl;
+    http2 on;
+    server_name %s;
+    ssl_certificate     /etc/letsencrypt/live/corp.ihuull.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/corp.ihuull.com/privkey.pem;
+    allow 10.66.66.0/24;
+    deny all;
+    root /var/www/xvpn-demo;
+    default_type text/html;
+    location / { try_files /demo-offline.html =503; }
+}
+`, DemoVIP, host, DemoVIP, host)
+}
+
+const demoOfflinePage = `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>XCODESPACES — preview offline</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;background:#111;color:#ddd}.box{text-align:center;max-width:28rem;padding:2rem}h1{font-size:1.1rem;color:#c8f}p{line-height:1.5;color:#aaa}</style></head>
+<body><div class="box"><h1>Preview offline</h1><p>Nenhum serviço escuta nesta porta no codespace.</p><p>Suba o app em <code>0.0.0.0:&lt;porta&gt;</code> e use a aba <strong>Ports</strong> no XCODESPACES.</p></div></body></html>
+`

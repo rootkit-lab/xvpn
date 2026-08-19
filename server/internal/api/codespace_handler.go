@@ -258,7 +258,7 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 		cs.GitTokenHash = hashCodespaceToken(tok)
 		demo := strings.TrimSpace(req.DemoName)
 		if demo == "" {
-			demo = proj.Slug
+			demo = provision.DefaultDemoName(publicID)
 		}
 		if n, err := provision.ValidDemoName(demo); err == nil {
 			cs.DemoName = n
@@ -321,6 +321,12 @@ func (a *App) handleStartCodespace(c *gin.Context) {
 	if cs.Status == store.CodespaceRunning && cs.HostPort > 0 {
 		c.JSON(http.StatusOK, a.codespaceJSON(user, proj, cs))
 		return
+	}
+	if cs.DemoName == "" {
+		cs.DemoName = provision.DefaultDemoName(cs.PublicID)
+		if cs.DemoName != "" {
+			_ = a.Store.DB.Model(&cs).Update("demo_name", cs.DemoName).Error
+		}
 	}
 	if a.runningCodespaceCount() >= 1 {
 		c.JSON(http.StatusConflict, gin.H{"error": "já existe um codespace em execução"})

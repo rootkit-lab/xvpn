@@ -118,15 +118,18 @@ func dockerCombined(args ...string) (string, error) {
 	return string(out), nil
 }
 
-var demoHostBins = map[string]bool{"ip": true, "iptables": true, "systemctl": true}
+var demoHostBins = map[string]bool{"ip": true, "iptables": true, "systemctl": true, "nginx": true}
 
 func (osCsRunner) HostCmd(name string, args ...string) error {
 	base := filepath.Base(name)
 	if !demoHostBins[base] {
 		return fmt.Errorf("comando recusado")
 	}
-	if base == "systemctl" && (len(args) != 2 || args[0] != "reload" || args[1] != "dnsmasq") {
+	if base == "systemctl" && (len(args) != 2 || args[0] != "reload" || (args[1] != "dnsmasq" && args[1] != "nginx")) {
 		return fmt.Errorf("systemctl recusado")
+	}
+	if base == "nginx" && (len(args) != 1 || args[0] != "-t") {
+		return fmt.Errorf("nginx recusado")
 	}
 	if base == "ip" && (len(args) < 1 || args[0] != "addr") {
 		return fmt.Errorf("ip recusado")

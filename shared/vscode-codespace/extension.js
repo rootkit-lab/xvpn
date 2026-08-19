@@ -14,7 +14,7 @@ const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices, dollarCh
 const { runningCount, abortAll } = require("./jobs");
 const { writeArtifact, fileDelta } = require("./artifacts");
 const { resolveWorkspacePath } = require("./sandbox");
-const { prepareAgentTerminal, finishAgentTerminal } = require("./terminal-agent");
+const { finishAgentTerminal } = require("./terminal-agent");
 const { readHooks } = require("./hooks");
 const { listListeningPorts } = require("./ports");
 
@@ -363,7 +363,6 @@ class AgentViewProvider {
                     type: "status",
                     phase: parsed.background && parsed.wait === false ? "exploring" : "waiting",
                   });
-                  prepareAgentTerminal(vscode, cwd, parsed);
                 }
                 result = await runTool(cwd, tc.name, tc.arguments, { extRoot: __dirname });
                 if (tc.name === "run_terminal") {

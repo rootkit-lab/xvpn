@@ -4,12 +4,23 @@ const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("fs");
 const path = require("path");
-const { sendTerminalHereDoc, isBackgroundFireAndForget } = require("./terminal-agent");
+const {
+  sendTerminalHereDoc,
+  isBackgroundFireAndForget,
+  argvToShellCommand,
+  shellQuoteArg,
+} = require("./terminal-agent");
 
 test("isBackgroundFireAndForget", () => {
   assert.equal(isBackgroundFireAndForget({ background: true, wait: false }), true);
   assert.equal(isBackgroundFireAndForget({ background: true, wait: true }), false);
   assert.equal(isBackgroundFireAndForget({ background: false }), false);
+});
+
+test("argvToShellCommand faz quoting de metacaracteres", () => {
+  assert.equal(argvToShellCommand(["python3", "-c", "print(1); print(2)"]), "python3 -c 'print(1); print(2)'");
+  assert.equal(argvToShellCommand(["go", "run", "./cmd/hello"]), "go run ./cmd/hello");
+  assert.equal(shellQuoteArg("a'b"), "'a'\\''b'");
 });
 
 test("sendTerminalHereDoc preserva quebras de linha", () => {
@@ -42,6 +53,11 @@ test("sendTerminalHereDoc remove \\r da saída espelhada", () => {
 test("extension não usa prefixo # agent:", () => {
   const src = fs.readFileSync(path.join(__dirname, "extension.js"), "utf8");
   assert.doesNotMatch(src, /# agent:/);
-  assert.match(src, /prepareAgentTerminal/);
   assert.match(src, /finishAgentTerminal/);
+});
+
+test("terminal-agent não executa argv cru no PTY", () => {
+  const src = fs.readFileSync(path.join(__dirname, "terminal-agent.js"), "utf8");
+  assert.doesNotMatch(src, /sendText\(line/);
+  assert.match(src, /sendTerminalHereDoc/);
 });

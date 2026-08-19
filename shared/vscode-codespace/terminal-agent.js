@@ -1,8 +1,23 @@
 "use strict";
 
-const { echoLine } = require("./sandbox");
+const { echoLine, allowTerminal } = require("./sandbox");
 
 const TERM_NAME = "XCODESPACES";
+
+function shellQuoteArg(arg) {
+  const s = String(arg);
+  if (/^[a-zA-Z0-9_@%+=:,./-]+$/.test(s)) {
+    return s;
+  }
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
+function argvToShellCommand(argv) {
+  if (!Array.isArray(argv) || argv.length === 0) {
+    return "";
+  }
+  return argv.map((a) => shellQuoteArg(String(a))).join(" ");
+}
 
 function getAgentTerminal(vscode, cwd) {
   let term = vscode.window.terminals.find((t) => t.name === TERM_NAME);
@@ -38,44 +53,51 @@ function sendTerminalHereDoc(term, body) {
   term.sendText(cmd.replace(/\r/g, ""), true);
 }
 
-function prepareAgentTerminal(vscode, cwd, args) {
-  const line = echoLine(Array.isArray(args && args.argv) ? args.argv : []);
-  if (!line) {
-    return;
-  }
-  const term = getAgentTerminal(vscode, cwd);
-  if (isBackgroundFireAndForget(args)) {
-    sendTerminalHereDoc(term, `$ ${line}\n[agent · background — stdout no card; job_status para logs]`);
-    return;
-  }
-  term.sendText(line.replace(/\r/g, ""), true);
-}
-
 function isBackgroundFireAndForget(args) {
   return Boolean(args && args.background && args.wait === false);
 }
 
+function terminalCommandLine(args) {
+  const argv = Array.isArray(args && args.argv) ? args.argv.map(String) : [];
+  const gate = allowTerminal(argv);
+  if (!gate.ok) {
+    return "";
+  }
+  return argvToShellCommand(argv) || echoLine(argv);
+}
+
+function prepareAgentTerminal(_vscode, _cwd, _args) {
+  // Execução real fica em runTool (execFile/spawn). Nada no PTY antes do gate.
+}
+
 function finishAgentTerminal(vscode, cwd, args, result) {
-  const out = sanitizeTerminalMirror(String(result || "").trim());
-  if (!out) {
+  const cmd = terminalCommandLine(args);
+  if (!cmd) {
     return;
   }
   const term = getAgentTerminal(vscode, cwd);
+  const out = sanitizeTerminalMirror(String(result || "").trim());
   if (isBackgroundFireAndForget(args)) {
-    sendTerminalHereDoc(term, out);
+    const block = out && out !== "(ok)" ? `$ ${cmd}\n\n${out}` : `$ ${cmd}\n[agent · background — stdout no card; job_status para logs]`;
+    sendTerminalHereDoc(term, block);
     return;
   }
-  if (out.startsWith("background ")) {
-    sendTerminalHereDoc(term, out);
+  if (!out || out === "(ok)") {
+    sendTerminalHereDoc(term, `$ ${cmd}`);
+    return;
   }
+  sendTerminalHereDoc(term, `$ ${cmd}\n\n${out}`);
 }
 
 module.exports = {
   TERM_NAME,
+  shellQuoteArg,
+  argvToShellCommand,
   getAgentTerminal,
   sendTerminalHereDoc,
   sanitizeTerminalMirror,
   prepareAgentTerminal,
   finishAgentTerminal,
   isBackgroundFireAndForget,
+  terminalCommandLine,
 };

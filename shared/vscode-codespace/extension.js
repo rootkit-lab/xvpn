@@ -362,10 +362,10 @@ class AgentViewProvider {
                     type: "status",
                     phase: parsed.background && parsed.wait === false ? "exploring" : "waiting",
                   });
-                  echoAgentTerminal(cwd, parsed);
                 }
                 result = await runTool(cwd, tc.name, tc.arguments, { extRoot: __dirname });
                 if (tc.name === "run_terminal") {
+                  mirrorAgentTerminal(cwd, parsed, result);
                   this.post({ type: "jobs", count: runningCount() });
                 }
               }
@@ -591,7 +591,11 @@ async function llmFetch(cwd, apiPath, body, signal) {
   return data;
 }
 
-function echoAgentTerminal(cwd, args) {
+function shellSingleQuote(text) {
+  return "'" + String(text).replace(/'/g, "'\\''") + "'";
+}
+
+function mirrorAgentTerminal(cwd, args, result) {
   const line = echoLine(Array.isArray(args.argv) ? args.argv : []);
   if (!line) {
     return;
@@ -601,7 +605,11 @@ function echoAgentTerminal(cwd, args) {
     term = vscode.window.createTerminal({ name: "XCODESPACES", cwd: cwd || undefined });
   }
   term.show(true);
-  term.sendText("# agent: " + line, false);
+  term.sendText(`printf '$ %s\\n' ${shellSingleQuote(line)}`, true);
+  const out = String(result || "").trim();
+  if (out && out !== "(ok)" && !out.startsWith("background ")) {
+    term.sendText(`printf '%s\\n' ${shellSingleQuote(out.slice(0, 8000))}`, true);
+  }
 }
 
 function agentHTML() {

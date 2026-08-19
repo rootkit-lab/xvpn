@@ -2,7 +2,7 @@
   "name": "codespace",
   "displayName": "XCODESPACES",
   "description": "Agente ihuull, skills e generate commit no codespace remoto.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "publisher": "ihuull",
   "engines": {
     "vscode": "^1.90.0"

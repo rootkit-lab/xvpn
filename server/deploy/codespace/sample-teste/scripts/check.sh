@@ -8,4 +8,6 @@ go test ./...
 echo "== node =="
 node -v
 node web/index.mjs
+echo "== flask =="
+python3 -c "import flask; print('flask', flask.__version__)"
 echo "ok — playground XCODESPACES"

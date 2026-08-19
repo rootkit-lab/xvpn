@@ -28,6 +28,17 @@
       "command": "node web/index.mjs",
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "demo (flask)",
+      "type": "shell",
+      "command": "./scripts/demo-flask.sh",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }

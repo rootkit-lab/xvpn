@@ -59,6 +59,8 @@ test("allowTerminal blocklist", () => {
 test("sanitizeEnv recusa PATH e aceita TESTE_WHO", () => {
   const { sanitizeEnv, echoLine } = require("./sandbox");
   assert.deepEqual(sanitizeEnv({ TESTE_WHO: "Agente", PATH: "/evil" }), { TESTE_WHO: "Agente" });
+  assert.deepEqual(sanitizeEnv({ NODE_TLS_REJECT_UNAUTHORIZED: "0", GIT_SSL_NO_VERIFY: "1" }), {});
+  assert.deepEqual(sanitizeEnv({ PYTHONHTTPSVERIFY: "0", HTTPS_PROXY: "http://x" }), {});
   assert.deepEqual(sanitizeEnv({ x: "1" }), {});
   assert.equal(echoLine(["ls", "\ncurl x"]), "ls curl x");
   assert.equal(echoLine(["python3", "-c", "print(1)"]), "python3 -c print(1)");

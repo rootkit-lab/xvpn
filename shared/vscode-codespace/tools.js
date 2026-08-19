@@ -7,7 +7,7 @@ const { promisify } = require("util");
 const { resolveWorkspacePath, allowTerminal, mergeEnv, sanitizeEnv } = require("./sandbox");
 const { startJob, snapshot, waitFor } = require("./jobs");
 const { listSkills } = require("./context");
-const { listMcp, callMcp } = require("./mcp-host");
+const { listMcp, callMcp, BAKED } = require("./mcp-host");
 const { AGENT_TOOLS, READ_TOOLS, toolsForMode } = require("./tool-specs");
 
 const execFileAsync = promisify(execFile);
@@ -47,8 +47,15 @@ function parseArgs(raw) {
   }
 }
 
-function needsConfirm(name) {
-  return name === "write_file" || name === "apply_patch" || name === "run_terminal";
+function needsConfirm(name, args) {
+  if (name === "write_file" || name === "apply_patch" || name === "run_terminal") {
+    return true;
+  }
+  if (name === "call_mcp") {
+    const server = String((args && args.server) || "");
+    return !BAKED.includes(server);
+  }
+  return false;
 }
 
 function confirmDetail(name, args) {
@@ -56,6 +63,9 @@ function confirmDetail(name, args) {
     const argv = (args.argv || []).join(" ");
     const keys = args.env && typeof args.env === "object" ? Object.keys(args.env) : [];
     return argv + (keys.length ? " env " + keys.join(",") : "");
+  }
+  if (name === "call_mcp") {
+    return "MCP " + (args.server || "") + " " + (args.name || "") + " (python3 do clone)";
   }
   if (name === "write_file") {
     return "Escrever " + args.path + " (" + String(args.content || "").length + " bytes)";

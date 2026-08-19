@@ -288,7 +288,7 @@ class AgentViewProvider {
             let before = "";
             try {
               parsed = safeParse(tc.arguments);
-              if (needsConfirm(tc.name)) {
+              if (needsConfirm(tc.name, parsed)) {
                 const ok = await this.askConfirm(tc.name, confirmDetail(tc.name, parsed));
                 if (!ok) {
                   result = "usuário recusou";

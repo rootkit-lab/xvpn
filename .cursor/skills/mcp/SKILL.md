@@ -8,4 +8,4 @@ description: Servidores MCP do codespace (think, memory, docs). Use list_mcp e c
 1. `list_mcp`
 2. `call_mcp` — `think` / `memory` / `docs` (stdio no container).
 
-`docs.fetch_docs` só https allowlisted. Extra: `.cursor/mcp.json` + `python3` + `.cursor/mcp/*.py`. Sem Mongo MCP.
+`docs.fetch_docs` só https allowlisted. Extra: `.cursor/mcp.json` + `python3` + `.cursor/mcp/*.py` (`call_mcp` pede Aplicar). Sem Mongo MCP.

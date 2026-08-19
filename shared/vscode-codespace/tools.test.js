@@ -109,6 +109,13 @@ test("loop do agente tem Stop, Review, artifact, wait e MCP", () => {
   assert.match(src, /list_mcp/);
 });
 
+test("call_mcp do clone pede confirmação; think bakeado não", () => {
+  const { needsConfirm } = require("./tools");
+  assert.equal(needsConfirm("call_mcp", { server: "think", name: "think" }), false);
+  assert.equal(needsConfirm("call_mcp", { server: "custom", name: "foo" }), true);
+  assert.equal(needsConfirm("run_terminal", { argv: ["python3"] }), true);
+});
+
 test("MCP think responde e python3 espera env", async () => {
   const { callMcp, listMcp } = require("./mcp-host");
   const { runTool } = require("./tools");

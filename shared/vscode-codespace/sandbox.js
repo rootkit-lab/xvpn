@@ -38,7 +38,21 @@ const BLOCK_ENV = new Set([
   "BASH_ENV",
   "ENV",
   "CDPATH",
+  "NODE_TLS_REJECT_UNAUTHORIZED",
+  "NODE_EXTRA_CA_CERTS",
+  "GIT_SSL_NO_VERIFY",
+  "GIT_SSL_CAINFO",
+  "GIT_ALLOW_PROTOCOL",
+  "PYTHONHTTPSVERIFY",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+  "REQUESTS_CA_BUNDLE",
+  "CURL_CA_BUNDLE",
+  "NPM_CONFIG_STRICT_SSL",
+  "GOPINSECURE",
+  "PIP_TRUSTED_HOST",
 ]);
+const BLOCK_ENV_RE = /TLS|SSL|VERIFY|INSECURE|PROXY|CERT|_CA_|PRELOAD|GIT_CONFIG/;
 const ENV_KEY = /^[A-Z][A-Z0-9_]{0,63}$/;
 const MAX_ENV_KEYS = 16;
 const MAX_ENV_VAL = 256;
@@ -114,7 +128,7 @@ function sanitizeEnv(raw) {
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
     const key = String(k);
-    if (!ENV_KEY.test(key) || BLOCK_ENV.has(key)) {
+    if (!ENV_KEY.test(key) || BLOCK_ENV.has(key) || BLOCK_ENV_RE.test(key)) {
       continue;
     }
     const val = String(v ?? "");

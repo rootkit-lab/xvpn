@@ -14,4 +14,4 @@ description: Servidores MCP do codespace (think, memory, docs). Use list_mcp e c
 | memory | `memory_add`, `memory_get` |
 | docs | `fetch_docs` (https allowlisted) |
 
-Extra: `.cursor/mcp.json` só `python3` + `.cursor/mcp/*.py`. Sem Mongo MCP.
+Extra: `.cursor/mcp.json` só `python3` + `.cursor/mcp/*.py` — `list_mcp` não spawna; `call_mcp` pede **Aplicar**. Sem Mongo MCP.

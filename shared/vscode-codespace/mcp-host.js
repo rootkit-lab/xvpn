@@ -151,6 +151,15 @@ async function listMcp(workspace, extRoot) {
   const specs = listServerSpecs(workspace, extRoot);
   const out = [];
   for (const spec of specs) {
+    if (!spec.baked) {
+      out.push({
+        server: spec.name,
+        baked: false,
+        tools: [],
+        note: "python3 do clone — call_mcp pede Aplicar",
+      });
+      continue;
+    }
     try {
       const listed = await rpcCall(spec, workspace, "tools/list", {});
       const tools = Array.isArray(listed.tools) ? listed.tools : [];

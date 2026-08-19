@@ -2,6 +2,7 @@ package provision
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -244,6 +245,9 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if !strings.Contains(f.writes[settings], "SetupWeb") {
 		t.Fatal("Welcome builtin SetupWeb deve ser ocultado nas Machine settings")
 	}
+	if !strings.Contains(f.writes[settings], "chat.commandCenter.enabled") {
+		t.Fatal("Machine settings devem desligar o chat nativo")
+	}
 	envFile := runtimeEnvHostPath(ws)
 	if !strings.Contains(f.writes[envFile], "APP_URL=https://xgit.corp") {
 		t.Fatalf("env-file não gravado: %v", f.writes)
@@ -261,6 +265,12 @@ func TestDefaultCodespaceSettings_HidesBuiltinWelcome(t *testing.T) {
 	hide := "experiments.override.gettingStarted.overrideCategory.SetupWeb.when"
 	if s[hide] != "false" {
 		t.Fatalf("SetupWeb deve ficar oculto: %v", s[hide])
+	}
+	if s["chat.commandCenter.enabled"] != false {
+		t.Fatal("command center do chat nativo deve ficar off")
+	}
+	if s["workbench.secondarySideBar.defaultVisibility"] != "hidden" {
+		t.Fatal("secondary sidebar (CHAT/COPILOT EDITS) deve ficar hidden")
 	}
 }
 
@@ -284,6 +294,26 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	}
 	if !strings.Contains(string(js), "https://cs-") || !strings.Contains(string(js), "xvpn-credentials") {
 		t.Fatal("extensão precisa de origin absoluta e do token Git do codespace")
+	}
+	if !strings.Contains(string(pkg), `"id": "ihuull.agentView"`) {
+		t.Fatal("extensão precisa da view do agente no activity bar")
+	}
+	banned, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-codespace", "banned.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(banned), "GitHub.copilot") || !strings.Contains(string(banned), "Continue.continue") {
+		t.Fatal("ban list deve incluir Copilot e Continue")
+	}
+}
+
+func TestCodespaceAgentSandbox(t *testing.T) {
+	dir := filepath.Join("..", "..", "..", "shared", "vscode-codespace")
+	cmd := exec.Command("node", "--test", "sandbox.test.js")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("sandbox.test.js: %v\n%s", err, out)
 	}
 }
 
@@ -349,6 +379,9 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	}
 	if !strings.Contains(text, "ihuull.codespace") {
 		t.Fatal("extensão ihuull.codespace deve ir na imagem")
+	}
+	if !strings.Contains(text, "ripgrep") {
+		t.Fatal("imagem precisa de rg para a tool grep do agente")
 	}
 	if !strings.Contains(text, "gitignore-global") {
 		t.Fatal("gitignore global deve ir na imagem")

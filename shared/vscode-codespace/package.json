@@ -1,8 +1,8 @@
 {
   "name": "codespace",
   "displayName": "XCODESPACES",
-  "description": "Chat ihuull e generate commit no codespace remoto.",
-  "version": "0.1.0",
+  "description": "Agente ihuull, skills e generate commit no codespace remoto.",
+  "version": "0.2.0",
   "publisher": "ihuull",
   "engines": {
     "vscode": "^1.90.0"
@@ -20,7 +20,7 @@
       },
       {
         "command": "ihuull.openChat",
-        "title": "XCODESPACES: Chat"
+        "title": "XCODESPACES: Agente"
       }
     ],
     "menus": {
@@ -29,6 +29,24 @@
           "command": "ihuull.generateCommitMessage",
           "group": "navigation",
           "when": "scmProvider == git"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ihuull-agent",
+          "title": "XCODESPACES",
+          "icon": "media/agent.svg"
+        }
+      ]
+    },
+    "views": {
+      "ihuull-agent": [
+        {
+          "type": "webview",
+          "id": "ihuull.agentView",
+          "name": "Agente"
         }
       ]
     },

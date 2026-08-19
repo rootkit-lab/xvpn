@@ -2,9 +2,11 @@ package driver
 
 import (
 	"archive/zip"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +19,16 @@ func TestSafeArchiveRelRejectsTraversal(t *testing.T) {
 	rel, err := SafeArchiveRel("docs/a.txt")
 	if err != nil || rel != "docs/a.txt" {
 		t.Fatalf("rel=%q err=%v", rel, err)
+	}
+	if _, err := SafeArchiveRel(".pad/x"); err == nil {
+		t.Fatal("nome oculto deveria ser recusado")
+	}
+	if _, err := SafeArchiveRel("a/.hidden"); err == nil {
+		t.Fatal("componente oculto deveria ser recusado")
+	}
+	deep := strings.Repeat("a/", MaxExtractDepth) + "x"
+	if _, err := SafeArchiveRel(deep); !errors.Is(err, ErrExtractBomb) {
+		t.Fatalf("profundidade: %v", err)
 	}
 }
 
@@ -95,12 +107,8 @@ func TestZipCentralCountRejectsTooManyEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer f.Close()
-	n, err := zipCentralCount(f, st.Size())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n <= MaxExtractFiles {
-		t.Fatalf("contagem=%d", n)
+	if _, err := zipCentralCount(f, st.Size()); !errors.Is(err, ErrExtractBomb) {
+		t.Fatalf("esperava ErrExtractBomb, veio %v", err)
 	}
 }
 

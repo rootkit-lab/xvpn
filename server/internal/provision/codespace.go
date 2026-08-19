@@ -125,8 +125,13 @@ func (osCsRunner) HostCmd(name string, args ...string) error {
 	if !demoHostBins[base] {
 		return fmt.Errorf("comando recusado")
 	}
-	if base == "systemctl" && (len(args) != 2 || args[0] != "reload" || (args[1] != "dnsmasq" && args[1] != "nginx")) {
-		return fmt.Errorf("systemctl recusado")
+	if base == "systemctl" {
+		ok := len(args) == 2 &&
+			((args[0] == "reload" && (args[1] == "dnsmasq" || args[1] == "nginx")) ||
+				(args[0] == "restart" && args[1] == "dnsmasq"))
+		if !ok {
+			return fmt.Errorf("systemctl recusado")
+		}
 	}
 	if base == "nginx" && (len(args) != 1 || args[0] != "-t") {
 		return fmt.Errorf("nginx recusado")

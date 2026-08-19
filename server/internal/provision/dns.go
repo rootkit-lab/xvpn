@@ -9,7 +9,7 @@ import (
 
 const (
 	dnsmasqMainPath  = "/etc/dnsmasq.d/xvpn-corp.conf"
-	dnsmasqHostsPath = "/etc/xvpn/dnsmasq-records.hosts"
+	dnsmasqHostsPath = corpdns.RecordsHostsPath
 )
 
 // ApplyDNS writes the intranet dnsmasq files from a JSON payload on r
@@ -37,6 +37,15 @@ func ApplyDNS(r Runner, stdin io.Reader) error {
 	}
 	if err := r.WriteFile(dnsmasqHostsPath, hosts, 0644); err != nil {
 		return fmt.Errorf("gravando %s: %w", dnsmasqHostsPath, err)
+	}
+	// addn-hosts do demo: criar vazio se o cs-apply ainda não gravou.
+	// Não sobrescrever um A ativo.
+	if ok, err := r.FileExists(corpdns.DemoHostsPath); err != nil {
+		return err
+	} else if !ok {
+		if err := r.WriteFile(corpdns.DemoHostsPath, "# sem demo ativo\n", 0644); err != nil {
+			return fmt.Errorf("gravando %s: %w", corpdns.DemoHostsPath, err)
+		}
 	}
 	if err := r.ReloadDnsmasq(); err != nil {
 		return err

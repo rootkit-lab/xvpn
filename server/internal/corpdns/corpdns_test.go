@@ -44,7 +44,7 @@ func TestParseApplyPayloadAndRender(t *testing.T) {
 	if err := AssertSafeMain(main); err != nil {
 		t.Fatal(err)
 	}
-	for _, part := range []string{"listen-address=10.66.66.1", "server=8.8.8.8", "address=/corp.ihuull.com/10.66.66.1"} {
+	for _, part := range []string{"listen-address=10.66.66.1", "server=8.8.8.8", "address=/corp.ihuull.com/10.66.66.1", "addn-hosts=/etc/xvpn/demo.hosts"} {
 		if !strings.Contains(main, part) {
 			t.Fatalf("main sem %q:\n%s", part, main)
 		}

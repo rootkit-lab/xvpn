@@ -10,9 +10,11 @@ import (
 )
 
 const (
-	Zone     = "corp.ihuull.com"
-	ListenIP = "10.66.66.1"
-	CorpNet  = "10.66.66.0/24"
+	Zone             = "corp.ihuull.com"
+	ListenIP         = "10.66.66.1"
+	CorpNet          = "10.66.66.0/24"
+	RecordsHostsPath = "/etc/xvpn/dnsmasq-records.hosts"
+	DemoHostsPath    = "/etc/xvpn/demo.hosts"
 )
 
 var corpCIDR *net.IPNet
@@ -193,7 +195,9 @@ func RenderMain(p ApplyPayload) string {
 	b.WriteString("bogus-priv\n")
 	b.WriteString("no-resolv\n")
 	b.WriteString(fmt.Sprintf("cache-size=%d\n", p.CacheSize))
-	b.WriteString("addn-hosts=/etc/xvpn/dnsmasq-records.hosts\n")
+	b.WriteString("addn-hosts=" + RecordsHostsPath + "\n")
+	// SIGHUP relê addn-hosts; não relê host-record= em /etc/dnsmasq.d/.
+	b.WriteString("addn-hosts=" + DemoHostsPath + "\n")
 	if p.CatchAll {
 		b.WriteString("address=/" + Zone + "/" + ListenIP + "\n")
 	}

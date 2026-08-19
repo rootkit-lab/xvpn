@@ -1632,7 +1632,7 @@ Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado
 
 Repo **`teste`** no XGIT (owner **`rootkit`**) ganha um servidor **Flask** mínimo para validar a Fase 56 sem depender de Vite/Go manual. O processo escuta **`0.0.0.0:8080`** no container; na VPN abre `http://demo-cs-<id>.corp.ihuull.com:8080/` (ou o hostname da aba **Ports**).
 
-Paralelo: corrigir o eco do **`run_terminal`** no painel Terminal — o prefixo `# agent:` virava comentário de shell e `sendText(..., false)` não submetia a linha; o agente passa a **espelhar** `$ comando` + stdout **depois** da execução (sem Enter manual).
+Paralelo: corrigir o **`run_terminal`** no painel Terminal — o prefixo `# agent:` virava comentário de shell e `sendText(..., false)` não submetia a linha. Foreground: **`sendText(argv, true)`** no PTY **XCODESPACES** (execução real, Enter automático). Background: heredoc com `$ argv` + status/`job_status` (sem segundo processo na porta). Saída multilinha via **`cat <<EOF`** (não `printf` com aspas).
 
 ### 57.1 Playground `teste`
 
@@ -1643,10 +1643,11 @@ Paralelo: corrigir o eco do **`run_terminal`** no painel Terminal — o prefixo 
 
 ### 57.2 Terminal do agente
 
-- [x] Extensão `ihuull.codespace` 0.5.1: `mirrorAgentTerminal` (sem `# agent:`).
+- [x] Módulo `terminal-agent.js`: PTY foreground + heredoc para background/multilinha (sem `# agent:`).
+- [x] Extensão `ihuull.codespace` 0.5.2.
 - [ ] Recreate do codespace para bake da extensão.
 
-**Critério de saída:** VPN ligada, `./scripts/demo-flask.sh` no codespace de `teste`, `curl http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`. Agente roda `go run ./cmd/hello` e o terminal XCODESPACES mostra `$ go run …` + saída sem Enter manual.
+**Critério de saída:** VPN ligada, `./scripts/demo-flask.sh` no codespace de `teste`, `curl http://demo-cs-<id>.corp.ihuull.com:8080/health` → `{"ok":true}`. Agente roda `go run ./cmd/hello` — terminal **XCODESPACES** executa o argv (sem `# agent:`) e mostra stdout com quebras de linha corretas.
 
 **Ordem:** código monorepo → rebuild imagem → seed `teste` → Recreate. Sem mudança no helper DNAT.
 

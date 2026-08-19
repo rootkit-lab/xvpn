@@ -13,7 +13,8 @@ const { toolCardTitle, exploreLabel } = require("./chat-ui");
 const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices, dollarChoices } = require("./mentions");
 const { runningCount, abortAll } = require("./jobs");
 const { writeArtifact, fileDelta } = require("./artifacts");
-const { resolveWorkspacePath, echoLine } = require("./sandbox");
+const { resolveWorkspacePath } = require("./sandbox");
+const { prepareAgentTerminal, finishAgentTerminal } = require("./terminal-agent");
 const { readHooks } = require("./hooks");
 const { listListeningPorts } = require("./ports");
 
@@ -362,10 +363,11 @@ class AgentViewProvider {
                     type: "status",
                     phase: parsed.background && parsed.wait === false ? "exploring" : "waiting",
                   });
+                  prepareAgentTerminal(vscode, cwd, parsed);
                 }
                 result = await runTool(cwd, tc.name, tc.arguments, { extRoot: __dirname });
                 if (tc.name === "run_terminal") {
-                  mirrorAgentTerminal(cwd, parsed, result);
+                  finishAgentTerminal(vscode, cwd, parsed, result);
                   this.post({ type: "jobs", count: runningCount() });
                 }
               }
@@ -589,27 +591,6 @@ async function llmFetch(cwd, apiPath, body, signal) {
     throw new Error(data.error || "HTTP " + res.status);
   }
   return data;
-}
-
-function shellSingleQuote(text) {
-  return "'" + String(text).replace(/'/g, "'\\''") + "'";
-}
-
-function mirrorAgentTerminal(cwd, args, result) {
-  const line = echoLine(Array.isArray(args.argv) ? args.argv : []);
-  if (!line) {
-    return;
-  }
-  let term = vscode.window.terminals.find((t) => t.name === "XCODESPACES");
-  if (!term) {
-    term = vscode.window.createTerminal({ name: "XCODESPACES", cwd: cwd || undefined });
-  }
-  term.show(true);
-  term.sendText(`printf '$ %s\\n' ${shellSingleQuote(line)}`, true);
-  const out = String(result || "").trim();
-  if (out && out !== "(ok)" && !out.startsWith("background ")) {
-    term.sendText(`printf '%s\\n' ${shellSingleQuote(out.slice(0, 8000))}`, true);
-  }
 }
 
 function agentHTML() {

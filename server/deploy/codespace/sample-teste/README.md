@@ -16,7 +16,7 @@ Marque na primeira sessão (Welcome deve ser **XCODESPACES**, não *Get Started 
    ./scripts/check.sh
    ```
 4. **Source Control** lista só arquivos deste repo (nada do HOME do IDE)
-5. **Tasks** → Run Task → `check` (Go test + Node + Flask import)
+5. **Tasks** → Run Task → `check` (Go test + Node + Flask import) · `agent terminal (go hello)` valida PTY
 6. **Demo Flask (Fase 57):** Tasks → `demo (flask)` ou `./scripts/demo-flask.sh` — escuta `0.0.0.0:8080`. Na VPN: `http://demo-cs-<id>.corp.ihuull.com:8080/` (hostname na aba **Ports** do XCODESPACES).
 7. **ENVs** (Settings do XGIT → Codespaces): grave `TESTE_WHO` e `TESTE_MARK` (plaintext). Depois do Recreate, `node web/index.mjs` imprime os valores. `XCS_LLM_*` **não** aparece no container.
 8. Branch + commit + push para `xgit.corp` (developer não empurra `main` direto)

@@ -105,7 +105,7 @@ test("loop do agente tem Stop, Review, artifact, wait e MCP", () => {
   assert.match(src, /fileDelta/);
   assert.match(src, /phase: "editing"/);
   assert.match(src, /parsed.background && parsed.wait === false/);
-  assert.match(src, /echoLine/);
+  assert.match(src, /prepareAgentTerminal/);
   assert.match(src, /this.abort.signal/);
   assert.match(src, /list_mcp/);
 });

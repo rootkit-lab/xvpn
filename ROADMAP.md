@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–44 e 46–54** no codespace (imagem, tema, proxy, agente, composer, Review). **Fase 55** (python3 + espera + MCP) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–55** no codespace. **Fase 56** (demo ports `demo-<nome>.corp:*`) em código nesta branch. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1602,6 +1602,32 @@ O Cursor espera o comando e usa o stdout no raciocínio. No XCODESPACES o modelo
 
 **Ordem:** 55.1 → 55.2. Rebuild da imagem + Recreate. Helper não muda. Proxy não muda.
 
+## Fase 56 — Demo ports (`demo-<nome>.corp:*`)
+
+O painel **Ports** do OpenVSCode (“Forward a Port”) abre túnel Microsoft para a internet — fora da intranet. O equivalente honesto no XVPN: um hostname **seu** `demo-<nome>.corp.ihuull.com` que, na VPN, é o IP do container em **todas** as portas.
+
+Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado `10.66.66.254` no `wg0` + DNAT só de `10.66.66.0/24`. Um rótulo (o wildcard `*.corp` e o cert cobrem `demo-vite.corp`; `demo.cs-<id>.corp` **não**).
+
+### 56.1 VIP + DNAT
+
+- [x] `10.66.66.254/32` em `wg0`. `AllocateIP` nunca entrega `.254` a peer.
+- [x] Chains `XVPN-DEMO-NAT` / `XVPN-DEMO-FWD`: DNAT TCP+UDP para o IP docker0 (`172.17.0.0/16`). MASQUERADE de volta. Sem `eth0`, sem `--network=host`.
+- [x] Stop/rm limpa o DNAT e o dnsmasq.
+
+### 56.2 DNS e nome
+
+- [x] `demo-<nome>.corp.ihuull.com` em `/etc/dnsmasq.d/xvpn-demo.conf` (mais específico que o catch-all → `.1`).
+- [x] `PATCH /api/xcodespaces/:id/demo`. Create remoto usa o slug como nome default. Sem A público.
+
+### 56.3 UI
+
+- [x] Lista XCODESPACES mostra `demo-<nome>.corp:*` e botão **Demo**.
+- [x] Machine settings: `remote.autoForwardPorts=false` (não usar o botão Ports da Microsoft).
+
+**Critério de saída:** VPN ligada, `http://demo-<nome>.corp.ihuull.com:5173` (app escutando `0.0.0.0` no container) responde. Fora da VPN o nome não resolve (ou não roteia). `ss` na eth0 inalterado.
+
+**Ordem:** helper `cs-apply` + API + UI. Deploy do `xvpn-user-provision` **e** do `xvpn-server`. Imagem: Recreate para o setting `autoForwardPorts`. Sem porta no ufw.
+
 ---
 
 ## Como usar este arquivo
@@ -1619,7 +1645,7 @@ O Cursor espera o comando e usa o stdout no raciocínio. No XCODESPACES o modelo
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–55):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51** (imagem + tema + extensões + proxy) vem depois da 50. **52** (agente ihuull no lugar do Chat nativo) vem depois da 51. **53** (composer `@`/`#`/`/`, terminal background, mapa Go) vem depois da 52. **54** (Review/Stop, logs `.cursor/agent` ou `/tmp`, `$term`) vem depois da 53. **55** (python3 + espera + MCP) vem depois da 54 — não misturar runtime e DX na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–56):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) vem depois da 55 — não misturar runtime e DX na mesma PR. 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

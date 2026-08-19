@@ -10,11 +10,13 @@ import (
 )
 
 type fakeCsRunner struct {
-	bins   map[string]string
-	git    [][]string
-	docker [][]string
-	writes map[string]string
-	mkdirs []string
+	bins      map[string]string
+	git       [][]string
+	docker    [][]string
+	host      [][]string
+	writes    map[string]string
+	mkdirs    []string
+	inspectIP string
 }
 
 func newFakeCs() *fakeCsRunner {
@@ -40,6 +42,17 @@ func (f *fakeCsRunner) Git(args ...string) error {
 }
 func (f *fakeCsRunner) Docker(args ...string) error {
 	f.docker = append(f.docker, append([]string{}, args...))
+	return nil
+}
+func (f *fakeCsRunner) DockerOutput(args ...string) (string, error) {
+	f.docker = append(f.docker, append([]string{}, args...))
+	if f.inspectIP != "" {
+		return f.inspectIP, nil
+	}
+	return "172.17.0.2", nil
+}
+func (f *fakeCsRunner) HostCmd(name string, args ...string) error {
+	f.host = append(f.host, append([]string{name}, args...))
 	return nil
 }
 func (f *fakeCsRunner) WriteFile(path, content string, _ os.FileMode) error {
@@ -224,12 +237,18 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if f.git[0][len(f.git[0])-2] != bare {
 		t.Fatalf("clone deve ser do bare: %v", f.git[0])
 	}
-	if len(f.docker) != 1 {
-		t.Fatalf("docker: %v", f.docker)
+	run := 0
+	for _, d := range f.docker {
+		if len(d) > 0 && d[0] == "run" {
+			run++
+			joined := strings.Join(d, " ")
+			if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
+				t.Fatalf("container não monta bare nem socket: %s", joined)
+			}
+		}
 	}
-	joined := strings.Join(f.docker[0], " ")
-	if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
-		t.Fatalf("container não monta bare nem socket: %s", joined)
+	if run != 1 {
+		t.Fatalf("docker run: %v", f.docker)
 	}
 	if _, ok := f.writes[filepath.Join(ws, ".vscode", "settings.json")]; ok {
 		t.Fatal("settings do IDE não podem ir no clone")
@@ -265,8 +284,10 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if !strings.Contains(f.writes[envFile], "APP_URL=https://xgit.corp") {
 		t.Fatalf("env-file não gravado: %v", f.writes)
 	}
-	if strings.Contains(joined, "https://xgit.corp") {
-		t.Fatalf("valor de ENV no argv: %s", joined)
+	for _, d := range f.docker {
+		if len(d) > 0 && d[0] == "run" && strings.Contains(strings.Join(d, " "), "https://xgit.corp") {
+			t.Fatalf("valor de ENV no argv: %v", d)
+		}
 	}
 }
 

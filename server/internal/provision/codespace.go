@@ -55,6 +55,7 @@ type CsSpec struct {
 	GitEmail        string            `json:"git_email,omitempty"`
 	ConnectionToken string            `json:"connection_token,omitempty"`
 	Env             map[string]string `json:"env,omitempty"`
+	DemoName        string            `json:"demo_name,omitempty"`
 }
 
 // CsRunner isola git/docker para ApplyCodespace ser testável sem root.
@@ -63,6 +64,8 @@ type CsRunner interface {
 	MkdirAll(path string, perm os.FileMode) error
 	Git(args ...string) error
 	Docker(args ...string) error
+	DockerOutput(args ...string) (string, error)
+	HostCmd(name string, args ...string) error
 	WriteFile(path, content string, perm os.FileMode) error
 	RemoveAll(path string) error
 	FileExists(path string) (bool, error)
@@ -94,13 +97,51 @@ func (osCsRunner) Git(args ...string) error {
 }
 
 func (osCsRunner) Docker(args ...string) error {
+	_, err := dockerCombined(args...)
+	return err
+}
+
+func (osCsRunner) DockerOutput(args ...string) (string, error) {
+	return dockerCombined(args...)
+}
+
+func dockerCombined(args ...string) (string, error) {
 	bin, err := exec.LookPath("docker")
 	if err != nil {
-		return fmt.Errorf("docker não encontrado")
+		return "", fmt.Errorf("docker não encontrado")
 	}
 	cmd := exec.Command(bin, args...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("docker: %s", strings.TrimSpace(string(out)))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("docker: %s", strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+var demoHostBins = map[string]bool{"ip": true, "iptables": true, "systemctl": true}
+
+func (osCsRunner) HostCmd(name string, args ...string) error {
+	base := filepath.Base(name)
+	if !demoHostBins[base] {
+		return fmt.Errorf("comando recusado")
+	}
+	if base == "systemctl" && (len(args) != 2 || args[0] != "reload" || args[1] != "dnsmasq") {
+		return fmt.Errorf("systemctl recusado")
+	}
+	if base == "ip" && (len(args) < 1 || args[0] != "addr") {
+		return fmt.Errorf("ip recusado")
+	}
+	if base == "iptables" && len(args) < 1 {
+		return fmt.Errorf("iptables recusado")
+	}
+	bin, err := exec.LookPath(base)
+	if err != nil {
+		return fmt.Errorf("%s não encontrado", base)
+	}
+	cmd := exec.Command(bin, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", base, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -157,10 +198,17 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 	spec.GitAuthor = strings.TrimSpace(spec.GitAuthor)
 	spec.GitEmail = strings.TrimSpace(spec.GitEmail)
 	spec.ConnectionToken = strings.TrimSpace(spec.ConnectionToken)
+	if spec.DemoName != "" {
+		n, err := ValidDemoName(spec.DemoName)
+		if err != nil {
+			return CsSpec{}, fmt.Errorf("demo_name inválido")
+		}
+		spec.DemoName = n
+	}
 	switch spec.Action {
-	case "create", "start", "stop", "rm":
+	case "create", "start", "stop", "rm", "demo":
 	default:
-		return CsSpec{}, fmt.Errorf("action deve ser create, start, stop ou rm")
+		return CsSpec{}, fmt.Errorf("action deve ser create, start, stop, rm ou demo")
 	}
 	if !codespaceIDRe.MatchString(spec.ID) {
 		return CsSpec{}, fmt.Errorf("id inválido")
@@ -351,12 +399,19 @@ func ApplyCodespace(r CsRunner, stdin io.Reader, codespacesRoot, gitRoot string)
 		if err := csWriteGitIdentity(r, spec); err != nil {
 			return err
 		}
-		return r.Docker("start", containerName(spec.ID))
+		if err := r.Docker("start", containerName(spec.ID)); err != nil {
+			return err
+		}
+		return applyDemoForward(r, spec)
 	case "stop":
+		_ = clearDemoForward(r)
 		return r.Docker("stop", containerName(spec.ID))
 	case "rm":
+		_ = clearDemoForward(r)
 		_ = r.Docker("rm", "-f", containerName(spec.ID))
 		return nil
+	case "demo":
+		return applyDemoForward(r, spec)
 	default:
 		return fmt.Errorf("action inválida")
 	}
@@ -402,7 +457,10 @@ func csCreate(r CsRunner, spec CsSpec) error {
 		return err
 	}
 	args := dockerRunArgs(spec)
-	return r.Docker(args...)
+	if err := r.Docker(args...); err != nil {
+		return err
+	}
+	return applyDemoForward(r, spec)
 }
 
 func csWriteGitCreds(r CsRunner, spec CsSpec) error {
@@ -522,6 +580,7 @@ func defaultCodespaceSettings() map[string]any {
 		"workbench.welcomePage.walkthroughs.openOnInstall": true,
 		"git.openRepositoryInParentFolders":                "never",
 		"chat.commandCenter.enabled":                       false,
+		"remote.autoForwardPorts":                          false,
 		"workbench.secondarySideBar.defaultVisibility":     "visible",
 		"github.copilot.enable":                            map[string]any{"*": false},
 		// Builtin "Get Started with VS Code for the Web" (SetupWeb) — o nosso é ihuull.codespace.
@@ -543,6 +602,9 @@ func applyMachineSettings(r CsRunner, spec CsSpec, extra map[string]any) error {
 	if codespaceIDRe.MatchString(spec.ID) {
 		settings["ihuull.codespace.id"] = spec.ID
 		settings["ihuull.codespace.origin"] = "https://cs-" + spec.ID + ".corp.ihuull.com"
+	}
+	if h := DemoHostname(spec.DemoName); h != "" {
+		settings["ihuull.codespace.demoHost"] = h
 	}
 	if name, email, ok := CodespaceGitIdentity(spec.GitAuthor); ok && spec.GitEmail == email {
 		settings["ihuull.codespace.gitName"] = name

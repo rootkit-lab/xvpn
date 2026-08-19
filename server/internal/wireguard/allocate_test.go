@@ -1,6 +1,9 @@
 package wireguard
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestAllocateIP_FirstFree(t *testing.T) {
 	ip, err := AllocateIP("10.66.66.0/24", nil)
@@ -21,6 +24,16 @@ func TestAllocateIP_SkipsUsedAndReserved(t *testing.T) {
 	}
 	if ip != "10.66.66.4/32" {
 		t.Fatalf("esperado 10.66.66.4/32, obtido %s", ip)
+	}
+}
+
+func TestAllocateIP_SkipsDemoVIP(t *testing.T) {
+	used := make([]string, 0, 252)
+	for i := 2; i <= 253; i++ {
+		used = append(used, fmt.Sprintf("10.66.66.%d/32", i))
+	}
+	if _, err := AllocateIP("10.66.66.0/24", used); err == nil {
+		t.Fatal("10.66.66.254 deve estar reservado ao preview do codespace")
 	}
 }
 

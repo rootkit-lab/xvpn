@@ -287,6 +287,7 @@ func (a *App) applyCodespace(ctx context.Context, cs *store.CodeSpace, action st
 	if action == "create" {
 		spec.Env = a.codespaceRuntimeEnvs(cs.ProjectID)
 	}
+	spec.DemoName = cs.DemoName
 	raw, err := json.Marshal(spec)
 	if err != nil {
 		return err

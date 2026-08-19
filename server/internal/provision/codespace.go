@@ -584,6 +584,8 @@ func defaultCodespaceSettings() map[string]any {
 		"git.openRepositoryInParentFolders":                "never",
 		"chat.commandCenter.enabled":                       false,
 		"remote.autoForwardPorts":                          false,
+		"workbench.panel.opensMaximized":                   "never",
+		"workbench.auxiliaryBar.enabled":                   true,
 		"workbench.secondarySideBar.defaultVisibility":     "visible",
 		"github.copilot.enable":                            map[string]any{"*": false},
 		// Builtin "Get Started with VS Code for the Web" (SetupWeb) — o nosso é ihuull.codespace.

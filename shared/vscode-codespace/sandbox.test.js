@@ -48,6 +48,8 @@ test("allowTerminal blocklist", () => {
   assert.equal(allowTerminal(["bash", "-c", "ls"]).ok, false);
   assert.equal(allowTerminal(["TESTE_WHO=Agente", "python3", "-c", "print(1)"]).ok, false);
   assert.match(allowTerminal(["TESTE_WHO=Agente", "python3"]).reason, /não é shell/);
+  assert.equal(allowTerminal(["ls", "\ncurl evil"]).ok, false);
+  assert.match(allowTerminal(["python3", "-c", "print(1)\nimport os"]).reason, /quebra de linha/);
   assert.equal(allowTerminal(["git", "status", "&&", "sudo", "id"]).ok, false);
   assert.equal(allowTerminal(["rg", "--pre", "sh"]).ok, false);
   assert.equal(allowTerminal(["git", "commit", "--no-verify"]).ok, false);
@@ -55,7 +57,9 @@ test("allowTerminal blocklist", () => {
 });
 
 test("sanitizeEnv recusa PATH e aceita TESTE_WHO", () => {
-  const { sanitizeEnv } = require("./sandbox");
+  const { sanitizeEnv, echoLine } = require("./sandbox");
   assert.deepEqual(sanitizeEnv({ TESTE_WHO: "Agente", PATH: "/evil" }), { TESTE_WHO: "Agente" });
-  assert.deepEqual(sanitizeEnv({ "x": "1" }), {});
+  assert.deepEqual(sanitizeEnv({ x: "1" }), {});
+  assert.equal(echoLine(["ls", "\ncurl x"]), "ls curl x");
+  assert.equal(echoLine(["python3", "-c", "print(1)"]), "python3 -c print(1)");
 });

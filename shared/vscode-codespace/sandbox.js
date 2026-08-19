@@ -149,6 +149,9 @@ function allowTerminal(argv) {
     return { ok: false, reason: "comando não permitido: " + bin };
   }
   const rest = argv.slice(1).map(String);
+  if ([raw0, ...rest].some((a) => /[\0\r\n]/.test(a))) {
+    return { ok: false, reason: "argv com quebra de linha" };
+  }
   const joined = rest.join(" ");
   if (/\b(docker|sudo|ssh|curl|wget)\b/i.test(joined)) {
     return { ok: false, reason: "argv bloqueado" };
@@ -162,9 +165,21 @@ function allowTerminal(argv) {
   return { ok: true, bin };
 }
 
+function echoLine(argv) {
+  if (!Array.isArray(argv)) {
+    return "";
+  }
+  return argv
+    .map((a) => String(a).replace(/[\0\r\n]+/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 200);
+}
+
 module.exports = {
   resolveWorkspacePath,
   allowTerminal,
+  echoLine,
   sanitizeEnv,
   mergeEnv,
   isDeniedRel,

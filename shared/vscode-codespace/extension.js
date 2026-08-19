@@ -13,7 +13,7 @@ const { toolCardTitle, exploreLabel } = require("./chat-ui");
 const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices, dollarChoices } = require("./mentions");
 const { runningCount, abortAll } = require("./jobs");
 const { writeArtifact, fileDelta } = require("./artifacts");
-const { resolveWorkspacePath } = require("./sandbox");
+const { resolveWorkspacePath, echoLine } = require("./sandbox");
 const { readHooks } = require("./hooks");
 
 const execFileAsync = promisify(execFile);
@@ -538,8 +538,8 @@ async function llmFetch(cwd, apiPath, body, signal) {
 }
 
 function echoAgentTerminal(cwd, args) {
-  const argv = Array.isArray(args.argv) ? args.argv.map(String) : [];
-  if (!argv.length) {
+  const line = echoLine(Array.isArray(args.argv) ? args.argv : []);
+  if (!line) {
     return;
   }
   let term = vscode.window.terminals.find((t) => t.name === "XCODESPACES");
@@ -547,7 +547,7 @@ function echoAgentTerminal(cwd, args) {
     term = vscode.window.createTerminal({ name: "XCODESPACES", cwd: cwd || undefined });
   }
   term.show(true);
-  term.sendText("# agent: " + argv.join(" "), false);
+  term.sendText("# agent: " + line, false);
 }
 
 function agentHTML() {

@@ -428,7 +428,7 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := string(ovsx)
-	for _, id := range []string{"golang.go", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "yzhang.markdown-all-in-one", "redhat.vscode-yaml"} {
+	for _, id := range []string{"golang.go", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode@11.0.0", "yzhang.markdown-all-in-one", "redhat.vscode-yaml"} {
 		if !strings.Contains(script, id) {
 			t.Fatalf("Open VSX sem %s", id)
 		}

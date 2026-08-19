@@ -62,6 +62,12 @@ func TestApplyCodespace_DemoWritesDnsmasq(t *testing.T) {
 	if !strings.Contains(joined, "DNAT") || !strings.Contains(joined, "172.17.0.2") {
 		t.Fatalf("iptables: %s", joined)
 	}
+	if strings.Contains(joined, "-s 172.17.0.2 -d 10.66.66.0/24") {
+		t.Fatal("FORWARD não deve permitir egress livre do container para a VPN")
+	}
+	if !strings.Contains(joined, "RELATED,ESTABLISHED") {
+		t.Fatalf("FORWARD deve aceitar só respostas conntrack: %s", joined)
+	}
 	if strings.Contains(joined, "10.66.66.1") && strings.Contains(joined, "DNAT") && strings.Contains(joined, "-d 10.66.66.1") {
 		t.Fatal("DNAT não pode usar o IP do Samba/Nginx")
 	}

@@ -160,10 +160,10 @@ func applyDemoNAT(r CsRunner, containerIP string) error {
 	if err := r.HostCmd("iptables", "-t", "nat", "-A", demoNatChain, "-p", "udp", "-j", "DNAT", "--to-destination", containerIP); err != nil {
 		return err
 	}
-	if err := r.HostCmd("iptables", "-A", demoFwdChain, "-s", "10.66.66.0/24", "-d", containerIP, "-j", "ACCEPT"); err != nil {
+	if err := r.HostCmd("iptables", "-A", demoFwdChain, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"); err != nil {
 		return err
 	}
-	if err := r.HostCmd("iptables", "-A", demoFwdChain, "-s", containerIP, "-d", "10.66.66.0/24", "-j", "ACCEPT"); err != nil {
+	if err := r.HostCmd("iptables", "-A", demoFwdChain, "-s", "10.66.66.0/24", "-d", containerIP, "-j", "ACCEPT"); err != nil {
 		return err
 	}
 	if err := r.HostCmd("iptables", "-t", "nat", "-C", "POSTROUTING", "-s", "10.66.66.0/24", "-d", containerIP, "-j", "MASQUERADE"); err != nil {

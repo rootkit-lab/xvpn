@@ -9,7 +9,7 @@ ARG NODE_VER=22.18.0
 
 USER root
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git build-essential \
+    && apt-get install -y --no-install-recommends ca-certificates curl git build-essential ripgrep \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://go.dev/dl/go${GO_VER}.linux-amd64.tar.gz" | tar -C /usr/local -xz \
     && curl -fsSL "https://nodejs.org/dist/v${NODE_VER}/node-v${NODE_VER}-linux-x64.tar.xz" \
@@ -26,6 +26,9 @@ COPY shared/vscode-theme /home/.openvscode-server/extensions/ihuull.theme-0.1.0
 COPY shared/vscode-codespace /home/.openvscode-server/extensions/ihuull.codespace-0.1.0
 COPY server/deploy/codespace/machine-settings.json /home/.openvscode-server/data/Machine/settings.json
 COPY server/deploy/codespace/gitignore-global /tmp/ihuull-gitignore
+RUN if [ -f /home/.openvscode-server/product.json ]; then \
+      node -e 'const fs=require("fs"); const p="/home/.openvscode-server/product.json"; const j=JSON.parse(fs.readFileSync(p,"utf8")); j.chat=Object.assign({},j.chat,{disableAIFeatures:true}); fs.writeFileSync(p, JSON.stringify(j));'; \
+    fi
 RUN mkdir -p /home/workspace/.config/git /home/.openvscode-server/data/Machine \
     && cp /tmp/ihuull-gitignore /home/workspace/.config/git/ignore \
     && printf '[core]\n\texcludesFile = ~/.config/git/ignore\n' > /home/workspace/.gitconfig \

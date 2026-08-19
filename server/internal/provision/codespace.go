@@ -494,6 +494,9 @@ func defaultCodespaceSettings() map[string]any {
 		"workbench.startupEditor":                          "welcomePage",
 		"workbench.welcomePage.walkthroughs.openOnInstall": true,
 		"git.openRepositoryInParentFolders":                "never",
+		"chat.commandCenter.enabled":                       false,
+		"workbench.secondarySideBar.defaultVisibility":     "hidden",
+		"github.copilot.enable":                            map[string]any{"*": false},
 		// Builtin "Get Started with VS Code for the Web" (SetupWeb) — o nosso é ihuull.codespace.
 		"experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
 		"experiments.override.gettingStarted.overrideCategory.Setup.when":    "false",

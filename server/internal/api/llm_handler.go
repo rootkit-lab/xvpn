@@ -21,13 +21,17 @@ import (
 )
 
 const (
-	defaultGLMBaseURL = "https://open.bigmodel.cn/api/paas/v4"
-	defaultGLMModel   = "glm-4.7-flash"
-	maxLLMKeyLen      = 256
-	maxLLMDiffBytes   = 8 << 10
-	maxLLMMsgBytes    = 4 << 10
-	maxLLMChatMsgs    = 16
-	llmHTTPTimeout    = 45 * time.Second
+	defaultGLMBaseURL     = "https://open.bigmodel.cn/api/paas/v4"
+	defaultGLMModel       = "glm-4.7-flash"
+	maxLLMKeyLen          = 256
+	maxLLMDiffBytes       = 8 << 10
+	maxLLMMsgBytes        = 4 << 10
+	maxLLMToolResultBytes = 16 << 10
+	maxLLMChatMsgs        = 32
+	maxLLMContextBytes    = 24 << 10
+	maxLLMChatTokens      = 2048
+	maxLLMTools           = 16
+	llmHTTPTimeout        = 45 * time.Second
 )
 
 var allowedLLMHosts = map[string]struct{}{
@@ -60,13 +64,40 @@ type patchCodespaceSettingsRequest struct {
 	APIKey   *string `json:"api_key"`
 }
 
+type llmToolCall struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type llmToolSpec struct {
+	Type     string        `json:"type"`
+	Function llmToolFnSpec `json:"function"`
+}
+
+type llmToolFnSpec struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
 type llmMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string        `json:"role"`
+	Content    string        `json:"content"`
+	Name       string        `json:"name,omitempty"`
+	ToolCallID string        `json:"tool_call_id,omitempty"`
+	ToolCalls  []llmToolCall `json:"tool_calls,omitempty"`
 }
 
 type llmChatRequest struct {
-	Messages []llmMessage `json:"messages"`
+	Messages []llmMessage  `json:"messages"`
+	Context  string        `json:"context"`
+	Tools    []llmToolSpec `json:"tools"`
+}
+
+type llmResult struct {
+	Text      string
+	ToolCalls []llmToolCall
 }
 
 type llmCommitRequest struct {
@@ -213,17 +244,22 @@ func (a *App) handleLLMChat(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido"})
 		return
 	}
-	msgs, err := sanitizeLLMMessages(req.Messages)
+	msgs, err := sanitizeLLMMessages(req.Messages, req.Context)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	text, err := a.callProjectLLM(c, msgs, 1024)
+	tools := sanitizeLLMTools(req.Tools)
+	res, err := a.callProjectLLMChat(c, msgs, tools, maxLLMChatTokens)
 	if err != nil {
 		writeLLMError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"text": text})
+	if len(res.ToolCalls) > 0 {
+		c.JSON(http.StatusOK, gin.H{"tool_calls": res.ToolCalls})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"text": res.Text})
 }
 
 func (a *App) handleLLMCommitMessage(c *gin.Context) {
@@ -276,48 +312,85 @@ func (a *App) callProjectLLM(c *gin.Context, msgs []llmMessage, maxTokens int) (
 	return a.completeLLM(u, provider, model, row.APIKey, msgs, maxTokens)
 }
 
+func (a *App) callProjectLLMChat(c *gin.Context, msgs []llmMessage, tools []llmToolSpec, maxTokens int) (llmResult, error) {
+	row, err := a.loadOrInitCodespaceSettings()
+	if err != nil {
+		return llmResult{}, err
+	}
+	if strings.TrimSpace(row.APIKey) == "" {
+		return llmResult{}, errLLM("configure a key em xadmin → Settings", http.StatusServiceUnavailable)
+	}
+	base := displayLLMBaseURL(row.BaseURL, row.Provider)
+	u, err := parseLLMBaseURL(base)
+	if err != nil {
+		return llmResult{}, errLLM(err.Error(), http.StatusBadRequest)
+	}
+	model := displayLLMModel(row.Model, row.Provider)
+	provider := displayLLMProvider(row.Provider)
+	_ = a.Store.LogAudit(callerUsername(c), "xcodespaces.llm", provider)
+	return a.completeLLMChat(u, provider, model, row.APIKey, msgs, tools, maxTokens)
+}
+
 func (a *App) completeLLM(base *url.URL, provider, model, key string, msgs []llmMessage, maxTokens int) (string, error) {
+	res, err := a.completeLLMChat(base, provider, model, key, msgs, nil, maxTokens)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(res.Text) == "" {
+		return "", errLLM("resposta vazia do provedor", http.StatusBadGateway)
+	}
+	return res.Text, nil
+}
+
+func (a *App) completeLLMChat(base *url.URL, provider, model, key string, msgs []llmMessage, tools []llmToolSpec, maxTokens int) (llmResult, error) {
 	client := a.llmHTTP
 	if client == nil {
 		client = &http.Client{Timeout: llmHTTPTimeout}
 	}
 	if provider == "anthropic" {
-		return completeAnthropic(client, base, model, key, msgs, maxTokens)
+		text, err := completeAnthropic(client, base, model, key, msgs, maxTokens)
+		if err != nil {
+			return llmResult{}, err
+		}
+		return llmResult{Text: text}, nil
 	}
-	return completeOpenAICompat(client, base, provider, model, key, msgs, maxTokens)
+	return completeOpenAICompat(client, base, provider, model, key, msgs, tools, maxTokens)
 }
 
-func completeOpenAICompat(client *http.Client, base *url.URL, provider, model, key string, msgs []llmMessage, maxTokens int) (string, error) {
+func completeOpenAICompat(client *http.Client, base *url.URL, provider, model, key string, msgs []llmMessage, tools []llmToolSpec, maxTokens int) (llmResult, error) {
 	endpoint := strings.TrimRight(base.String(), "/") + "/chat/completions"
 	payload := map[string]any{
 		"model":       model,
-		"messages":    msgs,
+		"messages":    providerMessages(msgs),
 		"max_tokens":  maxTokens,
 		"temperature": 0.2,
 	}
 	if disableGLMThinking(provider, model) {
 		payload["thinking"] = map[string]string{"type": "disabled"}
 	}
+	if len(tools) > 0 {
+		payload["tools"] = tools
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", err
+		return llmResult{}, err
 	}
 	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return llmResult{}, err
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", errLLM("provedor indisponível", http.StatusBadGateway)
+		return llmResult{}, errLLM("provedor indisponível", http.StatusBadGateway)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode >= 300 {
-		return "", errLLM(providerRejectMessage(raw, resp.StatusCode), http.StatusBadGateway)
+		return llmResult{}, errLLM(providerRejectMessage(raw, resp.StatusCode), http.StatusBadGateway)
 	}
-	return extractOpenAIChatText(raw)
+	return extractOpenAIChatResult(raw)
 }
 
 func disableGLMThinking(provider, model string) bool {
@@ -330,25 +403,96 @@ func disableGLMThinking(provider, model string) bool {
 }
 
 func extractOpenAIChatText(raw []byte) (string, error) {
+	res, err := extractOpenAIChatResult(raw)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(res.Text) == "" {
+		return "", errLLM("resposta vazia do provedor", http.StatusBadGateway)
+	}
+	return res.Text, nil
+}
+
+func extractOpenAIChatResult(raw []byte) (llmResult, error) {
 	var out struct {
 		Choices []struct {
 			Message struct {
 				Content          json.RawMessage `json:"content"`
 				ReasoningContent string          `json:"reasoning_content"`
+				ToolCalls        []struct {
+					ID       string `json:"id"`
+					Function struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					} `json:"function"`
+				} `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
 	if err := json.Unmarshal(raw, &out); err != nil || len(out.Choices) == 0 {
-		return "", errLLM("resposta inválida do provedor", http.StatusBadGateway)
+		return llmResult{}, errLLM("resposta inválida do provedor", http.StatusBadGateway)
 	}
-	text := openAIContentText(out.Choices[0].Message.Content)
+	msg := out.Choices[0].Message
+	text := openAIContentText(msg.Content)
 	if text == "" {
-		text = strings.TrimSpace(out.Choices[0].Message.ReasoningContent)
+		text = strings.TrimSpace(msg.ReasoningContent)
 	}
-	if text == "" {
-		return "", errLLM("resposta vazia do provedor", http.StatusBadGateway)
+	calls := make([]llmToolCall, 0, len(msg.ToolCalls))
+	for _, tc := range msg.ToolCalls {
+		name := strings.TrimSpace(tc.Function.Name)
+		if name == "" {
+			continue
+		}
+		id := strings.TrimSpace(tc.ID)
+		if id == "" {
+			id = fmt.Sprintf("call_%d", len(calls)+1)
+		}
+		args := tc.Function.Arguments
+		if len(args) > maxLLMToolResultBytes {
+			args = args[:maxLLMToolResultBytes]
+		}
+		calls = append(calls, llmToolCall{ID: id, Name: name, Arguments: args})
 	}
-	return text, nil
+	if text == "" && len(calls) == 0 {
+		return llmResult{}, errLLM("resposta vazia do provedor", http.StatusBadGateway)
+	}
+	return llmResult{Text: text, ToolCalls: calls}, nil
+}
+
+func providerMessages(msgs []llmMessage) []map[string]any {
+	out := make([]map[string]any, 0, len(msgs))
+	for _, m := range msgs {
+		row := map[string]any{"role": m.Role}
+		if m.ToolCallID != "" {
+			row["tool_call_id"] = m.ToolCallID
+		}
+		if m.Name != "" {
+			row["name"] = m.Name
+		}
+		if len(m.ToolCalls) > 0 {
+			calls := make([]map[string]any, 0, len(m.ToolCalls))
+			for _, tc := range m.ToolCalls {
+				calls = append(calls, map[string]any{
+					"id":   tc.ID,
+					"type": "function",
+					"function": map[string]any{
+						"name":      tc.Name,
+						"arguments": tc.Arguments,
+					},
+				})
+			}
+			row["tool_calls"] = calls
+			if m.Content == "" {
+				row["content"] = nil
+			} else {
+				row["content"] = m.Content
+			}
+		} else {
+			row["content"] = m.Content
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 func openAIContentText(raw json.RawMessage) string {
@@ -602,30 +746,120 @@ func displayLLMModel(raw, provider string) string {
 	}
 }
 
-func sanitizeLLMMessages(in []llmMessage) ([]llmMessage, error) {
+func sanitizeLLMMessages(in []llmMessage, context string) ([]llmMessage, error) {
 	if len(in) == 0 || len(in) > maxLLMChatMsgs {
 		return nil, fmt.Errorf("informe de 1 a %d mensagens", maxLLMChatMsgs)
 	}
+	sys := "Você é o agente do XCODESPACES (intranet ihuull). Entende skills (.cursor/skills), AGENTS.md, rules e slash commands. Use as tools quando precisar ler ou editar o workspace. Sem pedir login Microsoft."
+	if ctx := strings.TrimSpace(context); ctx != "" {
+		if len(ctx) > maxLLMContextBytes {
+			ctx = ctx[:maxLLMContextBytes]
+		}
+		sys += "\n\nContexto do workspace:\n" + ctx
+	}
 	out := make([]llmMessage, 0, len(in)+1)
-	out = append(out, llmMessage{Role: "system", Content: "Você é o assistente do XCODESPACES (intranet ihuull). Respostas curtas. Sem pedir login Microsoft."})
+	out = append(out, llmMessage{Role: "system", Content: sys})
 	for _, m := range in {
 		role := strings.ToLower(strings.TrimSpace(m.Role))
-		if role != "user" && role != "assistant" {
+		switch role {
+		case "user", "assistant", "tool":
+		case "system":
+			continue
+		default:
 			role = "user"
 		}
-		content := strings.TrimSpace(m.Content)
-		if content == "" {
+		capBytes := maxLLMMsgBytes
+		if role == "tool" {
+			capBytes = maxLLMToolResultBytes
+		}
+		content := m.Content
+		if len(content) > capBytes {
+			content = content[:capBytes]
+		}
+		item := llmMessage{
+			Role:       role,
+			Content:    strings.TrimSpace(content),
+			Name:       strings.TrimSpace(m.Name),
+			ToolCallID: strings.TrimSpace(m.ToolCallID),
+		}
+		if role == "assistant" {
+			item.ToolCalls = sanitizeToolCalls(m.ToolCalls)
+		}
+		if item.Content == "" && len(item.ToolCalls) == 0 && role != "tool" {
 			continue
 		}
-		if len(content) > maxLLMMsgBytes {
-			content = content[:maxLLMMsgBytes]
+		if role == "tool" && item.ToolCallID == "" && item.Content == "" {
+			continue
 		}
-		out = append(out, llmMessage{Role: role, Content: content})
+		out = append(out, item)
 	}
 	if len(out) < 2 {
 		return nil, fmt.Errorf("mensagem vazia")
 	}
 	return out, nil
+}
+
+func sanitizeLLMTools(in []llmToolSpec) []llmToolSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	if len(in) > maxLLMTools {
+		in = in[:maxLLMTools]
+	}
+	out := make([]llmToolSpec, 0, len(in))
+	for _, t := range in {
+		name := strings.TrimSpace(t.Function.Name)
+		if name == "" || utf8.RuneCountInString(name) > 64 {
+			continue
+		}
+		typ := strings.TrimSpace(t.Type)
+		if typ == "" {
+			typ = "function"
+		}
+		desc := t.Function.Description
+		if utf8.RuneCountInString(desc) > 512 {
+			desc = string([]rune(desc)[:512])
+		}
+		params := t.Function.Parameters
+		if len(params) > 8<<10 {
+			params = nil
+		}
+		out = append(out, llmToolSpec{
+			Type: typ,
+			Function: llmToolFnSpec{
+				Name:        name,
+				Description: desc,
+				Parameters:  params,
+			},
+		})
+	}
+	return out
+}
+
+func sanitizeToolCalls(in []llmToolCall) []llmToolCall {
+	if len(in) == 0 {
+		return nil
+	}
+	if len(in) > maxLLMTools {
+		in = in[:maxLLMTools]
+	}
+	out := make([]llmToolCall, 0, len(in))
+	for _, tc := range in {
+		name := strings.TrimSpace(tc.Name)
+		if name == "" {
+			continue
+		}
+		id := strings.TrimSpace(tc.ID)
+		if id == "" {
+			id = fmt.Sprintf("call_%d", len(out)+1)
+		}
+		args := tc.Arguments
+		if len(args) > maxLLMToolResultBytes {
+			args = args[:maxLLMToolResultBytes]
+		}
+		out = append(out, llmToolCall{ID: id, Name: name, Arguments: args})
+	}
+	return out
 }
 
 func providerRejectMessage(raw []byte, status int) string {

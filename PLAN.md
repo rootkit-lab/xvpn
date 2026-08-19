@@ -157,11 +157,13 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 | `ihuull/codespace` + `.devcontainer` | Toolchain + extensões + settings no Create | Imagem maior; rebuild no VPS | **Escolhido** |
 | GitHub Copilot oficial (VSIX Microsoft) | Familiar | Marketplace MS (openvscode usa Open VSX); login GitHub sai da intranet; token no volume | **Rejeitado** |
 | Continue.dev / Cline no container | Rápido | Chrome de terceiro; chave no volume; não é produto ihuull | **Rejeitado** |
+| Chat nativo OpenVSCode (CHAT / COPILOT EDITS) | Já vem no 1.98 | Chrome Microsoft; vazio sem Copilot; não lê skills/AGENTS.md | **Rejeitado** (Fase 52) |
 | Extensão `ihuull.codespace` + proxy LLM no monólito | Chat nosso; GLM e outros; chave só no VPS; JWE `aud=xcodespaces` | Mais trabalho | **Escolhido** |
+| Agente ihuull (skills, rules, tools no container) | Igual Cursor no codespace; tools só no clone | Loop e confirmação na extensão | **Escolhido** (Fase 52) |
 | Assistente no Settings do **xadmin** | Uma key para a org; write-only | Repo não escolhe provedor | **Escolhido** |
 | ENVs no Settings do repo (XGIT) | App/testes no Create | Não carrega key de LLM | **Escolhido** (só app) |
 
-Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem. Chat e *generate commit message* passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fase 51.
+Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem. O painel nativo CHAT/COPILOT EDITS **não** entra: Machine settings escondem; a extensão desinstala Copilot/Continue/Cline se o usuário instalar. O agente ihuull (activity bar) lê `AGENTS.md`, `.cursor/skills` e `.cursor/rules`; o loop de tools roda no Node do container (path só no clone; write/term com confirmação). *Generate commit* e completions passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fases 51–52.
 
 ---
 
@@ -744,7 +746,9 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — remoto (Fase 50).** O Create de verdade (estilo GitHub Codespaces): helper sobe um **container Docker**, faz **`git clone`** do slug (smart HTTP `xgit.corp`, token de curta duração) para o volume do workspace, e serve **openvscode-server** em `https://cs-<id>.corp.ihuull.com` (proxy Nginx → `127.0.0.1:19000–19007`). Terminal, LSP e Git do VS Code rodam **dentro** do container. Idle-stop; teto de concorrência no VPS. **Não** é KVM. **Não** é bash na 22. Decisão e invariantes: §3.6.
 
-**XCODESPACES — DX (Fase 51).** Imagem `ihuull/codespace` (FROM openvscode + Go/Node) + `.devcontainer/devcontainer.json`. Tema **ihuull Dark** (tokens SASS) e Welcome XCODESPACES. Clone em `/home/workspace/project` (HOME do IDE fora do Git). Extensão **nossa** (`ihuull.codespace`): chat ihuull + generate commit (Conventional Commits, usuário confirma). Roda no Node do openvscode — proxy em `https://cs-<id>.corp` com o token Git do workspace (cookie SSO não existe no extension host). Proxy LLM no monólito: GLM (Zhipu / OpenAI-compatível), OpenAI, Anthropic, `base_url` allowlist. GLM-4.7+ liga thinking por default — o proxy manda `thinking.type=disabled` (exceto GLM-5.3) e lê `content` ou `reasoning_content`. **Provedor e key** em xadmin → Settings (singleton `CodespaceSettings`; GET write-only). ENVs de app no XGIT (`/:slug/settings` → **Codespaces**) entram no Create; key de LLM **não**. Sem Continue, sem Copilot oficial, sem `docker.sock`. §3.6.
+**XCODESPACES — DX (Fase 51).** Imagem `ihuull/codespace` (FROM openvscode + Go/Node) + `.devcontainer/devcontainer.json`. Tema **ihuull Dark** (tokens SASS) e Welcome XCODESPACES. Clone em `/home/workspace/project` (HOME do IDE fora do Git). Extensão **nossa** (`ihuull.codespace`): generate commit (Conventional Commits, usuário confirma) + proxy LLM. Roda no Node do openvscode — proxy em `https://cs-<id>.corp` com o token Git do workspace (cookie SSO não existe no extension host). Proxy LLM no monólito: GLM (Zhipu / OpenAI-compatível), OpenAI, Anthropic, `base_url` allowlist. GLM-4.7+ liga thinking por default — o proxy manda `thinking.type=disabled` (exceto GLM-5.3) e lê `content` ou `reasoning_content`. **Provedor e key** em xadmin → Settings (singleton `CodespaceSettings`; GET write-only). ENVs de app no XGIT (`/:slug/settings` → **Codespaces**) entram no Create; key de LLM **não**. Sem Continue, sem Copilot oficial, sem `docker.sock`. §3.6.
+
+**XCODESPACES — agente (Fase 52).** O chat nativo CHAT/COPILOT EDITS do OpenVSCode **não** é o produto. A extensão mostra o agente no activity bar, desinstala Copilot/Continue/Cline se o usuário instalar, e injeta `AGENTS.md` + catálogo de `.cursor/skills` + `.cursor/rules`. Completions com `tools`; o loop (read/edit/term) corre no container, path só no clone, write e terminal com confirmação. Allowlist de argv no terminal. Sem loop de tools no `xvpn-server`. §3.6.
 
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
@@ -992,8 +996,9 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **49. XCODESPACES (editor)** | `xcodespaces.corp` + worktree + Monaco | github.dev; sem terminal; só VPN |
 | **50. XCODESPACES (remoto)** | clone + Docker + openvscode-server | Shell só no container; `cs-<id>.corp`; §3.6 |
 | **51. XCODESPACES DX** | imagem + tema + chat ihuull + ENVs no XGIT | GLM e outros via proxy; generate commit; sem Copilot MS |
+| **52. Agente ihuull** | activity bar no lugar do Chat nativo | skills/AGENTS.md/rules; tools só no container |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–51 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–52 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 
 ---
 

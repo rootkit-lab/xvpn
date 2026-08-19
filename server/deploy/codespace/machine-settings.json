@@ -5,6 +5,11 @@
   "workbench.startupEditor": "welcomePage",
   "workbench.welcomePage.walkthroughs.openOnInstall": true,
   "git.openRepositoryInParentFolders": "never",
+  "chat.commandCenter.enabled": false,
+  "workbench.secondarySideBar.defaultVisibility": "hidden",
+  "github.copilot.enable": {
+    "*": false
+  },
   "experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
   "experiments.override.gettingStarted.overrideCategory.Setup.when": "false",
   "experiments.override.gettingStarted.overrideCategory.Beginner.when": "false"

@@ -127,6 +127,10 @@ func TestExtractOpenAIChatText(t *testing.T) {
 	if _, err := extractOpenAIChatText([]byte(`{"choices":[{"message":{"content":""}}]}`)); err == nil {
 		t.Fatal("vazio deveria falhar")
 	}
+	res, err := extractOpenAIChatResult([]byte(`{"choices":[{"message":{"content":"","tool_calls":[{"id":"c1","function":{"name":"read_file","arguments":"{\"path\":\"AGENTS.md\"}"}}]}}]}`))
+	if err != nil || len(res.ToolCalls) != 1 || res.ToolCalls[0].Name != "read_file" {
+		t.Fatalf("tool_calls: %+v %v", res, err)
+	}
 }
 
 func TestLLMCommitMessage_UsesAdminSettings(t *testing.T) {
@@ -338,6 +342,77 @@ func TestCodespaceHostAllowsLLMNotControlAPI(t *testing.T) {
 	}
 	if rec.Code != http.StatusServiceUnavailable && rec.Code != http.StatusOK && rec.Code != http.StatusBadRequest {
 		t.Fatalf("LLM no cs-* inesperado: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestLLMChat_ContextAndToolCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	var saw struct {
+		hasContext bool
+		hasTools   bool
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := json.Marshal(body["messages"])
+		saw.hasContext = strings.Contains(string(raw), "AGENTS.md")
+		_, saw.hasTools = body["tools"]
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]any{
+					"content": "",
+					"tool_calls": []map[string]any{
+						{"id": "c1", "function": map[string]string{"name": "read_file", "arguments": `{"path":"AGENTS.md"}`}},
+					},
+				}},
+			},
+		})
+	}))
+	t.Cleanup(upstream.Close)
+	app.llmHTTP = upstream.Client()
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", BaseURL: upstream.URL, Model: "glm-4.7-flash", APIKey: "test-llm-key-value-xx",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/chat", llmChatRequest{
+		Messages: []llmMessage{{Role: "user", Content: "leia o AGENTS"}},
+		Context:  "## AGENTS.md\nVPN privada",
+		Tools: []llmToolSpec{{
+			Type: "function",
+			Function: llmToolFnSpec{
+				Name:        "read_file",
+				Description: "lê arquivo",
+				Parameters:  json.RawMessage(`{"type":"object"}`),
+			},
+		}},
+	}, adminTok, "xcodespaces.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"tool_calls"`) || !strings.Contains(rec.Body.String(), "read_file") {
+		t.Fatalf("body: %s", rec.Body.String())
+	}
+	if !saw.hasContext || !saw.hasTools {
+		t.Fatalf("upstream context=%v tools=%v", saw.hasContext, saw.hasTools)
+	}
+}
+
+func TestSanitizeLLMMessages_CapsContext(t *testing.T) {
+	huge := strings.Repeat("x", maxLLMContextBytes+80)
+	out, err := sanitizeLLMMessages([]llmMessage{{Role: "user", Content: "oi"}}, huge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out[0].Content, "Contexto do workspace") {
+		t.Fatal("system deve incluir context")
+	}
+	if len(out[0].Content) > maxLLMContextBytes+400 {
+		t.Fatalf("context não foi capado: %d", len(out[0].Content))
 	}
 }
 

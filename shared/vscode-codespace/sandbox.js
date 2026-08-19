@@ -86,6 +86,9 @@ function allowTerminal(argv) {
   if (bin === "rg" && rest.some((a) => a === "--pre" || a.startsWith("--pre=") || a === "--pre-glob")) {
     return { ok: false, reason: "rg --pre bloqueado" };
   }
+  if (bin === "git" && rest.some((a) => a === "--no-verify" || a === "--no-gpg-sign")) {
+    return { ok: false, reason: "git --no-verify bloqueado" };
+  }
   return { ok: true, bin };
 }
 

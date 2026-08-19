@@ -274,6 +274,13 @@ func (a *App) applyCodespace(ctx context.Context, cs *store.CodeSpace, action st
 		GitToken:        token,
 		ConnectionToken: a.codespaceConnectionToken(cs.PublicID),
 	}
+	var owner store.User
+	if err := a.Store.DB.First(&owner, cs.UserID).Error; err == nil {
+		if name, email, ok := provision.CodespaceGitIdentity(owner.Username); ok {
+			spec.GitAuthor = name
+			spec.GitEmail = email
+		}
+	}
 	if spec.Image == "" {
 		spec.Image = provision.DefaultCodespaceImage
 	}

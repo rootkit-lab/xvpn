@@ -13,18 +13,28 @@ const BANNED = [
   "kilocode.kilo-code",
 ];
 
-const CLOSE_CMDS = [
+const CLOSE_NATIVE = [
   "workbench.action.chat.close",
   "workbench.action.chat.closeEditingSession",
-  "workbench.action.closeAuxiliaryBar",
 ];
 
 async function hideNativeChat() {
-  for (const cmd of CLOSE_CMDS) {
+  for (const cmd of CLOSE_NATIVE) {
     try {
       await vscode.commands.executeCommand(cmd);
     } catch (_) {
       /* comando pode não existir no 1.98 */
+    }
+  }
+}
+
+async function showAgentChat() {
+  await hideNativeChat();
+  for (const cmd of ["workbench.action.focusAuxiliaryBar", "ihuull.agentView.focus"]) {
+    try {
+      await vscode.commands.executeCommand(cmd);
+    } catch (_) {
+      /* ignore */
     }
   }
 }
@@ -45,7 +55,7 @@ async function stripBannedAssistants() {
       }
     }
   }
-  await hideNativeChat();
+  await showAgentChat();
 }
 
-module.exports = { BANNED, hideNativeChat, stripBannedAssistants };
+module.exports = { BANNED, hideNativeChat, showAgentChat, stripBannedAssistants };

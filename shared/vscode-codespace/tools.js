@@ -6,89 +6,11 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { resolveWorkspacePath, allowTerminal } = require("./sandbox");
 const { listSkills } = require("./context");
+const { AGENT_TOOLS, READ_TOOLS, toolsForMode } = require("./tool-specs");
 
 const execFileAsync = promisify(execFile);
 const READ_CAP = 12 * 1024;
 const OUT_CAP = 8 * 1024;
-
-const AGENT_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "read_file",
-      description: "Lê um arquivo relativo ao workspace.",
-      parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_dir",
-      description: "Lista um diretório relativo ao workspace.",
-      parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "grep",
-      description: "Busca um padrão (rg) no workspace.",
-      parameters: {
-        type: "object",
-        properties: { pattern: { type: "string" }, path: { type: "string" } },
-        required: ["pattern"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_skill",
-      description: "Lê o corpo de uma skill pelo name (SKILL.md).",
-      parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "write_file",
-      description: "Escreve um arquivo (pede confirmação).",
-      parameters: {
-        type: "object",
-        properties: { path: { type: "string" }, content: { type: "string" } },
-        required: ["path", "content"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "apply_patch",
-      description: "Substitui um trecho de arquivo (pede confirmação).",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string" },
-          old_string: { type: "string" },
-          new_string: { type: "string" },
-        },
-        required: ["path", "old_string", "new_string"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "run_terminal",
-      description: "Roda um comando allowlisted no workspace (pede confirmação).",
-      parameters: {
-        type: "object",
-        properties: { argv: { type: "array", items: { type: "string" } } },
-        required: ["argv"],
-      },
-    },
-  },
-];
 
 function parseArgs(raw) {
   if (!raw) {
@@ -165,6 +87,31 @@ async function runTool(root, name, rawArgs) {
         throw new Error(err instanceof Error ? err.message : "rg falhou");
       }
     }
+    case "glob": {
+      const pattern = String(args.pattern || "").trim();
+      if (!pattern) {
+        throw new Error("pattern vazio");
+      }
+      const target = args.path ? resolveWorkspacePath(root, args.path) : resolveWorkspacePath(root, ".");
+      try {
+        const { stdout } = await execFileAsync(
+          "rg",
+          ["--no-config", "--files", "-g", pattern, "--", target],
+          {
+            cwd: root,
+            env: { ...process.env, RIPGREP_CONFIG_PATH: "" },
+            maxBuffer: OUT_CAP,
+            timeout: 8000,
+          },
+        );
+        return (stdout || "").split("\n").filter(Boolean).slice(0, 200).join("\n") || "(sem matches)";
+      } catch (err) {
+        if (err && err.code === 1) {
+          return "(sem matches)";
+        }
+        throw new Error(err instanceof Error ? err.message : "glob falhou");
+      }
+    }
     case "read_skill": {
       const hit = listSkills(root).find((s) => s.name.toLowerCase() === String(args.name || "").toLowerCase());
       if (!hit) {
@@ -206,4 +153,4 @@ async function runTool(root, name, rawArgs) {
   }
 }
 
-module.exports = { AGENT_TOOLS, needsConfirm, confirmDetail, runTool, parseArgs };
+module.exports = { AGENT_TOOLS, READ_TOOLS, toolsForMode, needsConfirm, confirmDetail, runTool, parseArgs };

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+:root {
+  --bg: oklch(0.11 0.012 260);
+  --fg: oklch(0.98 0.005 260);
+  --muted-fg: oklch(0.7 0.02 260);
+  --border: oklch(1 0 0 / 8%);
+  --primary: oklch(0.72 0.14 230);
+  --safe: oklch(0.72 0.17 150);
+  --font-mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg); color: var(--fg);
+  display: flex; flex-direction: column; height: 100%;
+}
+.bar {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  font-size: 12px; color: var(--muted-fg);
+}
+.bar strong { color: var(--fg); font-weight: 600; }
+#list { flex: 1; overflow: auto; padding: 8px 0; }
+.row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.row:hover { background: oklch(1 0 0 / 4%); }
+.dot {
+  width: 8px; height: 8px; border-radius: 999px; flex-shrink: 0;
+  background: var(--safe); box-shadow: 0 0 8px color-mix(in oklch, var(--safe) 60%, transparent);
+}
+.port { font-family: var(--font-mono); font-weight: 600; min-width: 4.5rem; }
+.url {
+  flex: 1; font-family: var(--font-mono); font-size: 12px;
+  color: var(--muted-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.btn {
+  background: color-mix(in oklch, var(--primary) 18%, transparent);
+  color: var(--primary); border: 1px solid color-mix(in oklch, var(--primary) 35%, transparent);
+  border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+}
+.btn:hover { background: color-mix(in oklch, var(--primary) 28%, transparent); }
+.empty {
+  padding: 24px 16px; text-align: center; color: var(--muted-fg); font-size: 13px; line-height: 1.5;
+}
+</style>
+</head>
+<body>
+<div class="bar">Preview intranet · <strong id="host">demo-…</strong></div>
+<div id="list"><div class="empty">Escaneando portas…</div></div>
+<script>
+const vscode = acquireVsCodeApi();
+const list = document.getElementById("list");
+const hostEl = document.getElementById("host");
+let demoHost = "";
+
+window.addEventListener("message", (ev) => {
+  const msg = ev.data;
+  if (msg?.type === "ports") {
+    demoHost = msg.demoHost || demoHost;
+    if (demoHost) hostEl.textContent = demoHost;
+    render(msg.ports || []);
+  }
+});
+
+function render(ports) {
+  if (!ports.length) {
+    list.innerHTML = '<div class="empty">Nenhuma porta pública (0.0.0.0).<br>Ex.: <code>npm run dev -- --host</code> ou <code>python3 -m http.server 8080 --bind 0.0.0.0</code></div>';
+    return;
+  }
+  list.innerHTML = ports.map((p) => {
+    const url = demoHost ? `http://${demoHost}:${p}` : `:${p}`;
+    return `<div class="row"><span class="dot" title="online"></span><span class="port">:${p}</span><span class="url">${url}</span><button class="btn" data-u="${url}">Abrir</button></div>`;
+  }).join("");
+  list.querySelectorAll(".btn").forEach((b) => {
+    b.onclick = () => vscode.postMessage({ type: "open", url: b.dataset.u });
+  });
+}
+
+vscode.postMessage({ type: "ready" });
+</script>
+</body>
+</html>

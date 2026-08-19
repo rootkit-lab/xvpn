@@ -1,6 +1,7 @@
 package provision
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -16,6 +17,12 @@ func TestValidDemoName(t *testing.T) {
 	}
 	if DemoHostname("app") != "demo-app.corp.ihuull.com" {
 		t.Fatal(DemoHostname("app"))
+	}
+	if DefaultDemoName("3ceec32ad760") != "cs-3ceec32ad760" {
+		t.Fatal(DefaultDemoName("3ceec32ad760"))
+	}
+	if DemoHostname(DefaultDemoName("3ceec32ad760")) != "demo-cs-3ceec32ad760.corp.ihuull.com" {
+		t.Fatal(DemoHostname(DefaultDemoName("3ceec32ad760")))
 	}
 	if _, err := ValidDemoName("x.git"); err == nil {
 		t.Fatal("rótulo com ponto")
@@ -62,13 +69,29 @@ func TestApplyCodespace_DemoWritesDnsmasq(t *testing.T) {
 	if !strings.Contains(joined, "DNAT") || !strings.Contains(joined, "172.17.0.2") {
 		t.Fatalf("iptables: %s", joined)
 	}
+	if !strings.Contains(joined, "multiport") || !strings.Contains(joined, "80,443") {
+		t.Fatalf("DNAT deve reservar 80/443 ao nginx offline: %s", joined)
+	}
 	if strings.Contains(joined, "-s 172.17.0.2 -d 10.66.66.0/24") {
 		t.Fatal("FORWARD não deve permitir egress livre do container para a VPN")
 	}
 	if !strings.Contains(joined, "RELATED,ESTABLISHED") {
 		t.Fatalf("FORWARD deve aceitar só respostas conntrack: %s", joined)
 	}
+	if !strings.Contains(f.writes[demoNginxSnippet], "demo-vite.corp.ihuull.com") {
+		t.Fatalf("nginx demo: %q", f.writes[demoNginxSnippet])
+	}
 	if strings.Contains(joined, "10.66.66.1") && strings.Contains(joined, "DNAT") && strings.Contains(joined, "-d 10.66.66.1") {
 		t.Fatal("DNAT não pode usar o IP do Samba/Nginx")
+	}
+}
+
+func TestEnsureDemoVIP_Idempotent(t *testing.T) {
+	f := newFakeCs()
+	f.hostFail = map[string]error{
+		"ip addr add 10.66.66.254/32 dev wg0": fmt.Errorf("Error: ipv4: Address already assigned"),
+	}
+	if err := ensureDemoVIP(f); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -15,6 +15,7 @@ const { runningCount, abortAll } = require("./jobs");
 const { writeArtifact, fileDelta } = require("./artifacts");
 const { resolveWorkspacePath, echoLine } = require("./sandbox");
 const { readHooks } = require("./hooks");
+const { listListeningPorts } = require("./ports");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -26,12 +27,17 @@ const CEILING_PROMPT = "Teto de tools. Responda com o que já descobriu; não pe
 
 function activate(context) {
   const provider = new AgentViewProvider(context);
+  const ports = new PortsViewProvider(context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("ihuull.agentView", provider, {
       webviewOptions: { retainContextWhenHidden: true },
     }),
+    vscode.window.registerWebviewViewProvider("ihuull.portsView", ports, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
     vscode.commands.registerCommand("ihuull.generateCommitMessage", () => generateCommit()),
     vscode.commands.registerCommand("ihuull.openChat", () => showAgentChat()),
+    vscode.commands.registerCommand("ihuull.openPorts", () => vscode.commands.executeCommand("ihuull.portsView.focus")),
     vscode.window.onDidChangeActiveTextEditor(() => provider.postFile()),
     vscode.extensions.onDidChange(() => {
       stripBannedAssistants().catch(() => {});
@@ -40,6 +46,54 @@ function activate(context) {
   setTimeout(() => {
     stripBannedAssistants().catch(() => {});
   }, 800);
+}
+
+class PortsViewProvider {
+  constructor(context) {
+    this.context = context;
+    this.view = undefined;
+    this.timer = undefined;
+  }
+
+  resolveWebviewView(webviewView) {
+    this.view = webviewView;
+    webviewView.webview.options = { enableScripts: true };
+    webviewView.webview.html = portsHTML();
+    webviewView.webview.onDidReceiveMessage((msg) => this.onMessage(msg));
+    webviewView.onDidDispose(() => {
+      if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = undefined;
+      }
+    });
+    this.timer = setInterval(() => {
+      this.refresh().catch(() => {});
+    }, 3000);
+    this.refresh().catch(() => {});
+  }
+
+  post(msg) {
+    this.view?.webview.postMessage(msg);
+  }
+
+  demoHost() {
+    return vscode.workspace.getConfiguration("ihuull.codespace").get("demoHost") || "";
+  }
+
+  async refresh() {
+    const portList = await listListeningPorts();
+    this.post({ type: "ports", demoHost: this.demoHost(), ports: portList });
+  }
+
+  onMessage(msg) {
+    if (msg?.type === "ready") {
+      this.refresh().catch(() => {});
+      return;
+    }
+    if (msg?.type === "open" && typeof msg.url === "string" && msg.url.startsWith("http://")) {
+      vscode.env.openExternal(vscode.Uri.parse(msg.url));
+    }
+  }
 }
 
 class AgentViewProvider {
@@ -552,6 +606,10 @@ function echoAgentTerminal(cwd, args) {
 
 function agentHTML() {
   return fs.readFileSync(path.join(__dirname, "agent.html"), "utf8");
+}
+
+function portsHTML() {
+  return fs.readFileSync(path.join(__dirname, "ports.html"), "utf8");
 }
 
 function deactivate() {}

@@ -183,7 +183,7 @@ func TestCodespaceRemoteCreateUsesHelper(t *testing.T) {
 	if !strings.HasPrefix(cs.RuntimeURL, "https://cs-") {
 		t.Fatalf("runtime: %s", cs.RuntimeURL)
 	}
-	if cs.DemoName != "lab" || cs.DemoHost != "demo-lab.corp.ihuull.com" {
+	if cs.DemoName != "cs-"+cs.ID || cs.DemoHost != "demo-cs-"+cs.ID+".corp.ihuull.com" {
 		t.Fatalf("demo: %+v", cs)
 	}
 	rec = doJSON(t, router, http.MethodPatch, "/api/xcodespaces/"+cs.ID+"/demo", patchCodespaceDemoRequest{Name: "vite"}, adminTok)

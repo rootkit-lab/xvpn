@@ -10,6 +10,8 @@ const { buildContext, listSkills } = require("./context");
 const { needsConfirm, confirmDetail, runTool } = require("./tools");
 const { toolsForMode } = require("./tool-specs");
 const { toolCardTitle, exploreLabel } = require("./chat-ui");
+const { mentionContext, slashCommands, listWorkspaceFiles, hashChoices } = require("./mentions");
+const { runningCount } = require("./jobs");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -45,6 +47,8 @@ class AgentViewProvider {
     this.history = [];
     this.mode = "agent";
     this.model = "";
+    this.projectMap = "";
+    this.projectMapAt = 0;
   }
 
   resolveWebviewView(webviewView) {
@@ -67,6 +71,8 @@ class AgentViewProvider {
 
   async syncChrome() {
     this.postFile();
+    this.postPalette();
+    this.post({ type: "jobs", count: runningCount() });
     const folder = vscode.workspace.workspaceFolders?.[0];
     const cwd = folder?.uri.fsPath || "";
     try {
@@ -151,8 +157,9 @@ class AgentViewProvider {
           type: "reply",
           text:
             "Modos: Agent (tools), Ask (só pergunta), Debug (inspeciona erro), Plan (plano, só leitura).\n" +
-            "Comandos: /help /skills /commit /explain /<skill>\n" +
-            "Tools: read_file list_dir grep glob read_skill write_file apply_patch run_terminal",
+            "Composer: @arquivo  #git|#docs|#pasta  /help /skills /commit /explain /<skill>\n" +
+            "Tools: read_file list_dir grep glob read_skill analyze_project write_file apply_patch run_terminal job_status\n" +
+            "Terminal: allowlist no container; background=true não bloqueia o chat.",
         });
         return;
       }
@@ -172,12 +179,43 @@ class AgentViewProvider {
         text = rest || "Explique o arquivo ou a seleção atuais.";
       } else if (cmd !== "explain") {
         text = rest || "Siga a skill " + cmd + ".";
-        const ctx = buildContext(cwd, cmd);
+        const ctx = await this.richContext(cwd, text, cmd);
         await this.runAgent(cwd, text, ctx, mode, model);
         return;
       }
     }
-    await this.runAgent(cwd, text, buildContext(cwd), mode, model);
+    await this.runAgent(cwd, text, await this.richContext(cwd, text), mode, model);
+  }
+
+  async richContext(cwd, userText, extraSkill) {
+    const ctx = buildContext(cwd, extraSkill);
+    const extra = await mentionContext(cwd, userText);
+    if (extra) {
+      ctx.text = (ctx.text + "\n\n" + extra).slice(0, 24 * 1024);
+    }
+    if (!this.projectMap || Date.now() - this.projectMapAt > 60000) {
+      try {
+        this.projectMap = await runTool(cwd, "analyze_project", {});
+        this.projectMapAt = Date.now();
+      } catch (_) {
+        this.projectMap = "";
+      }
+    }
+    if (this.projectMap) {
+      ctx.text = (ctx.text + "\n\n## Mapa Go\n" + this.projectMap).slice(0, 24 * 1024);
+    }
+    return ctx;
+  }
+
+  postPalette() {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const cwd = folder?.uri.fsPath || "";
+    this.post({
+      type: "palette",
+      commands: slashCommands(listSkills(cwd).map((s) => s.name)),
+      files: listWorkspaceFiles(cwd),
+      hashes: hashChoices(cwd),
+    });
   }
 
   async runAgent(cwd, userText, ctx, mode, model) {
@@ -209,7 +247,14 @@ class AgentViewProvider {
               }
             }
             if (result !== "usuário recusou") {
+              const parsed = safeParse(tc.arguments);
+              if (tc.name === "run_terminal") {
+                echoAgentTerminal(cwd, parsed);
+              }
               result = await runTool(cwd, tc.name, tc.arguments);
+              if (tc.name === "run_terminal") {
+                this.post({ type: "jobs", count: runningCount() });
+              }
             }
           } catch (err) {
             result = err instanceof Error ? err.message : "tool falhou";
@@ -414,6 +459,19 @@ async function llmFetch(cwd, apiPath, body) {
     throw new Error(data.error || "HTTP " + res.status);
   }
   return data;
+}
+
+function echoAgentTerminal(cwd, args) {
+  const argv = Array.isArray(args.argv) ? args.argv.map(String) : [];
+  if (!argv.length) {
+    return;
+  }
+  let term = vscode.window.terminals.find((t) => t.name === "XCODESPACES");
+  if (!term) {
+    term = vscode.window.createTerminal({ name: "XCODESPACES", cwd: cwd || undefined });
+  }
+  term.show(true);
+  term.sendText("# agent: " + argv.join(" "), false);
 }
 
 function agentHTML() {

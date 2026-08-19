@@ -160,10 +160,11 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 | Chat nativo OpenVSCode (CHAT / COPILOT EDITS) | Já vem no 1.98 | Chrome Microsoft; vazio sem Copilot; não lê skills/AGENTS.md | **Rejeitado** (Fase 52) |
 | Extensão `ihuull.codespace` + proxy LLM no monólito | Chat nosso; GLM e outros; chave só no VPS; JWE `aud=xcodespaces` | Mais trabalho | **Escolhido** |
 | Agente ihuull (skills, rules, tools no container) | Igual Cursor no codespace; tools só no clone | Loop e confirmação na extensão | **Escolhido** (Fase 52) |
+| Composer `@` `#` `/` + terminal background + `xcs-analyze` | Contexto e jobs como no Cursor; mapa Go no clone | Analyzer extra na imagem | **Escolhido** (Fase 53) |
 | Assistente no Settings do **xadmin** | Uma key para a org; write-only | Repo não escolhe provedor | **Escolhido** |
 | ENVs no Settings do repo (XGIT) | App/testes no Create | Não carrega key de LLM | **Escolhido** (só app) |
 
-Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem. O painel nativo CHAT/COPILOT EDITS **não** entra: a extensão desinstala Copilot/Continue/Cline se o usuário instalar e abre o chat ihuull à **direita** (container `workbench.panel.chat` — o 1.98 ignora `secondarySidebar`). O agente lê `AGENTS.md`, `.cursor/skills` e `.cursor/rules`; modos Agent/Ask/Debug/Plan e modelo vêm do proxy (`GET /models`, override por request na allowlist). O loop de tools roda no Node do container (path só no clone; write/term com confirmação). *Generate commit* e completions passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fases 51–52.
+Tema do workbench = tokens `$dark` de `shared/ui/scss/_color-system.scss` (não copiar cores à mão). O clone monta em `/home/workspace/project`; HOME do openvscode (`/home/workspace`) fica fora do Git — settings em Machine, não em `.vscode/` do repo. Extensões só Open VSX, bakeadas na imagem (Go, ESLint, Prettier, Markdown, YAML + as ihuull). O composer do agente aceita `@arquivo`, `#git`/`#docs`/`#pasta` e `/comando`. `run_terminal` pode ir em background (PTY `XCODESPACES` no container). `xcs-analyze` (Go, stdlib) mapeia módulos/packages/símbolos no clone e entra no context — o servidor **não** lê o workspace. O painel nativo CHAT/COPILOT EDITS **não** entra: a extensão desinstala Copilot/Continue/Cline se o usuário instalar e abre o chat ihuull à **direita** (container `workbench.panel.chat` — o 1.98 ignora `secondarySidebar`). O agente lê `AGENTS.md`, `.cursor/skills` e `.cursor/rules`; modos Agent/Ask/Debug/Plan e modelo vêm do proxy (`GET /models`, override por request na allowlist). O loop de tools roda no Node do container (path só no clone; write/term com confirmação). *Generate commit* e completions passam pelo proxy (GLM / OpenAI-compatível / Anthropic). Provedor e key no Settings do xadmin; ENVs de app entram no container; key de LLM **não**. Detalhe no `ROADMAP.md` Fases 51–53.
 
 ---
 
@@ -750,6 +751,8 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — agente (Fase 52).** O chat nativo CHAT/COPILOT EDITS do OpenVSCode **não** é o produto. A extensão mostra o chat ihuull à direita (container `workbench.panel.chat`; o 1.98 ignora `secondarySidebar`), com modos Agent/Ask/Debug/Plan, seletor de modelo e timeline Cursor-like (Thinking + cards de tool), desinstala Copilot/Continue/Cline se o usuário instalar, e injeta `AGENTS.md` (ou contrato ihuull se o clone não tiver) + `CONTRIBUTING.md` + catálogo de `.cursor/skills` + `.cursor/rules`. Completions com `tools` (inclui `glob`); o loop (read/edit/term) corre no container (teto 24; no teto resume sem tools), path só no clone, write e terminal com confirmação. Identidade Git do dono (`username@corp.ihuull.com`) no clone — sem isso o Source Control recusa commit. Allowlist de argv no terminal (`git --no-verify` bloqueado). Sem loop de tools no `xvpn-server`. §3.6.
 
+**XCODESPACES — composer e mapa (Fase 53).** `@` anexa arquivo, `#` anexa git/docs/pasta, `/` dispara comando (palette). Terminal do agente em background no container (não no host). CLI `xcs-analyze` (Go) gera o mapa do módulo para o LLM. Extensões Open VSX bakeadas (Go, ESLint, Prettier, Markdown, YAML). Sem Marketplace Microsoft. §3.6.
+
 **Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
 **Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/xgit/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
@@ -997,8 +1000,9 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **50. XCODESPACES (remoto)** | clone + Docker + openvscode-server | Shell só no container; `cs-<id>.corp`; §3.6 |
 | **51. XCODESPACES DX** | imagem + tema + chat ihuull + ENVs no XGIT | GLM e outros via proxy; generate commit; sem Copilot MS |
 | **52. Agente ihuull** | chat à direita no lugar do Chat nativo | modos + modelo; identidade Git; glob; teto 24 + resumo; skills/AGENTS.md/rules |
+| **53. Composer + mapa Go** | `@` `#` `/`, terminal background, `xcs-analyze` | Open VSX Go/Markdown; tools só no clone |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–52 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–53 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
 
 ---
 

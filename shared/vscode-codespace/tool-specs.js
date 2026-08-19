@@ -80,19 +80,38 @@ const AGENT_TOOLS = [
   {
     type: "function",
     function: {
+      name: "analyze_project",
+      description: "Mapa Go do workspace (módulos, packages, símbolos) via xcs-analyze.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "run_terminal",
-      description: "Roda um comando allowlisted no workspace (pede confirmação).",
+      description: "Roda um comando allowlisted no workspace (pede confirmação). background=true não bloqueia o chat.",
       parameters: {
         type: "object",
-        properties: { argv: { type: "array", items: { type: "string" } } },
+        properties: {
+          argv: { type: "array", items: { type: "string" } },
+          background: { type: "boolean" },
+        },
         required: ["argv"],
       },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "job_status",
+      description: "Lê stdout de um job em background (id devolvido por run_terminal).",
+      parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
     },
   },
 ];
 
 const READ_TOOLS = AGENT_TOOLS.filter((t) =>
-  ["read_file", "list_dir", "grep", "read_skill", "glob"].includes(t.function.name),
+  ["read_file", "list_dir", "grep", "read_skill", "glob", "analyze_project"].includes(t.function.name),
 );
 
 function toolsForMode(mode) {

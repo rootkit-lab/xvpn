@@ -33,7 +33,10 @@ body {
 }
 .bar {
   display: flex; gap: 8px; align-items: center;
-  padding: 8px 10px; border-bottom: 1px solid var(--border);
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(120% 80% at 50% 0%, color-mix(in oklch, var(--product) 22%, transparent) 0%, transparent 55%),
+    var(--bg);
 }
 .sel { position: relative; min-width: 0; }
 .sel.grow { flex: 1; }
@@ -79,6 +82,7 @@ select {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 8px 10px;
+  box-shadow: 0 8px 24px color-mix(in oklch, var(--product) 10%, transparent);
 }
 .tool-head {
   display: flex; align-items: center; gap: 8px; min-width: 0;
@@ -119,18 +123,40 @@ select {
 }
 #confirm.show { display: block; }
 #confirm .row { display: flex; gap: 8px; margin-top: 8px; }
-footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; }
-.ctx {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin: 0 0 8px; padding: 3px 8px; border-radius: 999px;
+footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; position: relative; }
+.ctx, .jobs, .pins {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin: 0 0 8px;
+}
+.ctx, .jobs {
+  padding: 3px 8px; border-radius: 999px;
   background: var(--muted); color: var(--muted-fg); font-size: 11px; max-width: 100%;
 }
-.ctx[hidden] { display: none; }
-.ctx b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx[hidden], .jobs[hidden], .pins:empty { display: none; }
+.ctx b, .jobs b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin {
+  border: 1px solid var(--border); background: var(--card); color: var(--fg);
+  border-radius: 999px; padding: 2px 8px; font-size: 11px;
+}
+.palette {
+  display: none; position: absolute; left: 10px; right: 10px; bottom: 100%;
+  max-height: 180px; overflow: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 32px color-mix(in oklch, var(--product) 16%, transparent);
+  padding: 4px; z-index: 4;
+}
+.palette.show { display: block; }
+.palette button {
+  display: block; width: 100%; text-align: left;
+  background: transparent; border: 0; color: var(--fg);
+  padding: 6px 8px; border-radius: 8px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.palette button:hover, .palette button.active { background: var(--muted); }
 form { display: flex; flex-direction: column; gap: 8px; }
 textarea {
   width: 100%; box-sizing: border-box; resize: none; min-height: 56px; max-height: 160px;
-  background: var(--muted); color: inherit; border: 1px solid var(--input);
+  background: color-mix(in oklch, var(--muted) 80%, transparent); color: inherit;
+  border: 1px solid var(--input);
   border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 13px;
 }
 .composer-row { display: flex; align-items: center; gap: 8px; }
@@ -166,14 +192,20 @@ button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--
 <div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="no" id="no">Recusar</button></div></div>
 <footer>
   <div id="ctx" class="ctx" hidden>arquivo <b id="ctxfile"></b></div>
+  <div id="jobs" class="jobs" hidden><b id="jobn">0</b> terminais em background</div>
+  <div id="pins" class="pins"></div>
+  <div id="palette" class="palette" role="listbox"></div>
   <form id="f">
-    <textarea id="q" placeholder="Pergunte ou /skills" rows="2"></textarea>
+    <textarea id="q" placeholder="Pergunte, @arquivo, #git ou /skills" rows="2"></textarea>
     <div class="composer-row">
       <div id="chips">
         <button type="button" data-q="/help">/help</button>
         <button type="button" data-q="/skills">/skills</button>
         <button type="button" data-q="/commit">/commit</button>
         <button type="button" data-q="/explain">/explain</button>
+        <button type="button" data-insert="@">@</button>
+        <button type="button" data-insert="#">#</button>
+        <button type="button" data-insert="/">/</button>
       </div>
       <button class="go" type="submit" title="Enviar" aria-label="Enviar">↑</button>
     </div>
@@ -188,8 +220,15 @@ const modelEl = document.getElementById('model');
 const q = document.getElementById('q');
 const ctx = document.getElementById('ctx');
 const ctxfile = document.getElementById('ctxfile');
+const pins = document.getElementById('pins');
+const palette = document.getElementById('palette');
+const jobsEl = document.getElementById('jobs');
+const jobn = document.getElementById('jobn');
 let confirmId = '';
 let turn = null;
+let pal = { commands: [], files: [], hashes: [] };
+let palItems = [];
+let palIdx = 0;
 const saved = vscode.getState() || {};
 if (saved.mode) modeEl.value = saved.mode;
 function persist() {
@@ -355,7 +394,66 @@ document.getElementById('f').addEventListener('submit', (e) => {
   q.value = '';
   send(text);
 });
+function tokenAtCursor() {
+  const start = q.selectionStart || 0;
+  const before = q.value.slice(0, start);
+  const m = before.match(/([@#/])([A-Za-z0-9._/-]*)$/);
+  if (!m) return null;
+  return { kind: m[1], query: m[2].toLowerCase(), from: start - m[0].length, to: start };
+}
+function renderPalette() {
+  const tok = tokenAtCursor();
+  palette.replaceChildren();
+  palItems = [];
+  if (!tok) {
+    palette.classList.remove('show');
+    return;
+  }
+  let items = [];
+  if (tok.kind === '/') items = pal.commands || [];
+  else if (tok.kind === '@') items = (pal.files || []).map((f) => ({ id: f, label: '@' + f }));
+  else items = pal.hashes || [];
+  items = items.filter((it) => String(it.label || it.id).toLowerCase().includes(tok.query)).slice(0, 12);
+  palItems = items;
+  palIdx = 0;
+  items.forEach((it, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = it.label || it.id;
+    if (i === 0) b.className = 'active';
+    b.onclick = () => applyPal(i);
+    palette.appendChild(b);
+  });
+  palette.classList.toggle('show', items.length > 0);
+}
+function applyPal(i) {
+  const tok = tokenAtCursor();
+  const it = palItems[i];
+  if (!tok || !it) return;
+  const insert = tok.kind === '/' ? '/' + it.id : tok.kind === '@' ? '@' + it.id : '#' + it.id;
+  q.value = q.value.slice(0, tok.from) + insert + ' ' + q.value.slice(tok.to);
+  q.focus();
+  palette.classList.remove('show');
+  if (tok.kind === '@' || tok.kind === '#') {
+    const chip = document.createElement('span');
+    chip.className = 'pin';
+    chip.textContent = insert;
+    pins.appendChild(chip);
+  }
+}
+q.addEventListener('input', renderPalette);
 q.addEventListener('keydown', (e) => {
+  if (palette.classList.contains('show')) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); palIdx = Math.min(palIdx + 1, palItems.length - 1); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); palIdx = Math.max(palIdx - 1, 0); }
+    [...palette.children].forEach((el, i) => el.classList.toggle('active', i === palIdx));
+    if (e.key === 'Tab' || (e.key === 'Enter' && palItems.length)) {
+      e.preventDefault();
+      applyPal(palIdx);
+      return;
+    }
+    if (e.key === 'Escape') { palette.classList.remove('show'); return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     document.getElementById('f').requestSubmit();
@@ -363,7 +461,13 @@ q.addEventListener('keydown', (e) => {
 });
 document.getElementById('chips').addEventListener('click', (e) => {
   const chip = e.target.getAttribute('data-q');
+  const ins = e.target.getAttribute('data-insert');
   if (chip) send(chip);
+  if (ins) {
+    q.value += (q.value && !q.value.endsWith(' ') ? ' ' : '') + ins;
+    q.focus();
+    renderPalette();
+  }
 });
 modeEl.addEventListener('change', () => {
   persist();
@@ -387,6 +491,12 @@ window.addEventListener('message', (e) => {
   if (m.type === 'tool') addTool(m);
   if (m.type === 'status') setThought(m.phase || '');
   if (m.type === 'models') fillModels(m);
+  if (m.type === 'palette') pal = { commands: m.commands || [], files: m.files || [], hashes: m.hashes || [] };
+  if (m.type === 'jobs') {
+    const n = Number(m.count || 0);
+    jobsEl.hidden = n < 1;
+    jobn.textContent = String(n);
+  }
   if (m.type === 'file') {
     const name = m.file || '';
     ctx.hidden = !name;

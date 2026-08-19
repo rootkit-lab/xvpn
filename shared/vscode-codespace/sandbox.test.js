@@ -36,6 +36,8 @@ test("allowTerminal allowlist", () => {
   assert.equal(allowTerminal(["go", "test", "./..."]).ok, true);
   assert.equal(allowTerminal(["npm", "test"]).ok, true);
   assert.equal(allowTerminal(["rg", "foo", "server"]).ok, true);
+  assert.equal(allowTerminal(["xcs-analyze", "."]).ok, true);
+  assert.equal(allowTerminal(["gofmt", "-w", "main.go"]).ok, true);
 });
 
 test("allowTerminal blocklist", () => {

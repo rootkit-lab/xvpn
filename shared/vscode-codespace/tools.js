@@ -5,6 +5,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
 const { resolveWorkspacePath, allowTerminal } = require("./sandbox");
+const { startJob, snapshot } = require("./jobs");
 const { listSkills } = require("./context");
 const { AGENT_TOOLS, READ_TOOLS, toolsForMode } = require("./tool-specs");
 
@@ -135,11 +136,34 @@ async function runTool(root, name, rawArgs) {
       fs.writeFileSync(abs, cur.replace(oldS, String(args.new_string ?? "")), "utf8");
       return "patch aplicado em " + args.path;
     }
+    case "analyze_project": {
+      try {
+        const { stdout } = await execFileAsync("xcs-analyze", [root], {
+          cwd: root,
+          maxBuffer: OUT_CAP,
+          timeout: 12000,
+        });
+        return (stdout || "").slice(0, OUT_CAP) || "(vazio)";
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : "xcs-analyze falhou");
+      }
+    }
+    case "job_status": {
+      const rec = snapshot(String(args.id || ""));
+      if (!rec) {
+        throw new Error("job desconhecido");
+      }
+      return JSON.stringify(rec);
+    }
     case "run_terminal": {
       const argv = Array.isArray(args.argv) ? args.argv.map(String) : [];
       const gate = allowTerminal(argv);
       if (!gate.ok) {
         throw new Error(gate.reason);
+      }
+      if (args.background) {
+        const rec = startJob(root, argv);
+        return "background " + rec.id + " " + argv.join(" ");
       }
       const { stdout, stderr } = await execFileAsync(argv[0], argv.slice(1), {
         cwd: root,

@@ -6,6 +6,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { toolsForMode, AGENT_TOOLS, READ_TOOLS } = require("./tool-specs");
 const { toolCardTitle, exploreLabel } = require("./chat-ui");
+const { parseMentions, slashCommands } = require("./mentions");
 
 test("toolsForMode ask não manda tools", () => {
   assert.deepEqual(toolsForMode("ask"), []);
@@ -41,11 +42,26 @@ test("toolCardTitle e exploreLabel no estilo Cursor", () => {
   assert.equal(exploreLabel(["read_file", "read_file", "grep"]), "Explorou 2 arquivos, 1 busca");
 });
 
+test("parseMentions lê @arquivo #git e /", () => {
+  const m = parseMentions("olha @go.mod e #git depois /explain");
+  assert.deepEqual(m.files, ["go.mod"]);
+  assert.equal(m.git, true);
+  assert.ok(slashCommands([]).some((c) => c.id === "explain"));
+});
+
+test("toolsForMode plan inclui analyze_project e não terminal", () => {
+  const names = toolsForMode("plan").map((t) => t.function.name);
+  assert.ok(names.includes("analyze_project"));
+  assert.ok(!names.includes("run_terminal"));
+});
+
 test("webview do chat tem timeline Thought / cards / composer", () => {
   const html = fs.readFileSync(path.join(__dirname, "agent.html"), "utf8");
   assert.match(html, /className = 'thought live'/);
   assert.match(html, /\.tool-card/);
   assert.match(html, /Explorou/);
   assert.match(html, /aria-label="Enviar"/);
+  assert.match(html, /@arquivo/);
+  assert.match(html, /id="palette"/);
   assert.doesNotMatch(html, /tool 6/);
 });

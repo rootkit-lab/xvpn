@@ -3,7 +3,20 @@
 const fs = require("fs");
 const path = require("path");
 
-const ALLOW_TERM = new Set(["git", "go", "npm", "npx", "node", "python3", "ls", "cat", "head", "rg"]);
+const ALLOW_TERM = new Set([
+  "git",
+  "go",
+  "gofmt",
+  "npm",
+  "npx",
+  "node",
+  "python3",
+  "ls",
+  "cat",
+  "head",
+  "rg",
+  "xcs-analyze",
+]);
 const BLOCK_TERM = new Set(["docker", "sudo", "ssh", "scp", "curl", "wget", "nc", "nmap", "bash", "sh", "zsh"]);
 
 function posixRel(rel) {

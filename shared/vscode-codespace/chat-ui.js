@@ -23,9 +23,13 @@ function toolCardTitle(name, args) {
       return "Escreveu " + (fileBase(a.path) || "arquivo");
     case "apply_patch":
       return "Patch " + (fileBase(a.path) || "arquivo");
+    case "analyze_project":
+      return "Mapa Go do workspace";
+    case "job_status":
+      return "Job " + (a.id || "");
     case "run_terminal": {
       const argv = Array.isArray(a.argv) ? a.argv.map(String).join(" ") : "";
-      return "Rodou " + (argv || "terminal").slice(0, 48);
+      return (a.background ? "Background " : "Rodou ") + (argv || "terminal").slice(0, 48);
     }
     default:
       return String(name || "tool");
@@ -52,7 +56,11 @@ function exploreLabel(names) {
         lists += 1;
         break;
       case "run_terminal":
+      case "job_status":
         cmds += 1;
+        break;
+      case "analyze_project":
+        files += 1;
         break;
       case "write_file":
       case "apply_patch":

@@ -414,6 +414,28 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	if !strings.Contains(text, "gitignore-global") {
 		t.Fatal("gitignore global deve ir na imagem")
 	}
+	if !strings.Contains(text, "xcs-analyze") {
+		t.Fatal("analyzer Go deve ir na imagem")
+	}
+	if !strings.Contains(text, "install-ovsx.sh") {
+		t.Fatal("Open VSX deve ser bakeado via install-ovsx.sh")
+	}
+	if strings.Contains(text, "marketplace.visualstudio.com") {
+		t.Fatal("sem Marketplace Microsoft")
+	}
+	ovsx, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "install-ovsx.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(ovsx)
+	for _, id := range []string{"golang.go", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode", "yzhang.markdown-all-in-one", "redhat.vscode-yaml"} {
+		if !strings.Contains(script, id) {
+			t.Fatalf("Open VSX sem %s", id)
+		}
+	}
+	if !strings.Contains(script, "https://open-vsx.org/") {
+		t.Fatal("VSIX só do Open VSX")
+	}
 }
 
 func TestApplyCodespace_StartRewritesCreds(t *testing.T) {

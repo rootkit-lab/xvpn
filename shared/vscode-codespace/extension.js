@@ -18,7 +18,7 @@ const { writeArtifact, fileDelta } = require("./artifacts");
 const { resolveWorkspacePath } = require("./sandbox");
 const { attachAgentTerminal, looksLikeLongRunning } = require("./terminal-agent");
 const { readHooks } = require("./hooks");
-const { listListeningPorts, isDemoHost, isDemoPreviewUrl } = require("./ports");
+const { listListeningPorts, isDemoPreviewUrl, resolveDemoHost } = require("./ports");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -81,8 +81,8 @@ class PortsViewProvider {
   }
 
   demoHost() {
-    const raw = vscode.workspace.getConfiguration("ihuull.codespace").get("demoHost") || "";
-    return isDemoHost(raw) ? String(raw).toLowerCase() : "";
+    const cfg = vscode.workspace.getConfiguration("ihuull.codespace");
+    return resolveDemoHost(cfg.get("demoHost") || "", cfg.get("id") || "", readMachineSettings());
   }
 
   async refresh() {
@@ -95,17 +95,13 @@ class PortsViewProvider {
       this.refresh().catch(() => {});
       return;
     }
+    if (msg?.type === "copy" && typeof msg.url === "string" && isDemoPreviewUrl(msg.url)) {
+      vscode.env.clipboard.writeText(msg.url);
+      vscode.window.showInformationMessage("URL copiada");
+      return;
+    }
     if (msg?.type === "open" && typeof msg.url === "string" && isDemoPreviewUrl(msg.url)) {
-      const uri = vscode.Uri.parse(msg.url);
-      Promise.resolve(vscode.env.openExternal(uri)).then((ok) => {
-        if (ok === false) {
-          vscode.env.clipboard.writeText(msg.url);
-          vscode.window.showInformationMessage("URL copiada — cole no browser da VPN: " + msg.url);
-        }
-      }).catch(() => {
-        vscode.env.clipboard.writeText(msg.url);
-        vscode.window.showInformationMessage("URL copiada — cole no browser da VPN: " + msg.url);
-      });
+      openDemoPreview(msg.url);
     }
   }
 }
@@ -635,6 +631,39 @@ async function llmFetch(cwd, apiPath, body, signal) {
 
 function agentHTML() {
   return fs.readFileSync(path.join(__dirname, "agent.html"), "utf8");
+}
+
+function readMachineSettings() {
+  const candidates = ["/home/.openvscode-server/data/Machine/settings.json"];
+  if (process.env.HOME) {
+    candidates.push(path.join(process.env.HOME, ".openvscode-server/data/Machine/settings.json"));
+  }
+  for (const p of candidates) {
+    try {
+      return JSON.parse(fs.readFileSync(p, "utf8"));
+    } catch {
+      /* próximo */
+    }
+  }
+  return {};
+}
+
+function openDemoPreview(url) {
+  const uri = vscode.Uri.parse(url);
+  Promise.resolve(vscode.commands.executeCommand("simpleBrowser.show", url))
+    .catch(() => vscode.env.openExternal(uri))
+    .then((ok) => {
+      if (ok === false) {
+        return vscode.env.clipboard.writeText(url).then(() => {
+          vscode.window.showInformationMessage("URL copiada — HTTP no browser da VPN: " + url);
+        });
+      }
+      return undefined;
+    })
+    .catch(() => {
+      vscode.env.clipboard.writeText(url);
+      vscode.window.showInformationMessage("URL copiada — HTTP no browser da VPN: " + url);
+    });
 }
 
 function portsHTML() {

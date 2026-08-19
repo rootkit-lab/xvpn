@@ -2,7 +2,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { parseProcNetTcp, parseSsOutput, isDemoBind, isDemoHost, isDemoPreviewUrl, previewUrl } = require("./ports");
+const { parseProcNetTcp, parseSsOutput, isDemoBind, isDemoHost, isDemoPreviewUrl, previewUrl, resolveDemoHost } = require("./ports");
 
 test("isDemoBind aceita 0.0.0.0 e docker0", () => {
   assert.equal(isDemoBind([0, 0, 0, 0]), true);
@@ -30,6 +30,13 @@ test("preview só aceita http://demo-*.corp.ihuull.com:porta", () => {
   assert.equal(isDemoPreviewUrl("http://evil.example:8080"), false);
   assert.equal(isDemoPreviewUrl("http://demo-cs-125848439153.corp.ihuull.com:8080/phish"), false);
   assert.equal(isDemoPreviewUrl("https://evil.com"), false);
+});
+
+test("resolveDemoHost usa settings em disco se a config da API vier vazia", () => {
+  assert.equal(resolveDemoHost("", "", { "ihuull.codespace.demoHost": "demo-cs-47db4d231b21.corp.ihuull.com" }), "demo-cs-47db4d231b21.corp.ihuull.com");
+  assert.equal(resolveDemoHost("", "47db4d231b21", {}), "demo-cs-47db4d231b21.corp.ihuull.com");
+  assert.equal(resolveDemoHost("", "", { "ihuull.codespace.id": "47db4d231b21" }), "demo-cs-47db4d231b21.corp.ihuull.com");
+  assert.equal(resolveDemoHost("", "", {}), "");
 });
 
 test("parseSsOutput encontra 0.0.0.0:8080", () => {

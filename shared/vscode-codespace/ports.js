@@ -37,6 +37,26 @@ function isDemoPreviewUrl(raw) {
   return isDemoHost(u.hostname);
 }
 
+const ID_RE = /^[a-f0-9]{12}$/;
+
+function resolveDemoHost(cfgHost, cfgId, settings) {
+  if (isDemoHost(cfgHost)) {
+    return String(cfgHost).toLowerCase();
+  }
+  if (ID_RE.test(cfgId)) {
+    return "demo-cs-" + String(cfgId).toLowerCase() + ".corp.ihuull.com";
+  }
+  const fileHost = settings && settings["ihuull.codespace.demoHost"];
+  if (isDemoHost(fileHost)) {
+    return String(fileHost).toLowerCase();
+  }
+  const fileId = settings && settings["ihuull.codespace.id"];
+  if (ID_RE.test(fileId)) {
+    return "demo-cs-" + String(fileId).toLowerCase() + ".corp.ihuull.com";
+  }
+  return "";
+}
+
 function previewUrl(demoHost, port) {
   const n = Number(port);
   if (!isDemoHost(demoHost) || !Number.isInteger(n) || n < 1 || n > 65535) {
@@ -169,6 +189,8 @@ module.exports = {
   isDemoBind,
   isDemoHost,
   isDemoPreviewUrl,
+  resolveDemoHost,
   previewUrl,
   SKIP,
+  ID_RE,
 };

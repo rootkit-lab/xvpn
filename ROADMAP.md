@@ -1643,7 +1643,7 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 
 ### 57.2 Terminal do agente
 
-- [x] Extensão `ihuull.codespace` **0.5.7**: PTY ao vivo + Flask sem hang; **XCODESPACES** na barra direita; chat compacto + auto-aplicar edições.
+- [x] Extensão `ihuull.codespace` **0.5.8**: PTY ao vivo + Flask sem hang; **XCODESPACES** na barra direita; chat compacto + auto-aplicar edições. Ports lê `demoHost` do `settings.json` (a API do 1.98 vinha vazia).
 - [x] Rebuild da imagem no VPS (Recreate / Stop→Start no codespace — start antigo não troca a layer).
 
 ### 57.3 Ports + layout + CI
@@ -1651,7 +1651,7 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 - [x] Aba **Ports**: `/proc/net/tcp` + `ss` (`iproute2` na imagem); lista `:8080` com bind e aviso se ≠ `0.0.0.0`.
 - [x] Layout: **Ports** em `viewsContainers.panel` (painel inferior — `workbench.panel` caía no Explorer), **XCODESPACES** na auxiliary bar.
 - [x] Chat compacto na barra direita + **Sempre** / Auto: `write_file` e `apply_patch` sem Aplicar a cada ficheiro (`ihuull.codespace.autoApply`). Terminal continua a confirmar.
-- [x] Ports: hostname `demo-*` completo (sem ellipsis); **Abrir** via `window.open` no clique (openExternal no webview é no-op).
+- [x] Ports: URL `http://demo-*` completa; **Abrir** via Simple Browser / openExternal; **Copiar**. Não usar `cs-*:porta` (HSTS do IDE).
 - [x] Demo DNS: A em `/etc/xvpn/demo.hosts` (`addn-hosts=`). `reload`/SIGHUP não relê `host-record=` — o preview caía no landing em `10.66.66.1:8080`.
 - [x] CI: `client-linux` / `client-windows-crosscompile` só com diff em `apps/xvpn-client/**` (`dorny/paths-filter`).
 

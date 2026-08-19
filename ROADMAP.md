@@ -1499,7 +1499,7 @@ A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda m
 
 ### 52.4 Chat à direita (Cursor-like)
 
-- [x] View no `secondarySidebar` (não no activity bar). Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate fecha o Chat/Edits nativos e foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
+- [x] OpenVSCode **1.98** não registra `viewsContainers.secondarySidebar` (só `activitybar`/`panel`). A view entra em `workbench.panel.chat` — o container nativo da **direita**. Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate fecha o Chat/Edits nativos e foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
 - [x] Chrome do webview: seletor de modo **Agent / Ask / Debug / Plan**, seletor de modelo, arquivo atual, composer (Enter envia, Shift+Enter quebra linha).
 - [x] `GET /api/xcodespaces/llm/models` (mesmo grupo llm: host `cs-*` / `xcodespaces.corp` + JWE ou token Git). Devolve `provider`, `model`, `has_key`, `catalog` — sem a key.
 - [x] `POST /chat` aceita `mode` e `model` (override por request, allowlist do catálogo do provedor; Settings do xadmin continua a fonte). Ask não encaminha tools; Plan só read.

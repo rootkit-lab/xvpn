@@ -30,7 +30,11 @@ async function hideNativeChat() {
 
 async function showAgentChat() {
   await hideNativeChat();
-  for (const cmd of ["workbench.action.focusAuxiliaryBar", "ihuull.agentView.focus"]) {
+  for (const cmd of [
+    "workbench.action.focusAuxiliaryBar",
+    "workbench.panel.chat.focus",
+    "ihuull.agentView.focus",
+  ]) {
     try {
       await vscode.commands.executeCommand(cmd);
     } catch (_) {

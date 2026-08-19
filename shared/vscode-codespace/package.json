@@ -2,7 +2,7 @@
   "name": "codespace",
   "displayName": "XCODESPACES",
   "description": "Agente ihuull, skills e generate commit no codespace remoto.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "ihuull",
   "engines": {
     "vscode": "^1.90.0"
@@ -32,21 +32,12 @@
         }
       ]
     },
-    "viewsContainers": {
-      "secondarySidebar": [
-        {
-          "id": "ihuull-agent",
-          "title": "XCODESPACES",
-          "icon": "media/agent.svg"
-        }
-      ]
-    },
     "views": {
-      "ihuull-agent": [
+      "workbench.panel.chat": [
         {
           "type": "webview",
           "id": "ihuull.agentView",
-          "name": "Chat"
+          "name": "XCODESPACES"
         }
       ]
     },

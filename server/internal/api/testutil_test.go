@@ -106,12 +106,17 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
-		&store.PanelSettings{},
+		&store.PanelSettings{}, &store.ForgeSettings{}, &store.CodespaceSettings{},
 		&store.DNSSettings{}, &store.DNSRecord{},
+		&store.CloudflareAccount{}, &store.PublicZone{}, &store.PublicRecord{},
 		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
 		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
 		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
 		&store.SocialPost{}, &store.SocialPostStar{}, &store.SocialPostComment{},
+		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.ProjectEnv{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CodeSpace{}, &store.CiJob{},
+		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
+		&store.ServiceInstance{},
+		&store.BackupSettings{}, &store.BackupDestination{}, &store.BackupJob{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
 	}

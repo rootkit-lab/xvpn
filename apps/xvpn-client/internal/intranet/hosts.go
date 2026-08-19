@@ -22,6 +22,8 @@ var Names = []string{
 	"xchat.corp.ihuull.com",
 	"xgroup.corp.ihuull.com",
 	"xdriver.corp.ihuull.com",
+	"xadmin.corp.ihuull.com",
+	"xgit.corp.ihuull.com",
 }
 
 type HostEntry struct {

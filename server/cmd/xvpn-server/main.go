@@ -104,6 +104,12 @@ func run() error {
 		UserProvisioner: userProvisioner,
 		ServerPublicKey: privateKey.PublicKey().String(),
 	}
+	if err := app.SeedBitLaunchEnvAccount(); err != nil {
+		slog.Error("seed da conta BitLaunch do env falhou", "err", err.Error())
+	}
+	if err := app.SeedCloudflareEnvAccount(); err != nil {
+		slog.Error("seed da conta Cloudflare do env falhou", "err", err.Error())
+	}
 	if err := app.ApplyPanelSettingsOverrides(); err != nil {
 		return fmt.Errorf("carregando overrides de configuração do painel: %w", err)
 	}

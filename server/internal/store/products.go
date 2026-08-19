@@ -3,7 +3,7 @@ package store
 import "errors"
 
 // Product é um produto da plataforma ao qual um admin pode ser limitado
-// (Fase 33 — PLAN.md §6.13). super_admin ignora a lista. Admin com lista
+// (Fases 33–35 — PLAN.md §6.13–§6.14). super_admin ignora a lista. Admin com lista
 // vazia permanece irrestrito (mesma superfície da Fase 10) para não
 // quebrar a matriz RBAC existente.
 type Product string
@@ -13,16 +13,24 @@ const (
 	ProductMarketplace Product = "marketplace"
 	ProductXGroup      Product = "xgroup"
 	ProductXDriver     Product = "xdriver"
+	ProductForge       Product = "forge"
+	ProductCompute     Product = "compute"
+	ProductDNS         Product = "dns"
+	ProductManaged     Product = "managed"
 )
 
 // AllProducts é o conjunto canônico de escopos. IAM (users/roles/audit)
 // não é produto — viewer+ continua vendo essa seção.
-var AllProducts = []Product{ProductCore, ProductMarketplace, ProductXGroup, ProductXDriver}
+var AllProducts = []Product{
+	ProductCore, ProductMarketplace, ProductXGroup, ProductXDriver,
+	ProductForge, ProductCompute, ProductDNS, ProductManaged,
+}
 
 // Valid reporta se p é um escopo de produto conhecido.
 func (p Product) Valid() bool {
 	switch p {
-	case ProductCore, ProductMarketplace, ProductXGroup, ProductXDriver:
+	case ProductCore, ProductMarketplace, ProductXGroup, ProductXDriver,
+		ProductForge, ProductCompute, ProductDNS, ProductManaged:
 		return true
 	default:
 		return false

@@ -1,0 +1,16 @@
+[Unit]
+Description=XVPN CI runner (peer da malha)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xvpn
+EnvironmentFile=-/etc/xvpn/xvpn-runner.env
+ExecStart=/opt/xvpn/bin/xvpn-runner
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

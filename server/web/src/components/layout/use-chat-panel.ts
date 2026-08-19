@@ -1,8 +1,12 @@
 import { useLocation } from 'react-router-dom'
 import { useChat } from '@chat/messenger/ChatProvider'
+import { productKind } from '@/lib/product-host'
 
 /** Chat no chrome: escondido na landing, nos logins e na página cheia. */
-export function isChatChromeHidden(pathname: string): boolean {
+export function isChatChromeHidden(pathname: string, kind = productKind()): boolean {
+  if (kind === 'xgit-corp') {
+    return pathname === '/login'
+  }
   return (
     pathname === '/' ||
     pathname === '/my/login' ||

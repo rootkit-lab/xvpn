@@ -1,0 +1,626 @@
+package provision
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/rootkit-lab/xvpn/server/internal/forge"
+	"github.com/rootkit-lab/xvpn/server/internal/store"
+)
+
+const (
+	DefaultCodespaceImage = "ihuull/codespace:1.98.2"
+	CodespacePortMin      = 19000
+	CodespacePortMax      = 19007
+	codespaceMem          = "1536m"
+	codespaceCPUs         = "1"
+	defaultCodespacesRoot = "/opt/xvpn/data/codespaces"
+	defaultGitRoot        = "/opt/xvpn/data/git"
+	codespaceCloneHost    = "https://xgit.corp.ihuull.com"
+)
+
+var (
+	codespaceIDRe    = regexp.MustCompile(`^[a-f0-9]{12}$`)
+	codespaceTagRe   = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+	codespaceTokenRe = regexp.MustCompile(`^[A-Za-z0-9._~-]{16,128}$`)
+)
+
+var allowedCodespaceImages = map[string]struct{}{
+	"ihuull/codespace":         {},
+	"gitpod/openvscode-server": {},
+	"codercom/code-server":     {},
+}
+
+// CsSpec é o JSON do subcomando cs-apply (stdin).
+type CsSpec struct {
+	Action          string            `json:"action"`
+	ID              string            `json:"id"`
+	Workspace       string            `json:"workspace"`
+	BarePath        string            `json:"bare_path,omitempty"`
+	Branch          string            `json:"branch,omitempty"`
+	Image           string            `json:"image,omitempty"`
+	Port            uint16            `json:"port,omitempty"`
+	CloneURL        string            `json:"clone_url,omitempty"`
+	GitUser         string            `json:"git_user,omitempty"`
+	GitToken        string            `json:"git_token,omitempty"`
+	GitAuthor       string            `json:"git_author,omitempty"`
+	GitEmail        string            `json:"git_email,omitempty"`
+	ConnectionToken string            `json:"connection_token,omitempty"`
+	Env             map[string]string `json:"env,omitempty"`
+	DemoName        string            `json:"demo_name,omitempty"`
+}
+
+// CsRunner isola git/docker para ApplyCodespace ser testável sem root.
+type CsRunner interface {
+	LookPath(bin string) (string, error)
+	MkdirAll(path string, perm os.FileMode) error
+	Git(args ...string) error
+	Docker(args ...string) error
+	DockerOutput(args ...string) (string, error)
+	HostCmd(name string, args ...string) error
+	WriteFile(path, content string, perm os.FileMode) error
+	RemoveAll(path string) error
+	FileExists(path string) (bool, error)
+	ReadFile(path string) ([]byte, error)
+	ChownRecursive(path string, uid, gid int) error
+}
+
+type osCsRunner struct{}
+
+// NewCsRunner devolve o runner de produção (root via sudoers).
+func NewCsRunner() CsRunner { return osCsRunner{} }
+
+func (osCsRunner) LookPath(bin string) (string, error) { return exec.LookPath(bin) }
+
+func (osCsRunner) MkdirAll(path string, perm os.FileMode) error {
+	return os.MkdirAll(path, perm)
+}
+
+func (osCsRunner) Git(args ...string) error {
+	bin, err := exec.LookPath("git")
+	if err != nil {
+		return fmt.Errorf("git não encontrado")
+	}
+	cmd := exec.Command(bin, args...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git: %s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (osCsRunner) Docker(args ...string) error {
+	_, err := dockerCombined(args...)
+	return err
+}
+
+func (osCsRunner) DockerOutput(args ...string) (string, error) {
+	return dockerCombined(args...)
+}
+
+func dockerCombined(args ...string) (string, error) {
+	bin, err := exec.LookPath("docker")
+	if err != nil {
+		return "", fmt.Errorf("docker não encontrado")
+	}
+	cmd := exec.Command(bin, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("docker: %s", strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+var demoHostBins = map[string]bool{"ip": true, "iptables": true, "systemctl": true, "nginx": true}
+
+func (osCsRunner) HostCmd(name string, args ...string) error {
+	base := filepath.Base(name)
+	if !demoHostBins[base] {
+		return fmt.Errorf("comando recusado")
+	}
+	if base == "systemctl" && (len(args) != 2 || args[0] != "reload" || (args[1] != "dnsmasq" && args[1] != "nginx")) {
+		return fmt.Errorf("systemctl recusado")
+	}
+	if base == "nginx" && (len(args) != 1 || args[0] != "-t") {
+		return fmt.Errorf("nginx recusado")
+	}
+	if base == "ip" && (len(args) < 1 || args[0] != "addr") {
+		return fmt.Errorf("ip recusado")
+	}
+	if base == "iptables" && len(args) < 1 {
+		return fmt.Errorf("iptables recusado")
+	}
+	bin, err := exec.LookPath(base)
+	if err != nil {
+		return fmt.Errorf("%s não encontrado", base)
+	}
+	cmd := exec.Command(bin, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", base, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (osCsRunner) WriteFile(path, content string, perm os.FileMode) error {
+	return os.WriteFile(path, []byte(content), perm)
+}
+
+func (osCsRunner) RemoveAll(path string) error { return os.RemoveAll(path) }
+
+func (osCsRunner) FileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func (osCsRunner) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
+
+func (osCsRunner) ChownRecursive(path string, uid, gid int) error {
+	return filepath.WalkDir(path, func(p string, _ os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		return os.Lchown(p, uid, gid)
+	})
+}
+
+// ParseCsSpec valida o JSON antes de qualquer syscall.
+func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
+	if codespacesRoot == "" {
+		codespacesRoot = defaultCodespacesRoot
+	}
+	if gitRoot == "" {
+		gitRoot = defaultGitRoot
+	}
+	var spec CsSpec
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		return CsSpec{}, fmt.Errorf("payload de codespace inválido")
+	}
+	spec.Action = strings.ToLower(strings.TrimSpace(spec.Action))
+	spec.ID = strings.ToLower(strings.TrimSpace(spec.ID))
+	spec.Workspace = strings.TrimSpace(spec.Workspace)
+	spec.BarePath = strings.TrimSpace(spec.BarePath)
+	spec.Branch = strings.TrimSpace(spec.Branch)
+	spec.Image = strings.TrimSpace(spec.Image)
+	spec.CloneURL = strings.TrimSpace(spec.CloneURL)
+	spec.GitUser = strings.TrimSpace(spec.GitUser)
+	spec.GitToken = strings.TrimSpace(spec.GitToken)
+	spec.GitAuthor = strings.TrimSpace(spec.GitAuthor)
+	spec.GitEmail = strings.TrimSpace(spec.GitEmail)
+	spec.ConnectionToken = strings.TrimSpace(spec.ConnectionToken)
+	if spec.DemoName != "" {
+		n, err := ValidDemoName(spec.DemoName)
+		if err != nil {
+			return CsSpec{}, fmt.Errorf("demo_name inválido")
+		}
+		spec.DemoName = n
+	}
+	switch spec.Action {
+	case "create", "start", "stop", "rm", "demo":
+	default:
+		return CsSpec{}, fmt.Errorf("action deve ser create, start, stop, rm ou demo")
+	}
+	if !codespaceIDRe.MatchString(spec.ID) {
+		return CsSpec{}, fmt.Errorf("id inválido")
+	}
+	ws, err := safeUnderRoot(codespacesRoot, spec.Workspace)
+	if err != nil {
+		return CsSpec{}, fmt.Errorf("workspace inválido")
+	}
+	if !strings.HasSuffix(ws, string(os.PathSeparator)+spec.ID+string(os.PathSeparator)+"workspace") &&
+		!strings.HasSuffix(ws, "/"+spec.ID+"/workspace") {
+		return CsSpec{}, fmt.Errorf("workspace inválido")
+	}
+	spec.Workspace = ws
+	if spec.Action == "create" {
+		if !forge.ValidBranchName(spec.Branch) {
+			return CsSpec{}, fmt.Errorf("branch inválida")
+		}
+		bare, err := safeUnderRoot(gitRoot, spec.BarePath)
+		if err != nil || !strings.HasSuffix(bare, ".git") {
+			return CsSpec{}, fmt.Errorf("bare inválido")
+		}
+		spec.BarePath = bare
+		slug := strings.TrimSuffix(filepath.Base(bare), ".git")
+		if !store.ValidProjectSlug(slug) {
+			return CsSpec{}, fmt.Errorf("slug inválido")
+		}
+		want := codespaceCloneHost + "/" + slug
+		if spec.CloneURL != want {
+			return CsSpec{}, fmt.Errorf("clone_url inválida")
+		}
+	}
+	if spec.Action == "create" || spec.Action == "start" {
+		if spec.Image == "" {
+			spec.Image = DefaultCodespaceImage
+		}
+		if err := validateCodespaceImage(spec.Image); err != nil {
+			return CsSpec{}, err
+		}
+		if spec.Port < CodespacePortMin || spec.Port > CodespacePortMax {
+			return CsSpec{}, fmt.Errorf("porta fora da faixa %d–%d", CodespacePortMin, CodespacePortMax)
+		}
+		if !codespaceTokenRe.MatchString(spec.ConnectionToken) {
+			return CsSpec{}, fmt.Errorf("connection_token inválido")
+		}
+	}
+	if spec.GitToken != "" && !codespaceTokenRe.MatchString(spec.GitToken) {
+		return CsSpec{}, fmt.Errorf("token inválido")
+	}
+	if spec.GitToken != "" && spec.Action == "start" && !validCodespaceCloneURL(spec.CloneURL) {
+		return CsSpec{}, fmt.Errorf("clone_url inválida")
+	}
+	if spec.GitUser != "" && !ValidUsername(spec.GitUser) && spec.GitUser != "codespace-"+spec.ID {
+		return CsSpec{}, fmt.Errorf("git_user inválido")
+	}
+	if spec.GitAuthor != "" || spec.GitEmail != "" {
+		wantName, wantEmail, ok := CodespaceGitIdentity(spec.GitAuthor)
+		if !ok || spec.GitAuthor != wantName || spec.GitEmail != wantEmail {
+			return CsSpec{}, fmt.Errorf("git author inválido")
+		}
+	}
+	if err := validateCodespaceEnv(spec.Env); err != nil {
+		return CsSpec{}, err
+	}
+	return spec, nil
+}
+
+func validateCodespaceEnv(env map[string]string) error {
+	if len(env) == 0 {
+		return nil
+	}
+	if len(env) > store.MaxProjectEnvs {
+		return fmt.Errorf("env acima do teto")
+	}
+	for k, v := range env {
+		if !store.ValidProjectEnvName(k) || store.BlockedProjectEnvName(k) || store.IsLLMProjectEnv(k) {
+			return fmt.Errorf("env inválido")
+		}
+		if !store.ValidProjectEnvValue(v) {
+			return fmt.Errorf("env inválido")
+		}
+	}
+	return nil
+}
+
+func safeUnderRoot(root, raw string) (string, error) {
+	if raw == "" || strings.Contains(raw, "\x00") {
+		return "", fmt.Errorf("path vazio")
+	}
+	cleanRoot, err := filepath.Abs(filepath.Clean(root))
+	if err != nil {
+		return "", err
+	}
+	clean, err := filepath.Abs(filepath.Clean(raw))
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(cleanRoot, clean)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return "", fmt.Errorf("fora da raiz")
+	}
+	return clean, nil
+}
+
+func validateCodespaceImage(image string) error {
+	if strings.ContainsAny(image, " \t\n@") || strings.Contains(image, "..") {
+		return fmt.Errorf("imagem inválida")
+	}
+	repo, tag, ok := strings.Cut(image, ":")
+	if !ok || repo == "" || tag == "" {
+		return fmt.Errorf("imagem inválida")
+	}
+	if _, allowed := allowedCodespaceImages[repo]; !allowed {
+		return fmt.Errorf("imagem fora da allowlist")
+	}
+	if !codespaceTagRe.MatchString(tag) {
+		return fmt.Errorf("tag inválida")
+	}
+	return nil
+}
+
+// Devcontainer é o recorte que o helper honra (imagem + settings do VS Code).
+type Devcontainer struct {
+	Image    string
+	Settings map[string]any
+}
+
+type devcontainerDoc struct {
+	Image          string `json:"image"`
+	Customizations struct {
+		VSCode struct {
+			Settings map[string]any `json:"settings"`
+		} `json:"vscode"`
+	} `json:"customizations"`
+}
+
+// ParseDevcontainer lê image + settings de .devcontainer/devcontainer.json.
+func ParseDevcontainer(raw []byte) (Devcontainer, error) {
+	var doc devcontainerDoc
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return Devcontainer{}, fmt.Errorf("devcontainer inválido")
+	}
+	img := strings.TrimSpace(doc.Image)
+	if img == "" {
+		return Devcontainer{}, fmt.Errorf("sem image")
+	}
+	if err := validateCodespaceImage(img); err != nil {
+		return Devcontainer{}, err
+	}
+	return Devcontainer{Image: img, Settings: doc.Customizations.VSCode.Settings}, nil
+}
+
+// ParseDevcontainerImage lê image de .devcontainer/devcontainer.json se estiver na allowlist.
+func ParseDevcontainerImage(raw []byte) (string, error) {
+	dc, err := ParseDevcontainer(raw)
+	if err != nil {
+		return "", err
+	}
+	return dc.Image, nil
+}
+
+func validCodespaceCloneURL(u string) bool {
+	slug, ok := strings.CutPrefix(u, codespaceCloneHost+"/")
+	return ok && store.ValidProjectSlug(slug)
+}
+
+func containerName(id string) string { return "xvpn-cs-" + id }
+
+// ApplyCodespace executa create/start/stop/rm. Nunca monta docker.sock.
+func ApplyCodespace(r CsRunner, stdin io.Reader, codespacesRoot, gitRoot string) error {
+	raw, err := io.ReadAll(io.LimitReader(stdin, 32<<10))
+	if err != nil {
+		return fmt.Errorf("lendo payload")
+	}
+	spec, err := ParseCsSpec(raw, codespacesRoot, gitRoot)
+	if err != nil {
+		return err
+	}
+	if _, err := r.LookPath("docker"); err != nil && spec.Action != "rm" {
+		return fmt.Errorf("docker não encontrado")
+	}
+	switch spec.Action {
+	case "create":
+		return csCreate(r, spec)
+	case "start":
+		if err := csWriteGitCreds(r, spec); err != nil {
+			return err
+		}
+		if err := csWriteGitIdentity(r, spec); err != nil {
+			return err
+		}
+		if err := r.Docker("start", containerName(spec.ID)); err != nil {
+			return err
+		}
+		return applyDemoForward(r, spec)
+	case "stop":
+		_ = clearDemoForward(r)
+		return r.Docker("stop", containerName(spec.ID))
+	case "rm":
+		_ = clearDemoForward(r)
+		_ = r.Docker("rm", "-f", containerName(spec.ID))
+		return nil
+	case "demo":
+		return applyDemoForward(r, spec)
+	default:
+		return fmt.Errorf("action inválida")
+	}
+}
+
+func csCreate(r CsRunner, spec CsSpec) error {
+	if err := r.MkdirAll(spec.Workspace, 0o750); err != nil {
+		return err
+	}
+	gitDir := filepath.Join(spec.Workspace, ".git")
+	exists, err := r.FileExists(gitDir)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if err := r.Git("clone", "--no-hardlinks", "--branch", spec.Branch, "--single-branch", spec.BarePath, spec.Workspace); err != nil {
+			return err
+		}
+		if err := r.Git("-C", spec.Workspace, "remote", "set-url", "origin", spec.CloneURL); err != nil {
+			return err
+		}
+	}
+	if err := csWriteGitCreds(r, spec); err != nil {
+		return err
+	}
+	if err := csWriteGitIdentity(r, spec); err != nil {
+		return err
+	}
+	var extraSettings map[string]any
+	if raw, err := r.ReadFile(filepath.Join(spec.Workspace, ".devcontainer", "devcontainer.json")); err == nil {
+		if dc, err := ParseDevcontainer(raw); err == nil {
+			spec.Image = dc.Image
+			extraSettings = dc.Settings
+		}
+	}
+	if err := applyMachineSettings(r, spec, extraSettings); err != nil {
+		return err
+	}
+	if err := writeRuntimeEnvFile(r, spec.Workspace, spec.Env); err != nil {
+		return err
+	}
+	if err := r.ChownRecursive(spec.Workspace, 1000, 1000); err != nil {
+		return err
+	}
+	args := dockerRunArgs(spec)
+	if err := r.Docker(args...); err != nil {
+		return err
+	}
+	return applyDemoForward(r, spec)
+}
+
+func csWriteGitCreds(r CsRunner, spec CsSpec) error {
+	if spec.GitToken == "" || spec.GitUser == "" || spec.CloneURL == "" {
+		return nil
+	}
+	cred := strings.TrimPrefix(spec.CloneURL, "https://")
+	line := "https://" + spec.GitUser + ":" + spec.GitToken + "@" + cred + "\n"
+	if err := r.WriteFile(filepath.Join(spec.Workspace, ".git", "xvpn-credentials"), line, 0o600); err != nil {
+		return err
+	}
+	_ = r.Git("-C", spec.Workspace, "config", "credential.helper", "store --file=.git/xvpn-credentials")
+	return nil
+}
+
+func csWriteGitIdentity(r CsRunner, spec CsSpec) error {
+	name, email, ok := CodespaceGitIdentity(spec.GitAuthor)
+	if !ok || spec.GitEmail != email {
+		return nil
+	}
+	if err := r.Git("-C", spec.Workspace, "config", "user.name", name); err != nil {
+		return err
+	}
+	return r.Git("-C", spec.Workspace, "config", "user.email", email)
+}
+
+const (
+	openvscodeServerBin  = "/home/.openvscode-server/bin/openvscode-server"
+	codespaceProjectDir  = "/home/workspace/project"
+	codespaceMachineDest = "/home/.openvscode-server/data/Machine/settings.json"
+)
+
+func machineSettingsHostPath(workspace string) string {
+	return filepath.Join(filepath.Dir(workspace), "machine-settings.json")
+}
+
+func runtimeEnvHostPath(workspace string) string {
+	return filepath.Join(filepath.Dir(workspace), "runtime.env")
+}
+
+func writeRuntimeEnvFile(r CsRunner, workspace string, env map[string]string) error {
+	path := runtimeEnvHostPath(workspace)
+	if err := r.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	return r.WriteFile(path, formatEnvFile(env), 0o600)
+}
+
+func formatEnvFile(env map[string]string) string {
+	if len(env) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(env[k])
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func dockerRunArgs(spec CsSpec) []string {
+	name := containerName(spec.ID)
+	args := []string{
+		"run", "-d",
+		"--name", name,
+		"--memory", codespaceMem,
+		"--cpus", codespaceCPUs,
+		"--pids-limit", "256",
+		"--security-opt", "no-new-privileges",
+		"--cap-drop", "ALL",
+		"--user", "1000:1000",
+		"-p", "127.0.0.1:" + strconv.Itoa(int(spec.Port)) + ":3000",
+		// Clone ≠ HOME: o IDE grava .cache/.openvscode-server em /home/workspace.
+		"-v", spec.Workspace + ":" + codespaceProjectDir + ":rw",
+		"-v", machineSettingsHostPath(spec.Workspace) + ":" + codespaceMachineDest + ":ro",
+		"--label", "xvpn.codespace=" + spec.ID,
+		// *.corp só resolve no dnsmasq da wg0; o container usa o DNS da VPC.
+		"--add-host", "xgit.corp.ihuull.com:10.66.66.1",
+		"--add-host", "xcodespaces.corp.ihuull.com:10.66.66.1",
+	}
+	if codespaceIDRe.MatchString(spec.ID) {
+		args = append(args, "--add-host", "cs-"+spec.ID+".corp.ihuull.com:10.66.66.1")
+	}
+	if len(spec.Env) > 0 {
+		args = append(args, "--env-file", runtimeEnvHostPath(spec.Workspace))
+	}
+	if openvscodeNeedsEntrypoint(spec.Image) {
+		// A imagem-base injeta --without-connection-token no ENTRYPOINT.
+		args = append(args, "--entrypoint", openvscodeServerBin)
+	}
+	args = append(args, spec.Image,
+		"--host", "0.0.0.0",
+		"--port", "3000",
+		"--connection-token", spec.ConnectionToken,
+		"--default-folder", codespaceProjectDir,
+	)
+	return args
+}
+
+func openvscodeNeedsEntrypoint(image string) bool {
+	return strings.HasPrefix(image, "gitpod/openvscode-server") || strings.HasPrefix(image, "ihuull/codespace")
+}
+
+func defaultCodespaceSettings() map[string]any {
+	return map[string]any{
+		"workbench.colorTheme":                             "ihuull Dark",
+		"editor.fontFamily":                                "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+		"editor.minimap.enabled":                           false,
+		"workbench.startupEditor":                          "welcomePage",
+		"workbench.welcomePage.walkthroughs.openOnInstall": true,
+		"git.openRepositoryInParentFolders":                "never",
+		"chat.commandCenter.enabled":                       false,
+		"remote.autoForwardPorts":                          false,
+		"workbench.panel.opensMaximized":                   "never",
+		"workbench.auxiliaryBar.enabled":                   true,
+		"workbench.secondarySideBar.defaultVisibility":     "visible",
+		"github.copilot.enable":                            map[string]any{"*": false},
+		// Builtin "Get Started with VS Code for the Web" (SetupWeb) — o nosso é ihuull.codespace.
+		"experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
+		"experiments.override.gettingStarted.overrideCategory.Setup.when":    "false",
+		"experiments.override.gettingStarted.overrideCategory.Beginner.when": "false",
+	}
+}
+
+func applyMachineSettings(r CsRunner, spec CsSpec, extra map[string]any) error {
+	path := machineSettingsHostPath(spec.Workspace)
+	settings := defaultCodespaceSettings()
+	for k, v := range extra {
+		if k == "" || v == nil {
+			continue
+		}
+		settings[k] = v
+	}
+	if codespaceIDRe.MatchString(spec.ID) {
+		settings["ihuull.codespace.id"] = spec.ID
+		settings["ihuull.codespace.origin"] = "https://cs-" + spec.ID + ".corp.ihuull.com"
+	}
+	if h := DemoHostname(spec.DemoName); h != "" {
+		settings["ihuull.codespace.demoHost"] = h
+	}
+	if name, email, ok := CodespaceGitIdentity(spec.GitAuthor); ok && spec.GitEmail == email {
+		settings["ihuull.codespace.gitName"] = name
+		settings["ihuull.codespace.gitEmail"] = email
+	}
+	raw, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := r.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	return r.WriteFile(path, string(raw)+"\n", 0o644)
+}

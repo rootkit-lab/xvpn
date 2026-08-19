@@ -1,42 +1,63 @@
 package auth
 
 import (
+	"net"
 	"net/url"
+	"regexp"
 	"strings"
 )
 
-// PanelOrigin é o portal /admin — PLAN.md §5.1.
-const PanelOrigin = "https://xvpn.ihuull.com"
+var codespaceReturnHostRe = regexp.MustCompile(`^cs-[a-f0-9]{12}\.corp\.(ihuull\.com|localhost)$`)
 
-var safeReturnHosts = map[string]struct{}{
-	"xauth.ihuull.com":        {},
-	"xvpn.ihuull.com":         {},
-	"marketplace.ihuull.com":  {},
-	"xdriver.ihuull.com":      {},
-	"xdriver.corp.ihuull.com": {},
-	"xgroup.ihuull.com":       {},
-	"xgroup.corp.ihuull.com":  {},
-	"xchat.ihuull.com":        {},
-	"xchat.corp.ihuull.com":   {},
-	"corp.ihuull.com":         {},
-	"www.ihuull.com":          {},
-	"ihuull.com":              {},
-	"xauth.localhost":         {},
-	"xvpn.localhost":          {},
-	"marketplace.localhost":   {},
-	"xdriver.localhost":       {},
-	"xdriver.corp.localhost":  {},
-	"xgroup.localhost":        {},
-	"xgroup.corp.localhost":   {},
-	"xchat.localhost":         {},
-	"xchat.corp.localhost":    {},
-	"corp.localhost":          {},
-	"localhost":               {},
-	"127.0.0.1":               {},
+func isCodespaceRuntimeHost(host string) bool {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+	return codespaceReturnHostRe.MatchString(strings.ToLower(h))
 }
 
-func isPanelReturnHost(host string) bool {
-	return host == "xvpn.ihuull.com" || host == "xvpn.localhost" || host == "localhost" || host == "127.0.0.1"
+// PanelOrigin é o portal/enroll público — PLAN.md §5.1.
+const PanelOrigin = "https://xvpn.ihuull.com"
+
+// AdminOrigin é o console (só VPN) — PLAN.md §6.14.
+const AdminOrigin = "https://xadmin.corp.ihuull.com"
+
+var safeReturnHosts = map[string]struct{}{
+	"xauth.ihuull.com":            {},
+	"xvpn.ihuull.com":             {},
+	"marketplace.ihuull.com":      {},
+	"xdriver.ihuull.com":          {},
+	"xdriver.corp.ihuull.com":     {},
+	"xgroup.ihuull.com":           {},
+	"xgroup.corp.ihuull.com":      {},
+	"xchat.ihuull.com":            {},
+	"xchat.corp.ihuull.com":       {},
+	"corp.ihuull.com":             {},
+	"xadmin.corp.ihuull.com":      {},
+	"xgit.corp.ihuull.com":        {},
+	"xcodespaces.corp.ihuull.com": {},
+	"www.ihuull.com":              {},
+	"ihuull.com":                  {},
+	"xauth.localhost":             {},
+	"xvpn.localhost":              {},
+	"xadmin.corp.localhost":       {},
+	"xgit.corp.localhost":         {},
+	"xcodespaces.corp.localhost":  {},
+	"marketplace.localhost":       {},
+	"xdriver.localhost":           {},
+	"xdriver.corp.localhost":      {},
+	"xgroup.localhost":            {},
+	"xgroup.corp.localhost":       {},
+	"xchat.localhost":             {},
+	"xchat.corp.localhost":        {},
+	"corp.localhost":              {},
+	"localhost":                   {},
+	"127.0.0.1":                   {},
+}
+
+func isAdminReturnHost(host string) bool {
+	return host == "xadmin.corp.ihuull.com" || host == "xadmin.corp.localhost"
 }
 
 func allowedReturnScheme(scheme, host string) bool {
@@ -57,7 +78,7 @@ func TrustedHandoffOrigin(raw string) bool {
 		return false
 	}
 	host := strings.ToLower(u.Hostname())
-	if _, ok := safeReturnHosts[host]; !ok {
+	if _, ok := safeReturnHosts[host]; !ok && !isCodespaceRuntimeHost(host) {
 		return false
 	}
 	return allowedReturnScheme(u.Scheme, host)
@@ -84,7 +105,7 @@ func HandoffAllowed(origin, referer, fetchSite, requestHost string) bool {
 	}
 	host := requestHostName(requestHost)
 	_, ok := safeReturnHosts[host]
-	return ok
+	return ok || isCodespaceRuntimeHost(host)
 }
 
 // SafeReturnURL aceita só hosts ihuull conhecidos — bloqueia open redirect.
@@ -110,11 +131,11 @@ func SafeReturnURL(raw string) string {
 		}
 		host = strings.ToLower(u.Hostname())
 	}
-	if _, ok := safeReturnHosts[host]; !ok {
+	if _, ok := safeReturnHosts[host]; !ok && !isCodespaceRuntimeHost(host) {
 		return ""
 	}
-	if !isPanelReturnHost(host) && strings.HasPrefix(u.Path, "/admin") {
-		return PanelOrigin + "/admin"
+	if !isAdminReturnHost(host) && strings.HasPrefix(u.Path, "/admin") {
+		return AdminOrigin + "/admin"
 	}
 	return u.String()
 }

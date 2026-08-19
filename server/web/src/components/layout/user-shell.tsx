@@ -1,10 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Laptop, Store } from 'lucide-react'
-import { MARKETPLACE_ORIGIN } from '@/lib/product-host'
+import { GitBranch, Home, Laptop, Store } from 'lucide-react'
+import { MARKETPLACE_ORIGIN, XGIT_CORP_ORIGIN } from '@/lib/product-host'
+import { useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import { SystemChrome } from '@/components/layout/system-chrome'
 
 export function UserShell() {
+  const { user } = useAuth()
   return (
     <SystemChrome
       variant="user"
@@ -19,6 +21,12 @@ export function UserShell() {
             <Laptop className="size-4" />
             Dispositivos
           </NavLink>
+          {user?.xgit_enabled ? (
+            <a href={XGIT_CORP_ORIGIN} className="nav-link">
+              <GitBranch className="size-4" />
+              XGIT
+            </a>
+          ) : null}
           <a href={MARKETPLACE_ORIGIN} className="nav-link" target="_blank" rel="noreferrer">
             <Store className="size-4" />
             Marketplace

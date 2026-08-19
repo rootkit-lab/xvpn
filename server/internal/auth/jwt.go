@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -16,10 +19,13 @@ const (
 	IssuerURL       = "https://xauth.ihuull.com"
 	LegacyIssuerURL = "https://xvpn.ihuull.com"
 
-	AudXvpn    = "xvpn"
-	AudXchat   = "xchat"
-	AudXgroup  = "xgroup"
-	AudXdriver = "xdriver"
+	AudXvpn        = "xvpn"
+	AudXchat       = "xchat"
+	AudXgroup      = "xgroup"
+	AudXdriver     = "xdriver"
+	AudXadmin      = "xadmin"
+	AudXgit        = "xgit"
+	AudXcodespaces = "xcodespaces"
 )
 
 // Claims são as informações do token de sessão (payload do JWE).
@@ -59,6 +65,19 @@ func (t *TokenManager) aeadKey() []byte {
 		return t.secret[:32]
 	}
 	return t.secret
+}
+
+// HMACHex is a deterministic digest for local service tokens (not session JWEs).
+func (t *TokenManager) HMACHex(label string) string {
+	if t == nil {
+		return ""
+	}
+	t.mu.Lock()
+	secret := t.secret
+	t.mu.Unlock()
+	mac := hmac.New(sha256.New, secret)
+	_, _ = mac.Write([]byte(label))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func (t *TokenManager) Issue(userID uint, username string, role store.Role) (string, error) {
@@ -134,6 +153,12 @@ func NormalizeAudience(aud string) string {
 		return AudXgroup
 	case AudXdriver:
 		return AudXdriver
+	case AudXadmin:
+		return AudXadmin
+	case AudXgit:
+		return AudXgit
+	case AudXcodespaces:
+		return AudXcodespaces
 	default:
 		return AudXvpn
 	}

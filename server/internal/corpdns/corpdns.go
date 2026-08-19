@@ -31,10 +31,12 @@ type Record struct {
 }
 
 type ApplyPayload struct {
-	Forwarders []string `json:"forwarders"`
-	CacheSize  int      `json:"cache_size"`
-	CatchAll   bool     `json:"catch_all"`
-	Records    []Record `json:"records"`
+	Forwarders    []string `json:"forwarders"`
+	CacheSize     int      `json:"cache_size"`
+	CatchAll      bool     `json:"catch_all"`
+	Records       []Record `json:"records"`
+	StackRecords  []Record `json:"stack_records,omitempty"`
+	SplitSuffixes []string `json:"split_suffixes,omitempty"`
 }
 
 func NormalizeHostname(raw string) (string, error) {
@@ -157,6 +159,23 @@ func ParseApplyPayload(raw []byte) (ApplyPayload, error) {
 		recs = append(recs, Record{Hostname: h, IPv4: ip})
 	}
 	p.Records = recs
+	stack := make([]Record, 0, len(p.StackRecords))
+	for _, r := range p.StackRecords {
+		h := strings.ToLower(strings.TrimSpace(strings.TrimSuffix(r.Hostname, ".")))
+		if h == "" || strings.ContainsAny(h, " \t/") {
+			return ApplyPayload{}, fmt.Errorf("hostname de stack inválido")
+		}
+		ip, err := ValidateIPv4(r.IPv4)
+		if err != nil {
+			return ApplyPayload{}, fmt.Errorf("%s: %w", h, err)
+		}
+		if seen[h] {
+			continue
+		}
+		seen[h] = true
+		stack = append(stack, Record{Hostname: h, IPv4: ip})
+	}
+	p.StackRecords = stack
 	return p, nil
 }
 
@@ -174,7 +193,7 @@ func RenderMain(p ApplyPayload) string {
 	b.WriteString("bogus-priv\n")
 	b.WriteString("no-resolv\n")
 	b.WriteString(fmt.Sprintf("cache-size=%d\n", p.CacheSize))
-	b.WriteString("addn-hosts=/etc/dnsmasq.d/xvpn-records.hosts\n")
+	b.WriteString("addn-hosts=/etc/xvpn/dnsmasq-records.hosts\n")
 	if p.CatchAll {
 		b.WriteString("address=/" + Zone + "/" + ListenIP + "\n")
 	}
@@ -186,9 +205,25 @@ func RenderMain(p ApplyPayload) string {
 
 func RenderHosts(records []Record) string {
 	var b strings.Builder
-	b.WriteString("# Gerado pelo painel (/admin/dns). A records da zona corp.\n")
+	b.WriteString("# Gerado pelo painel (/admin/dns). A records da zona corp + stack interno.\n")
 	for _, r := range records {
 		b.WriteString(r.IPv4 + " " + r.Hostname + "\n")
+	}
+	return b.String()
+}
+
+func RenderRecursor(suffixes []string) string {
+	var b strings.Builder
+	b.WriteString("# Recursor da malha — só nos hosts mesh, nunca na eth0 do controle.\n")
+	b.WriteString("server=/corp.ihuull.com/" + ListenIP + "\n")
+	seen := map[string]bool{"corp.ihuull.com": true}
+	for _, s := range suffixes {
+		s = strings.ToLower(strings.TrimSpace(s))
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		b.WriteString("server=/" + s + "/" + ListenIP + "\n")
 	}
 	return b.String()
 }

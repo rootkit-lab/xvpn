@@ -192,7 +192,7 @@ func TestHandleEstablishSession_SetsCookieOnPanelAndRedirects(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("handoff: %d %s", rec.Code, rec.Body.String())
 	}
-	if loc := rec.Header().Get("Location"); loc != "https://xvpn.ihuull.com/admin" {
+	if loc := rec.Header().Get("Location"); loc != "https://xadmin.corp.ihuull.com/admin" {
 		t.Fatalf("Location=%q", loc)
 	}
 	var got *http.Cookie

@@ -1,17 +1,21 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AuthProvider } from '@/lib/auth-context'
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { VIEWER_UP_ROLES } from '@/lib/roles'
 import {
   MARKETPLACE_ORIGIN,
   PANEL_ORIGIN,
+  XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
+  XGIT_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
   productKind,
 } from '@/lib/product-host'
 import { ProtectedRoute } from '@/components/layout/protected-route'
 import { AdminShell } from '@/components/layout/admin-shell'
+import { XgitShell } from '@/components/layout/xgit-shell'
+import { XcodespacesShell } from '@/components/layout/xcodespaces-shell'
 import { UserShell } from '@/components/layout/user-shell'
 import { PublicProfileShell, SocialShell } from '@/components/layout/social-shell'
 import { ChatHost } from '@/components/layout/chat-host'
@@ -32,13 +36,71 @@ const SharesPage = lazy(() => import('@/pages/shares-page').then((m) => ({ defau
 const WaitlistPage = lazy(() => import('@/pages/waitlist-page').then((m) => ({ default: m.WaitlistPage })))
 const MarketplacePage = lazy(() => import('@/pages/marketplace-page').then((m) => ({ default: m.MarketplacePage })))
 const SettingsPage = lazy(() => import('@/pages/settings-page').then((m) => ({ default: m.SettingsPage })))
+const BackupsPage = lazy(() => import('@/pages/backups-page').then((m) => ({ default: m.BackupsPage })))
 const DNSPage = lazy(() => import('@/pages/dns-page').then((m) => ({ default: m.DNSPage })))
+const PublicDNSPage = lazy(() => import('@/pages/public-dns-page').then((m) => ({ default: m.PublicDNSPage })))
+const PublicDNSZonePage = lazy(() =>
+  import('@/pages/public-dns-zone-page').then((m) => ({ default: m.PublicDNSZonePage })),
+)
+const DNSSettingsPage = lazy(() => import('@/pages/dns-settings-page').then((m) => ({ default: m.DNSSettingsPage })))
 const AuditPage = lazy(() => import('@/pages/audit-page').then((m) => ({ default: m.AuditPage })))
 const PortalPage = lazy(() => import('@/pages/portal-page').then((m) => ({ default: m.PortalPage })))
 const ProfilePage = lazy(() => import('@/pages/profile-page').then((m) => ({ default: m.ProfilePage })))
 const AccountPage = lazy(() => import('@/pages/account-page').then((m) => ({ default: m.AccountPage })))
 const RbacPage = lazy(() => import('@/pages/rbac-page').then((m) => ({ default: m.RbacPage })))
 const XGroupAdminPage = lazy(() => import('@/pages/xgroup-admin-page').then((m) => ({ default: m.XGroupAdminPage })))
+const XgitReposPage = lazy(() => import('@/pages/xgit-repos-page').then((m) => ({ default: m.XgitReposPage })))
+const XgitHomeLayout = lazy(() => import('@/pages/xgit-home-layout').then((m) => ({ default: m.XgitHomeLayout })))
+const XgitOverviewPage = lazy(() =>
+  import('@/pages/xgit-overview-page').then((m) => ({ default: m.XgitOverviewPage })),
+)
+const XgitPackagesPage = lazy(() =>
+  import('@/pages/xgit-packages-page').then((m) => ({ default: m.XgitPackagesPage })),
+)
+const XgitStarsPage = lazy(() => import('@/pages/xgit-stars-page').then((m) => ({ default: m.XgitStarsPage })))
+const XgitSettingsPage = lazy(() =>
+  import('@/pages/xgit-settings-page').then((m) => ({ default: m.XgitSettingsPage })),
+)
+const XgitRepoLayout = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoLayout })))
+const XgitCodePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCodePage })))
+const XgitCommitsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitCommitsPage })))
+const XgitMrsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMrsPage })))
+const XgitIssuesPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssuesPage })))
+const XgitIssueNewPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssueNewPage })))
+const XgitIssuePage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitIssuePage })))
+const XgitMilestonesPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitMilestonesPage })))
+const XgitLabelsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitLabelsPage })))
+const XgitProjectsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitProjectsPage })))
+const XgitProjectBoardPage = lazy(() =>
+  import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitProjectBoardPage })),
+)
+const XgitPullsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitPullsPage })))
+const XgitEditPage = lazy(() => import('@/pages/xgit-edit-page').then((m) => ({ default: m.XgitEditPage })))
+const XgitActionsPage = lazy(() => import('@/pages/xgit-actions-page').then((m) => ({ default: m.XgitActionsPage })))
+const XgitRepoSettingsPage = lazy(() =>
+  import('@/pages/xgit-repo-page').then((m) => ({ default: m.XgitRepoSettingsPage })),
+)
+const XcodespacesHomePage = lazy(() =>
+  import('@/pages/xcodespaces-home-page').then((m) => ({ default: m.XcodespacesHomePage })),
+)
+const XcodespacesIdePage = lazy(() =>
+  import('@/pages/xcodespaces-ide-page').then((m) => ({ default: m.XcodespacesIdePage })),
+)
+const MergeRequestPage = lazy(() =>
+  import('@/pages/merge-request-page').then((m) => ({ default: m.MergeRequestPage })),
+)
+const CiJobPage = lazy(() => import('@/pages/ci-job-page').then((m) => ({ default: m.CiJobPage })))
+const ServersPage = lazy(() => import('@/pages/servers-page').then((m) => ({ default: m.ServersPage })))
+const ServerDetailPage = lazy(() =>
+  import('@/pages/server-detail-page').then((m) => ({ default: m.ServerDetailPage })),
+)
+const ComputeSettingsPage = lazy(() =>
+  import('@/pages/compute-settings-page').then((m) => ({ default: m.ComputeSettingsPage })),
+)
+const ServicesPage = lazy(() => import('@/pages/services-page').then((m) => ({ default: m.ServicesPage })))
+const ServiceDetailPage = lazy(() =>
+  import('@/pages/service-detail-page').then((m) => ({ default: m.ServiceDetailPage })),
+)
 const SocialFeedPage = lazy(() => import('@/pages/social-feed-page').then((m) => ({ default: m.SocialFeedPage })))
 const SocialDirectoryPage = lazy(() =>
   import('@/pages/social-directory-page').then((m) => ({ default: m.SocialDirectoryPage })),
@@ -87,7 +149,7 @@ function XAuthApp() {
 function XAuthLeave() {
   useEffect(() => {
     const path = window.location.pathname
-    window.location.replace(path.startsWith('/admin') ? `${PANEL_ORIGIN}/admin` : `${PANEL_ORIGIN}/`)
+    window.location.replace(path.startsWith('/admin') ? `${XADMIN_CORP_ORIGIN}/admin` : `${PANEL_ORIGIN}/`)
   }, [])
   return <PageFallback />
 }
@@ -210,6 +272,83 @@ function XGroupCorpApp() {
   )
 }
 
+function XGitCorpApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<XgitShell />}>
+            <Route element={<XgitHomeLayout />}>
+              <Route index element={<XgitOverviewPage />} />
+              <Route path="repositories" element={<XgitReposPage />} />
+              <Route path="packages" element={<XgitPackagesPage />} />
+              <Route path="stars" element={<XgitStarsPage />} />
+            </Route>
+            <Route path=":slug" element={<XgitRepoLayout />}>
+              <Route index element={<XgitCodePage />} />
+              <Route path="tree/*" element={<XgitCodePage />} />
+              <Route path="blob/*" element={<XgitCodePage />} />
+              <Route path="edit/:ref/*" element={<XgitEditPage />} />
+              <Route path="commits" element={<XgitCommitsPage />} />
+              <Route path="issues" element={<XgitIssuesPage />} />
+              <Route path="issues/new" element={<XgitIssueNewPage />} />
+              <Route path="issues/:n" element={<XgitIssuePage />} />
+              <Route path="milestones" element={<XgitMilestonesPage />} />
+              <Route path="labels" element={<XgitLabelsPage />} />
+              <Route path="projects" element={<XgitProjectsPage />} />
+              <Route path="projects/:n" element={<XgitProjectBoardPage />} />
+              <Route path="pulls" element={<XgitPullsPage />} />
+              <Route path="pulls/:iid" element={<MergeRequestPage />} />
+              <Route path="mrs" element={<XgitMrsPage />} />
+              <Route path="mrs/:iid" element={<MergeRequestPage />} />
+              <Route path="actions" element={<XgitActionsPage />} />
+              <Route path="actions/:n" element={<CiJobPage />} />
+              <Route path="settings" element={<XgitRepoSettingsPage />} />
+            </Route>
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
+
+function XcodespacesCorpApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<XcodespacesShell />}>
+            <Route index element={<XcodespacesHomePage />} />
+            <Route path=":id" element={<XcodespacesIdePage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatHost>
+  )
+}
+
+/** Membro usa o app em xgit.corp — o console lista todos os repos. */
+function MemberLeaveXadminXgit() {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  if (user?.role === 'member') {
+    if (pathname === '/admin/xgit/settings' || pathname.startsWith('/admin/xgit/settings/')) {
+      return <HostRedirect to={XGIT_CORP_ORIGIN} />
+    }
+    const rest = pathname.replace(/^\/admin\/xgit\/?/, '')
+    return <HostRedirect to={rest ? `${XGIT_CORP_ORIGIN}/${rest}` : XGIT_CORP_ORIGIN} />
+  }
+  return <Outlet />
+}
+
 function CorpHubApp() {
   return (
     <Routes>
@@ -221,6 +360,97 @@ function CorpHubApp() {
       <Route path="/admin/*" element={<AdminHostRedirect />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  )
+}
+
+function ProjectToXgit() {
+  const { slug = '', iid, n } = useParams()
+  const { pathname } = useLocation()
+  if (iid) return <Navigate to={`/admin/xgit/${slug}/mrs/${iid}`} replace />
+  if (n && pathname.includes('/jobs/')) return <Navigate to={`/admin/xgit/${slug}/actions/${n}`} replace />
+  return <Navigate to={`/admin/xgit/${slug}`} replace />
+}
+
+function AdminIndex() {
+  const { user } = useAuth()
+  if (user?.role === 'member') {
+    return <HostRedirect to={user.xgit_enabled ? XGIT_CORP_ORIGIN : PANEL_ORIGIN} />
+  }
+  return <DashboardPage />
+}
+
+function XAdminCorpApp() {
+  return (
+    <ChatHost>
+      <Routes>
+        <Route path="/" element={<Navigate to="/admin" replace />} />
+        <Route path="/login" element={<SSOLoginRedirect />} />
+        <Route path="/admin/login" element={<SSOLoginRedirect />} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index element={<AdminIndex />} />
+            <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+              <Route path="users" element={<UsersPage />} />
+              <Route path="users/new" element={<UserCreatePage />} />
+              <Route path="users/:id" element={<UserDetailPage />} />
+              <Route path="rbac" element={<RbacPage />} />
+              <Route path="devices" element={<DevicesPage />} />
+              <Route path="shares" element={<SharesPage />} />
+              <Route path="waitlist" element={<WaitlistPage />} />
+              <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
+              <Route path="marketplace" element={<Navigate to="/admin/marketplace/catalog" replace />} />
+              <Route path="marketplace/catalog" element={<MarketplacePage variant="manage" section="catalog" />} />
+              <Route path="marketplace/acl" element={<MarketplacePage variant="manage" section="acl" />} />
+              <Route path="xgroup" element={<XGroupAdminPage />} />
+              <Route path="servers" element={<ServersPage />} />
+              <Route path="servers/:id" element={<ServerDetailPage />} />
+              <Route path="compute/settings" element={<ComputeSettingsPage />} />
+              <Route path="services" element={<ServicesPage />} />
+              <Route path="services/:slug" element={<ServiceDetailPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="backups" element={<BackupsPage />} />
+              <Route path="dns/settings" element={<DNSSettingsPage />} />
+              <Route path="dns/public/:id" element={<PublicDNSZonePage />} />
+              <Route path="dns/public" element={<PublicDNSPage />} />
+              <Route path="dns" element={<DNSPage />} />
+              <Route path="audit" element={<AuditPage />} />
+            </Route>
+            <Route path="projects" element={<Navigate to="/admin/xgit" replace />} />
+            <Route path="projects/:slug" element={<ProjectToXgit />} />
+            <Route path="projects/:slug/mrs/:iid" element={<ProjectToXgit />} />
+            <Route path="projects/:slug/jobs/:n" element={<ProjectToXgit />} />
+            <Route element={<MemberLeaveXadminXgit />}>
+              <Route path="xgit" element={<XgitReposPage />} />
+              <Route path="xgit/settings" element={<XgitSettingsPage />} />
+              <Route path="xgit/:slug" element={<XgitRepoLayout />}>
+                <Route index element={<XgitCodePage />} />
+                <Route path="tree/*" element={<XgitCodePage />} />
+                <Route path="blob/*" element={<XgitCodePage />} />
+                <Route path="edit/:ref/*" element={<XgitEditPage />} />
+                <Route path="commits" element={<XgitCommitsPage />} />
+                <Route path="issues" element={<XgitIssuesPage />} />
+                <Route path="issues/new" element={<XgitIssueNewPage />} />
+                <Route path="issues/:n" element={<XgitIssuePage />} />
+                <Route path="milestones" element={<XgitMilestonesPage />} />
+                <Route path="labels" element={<XgitLabelsPage />} />
+                <Route path="projects" element={<XgitProjectsPage />} />
+                <Route path="projects/:n" element={<XgitProjectBoardPage />} />
+                <Route path="pulls" element={<XgitPullsPage />} />
+                <Route path="pulls/:iid" element={<MergeRequestPage />} />
+                <Route path="mrs" element={<XgitMrsPage />} />
+                <Route path="mrs/:iid" element={<MergeRequestPage />} />
+                <Route path="actions" element={<XgitActionsPage />} />
+                <Route path="actions/:n" element={<CiJobPage />} />
+                <Route path="settings" element={<XgitRepoSettingsPage />} />
+              </Route>
+            </Route>
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/admin" replace />} />
+      </Routes>
+    </ChatHost>
   )
 }
 
@@ -275,24 +505,8 @@ function PanelApp() {
           <Route path="/xchat/messages" element={<Navigate to="/social/messages" replace />} />
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
-          <Route path="/admin" element={<AdminShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="users" element={<UsersPage />} />
-            <Route path="users/new" element={<UserCreatePage />} />
-            <Route path="users/:id" element={<UserDetailPage />} />
-            <Route path="rbac" element={<RbacPage />} />
-            <Route path="devices" element={<DevicesPage />} />
-            <Route path="shares" element={<SharesPage />} />
-            <Route path="waitlist" element={<WaitlistPage />} />
-            <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />
-            <Route path="marketplace" element={<MarketplacePage variant="manage" />} />
-            <Route path="xgroup" element={<XGroupAdminPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="dns" element={<DNSPage />} />
-            <Route path="audit" element={<AuditPage />} />
-          </Route>
-        </Route>
+        <Route path="/admin" element={<AdminHostRedirect />} />
+        <Route path="/admin/*" element={<AdminHostRedirect />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
@@ -326,6 +540,12 @@ export default function App() {
               <XGroupCorpApp />
             ) : kind === 'corp' ? (
               <CorpHubApp />
+            ) : kind === 'xadmin-corp' ? (
+              <XAdminCorpApp />
+            ) : kind === 'xgit-corp' ? (
+              <XGitCorpApp />
+            ) : kind === 'xcodespaces-corp' ? (
+              <XcodespacesCorpApp />
             ) : kind === 'xvpn' ? (
               <PanelApp />
             ) : (

@@ -39,6 +39,6 @@ App desktop/intranet novo: skill `new-intranet-app` (checklist de slug, JWE `aud
   - Samba / FileBrowser / xdriver: `10.66.66.1`
   - DNS interno: `10.66.66.1:53` somente
   - Mongo: `127.0.0.1:27017` somente — sem ufw
-- **Não criar** A público para `corp` / `*.corp` / `xchat.corp` / `xgroup.corp` / `xdriver.corp`.
+- **Não criar** A público para `corp` / `*.corp` / `xchat.corp` / `xgroup.corp` / `xdriver.corp` / `xadmin.corp` / `xgit.corp`.
 - Não reutilize `8080` (API), `8081` (FileBrowser), `51820/udp` (WireGuard), `27017` (Mongo), `53` (dnsmasq) para outro serviço.
 - `ldpops.appapisip.com` não é desta plataforma — não tome a porta dele.

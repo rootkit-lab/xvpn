@@ -10,8 +10,8 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 
 - **VPS de produção real**: `206.189.224.72`, Ubuntu 26.04 LTS, acesso root via chave SSH (sem senha configurada de propósito). Trate qualquer comando executado nesse host como produção — não é um ambiente descartável.
 - **Sub-rede WireGuard**: `10.66.66.0/24` (servidor = `10.66.66.1`). **Nunca** usar `10.10.0.0/16` ou `10.136.0.0/16` — já estão em uso por outras interfaces/VPC do servidor.
-- **Domínios públicos**: `xauth.ihuull.com` (SSO / issuer JWE; cookie `.ihuull.com`), `xvpn.ihuull.com` (portal/enroll; `/admin` só operação), `marketplace.ihuull.com` (loja Play Store, JWE), `xdriver.ihuull.com` (**não** é produto — 444; Drive só em `xdriver.corp`), `www.ihuull.com` / `ihuull.com` e `www.ihuu.com` / `ihuu.com` (landing), `xchat.ihuull.com` (marketing do messenger — **sem** API/WS), `xgroup.ihuull.com` (marketing + perfil `/:user` com JWE — **sem** WS; feed no corp). `ldpops.appapisip.com` (`landpages-ops`) **não muda**. Todos os A públicos → `206.189.224.72`, **DNS only** em API/WS. Samba e XDriver só em `xdriver.corp` / `wg0`.
-- **Intranet** (`*.corp.ihuull.com`): só resolve no DNS interno `10.66.66.1:53` (dnsmasq no `wg0`). Comunicação dos apps desktop: `xchat.corp`, `xgroup.corp`, `xdriver.corp` → `10.66.66.1`. **Nunca** criar A público para `corp` / `*.corp`. Runbook: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md).
+- **Domínios públicos**: `xauth.ihuull.com` (SSO / issuer JWE; cookie `.ihuull.com`), `xvpn.ihuull.com` (portal/enroll; `/admin` redireciona ao xadmin), `marketplace.ihuull.com` (loja Play Store, JWE), `xdriver.ihuull.com` (**não** é produto — 444; Drive só em `xdriver.corp`), `www.ihuull.com` / `ihuull.com` e `www.ihuu.com` / `ihuu.com` (landing), `xchat.ihuull.com` (marketing do messenger — **sem** API/WS), `xgroup.ihuull.com` (marketing + perfil `/:user` com JWE — **sem** WS; feed no corp). `ldpops.appapisip.com` (`landpages-ops`) **não muda**. Todos os A públicos → `206.189.224.72`, **DNS only** em API/WS. Samba e XDriver só em `xdriver.corp` / `wg0`.
+- **Intranet** (`*.corp.ihuull.com`): só resolve no DNS interno `10.66.66.1:53` (dnsmasq no `wg0`). Comunicação dos apps: `xadmin.corp` (console), `xchat.corp`, `xgroup.corp`, `xdriver.corp`, `xgit.corp`, `xcodespaces.corp` (Fases 49–50) → `10.66.66.1`. **Nunca** criar A público para `corp` / `*.corp`. Runbook: [`docs/runbooks/cloudflare-dns.md`](./docs/runbooks/cloudflare-dns.md). Console de operação **só** em `xadmin.corp` (`PLAN.md` §6.14).
 - **Nginx é compartilhado** entre o XVPN e o `landpages-ops`. Nunca assuma que o XVPN é o único serviço HTTP do servidor. Antes de reservar uma porta/hostname novo, confira e atualize [`PLAN.md` §5](./PLAN.md#5-alocação-de-rede-portas-e-domínios-registro-para-não-colidir-com-landpages-ops). Server blocks `*.corp` escutam **somente** `10.66.66.1:443`.
 
 ## Invariantes de segurança (não negociáveis)
@@ -49,8 +49,9 @@ VPN privada própria com exit node via VPS + painel web de administração + cli
 
 | Pergunta | Arquivo |
 |---|---|
-| Por que escolhemos X em vez de Y? | [`PLAN.md`](./PLAN.md) (seção 3, decisões com tabela comparativa) |
+| Por que escolhemos X em vez de Y? | [`PLAN.md`](./PLAN.md) (seção 3, decisões com tabela comparativa; §6.14–§6.19 = xadmin) |
 | O que falta fazer / em que fase estamos? | [`ROADMAP.md`](./ROADMAP.md) |
+| Schema do catálogo / projetos | [`docs/marketplace.md`](./docs/marketplace.md) |
 | Como contribuir (branch, commit, PR)? | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
 | Modelo de ameaças e resposta a incidentes? | [`SECURITY.md`](./SECURITY.md) |
 | O que mudou entre versões? | [`CHANGELOG.md`](./CHANGELOG.md) |

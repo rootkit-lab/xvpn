@@ -38,6 +38,21 @@ func TestTokenManager_RejectsExpiredToken(t *testing.T) {
 	}
 }
 
+func TestNormalizeAudience(t *testing.T) {
+	if got := NormalizeAudience("XADMIN"); got != AudXadmin {
+		t.Fatalf("xadmin: %s", got)
+	}
+	if got := NormalizeAudience("xgit"); got != AudXgit {
+		t.Fatalf("xgit: %q", got)
+	}
+	if got := NormalizeAudience("xcodespaces"); got != AudXcodespaces {
+		t.Fatalf("xcodespaces: %s", got)
+	}
+	if got := NormalizeAudience("desconhecido"); got != AudXvpn {
+		t.Fatalf("default: %s", got)
+	}
+}
+
 func TestTokenManager_IssueForAudience(t *testing.T) {
 	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
 	token, err := tm.IssueFor(7, "bob", store.RoleMember, AudXchat)
@@ -78,6 +93,18 @@ func TestTokenManager_RejectsHMACJWT(t *testing.T) {
 	legacy := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOjF9.sig"
 	if _, err := tm.Parse(legacy); err == nil {
 		t.Fatal("JWT HMAC não pode ser aceito")
+	}
+}
+
+func TestTokenManager_HMACHexStable(t *testing.T) {
+	tm := NewTokenManager("um-segredo-de-teste-com-pelo-menos-32-bytes", time.Hour)
+	a := tm.HMACHex("cs-conn:aabbccddeeff")
+	b := tm.HMACHex("cs-conn:aabbccddeeff")
+	if a == "" || a != b || len(a) < 32 {
+		t.Fatalf("digest instável: %q %q", a, b)
+	}
+	if tm.HMACHex("cs-conn:ffffffffffff") == a {
+		t.Fatal("ids diferentes não podem compartilhar digest")
 	}
 }
 

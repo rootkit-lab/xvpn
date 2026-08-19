@@ -14,6 +14,9 @@ App novo **só nasce** se não couber num slug já existente:
 | xgroup | XGROUP Social | Rede social (`/social`, `/xgroup`) | Misturar com xchat |
 | xdriver | XDRIVER Drive | Arquivos (Samba + Drive nativo em `xdriver.corp`) | FileBrowser; expor arquivos na internet |
 | marketplace | Marketplace Store | Loja pública | Segunda vitrine |
+| xadmin | XADMIN Console | Gerenciador geral (só `xadmin.corp`) | Segundo `/admin` público; AdminShell fora deste host |
+| xgit | XGIT Forge | Repos + smart HTTP (`xgit.corp`) | GitLab CE; A público; issues só no XGROUP |
+| xcodespaces | XCODESPACES IDE | Editor Monaco + codespace Docker (`xcodespaces.corp` / `cs-<id>.corp`, Fases 49–50) | KVM no host; shell SSH no VPS; `docker.sock` no container; segundo binário Go (API no monólito; helper `cs-*` no padrão do `xvpn-user-provision`) |
 
 Nomes de UI: `shared/ui/react/products.ts` + `PLAN.md` §6.13. Slug minúsculo no código; `marketplace.yaml` `name` = `productDisplayName(slug)`.
 
@@ -33,7 +36,7 @@ Todo app tem **três peças** (client só se precisar):
 
 1. Skill `port-domain-registry-check` + runbook [`docs/runbooks/cloudflare-dns.md`](../../../docs/runbooks/cloudflare-dns.md).
 2. Escolher slug `[a-z0-9-]{2,20}`. Registrar em `PLAN.md` §5 **antes** de Nginx.
-3. Hostname **só** intranet: `<slug>.corp.ihuull.com`. Registrar em `/admin/dns` (A → `10.66.66.1` ou outro `10.66.66.x`) e **Aplicar**. **Sem** A público.
+3. Hostname **só** intranet: `<slug>.corp.ihuull.com`. Registrar no xadmin → DNS intranet (A → `10.66.66.1` ou outro `10.66.66.x`) e **Aplicar**. **Sem** A público. Console de operação é só `xadmin.corp` — não nascer outro admin.
 4. Nginx: `listen 10.66.66.1:443` + `allow 10.66.66.0/24; deny all;`. Sem porta nova no ufw.
 5. JWE `aud` = slug. Login pede esse `aud`. Token só em memória no desktop.
 6. Gate: recusar API se helper `disconnected` ou se o gateway `10.66.66.1:443` não responder. DNS canônico é o dnsmasq da `wg0` (`PLAN.md` §5.4).

@@ -24,6 +24,9 @@ describe('ProductHeader', () => {
     expect(productDisplayName('xgroup')).toBe('XGROUP Social')
     expect(productDisplayName('xdriver')).toBe('XDRIVER Drive')
     expect(productDisplayName('marketplace')).toBe('Marketplace Store')
+    expect(productDisplayName('xadmin')).toBe('XADMIN Console')
+    expect(productDisplayName('xgit')).toBe('XGIT Forge')
+    expect(productDisplayName('xcodespaces')).toBe('XCODESPACES IDE')
   })
 
   it('na landing da marca mostra ihuull sem kicker de produto', () => {

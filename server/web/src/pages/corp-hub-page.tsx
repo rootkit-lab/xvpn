@@ -1,9 +1,12 @@
-import { ExternalLink, HardDrive, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
+import { Code2, ExternalLink, GitBranch, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import {
   PANEL_ORIGIN,
+  XADMIN_CORP_ORIGIN,
   XCHAT_CORP_ORIGIN,
   XDRIVER_CORP_ORIGIN,
+  XGIT_CORP_ORIGIN,
+  XCODESPACES_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
 } from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
@@ -36,6 +39,26 @@ const APPS = [
     description: 'Portal e enroll',
     icon: Shield,
   },
+  {
+    href: `${XADMIN_CORP_ORIGIN}/admin`,
+    label: 'XADMIN',
+    description: 'Console',
+    icon: LayoutDashboard,
+  },
+  {
+    href: XGIT_CORP_ORIGIN,
+    label: 'XGIT',
+    description: 'Repositórios',
+    icon: GitBranch,
+    needXgit: true,
+  },
+  {
+    href: XCODESPACES_CORP_ORIGIN,
+    label: 'XCODESPACES',
+    description: 'IDE Monaco',
+    icon: Code2,
+    needCs: true,
+  },
 ] as const
 
 export function CorpHubPage() {
@@ -63,24 +86,30 @@ export function CorpHubPage() {
         <h1 className="font-display text-3xl font-semibold tracking-tight">Apps da VPN</h1>
         <p className="text-sm leading-relaxed text-muted-foreground">
           Cada produto abre no próprio host. Administração fica em{' '}
-          <code className="font-mono text-xs">xvpn.ihuull.com/admin</code> — não neste endereço.
+          <code className="font-mono text-xs">xadmin.corp.ihuull.com</code> — não neste endereço.
         </p>
         <ul className="grid gap-3">
-          {APPS.map(({ href, label, description, icon: Icon }) => (
-            <li key={href}>
-              <a
-                href={href}
-                className="watch-complication flex items-center gap-3 rounded-[18px] p-4 hover:bg-white/6"
-              >
-                <Icon className="size-5 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1">
-                  <span className="font-display block text-sm font-semibold">{label}</span>
-                  <span className="text-xs text-muted-foreground">{description}</span>
-                </span>
-                <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
-              </a>
-            </li>
-          ))}
+          {APPS.filter((app) => {
+            if ('needXgit' in app && app.needXgit) return Boolean(user?.xgit_enabled)
+            if ('needCs' in app && app.needCs) return Boolean(user?.xcodespaces_enabled)
+            return true
+          }).map(
+            ({ href, label, description, icon: Icon }) => (
+              <li key={href}>
+                <a
+                  href={href}
+                  className="watch-complication flex items-center gap-3 rounded-[18px] p-4 hover:bg-white/6"
+                >
+                  <Icon className="size-5 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-display block text-sm font-semibold">{label}</span>
+                    <span className="text-xs text-muted-foreground">{description}</span>
+                  </span>
+                  <ExternalLink className="size-4 shrink-0 text-muted-foreground" />
+                </a>
+              </li>
+            ),
+          )}
         </ul>
       </main>
     </div>

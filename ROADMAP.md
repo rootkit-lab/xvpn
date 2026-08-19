@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–32) em código. **Fase 33** (próxima) — chrome/SSO/admin por produto, monólito modular (`PLAN.md` §6.13). Painel: `xvpn.ihuull.com`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–57** no codespace (57 merged). Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1121,6 +1121,546 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 
 ---
 
+## Ciclo xadmin (Fases 35–50)
+
+Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §6.14–§6.19. Matriz GitLab/GitHub → stack ihuull (não instalar GitLab CE nem GitHub Enterprise):
+
+| Feature GitLab / GitHub | Onde | Fase |
+|---|---|---|
+| SSO / membros | xauth + IAM + `ProjectMember` | 35, 37 |
+| Activity social | XGROUP (grupo por slug) | 37 |
+| Issues (título, labels, estado) | XGIT (`Issue` no Mongo) + thread XCHAT | 46 |
+| Review ao vivo | XCHAT (thread por MR / issue) | 41, 46–47 |
+| Pull request GitHub-like (diff, checks, review) | XGIT (`xgit.corp` + xadmin) | 47 |
+| Editor web + commit (Monaco) | blob `/edit` no XGIT | 48 |
+| Codespaces (editor rápido) | app `xcodespaces.corp` (Monaco + worktree) | 49 |
+| Codespaces (VS Code remoto) | clone + Docker + openvscode-server | 50 |
+| Wiki / LFS / artifacts | XDRIVER `project-<slug>` | 37, 42 |
+| Releases deb/exe | Marketplace | 16 (já), 36 |
+| Git | `xgit.corp` smart HTTP | 40 |
+| MR + protected branches | xadmin + Mongo | 40–41 |
+| CI runners | peers WG `runner` | 42 |
+| Actions (lista, run, aprovação) | XGIT aba Actions | 42.1 |
+| Registry / pages / SAST | backlog | 45+ |
+
+---
+
+## Fase 35 — xadmin na intranet
+
+Mover o console para `xadmin.corp.ihuull.com`. Enroll/portal em `xvpn.ihuull.com` **não** mudam. Decisão: `PLAN.md` §6.14 (inverte a “fonte única pública” da Fase 33).
+
+- [x] Registrar `xadmin.corp` e `xgit.corp` em `PLAN.md` §5.2 (já nesta PR de docs) + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Skill `port-domain-registry-check`.
+- [x] JWE `aud=xadmin`; login via `xauth.ihuull.com`; cookie `.ihuull.com`.
+- [x] `AdminShell` só nesse host. `xvpn.ihuull.com/admin` e `/admin` nos outros hosts → redirect ao xadmin.
+- [x] Marca XADMIN / Console em `shared/ui` (mark + `products.ts`).
+- [x] Escopos `forge` / `compute` / `dns` / `managed` no RBAC (flags; UI das seções nas fases seguintes).
+- [x] DNS intranet sai do grupo Core e vai para o grupo DNS (mesmo handler).
+
+**Critério de saída:** sem VPN, `xadmin.corp` não resolve na internet; com túnel, `viewer+` abre o console; `xvpn.ihuull.com/` e enroll continuam públicos.
+
+---
+
+## Fase 36 — Marketplace: catálogo ≠ ACL + kinds
+
+- [x] Nav: **Catálogo** e **ACL** (duas rotas). Backend já separa sync vs `PUT .../access`.
+- [x] `marketplace.yaml`: campo `kind` (`desktop|web|service|library|infra|docs|container`). Validador CI + [`docs/marketplace.md`](./docs/marketplace.md).
+- [x] Loja pública lista só `desktop`/`web` com `network: public`.
+- [x] Sem inventário de `/home/wiz/Projects` no servidor/PLAN. Projeto nasce no xadmin quando existir.
+
+**Critério de saída:** admin da loja gerencia ACL sem misturar com a vitrine; manifesto sem `kind` reprova o CI.
+
+---
+
+## Fase 37 — Projeto + regras + membros
+
+- [x] 1 projeto por `App.Slug` (ou metadado sem manifesto).
+- [x] `ProjectMember` (guest/reporter/developer/maintainer/owner) + regras (visibility/network/runners).
+- [x] Issues/activity no XGROUP (grupo por slug). Sem segundo social.
+- [x] Share `project-<slug>` no XDRIVER quando o projeto precisar de wiki/arquivos. Sem FileBrowser.
+
+**Critério de saída:** um slug tem membros e regras no xadmin; post no XGROUP liga ao projeto. Sem git ainda.
+
+---
+
+## Fase 38 — Compute (BitLaunch)
+
+- [x] Cliente BitLaunch; token só no VPS.
+- [x] Importar o VPS atual (`206.189.224.72`); labels; `ServerGroup`; `ServerAccess`.
+- [x] Create/destroy/rebuild; cloud-init + enroll WireGuard (chave no host novo).
+- [x] A corp no apply dnsmasq. SSH novo preferir `wg0`.
+
+**Critério de saída:** criar um VPS no xadmin resulta em peer na `10.66.66.0/24` + nome `*.corp` resolvendo. Sem `10.10`/`10.136`.
+
+---
+
+## Fase 38.1 — Compute Settings (contas BitLaunch)
+
+- [x] Menu Compute → Configurações.
+- [x] Várias APIs/e-mails BitLaunch; token só no VPS (nunca no Git, nunca devolver inteiro na API).
+- [x] Create/import/destroy/rebuild escolhem a conta; `XVPN_BITLAUNCH_TOKEN` só como semente se o banco estiver vazio.
+
+**Critério de saída:** cadastrar duas contas na UI; criar/importar usa a escolhida. Token não aparece no Git nem no GET.
+
+---
+
+## Fase 38.2 — Console do servidor + saldo BitLaunch
+
+- [x] Detalhe do servidor: terminal tipo xterm com info do host + campo de observações (sem shell SSH — `PLAN.md` §3 rejeitou bash remoto).
+- [x] Hosts externos só inventário: `server-cripto-prod` e `65.38.120.203` — sem enroll, cloud-init, destroy, rebuild ou A corp. Só o node `206.189.224.72` é malha XVPN.
+- [x] API/UI da conta BitLaunch: saldo, used/limit, $/h. Recarga cripto (`POST /transactions`, BTC/LTC/ETH) se a API aceitar.
+
+**Critério de saída:** abrir um servidor mostra o console e grava observação. Importar os dois hosts externos não os mexe. Settings mostra saldo e gera invoice cripto sem devolver o token.
+
+---
+
+## Fase 39 — DNS do stack (público + interno)
+
+- [x] Menu DNS: Intranet | Zonas | Configurações (contas Cloudflare, padrão Compute). Token só no VPS.
+- [x] Adicionar domínio → zona Cloudflare + **nameservers do stack** para o registrador. Sem `:53` na `eth0`. `ldpops` fora. Sem A `*.corp` / RFC1918 no público.
+- [x] Record com `intranet_ipv4` (`10.66.66.0/24`) no dnsmasq; `GET /api/me/dns-suffixes` + recursor da malha.
+
+**Critério de saída:** cadastrar uma zona mostra os NS; um A público aparece no Cloudflare; o mesmo nome com visão interna resolve em `10.66.66.1` na VPN. Corp continua só no dnsmasq.
+
+---
+
+## Fase 40 — Git smart HTTP
+
+- [x] Repos bare em `/opt/xvpn/data/git/<slug>.git` (`XVPN_GIT_DIR`). Create do projeto inicia o bare.
+- [x] Smart HTTP em `xgit.corp` (`git-http-backend`, JWE via Basic/Bearer). Sem `git://` público. Sem shell SSH. Nginx só `10.66.66.1:443`.
+- [x] Protected branches no modelo do projeto (`main`/`master` no create; UI no detalhe).
+
+**Critério de saída:** `git clone https://xgit.corp.ihuull.com/<slug>` com VPN + JWE; fora da VPN falha.
+
+---
+
+## Fase 41 — Merge requests
+
+- [x] MR no Mongo; UI no xadmin.
+- [x] Thread XCHAT por MR (skill `chat-chrome`). Comentários de issue no XGROUP.
+
+**Critério de saída:** abrir MR cria thread no XCHAT; merge respeita protected branch.
+
+---
+
+## Fase 42 — CI
+
+- [x] Pipeline no xadmin. Runners = peers com label `runner` (não no PID do `xvpn-server`).
+- [x] Artifacts no XDRIVER do projeto.
+
+**Critério de saída:** push/MR dispara job num runner da malha; log/artifact só na VPN.
+
+---
+
+## Fase 42.1 — Actions (paridade GitHub)
+
+A aba Actions deixa o card “Pipeline” e passa a ser a superfície do GitHub Actions: sidebar de workflows, lista de runs (status, título, evento, branch, duração) e detalhe do run com jobs + aprovação de maintainer.
+
+- [x] Workflow `ci` (`.xvpn-ci.sh`). Lista de runs com ícone (ok / falha / pendente / action required), título do commit, `ci #N` + trigger (push ou pull request), branch, tempo relativo e duração.
+- [x] Detalhe do run: banner **awaiting approval** + **Approve and run**; grafo do job `ci`; Re-run; Cancel; log e artifact.
+- [x] Abrir MR (developer, sem `forge`) enfileira o run em `awaiting_approval`. Maintainer+ ou `forge` aprova → `pending` (runner reclama). Push e merge de maintainer seguem `pending`.
+- [x] Runner **não** reclama `awaiting_approval`. `POST .../approve` e `POST .../rerun`. `GET .../runners` lista peers `role=runner` do projeto (sem token).
+- [x] Sem YAML de múltiplos jobs nesta fase (um job `ci`). Sem Caches/Attestations/métricas.
+
+**Critério de saída:** em `xgit.corp` a aba Actions parece a do GitHub; um MR de developer espera Approve and run; depois o runner da malha executa. Sem porta nova.
+
+---
+
+## Fase 43 — Serviços orquestrados (local + malha)
+
+xadmin instala e opera **no node local e nos VPS da malha**. Kinds: `mongo`, `redis`, `rabbitmq`, `lb`.
+
+- [x] `ServiceInstance` + agent no host alvo (`xvpn-svc-agent` na malha; local via `xvpn-user-provision svc-apply`).
+- [x] Bind só `wg0` (ou `127.0.0.1` local-only). DNS `svc-<slug>.corp`.
+- [x] Mongo do control-plane (`127.0.0.1:27017`) **intocável** nesta UI.
+- [x] Redis/Rabbit **não** viram hub do XCHAT (`PLAN.md` §6.11).
+
+**Critério de saída:** provisionar Redis no local e noutro peer; projeto resolve `svc-*.corp`; `ss` não mostra 6379/5672/27017 em `0.0.0.0`.
+
+---
+
+## Fase 43.1 — Console XGIT (GitLab-like no xadmin)
+
+O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** — mesma superfície de um GitHub/GitLab (lista, Code, MRs, Actions, Settings), sem instalar GitLab CE. Mapeamento das features: `PLAN.md` §6.15.
+
+- [x] Nav **XGIT** no xadmin: Repositórios (`/admin/xgit`) e Configurações (`/admin/xgit/settings`). `/admin/projects*` redireciona.
+- [x] Lista no xadmin: **todos** os repositórios (`scope=all`, viewer+). App em `xgit.corp`: só os do membro (`scope=mine`).
+- [x] Detalhe estilo GitHub: abas **Code** (tree/blob/README/commits/clone), **Merge requests**, **Actions** (CI + serviços do projeto), **Settings** (regras, colaboradores, branches protegidas).
+- [x] Configurações gerais: visibility/network padrão, `allow_member_create`, host de clone `xgit.corp`. Tree/blob/commits na API.
+- [x] `member` no xadmin vai para `xgit.corp` (não o dashboard). Activity social no XGROUP; Issues first-class na Fase 46. Clone só na VPN.
+- [x] App de sistema `xgit` no catálogo (restricted + vpn). Tile no waffle quando o usuário é `ProjectMember` ou tem ACL do app.
+- [x] Home em `xgit.corp` estilo GitHub: Overview (heatmap + timeline), Repositórios, Packages (futuro), Stars. Chat no chrome (XCHAT nas threads de MR).
+
+**Critério de saída:** xadmin vê todos os repos; o membro abre XGIT no waffle só se participa de um projeto (ou tem ACL do app) e lista os seus em `xgit.corp`; admin com `forge` cria e configura; `git clone https://xgit.corp.ihuull.com/<slug>` continua o único caminho de git. Sem GitLab CE.
+
+---
+
+## Fase 44 — Backups externos (Settings)
+
+- [x] Destinos: SFTP, Google Drive (rclone), Backblaze B2, S3/MinIO, WebDAV, XDRIVER (extra).
+- [x] Motor restic + rclone. Credenciais só no VPS.
+- [x] UI Settings: retenção, o que entra (Mongo CP, marketplace, git, social), dry-run, último job.
+- [x] `backup.sh` local permanece; off-site é adicional.
+
+**Critério de saída:** um job restic chega a um SFTP ou B2 de teste; restore documentado; nenhum token no Git. Restore: [`docs/runbooks/backup-restore.md`](./docs/runbooks/backup-restore.md).
+
+---
+
+## Fase 45+ — Forge tardio (backlog)
+
+- [ ] Container / npm / pypi registry (bind wg0).
+- [ ] Pages (Nginx + blob).
+- [ ] Snippets, SAST, feature flags.
+
+Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES).
+
+---
+
+## Fase 46 — Issues no XGIT
+
+Issues deixam de ser só um post no XGROUP. Viram entidade first-class no forge, no estilo GitHub (lista + detalhe), com discussão no XCHAT. XGROUP continua sendo a activity social do projeto — não é o tracker.
+
+- [x] Modelo `Issue` no Mongo (`project_id`, `number`, título, corpo, estado open/closed, labels, assignees, autor, timestamps). Sem segundo social.
+- [x] Aba **Issues** no detalhe do repo (`xgit.corp` e xadmin), entre Code e Pull requests. Slug reservado `issues`.
+- [x] Lista: filtro open/closed, busca, labels, assignees. Criar issue (reporter+). Fechar/reabrir (autor, maintainer+ ou `forge`).
+- [x] Detalhe `/:slug/issues/:n`: markdown, sidebar (labels/assignees), thread XCHAT (`DirectThread.Kind=issue`) no chrome (skill `chat-chrome` — sem FAB/modal).
+- [x] Activity no XGROUP: um post por issue aberta (link de volta ao XGIT). Comentários de review ficam no XCHAT, não duplicados no feed.
+- [x] API: `GET/POST /api/projects/:slug/issues`, `GET/PATCH /api/projects/:slug/issues/:n`. RBAC: guest lê se o projeto for visível; reporter+ cria.
+
+**Critério de saída:** membro abre `#1` em `xgit.corp`, discute no popout do XCHAT e fecha a issue. Fora da VPN a rota não resolve. Sem GitHub Issues import nesta fase.
+
+---
+
+## Fase 46.1 — Issues (paridade GitHub) e Projects
+
+A Fase 46 entregou o tracker. A lista ainda é um formulário no mesmo ecrã. O GitHub separa **lista** (filtros + New issue), **criar** (Write/Preview + sidebar) e **Projects** (board/table ligado a issues). `WorkProject` não é o `Project` do forge (o repositório).
+
+- [x] Lista de Issues no estilo GitHub: sidebar (Issues, Assigned to me, Created by me, Mentioned), Open/Closed com contagem, filtros Author/Labels/Assignees/Milestone, Sort, empty state. Botão **New issue** vai para `/:slug/issues/new`.
+- [x] Criar issue: título, Write/Preview, sidebar Assignees / Labels / Milestone. Create / Cancel. Sem segundo editor (não é Monaco).
+- [x] `Milestone` no Mongo (número por repo, open/closed, due opcional). Views **Milestones** e **Labels** no sidebar das Issues. Slugs reservados `milestones`, `labels`, `projects`.
+- [x] Aba **Projects** no detalhe do repo (entre Pull requests e Actions). Lista Open/Closed, busca, **New project**.
+- [x] Create project: templates Table, Board (Kanban), Bug tracker. Layout table ou board; colunas padrão Todo / In Progress / Done (Bug: Triage / In Progress / Done).
+- [x] Detalhe `/:slug/projects/:n`: table ou board; item = issue existente, PR ou draft. Mover de coluna. Guest lê; reporter+ cria item; maintainer+ fecha o project.
+- [x] API: filtros extras em `GET .../issues` (`author`, `assignee`, `label`, `mentioned`, `milestone`, `sort`); `GET/POST/PATCH .../milestones`; `GET/POST/PATCH .../work-projects` + `.../items`. Sem Insights, Workflows, Roadmap com datas, sem import GitHub.
+
+**Critério de saída:** em `xgit.corp` o membro cria uma issue pela página New, filtra Assigned to me, cria um Project Kanban e arrasta `#1` para In Progress. Fora da VPN a rota não resolve.
+
+---
+
+## Fase 47 — Pull requests (paridade GitHub)
+
+A página de MR hoje é um card (título, branches, merge/close). Precisa da superfície de um PR do GitHub para o review valer o fluxo (diff → checks → merge).
+
+- [x] Renomear a aba **Merge requests** para **Pull requests** na UI do XGIT (API pode continuar `mrs` / `MergeRequest` nesta fase — sem breaking sem necessidade).
+- [x] Detalhe `/:slug/pulls/:n` (alias da rota `mrs`): header GitHub-like (estado Open/Merged/Closed, `source → target`, autor, reviewers).
+- [x] Abas do PR: **Conversation** (descrição + timeline + XCHAT), **Commits**, **Files changed** (diff unificado, comentário inline → thread XCHAT).
+- [x] Checks da Fase 42 no header (pending/success/failure); merge bloqueado se job obrigatório falhar (quando o projeto exigir).
+- [x] Review: Approve / Request changes / Comment (maintainer+ mergeia; developer abre). Editar título/descrição.
+- [x] Lista de PRs com filtros (open/closed/merged) e contagem no tab do repo, no estilo da lista de Issues.
+- [x] Botão **Code** no repo: popover Local (HTTPS/SSH-copy + Download ZIP) — a aba XCODESPACES entra na Fase 49.
+
+**Critério de saída:** abrir um PR mostra diff e commits; comentar uma linha abre o XCHAT; merge respeita protected branch + CI. Sem GitLab.
+
+---
+
+## Fase 48 — Editor web Monaco + commit (fluxo GitHub)
+
+Editar um arquivo no browser e **salvar = commit**, como o lápis do GitHub. Valida o mesmo caminho de protected branch / PR da Fase 47. Não é o IDE completo (isso é XCODESPACES).
+
+- [x] Ação **Edit** no blob (lápis) e no menu de contexto do arquivo → rota `/:slug/edit/:ref/*path` com [Monaco Editor](https://microsoft.github.io/monaco-editor/).
+- [x] Linguagem por extensão; tema alinhado ao `shared/ui` (dark). Sem copiar tokens. Limite de tamanho (ex.: 2 MiB) — binário/imagem não abre no editor (viewer já existe no XDRIVER).
+- [x] **Salvar** abre o diálogo de commit (mensagem obrigatória, descrição opcional). Commit no servidor (`git commit` no bare via worktree), autor = usuário JWE. Nunca gerar chave git no servidor para o humano.
+- [x] Fluxo GitHub: se a ref for branch protegida e o papel não puder push direto → obrigar **criar branch + abrir PR** (não commitar em `main`/`master` no web). Developer em branch própria commita direto.
+- [x] Preview do diff antes do commit. Cancelar descarta o buffer (sem commit vazio).
+- [x] API: `PUT /api/projects/:slug/contents` (path + ref + mensagem + conteúdo). Mesmas regras de protected branch do receive-pack.
+
+**Critério de saída:** editar um `.go` em `xgit.corp`, salvar, ver o commit no histórico; tentativa de salvar em `main` como developer abre PR em vez de push direto.
+
+---
+
+## Fase 49 — XCODESPACES (editor rápido / Monaco)
+
+App de sistema **XCODESPACES**: workspace no browser, no estilo da aba Codespaces do botão **Code** do GitHub. Esta fase é o equivalente ao **github.dev** — Monaco sobre um worktree, sem runtime. O Codespaces de verdade (clone + container + VS Code + terminal) é a **Fase 50** (`PLAN.md` §3.6).
+
+- [x] Registrar `xcodespaces.corp.ihuull.com` em `PLAN.md` §5.2 + skill `port-domain-registry-check` + seed dnsmasq + Nginx `listen 10.66.66.1:443` + `allow 10.66.66.0/24`. Sem A público. Sem porta nova. Sem landing `xcodespaces.ihuull.com`.
+- [x] JWE `aud=xcodespaces`. App no catálogo (`slug=xcodespaces`, restricted + vpn). Waffle **Seus apps** se `ProjectMember` ou ACL do app. API no monólito (`/api/xcodespaces/`). Sem segundo binário Go.
+- [x] Marca em `shared/ui` (lockup XCODESPACES / IDE). Skill `desktop-app-ui` + `chat-chrome` no host. Skill `new-intranet-app`.
+- [x] Popover **Code** no XGIT: abas **Local** | **XCODESPACES**. Local = clone HTTPS + copiar URL + Download ZIP. XCODESPACES = lista de workspaces do user naquele repo, empty state (“No codespaces”) + **Create codespace on** a branch atual.
+- [x] Create: worktree em `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` (checkout da branch). Teto de workspaces por user. Disco fora de `/opt/xvpn/data/git/` (bare intocado).
+- [x] IDE em `https://xcodespaces.corp.ihuull.com/:id`: file tree, Monaco, commit no worktree (branch protegida → nova branch + PR). Chat no chrome.
+- [x] Sem terminal/SSH no VPS nesta fase. Sem bind em `0.0.0.0`. Delete apaga o worktree. Guest/reporter: read-only; developer+: commit com as mesmas regras de protected branch.
+
+**Critério de saída:** no repo, Code → XCODESPACES → Create on `main` abre o IDE; editar + commit cria commit no XGIT; Create em `main` como developer abre branch/PR, não push direto. Fora da VPN o host não resolve.
+
+---
+
+## Fase 50 — XCODESPACES remoto (VS Code + clone + Docker)
+
+O Create passa a ser o fluxo do GitHub Codespaces: provisiona um **container isolado**, **clona** o repositório, sobe **VS Code no browser** (openvscode-server) e o terminal roda **dentro** do container. O editor Monaco da Fase 49 permanece como “abrir no editor rápido” (sem esperar o runtime).
+
+Decisão e invariantes: `PLAN.md` §3.6. **Não** é KVM. **Não** é bash na 22 nem `docker exec` no host. Shell só no container.
+
+- [x] Registrar em `PLAN.md` §5.2/`§5.3`: `cs-<id>.corp.ihuull.com` + faixa `127.0.0.1:19000–19007`. Catch-all `*.corp` + cert `*.corp`. Sem A público. Sem porta no ufw. Skill `port-domain-registry-check` no deploy. **Não** usar `<id>.xcodespaces.corp` (dois rótulos).
+- [x] Helper `cs-apply` no `xvpn-user-provision` (JSON stdin). O PID do `xvpn-server` não fala com o Docker. `xvpn` **fora** do grupo `docker`.
+- [x] Create (developer+): clone do bare para `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` + remote `xgit.corp`. Token de clone de curta duração (hash no banco). Bare intocado. Não reusar worktree da Fase 49 como `.git` do container.
+- [x] Imagem: `.devcontainer/devcontainer.json` na allowlist (`gitpod/openvscode-server`, `codercom/code-server`); senão `gitpod/openvscode-server:1.98.2`. Sem `privileged`, sem `docker.sock`, sem `--network=host`. cgroup ~1,5 GiB / 1 vCPU.
+- [x] Teto: **1 codespace em execução**. Idle-stop 30 min (volume fica). Delete apaga volume + container.
+- [x] IDE: openvscode-server, publish `127.0.0.1:<porta>`. Nginx `cs-<id>.corp` → Go (JWE) → porta. Lista/create em `xcodespaces.corp`.
+- [x] Terminal = PTY do VS Code no container. Push via smart HTTP + token `codespace-<id>`. Protected branch no receive-pack.
+- [x] Popover **Code** → **Create codespace** vs **Abrir no editor rápido**. Lista mostra estado.
+- [x] Guest/reporter: não criam nem ligam codespace remoto. Sem bind em `0.0.0.0`.
+- [x] Testes de allowlist/path/clone do bare. Runbook: [`docs/runbooks/codespaces.md`](./docs/runbooks/codespaces.md).
+
+**Critério de saída:** Code → Create codespace clona o repo, abre VS Code em `cs-<id>.corp`, o terminal roda `git status` e `go version` (ou `node -v`) **dentro** do container; commit + push aparece no XGIT; Create em `main` como developer não faz push direto; parar o codespace não apaga o clone; delete apaga volume; `docker.sock` não existe no container; fora da VPN o host não resolve.
+
+---
+
+## Fase 51 — XCODESPACES DX (imagem, tema, extensões, assistente)
+
+A Fase 50 entrega o runtime (clone + openvscode + proxy). O container de hoje é a imagem nua `gitpod/openvscode-server`: sem Go/Node de verdade, sem extensões, tema default do VS Code, sem assistente. Esta fase deixa o codespace **usável para desenvolver o monorepo** — o Docker configura o ambiente **na imagem / no create**, não com `docker.sock` dentro do container (`PLAN.md` §3.6).
+
+Marketplace do openvscode = **Open VSX**, não o da Microsoft. GitHub Copilot oficial (VSIX Microsoft + login GitHub) **não** entra na imagem: quebra no OSS, vaza credencial no volume e sai da intranet.
+
+### 51.1 Imagem ihuull + `.devcontainer`
+
+- [x] `server/deploy/codespace/Dockerfile`: `FROM gitpod/openvscode-server:1.98.2` + Go + Node LTS + git + build-essential. Sem Docker Engine, sem socket. Tag `ihuull/codespace:<ver>` na allowlist do helper (além de `gitpod/openvscode-server` / `codercom/code-server`).
+- [x] `.devcontainer/devcontainer.json` na raiz do monorepo: `image`, `customizations.vscode.extensions`, `settings` (tema ihuull, fontes), `postCreateCommand` leve (`go version && node -v`). Sem `privileged`, sem mount de `/var/run/docker.sock`.
+- [x] Helper lê mais que `image`: aplica `customizations.vscode.settings` em `machine-settings.json` ao lado do volume (Machine do IDE). Não escreve `.vscode/` no clone.
+- [x] Build da imagem no VPS + `docker pull` no runbook. Create novo usa `ihuull/codespace`; codespace antigo continua na imagem em que nasceu até Recreate.
+- [x] Teste: allowlist rejeita imagem fora; `ihuull/codespace` aceita. `go version` / `node -v` no terminal depois do build no VPS.
+
+### 51.2 Extensões (Open VSX)
+
+- [x] Bake na imagem (não download no first-open): Go, ESLint, Prettier, Markdown All in One, YAML. IDs só do Open VSX (`install-ovsx.sh`). Lista canônica no `devcontainer.json`.
+- [x] Sem VSIX da Microsoft Store. Sem Copilot/`GitHub.copilot` na allowlist.
+- [x] Extensão **nossa** (`ihuull.codespace`): chat ihuull + generate commit. Tema continua em `ihuull.ihuull-theme`. Não é Continue.dev nem Copilot. Não pede login Microsoft.
+
+### 51.3 Tema inspirado no frontend
+
+- [x] Pacote `shared/vscode-theme`: `ihuull Dark` gerado dos tokens `$dark` em `shared/ui/scss/_color-system.scss` (skill `design-system` — não copiar hex à mão). Fundo ~oklch 0.11, acento primary 230, card 0.18, glow.
+- [x] Fonte do editor: `editor.fontFamily` JetBrains Mono / Fira Code / ui-monospace (a imagem não empacota as webfonts nesta PR).
+- [x] Default: `"workbench.colorTheme": "ihuull Dark"` nas Machine settings (fora do clone). Sem `:root` no painel.
+
+### 51.4 Chat ihuull + GLM e outros provedores
+
+O assistente é **nosso** (painel na extensão `ihuull.codespace`, tema ihuull). Não empacotar Continue.dev nem Copilot. A extensão só fala com o monólito (`aud=xcodespaces`, só VPN); o VPS chama o provedor. Chave **nunca** no Git, na imagem nem no volume do codespace.
+
+- [x] Proxy LLM no `xvpn-server`: OpenAI-compatível (GLM / Zhipu, OpenAI, Groq) + Anthropic. Fonte: **xadmin → Settings** (`CodespaceSettings`, key write-only). Dropdown de modelos por provedor + **Testar** (não persiste). Allowlist de hosts do `base_url` (https). Rate limit. Só hosts `cs-*` / `xcodespaces.corp`. Sem porta pública nova.
+- [x] Chat na extensão (`ihuull.codespace`): painel simples. Sem chrome de terceiro.
+- [x] **Auto commit message:** botão no Source Control. A extensão manda `git diff --cached` (truncado) ao proxy; o modelo devolve **uma** linha Conventional Commits; o usuário confirma no input nativo. Sem commit automático sem review. Fetch no Node é URL absoluta `https://cs-<id>.corp` + token Git do codespace (não path relativo nem cookie do browser). Egress: `--add-host` + Nginx `allow 172.17.0.0/16` em xgit/cs-* (docker0 não é VPN).
+- [x] Sem `docker.sock`. Sem VSIX Microsoft.
+
+### 51.5 ENVs do projeto no XGIT (o codespace consome)
+
+Settings do repo em `xgit.corp` (`/:slug/settings`): seção **Codespaces** (ao lado de General / Collaborators / Branches). É o equivalente às *Codespaces secrets* do GitHub — o container recebe no start.
+
+- [x] Modelo: nome `^[A-Z][A-Z0-9_]{1,63}$`, valor, flag `secret`. Secret: write-only depois de gravar (UI mostra `••••`); plaintext: maintainer+ lê. maintainer+ / `forge` escreve; developer+ usa no codespace; guest/reporter não vê valores.
+- [x] Provedor de IA (GLM, OpenAI, Anthropic, compatível) mora em **xadmin → Settings** (não no repo). `XCS_LLM_*` no projeto, se existir, **não** vai ao container.
+- [x] Demais ENVs (app, testes): helper injeta via `--env-file` (fora do argv). Denylist de runtime/shell/loader (`PATH`, `NODE_OPTIONS`, `PS1`, `IFS`, `GCONV_PATH`, `DOTNET_*`, `GIT_*`…). Teto ~32 pares / 4 KiB por valor.
+- [x] Valores **não** vão para o bare, para o XGROUP, nem para log do CI. Teste: secret não volta no GET; ENV aparece no `env` do terminal; key LLM não aparece.
+
+**Critério de saída:** Create no repo XVPN abre VS Code com tema ihuull, `go version` + `node -v` ok; xadmin → Settings grava o GLM (key write-only); Settings do repo grava um ENV de app; o terminal vê o ENV e **não** vê a key; o chat ihuull responde via GLM; o botão de commit preenche uma mensagem Conventional Commits para o usuário confirmar; `docker.sock` ausente; Recreate pega imagem nova. Go/ESLint/Prettier/Markdown bakeados.
+
+### 51.6 HOME ≠ clone + Welcome ihuull
+
+O openvscode usa `/home/workspace` como HOME. Montar o clone aí faz o IDE gravar `.cache`, logs e lock **dentro do repo** — o Source Control fica cheio de `U` e o Explorer verde.
+
+- [x] Helper monta o clone em `/home/workspace/project`; `--default-folder` nesse path. HOME do container fica fora do Git.
+- [x] Settings (tema, Welcome) em `…/<id>/machine-settings.json` → Machine do IDE (`:ro`). Sem `.vscode/settings.json` gerado no clone.
+- [x] `shared/vscode-theme` contribui walkthrough **XCODESPACES** (pt-BR) e `extension.js` abre esse guia no first-open (esconde o builtin `SetupWeb`). gitignore global na imagem (`.cache`, `.openvscode-server`) como defesa.
+- [x] Recreate obrigatório para codespace já criado (start não troca o `-v`).
+- [x] Playground XGIT **`teste`** (`server/deploy/codespace/sample-teste/`): Go + Node + `.devcontainer` + tasks + checklist no README. Seed: `seed-teste.sh`.
+
+**Ordem:** 51.1 + 51.3 + 51.6 (imagem/tema/HOME/Welcome) → 51.5 (ENVs de app no XGIT) → 51.2/51.4 (extensão + proxy; key no xadmin).
+
+---
+
+## Fase 52 — Agente ihuull (skills, commands, tools)
+
+A Fase 51 entrega o proxy LLM e um chat webview solto. O OpenVSCode 1.98 ainda mostra o painel nativo **CHAT / COPILOT EDITS** — não é a nossa extensão. Esta fase **remove essa superfície** (e desinstala Copilot/Continue/Cline se o usuário instalar) e coloca o **agente ihuull** na **secondary sidebar** (direita), no lugar do Chat nativo. O agente lê `AGENTS.md`, `.cursor/skills`, `.cursor/rules` e corre um loop de ferramentas **só no container** (`PLAN.md` §3.6). O VPS continua só como proxy — não lê o workspace.
+
+### 52.1 Esconder Chat/Copilot nativo
+
+- [x] Machine settings: `chat.commandCenter.enabled=false`, Copilot desligado. Helper grava o mesmo em `defaultCodespaceSettings`.
+- [x] Extensão `ihuull.codespace`: view **XCODESPACES / Chat** na secondary sidebar (webview). `ihuull.openChat` foca essa view, não um painel editor.
+- [x] No activate: desinstala/desabilita `GitHub.copilot`, `GitHub.copilot-chat`, Continue, Cline; fecha o chat/edits nativos; `onDidChange` se o usuário instalar de novo.
+- [x] Tokens `$dark` (oklch) no webview — sem hex inventado. Sem Copilot/Continue bakeados.
+
+### 52.2 Contexto Cursor-like
+
+- [x] Varrer o folder aberto: `AGENTS.md` (~8 KiB), `.cursor/skills/*/SKILL.md` (catálogo name+description), `.cursor/rules/*.mdc`, arquivo/seleção atuais.
+- [x] Slash: `/help`, `/skills`, `/commit`, `/explain`, `/<skill>`.
+- [x] `POST /api/xcodespaces/llm/chat` aceita `context` (cap ~24 KiB) e prefixa o system. `maxLLMChatMsgs` 80 (cabe um loop de 24 tools); chat até 2048 tokens.
+
+### 52.3 Loop de ferramentas (no container)
+
+- [x] Proxy OpenAI-compat devolve `content` **ou** `tool_calls`. Sem loop no servidor — a extensão itera (teto 24).
+- [x] No teto: uma chamada em Ask (sem tools) pede o que já descobriu — não só “reformule o pedido”.
+- [x] Tools no extension host, path só no clone (`..` rejeitado): `read_file`, `list_dir`, `grep`, `read_skill`, `write_file` / `apply_patch` (usuário confirma), `run_terminal` (allowlist: git/go/npm/npx/node/python3/ls/cat/head/rg; block docker/sudo/ssh; timeout; stdout truncado).
+- [x] Thinking GLM continua desligado. Sem `docker.sock`.
+
+### 52.4 Chat à direita (Cursor-like)
+
+- [x] OpenVSCode **1.98** só declara `viewsContainers.activitybar`/`panel` (`additionalProperties:false`). `workbench.panel.chat` com AI off **não existe** e a view cai no Explorer (esquerda). A imagem aplica `patch-auxiliary-bar.js` (schema + switch → AuxiliaryBar) e a view mora em `viewsContainers.secondarySideBar` (`ihuull-agent`). Machine settings: `workbench.secondarySideBar.defaultVisibility=visible`. Activate foca a auxiliary bar — **não** chama `closeAuxiliaryBar`.
+- [x] Chrome do webview: seletor de modo **Agent / Ask / Debug / Plan**, seletor de modelo, arquivo atual, composer (Enter envia, Shift+Enter quebra linha).
+- [x] Timeline Cursor-like: **Thinking**, resumo expansível (“Explorou N arquivos, M buscas”), cards `>_` com título + tag + preview — sem dump `tool 6…`.
+- [x] `GET /api/xcodespaces/llm/models` (mesmo grupo llm: host `cs-*` / `xcodespaces.corp` + JWE ou token Git). Devolve `provider`, `model`, `has_key`, `catalog` — sem a key.
+- [x] `POST /chat` aceita `mode` e `model` (override por request, allowlist do catálogo do provedor; Settings do xadmin continua a fonte). Ask não encaminha tools; Plan só read.
+
+**Critério de saída:** codespace abre o chat ihuull à direita (não CHAT/COPILOT EDITS); dá para escolher modelo e modo; `/skills` lista as skills do repo; o agente lê `AGENTS.md` e pode aplicar um patch depois do **Aplicar**; terminal allowlisted no clone; instalar Copilot some no reload; Recreate pega a extensão nova.
+
+### 52.5 Identidade Git + paridade Cursor
+
+O Source Control do OpenVSCode recusa commit sem `user.name`/`user.email` (o clone nascia só com credential helper). O agente também não achava arquivos por glob — o Cursor usa isso o tempo todo.
+
+- [x] Helper grava `git config user.name/email` no clone (`username@corp.ihuull.com`, igual ao commit do XGIT). `git_author` no `CsSpec` validado — não mistura com `git_user` do token HTTP (`codespace-<id>`).
+- [x] `GET /models` devolve `git_name`/`git_email` do caller (JWE ou token Git). A extensão chama `git config` no activate — codespace já rodando não precisa esperar só o Recreate.
+- [x] Tool `glob` (`rg --files -g`). Plan/Ask/Agent respeitam o mesmo recorte de tools. `git --no-verify` bloqueado no terminal.
+- [x] Sem `AGENTS.md` no clone: contrato ihuull no context (Conventional Commits, sem commit em `main`, skills/rules). Se existir `CONTRIBUTING.md`, entra no context. Playground `teste` ganha `AGENTS.md`.
+
+**Critério de saída:** codespace abre o chat ihuull à direita (não CHAT/COPILOT EDITS); dá para escolher modelo e modo; Source Control commita sem o diálogo de `user.name`; `/skills` lista as skills do repo; o agente lê `AGENTS.md` (ou o contrato default), usa `glob` e pode aplicar um patch depois do **Aplicar**; terminal allowlisted no clone; instalar Copilot some no reload; Recreate pega a extensão nova.
+
+**Ordem:** 52.1 (UI) → 52.2 (contexto) → 52.3 (tools) → 52.4 (direita + modos/modelos) → 52.5 (git + glob). Rebuild da imagem + Recreate — start antigo não troca a layer. Troca do proxy (`/models`, `mode`, `model`, identidade Git) = deploy do `xvpn-server`. Helper novo = `xvpn-user-provision` no VPS.
+
+## Fase 53 — Composer Cursor-like, terminal em background, mapa Go
+
+O chat da Fase 52 já itera tools, mas o composer ainda é um textarea + chips. O Cursor anexa contexto com `@` / `#` / `/`, mostra um terminal do agente e o modelo acerta mais quando conhece o grafo Go. Tudo **dentro do container** (`PLAN.md` §3.6) — sem shell no host, sem `docker.sock`.
+
+### 53.1 Composer `@` `#` `/`
+
+- [x] `@arquivo` anexa o conteúdo (cap) ao context. Autocomplete de ficheiros do clone.
+- [x] `#git` / `#docs` / `#pasta` — status+log, docs do repo, listing. Autocomplete.
+- [x] `/help` `/skills` `/commit` `/explain` `/<skill>` com palette (Tab/Enter escolhe).
+
+### 53.2 Terminal do agente no container
+
+- [x] `run_terminal` pode ir em **background** (não bloqueia o chat). Chip “N terminais em background”. PTY `XCODESPACES` no workbench (eco do comando).
+- [x] `job_status` lê o stdout do job. Teto 3 jobs. Mesma allowlist (`git --no-verify` / docker / sudo / bash bloqueados). `xcs-analyze` e `gofmt` permitidos.
+
+### 53.3 Analyzer Go (`xcs-analyze`)
+
+- [x] CLI stdlib no clone (módulos, packages, símbolos exportados, docs). Bake em `/usr/local/bin/xcs-analyze`. Sem rede, sem `go/packages` (não baixa módulos).
+- [x] Tool `analyze_project` (Plan/Agent). O context do chat inclui o mapa (cache 60s) para o LLM acertar testes e grep.
+
+### 53.4 UI
+
+- [x] Header com vinheta `--product`, cards com glow leve, palette, pins de menção, placeholder `@` `#` `/`. Tokens `$dark` — sem hex novo.
+
+**Critério de saída:** Recreate: Go/Markdown/ESLint/Prettier/YAML na imagem; `@go.mod` e `#git` entram no context; `go test` em background aparece no terminal XCODESPACES; o agente usa o mapa Go; `docker.sock` ausente.
+
+**Ordem:** 53.3 (analyzer) → 53.2 (jobs) → 53.1/53.4 (composer/UI) + 51.2 (Open VSX). Rebuild + Recreate. Helper não muda. Proxy não muda.
+
+## Fase 54 — Review, Stop e logs de comando (Cursor-like)
+
+O Cursor mostra diffs inline, um painel **Review** (N files, +/−, Stop) e manda stdout longo para ficheiro (`.cursor` ou `/tmp`) — o chat só vê o preview. O chrome tem **Waiting for shell**, terminais em background e toolbar `@` `#` `$`. O XCODESPACES da Fase 53 já tem cards `>_` e chip de jobs; falta o resto. Tudo **no container** (`PLAN.md` §3.6). Hooks `.cursor/hooks.json` são **só inspecionados** — não corremos o `command` (seria bash; o beforeShell nosso é a allowlist em `sandbox.js`).
+
+### 54.1 Artifacts de comando
+
+- [x] `run_terminal` / `grep` / `analyze_project` (e stdout longo) gravam `.cursor/agent/<id>.log` no clone; se não der, `/tmp/xcs-agent/`.
+- [x] O card do chat mostra preview curto + path do log. `.cursor/agent/` no `.gitignore` (e no `gitignore-global` da imagem).
+- [x] Job em background também grava o log ao fechar.
+
+### 54.2 Review + Stop + Editing
+
+- [x] Painel **N Files** com +/− dos `write_file` / `apply_patch` do turno; botão **Review** expande a lista.
+- [x] **Stop** aborta o `fetch` do LLM, o loop e os jobs em background (`AbortController` + `SIGTERM`).
+- [x] Status `Editing <ficheiro>` e `Waiting for shell` enquanto o terminal bloqueia.
+
+### 54.3 `$term` e hooks (inspect)
+
+- [x] Composer `$term` / `$jobs` anexa stdout/status dos jobs (palette + chip `$` ao lado de `@` `#` `/`).
+- [x] Chip “hooks …” se existir `.cursor/hooks.json`. **Não** executa o `command` do hook — invariante §3.6.
+
+### 54.4 UI
+
+- [x] Barra Review/Stop no rodapé do turno; artifact no card; placeholder `@` `#` `$` `/`. Tokens `$dark`.
+
+**Critério de saída:** Recreate: um `go test` longo aparece no card com path `.cursor/agent/…`; write gera linha no Review; Stop para o loop; `$term` entra no context; `hooks.json` do repo não dispara bash.
+
+**Ordem:** 54.1 (log) → 54.2 (Review/Stop) → 54.3/54.4 (composer/UI). Rebuild da imagem + Recreate. Helper e proxy **não** mudam.
+
+## Fase 55 — Python3, espera o terminal, MCP
+
+O Cursor espera o comando e usa o stdout no raciocínio. No XCODESPACES o modelo tentava `TESTE_WHO=Agente python3` (sintaxe de shell) e disparava background sem ler o resultado. `python3` passa a ser o interpretador de scripts; MCP stdio no container dá think/memory/docs. Create continua **clone** do slug `xgit.corp` — não GitHub, não fork (`PLAN.md` §3.6).
+
+### 55.1 Espera + env + python3
+
+- [x] `run_terminal` espera por default (até 120s). `background` + `wait:false` só para jobs longos; senão `waitFor` devolve stdout.
+- [x] Campo `env:{KEY:valor}`. `KEY=valor` no argv é recusado com dica. `PATH`/`LD_*` bloqueados.
+- [x] `python3` na imagem (`apt`) e na allowlist. Skill bakeada `python3`.
+
+### 55.2 MCP (stdio no container)
+
+- [x] Tools `list_mcp` / `call_mcp`. Servidores bakeados: **think**, **memory**, **docs** (GET https allowlisted: Python/Go/PyPI/context7).
+- [x] Extra no clone: `.cursor/mcp.json` só `command: python3` + `.cursor/mcp/*.py`. Sem Mongo MCP, sem npx arbitrário.
+- [x] Skill bakeada `mcp`.
+
+### 55.3 Clone, não fork
+
+- [x] Contrato no context: workspace = `git clone` de `https://xgit.corp.ihuull.com/<slug>` no volume. Fork GitHub/forge **rejeitado**.
+
+**Critério de saída:** Recreate: `python3 --version`; `env TESTE_WHO` via campo `env` imprime no card; o agente não dispara `VAR=valor`; `list_mcp` mostra think/memory/docs; `docker.sock` ausente.
+
+**Ordem:** 55.1 → 55.2. Rebuild da imagem + Recreate. Helper não muda. Proxy não muda.
+
+## Fase 56 — Demo ports (`demo-<nome>.corp:*`)
+
+O painel **Ports** do OpenVSCode (“Forward a Port”) abre túnel Microsoft para a internet — fora da intranet. O equivalente honesto no XVPN: um hostname **seu** `demo-<nome>.corp.ihuull.com` que, na VPN, é o IP do container em **todas** as portas.
+
+Não dá para apontar `:*` para `10.66.66.1` (roubaria 53/443/445). VIP dedicado `10.66.66.254` no `wg0` + DNAT só de `10.66.66.0/24`. Um rótulo (o wildcard `*.corp` e o cert cobrem `demo-vite.corp`; `demo.cs-<id>.corp` **não**).
+
+### 56.1 VIP + DNAT
+
+- [x] `10.66.66.254/32` em `wg0`. `AllocateIP` nunca entrega `.254` a peer.
+- [x] Chains `XVPN-DEMO-NAT` / `XVPN-DEMO-FWD`: DNAT TCP+UDP para o IP docker0 (`172.17.0.0/16`). MASQUERADE de volta. Sem `eth0`, sem `--network=host`.
+- [x] Stop/rm limpa o DNAT e o dnsmasq.
+
+### 56.2 DNS e nome
+
+- [x] `demo-<nome>.corp.ihuull.com` em `/etc/dnsmasq.d/xvpn-demo.conf` (mais específico que o catch-all → `.1`).
+- [x] `PATCH /api/xcodespaces/:id/demo`. Create remoto usa o slug como nome default. Sem A público.
+
+### 56.3 UI
+
+- [x] Lista XCODESPACES mostra `demo-<nome>.corp:*` e botão **Demo**.
+- [x] Machine settings: `remote.autoForwardPorts=false` (não usar o botão Ports da Microsoft).
+
+**Critério de saída:** VPN ligada, `http://demo-<nome>.corp.ihuull.com:5173` (app escutando `0.0.0.0` no container) responde. Fora da VPN o nome não resolve (ou não roteia). `ss` na eth0 inalterado.
+
+**Ordem:** helper `cs-apply` + API + UI. Deploy do `xvpn-user-provision` **e** do `xvpn-server`. Imagem: Recreate para o setting `autoForwardPorts`. Sem porta no ufw.
+
+## Fase 57 — Canário Flask (`demo-*`) + terminal do agente
+
+Repo **`teste`** no XGIT (owner **`rootkit`**) ganha um servidor **Flask** mínimo para validar a Fase 56 sem depender de Vite/Go manual. O processo escuta **`0.0.0.0:8080`** no container; na VPN abre `http://demo-cs-<id>.corp.ihuull.com:8080/` (ou o hostname da aba **Ports**).
+
+Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar para pintar o terminal. `run_terminal` faz **spawn** no PTY **XCODESPACES** (stdout ao vivo, `PYTHONUNBUFFERED=1`). Flask/`app.py`/`0.0.0.0` não bloqueiam 120s — ~8s e o job segue em background. Ctrl+C no PTY ou Stop no chat. Sem argv cru no bash (quoting + allowlist).
+
+### 57.1 Playground `teste`
+
+- [x] `web/flask/app.py` + `scripts/demo-flask.sh` (bind `0.0.0.0:8080`).
+- [x] Task VS Code **demo (flask)** + `check.sh` importa `flask`.
+- [x] Imagem `ihuull/codespace:1.98.2`: pacote `python3-flask` (apt).
+- [x] Re-seed: `server/deploy/codespace/seed-teste.sh` no VPS (`web/flask/app.py` no tree de `teste`).
+
+### 57.2 Terminal do agente
+
+- [x] Extensão `ihuull.codespace` **0.5.7**: PTY ao vivo + Flask sem hang; **XCODESPACES** na barra direita; chat compacto + auto-aplicar edições.
+- [x] Rebuild da imagem no VPS (Recreate / Stop→Start no codespace — start antigo não troca a layer).
+
+### 57.3 Ports + layout + CI
+
+- [x] Aba **Ports**: `/proc/net/tcp` + `ss` (`iproute2` na imagem); lista `:8080` com bind e aviso se ≠ `0.0.0.0`.
+- [x] Layout: **Ports** em `viewsContainers.panel` (painel inferior — `workbench.panel` caía no Explorer), **XCODESPACES** na auxiliary bar.
+- [x] Chat compacto na barra direita + **Sempre** / Auto: `write_file` e `apply_patch` sem Aplicar a cada ficheiro (`ihuull.codespace.autoApply`). Terminal continua a confirmar.
+- [x] Ports: hostname `demo-*` completo (sem ellipsis); **Abrir** via `window.open` no clique (openExternal no webview é no-op).
+- [x] Demo DNS: `host-record=` vence o catch-all `address=/corp.ihuull.com/` (senão `:8080` cai no landing em `10.66.66.1`).
+- [x] CI: `client-linux` / `client-windows-crosscompile` só com diff em `apps/xvpn-client/**` (`dorny/paths-filter`).
+
+**Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). Aba **Ports** lista `:8080` → `http://demo-cs-<id>.corp:8080/health` → `{"ok":true}`. PR só codespace: CI ~3 min (sem Wails client).
+
+**Ordem:** código monorepo → rebuild imagem → seed `teste` → Recreate. Sem mudança no helper DNAT.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1136,6 +1676,7 @@ O xchat 0.1.2 falhava com a VPN ligada porque o DNS do SO (systemd-resolved / Do
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
+- **Parte XIV (35–57):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) → **57** (canário Flask no repo `teste` + espelho de terminal). 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

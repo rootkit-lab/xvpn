@@ -31,12 +31,17 @@ func allModels() []any {
 	return []any{
 		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
-		&PanelSettings{},
+		&PanelSettings{}, &ForgeSettings{}, &CodespaceSettings{},
 		&DNSSettings{}, &DNSRecord{},
+		&CloudflareAccount{}, &PublicZone{}, &PublicRecord{},
 		&SocialProfile{}, &Follow{}, &SocialGroup{}, &SocialGroupMember{},
 		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
 		&SocialAttachment{}, &Story{}, &StoryView{},
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
+		&Project{}, &ProjectMember{}, &ProjectStar{}, &ProtectedBranch{}, &ProjectEnv{}, &MergeRequest{}, &MergeRequestReview{}, &Issue{}, &Milestone{}, &WorkProject{}, &WorkItem{}, &CodeSpace{}, &CiJob{},
+		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
+		&ServiceInstance{},
+		&BackupSettings{}, &BackupDestination{}, &BackupJob{},
 	}
 }
 
@@ -69,6 +74,15 @@ func openSQLite(path string) (*Store, error) {
 	}
 	if err := SeedIntranetDNS(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
+	}
+	if err := SeedXgitApp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando app XGIT: %w", err)
+	}
+	if err := SeedXcodespacesApp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando app XCODESPACES: %w", err)
+	}
+	if err := SeedBackupSettings(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando backups: %w", err)
 	}
 	return st, nil
 }
@@ -117,6 +131,15 @@ func OpenMongo(uri, sqlitePath string) (*Store, error) {
 	st.registerMongoCallbacks()
 	if err := SeedIntranetDNS(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
+	}
+	if err := SeedXgitApp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando app XGIT: %w", err)
+	}
+	if err := SeedXcodespacesApp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando app XCODESPACES: %w", err)
+	}
+	if err := SeedBackupSettings(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando backups: %w", err)
 	}
 	return st, nil
 }

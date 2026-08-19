@@ -32,6 +32,18 @@
   --product: var(--product-marketplace);
 }
 
+[data-product="xadmin"] {
+  --product: var(--product-xadmin);
+}
+
+[data-product="xgit"] {
+  --product: var(--product-xgit);
+}
+
+[data-product="xcodespaces"] {
+  --product: var(--product-xcodespaces);
+}
+
 [data-product="ihuull"] {
   --product: var(--product-xvpn);
 }

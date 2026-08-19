@@ -1,0 +1,74 @@
+package store
+
+import (
+	"regexp"
+	"strings"
+	"time"
+	"unicode/utf8"
+)
+
+const (
+	MaxProjectEnvs          = 32
+	MaxProjectEnvValueBytes = 4096
+	projectEnvNameMaxRunes  = 64
+)
+
+var projectEnvNameRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]{1,63}$`)
+
+// ProjectEnv é um ENV do codespace gravado no Settings do repo (Fase 51.5).
+// Não vai para o bare Git, XGROUP nem log de CI.
+type ProjectEnv struct {
+	ID        uint   `gorm:"primaryKey"`
+	ProjectID uint   `gorm:"uniqueIndex:idx_project_env;not null"`
+	Name      string `gorm:"uniqueIndex:idx_project_env;not null;size:64"`
+	Value     string `gorm:"type:text" json:"-"`
+	Secret    bool   `gorm:"not null;default:false"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func ValidProjectEnvName(name string) bool {
+	if name == "" || utf8.RuneCountInString(name) > projectEnvNameMaxRunes {
+		return false
+	}
+	return projectEnvNameRe.MatchString(name)
+}
+
+func BlockedProjectEnvName(name string) bool {
+	switch name {
+	case "PATH", "HOME", "SHELL", "USER", "LOGNAME", "PWD", "OLDPWD",
+		"ENV", "BASH_ENV", "PROMPT_COMMAND", "SHELLOPTS", "BASHOPTS",
+		"PS0", "PS1", "PS2", "PS3", "PS4", "HISTFILE", "IFS", "CDPATH",
+		"NODE_OPTIONS", "NODE_PATH",
+		"PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME",
+		"PERL5OPT", "PERL5LIB", "RUBYOPT", "RUBYLIB",
+		"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS",
+		"GOFLAGS", "GOTOOLCHAIN", "GOPATH", "GOROOT", "SSLKEYLOGFILE",
+		"GCONV_PATH", "LOCPATH", "NLSPATH", "GLIBC_TUNABLES",
+		"DOTNET_STARTUP_HOOKS", "HOSTALIASES", "RES_OPTIONS", "TZDIR",
+		"TERMINFO", "TERMPATH", "INPUTRC", "MAIL", "MAILPATH",
+		"FPATH", "ZDOTDIR", "TMPDIR", "TZ", "TERM", "LANG", "LANGUAGE", "LC_ALL",
+		"EDITOR", "VISUAL", "PAGER", "DISPLAY":
+		return true
+	}
+	for _, p := range []string{
+		"LD_", "SSH_", "DOCKER_", "NODE_", "PYTHON", "GIT_", "OPENSSL_", "NPM_CONFIG",
+		"DOTNET_", "GLIBC_", "GCONV_", "LC_", "XDG_", "JAVA_", "JDK_", "PERL", "RUBY",
+	} {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsLLMProjectEnv(name string) bool {
+	return strings.HasPrefix(name, "XCS_LLM_")
+}
+
+func ValidProjectEnvValue(value string) bool {
+	if len(value) > MaxProjectEnvValueBytes {
+		return false
+	}
+	return !strings.ContainsAny(value, "\x00\n\r")
+}

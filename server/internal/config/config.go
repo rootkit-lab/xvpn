@@ -120,6 +120,34 @@ type Config struct {
 	// DriverHomeRoot é o prefixo das pastas pessoais (/home). O path
 	// real é <root>/<username>/files.
 	DriverHomeRoot string
+
+	// DriverProjectsDir é a raiz dos shares de projeto no XDRIVER
+	// (Fase 37 — /opt/xvpn/data/projects/<slug>). Sem FileBrowser e
+	// sem Samba [project-*] nesta fase; só o Drive web em xdriver.corp.
+	DriverProjectsDir string
+
+	// GitDir é a raiz dos bare repos do forge (Fase 40 —
+	// /opt/xvpn/data/git/<slug>.git). Smart HTTP só em xgit.corp.
+	GitDir string
+
+	// CodespacesDir é a raiz dos worktrees do XCODESPACES (Fase 49 —
+	// /opt/xvpn/data/codespaces/<user>/<slug>/<id>/). Fora do bare.
+	CodespacesDir string
+
+	// BackupDir é o staging dos jobs off-site (Fase 44 — restic cache,
+	// rclone.conf temporário). Credenciais ficam no Mongo, não aqui.
+	BackupDir string
+
+	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Se o banco estiver
+	// vazio, semeia a primeira BitLaunchAccount. O caminho normal é
+	// Compute → Configurações (várias contas). Vazio e sem contas =
+	// só import do node local; create/rebuild devolvem 503.
+	BitLaunchToken string
+
+	// CloudflareToken (Fase 39) só no VPS. Semeia a primeira
+	// CloudflareAccount se o banco estiver vazio. Caminho normal:
+	// DNS → Configurações.
+	CloudflareToken string
 }
 
 func getEnv(key, fallback string) string {
@@ -165,6 +193,12 @@ func Load() (*Config, error) {
 		UserProvisionBinaryPath: getEnv("XVPN_USER_PROVISION_BIN", "/opt/xvpn/bin/xvpn-user-provision"),
 		DriverSharedDir:         getEnv("XVPN_DRIVER_SHARED_DIR", "/srv/xvpn/shared"),
 		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
+		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
+		GitDir:                  getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
+		CodespacesDir:           getEnv("XVPN_CODESPACES_DIR", "/opt/xvpn/data/codespaces"),
+		BackupDir:               getEnv("XVPN_BACKUP_DIR", "/opt/xvpn/data/backups"),
+		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
+		CloudflareToken:         os.Getenv("XVPN_CLOUDFLARE_TOKEN"),
 	}
 
 	var err error

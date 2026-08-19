@@ -65,6 +65,55 @@ func TestAdminWithoutCoreScopeCannotPatchConfig(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("admin sem core não deveria alterar config, obtido %d: %s", rec.Code, rec.Body.String())
 	}
+	rec = doJSON(t, f.router, http.MethodPatch, "/api/config/xcodespaces", patchCodespaceSettingsRequest{Provider: ptr("glm")}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin sem core não deveria alterar o assistente, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithoutManagedScopeCannotCreateService(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/services", createServiceRequest{Slug: "cache", Kind: "redis"}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin sem managed não deveria criar serviço, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithManagedScopeCanCreateService(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductManaged})
+	f.app.UserProvisioner = &fakeUserProvisioner{}
+	rec := doJSON(t, f.router, http.MethodPost, "/api/services", createServiceRequest{Slug: "cache", Kind: "redis", Host: "local", Bind: "wg0"}, f.token)
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("admin com managed foi barrado: %s", rec.Body.String())
+	}
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("esperado 201, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithoutDNSScopeCannotWriteDNS(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPatch, "/api/dns", updateDNSSettingsRequest{CacheSize: intPtr(200)}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-core não deveria escrever DNS, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAdminWithDNSScopeCanWriteDNS(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductDNS})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/dns/records",
+		upsertDNSRecordRequest{Hostname: "lab.corp.ihuull.com", IPv4: "10.66.66.9"}, f.token)
+	if rec.Code == http.StatusForbidden {
+		t.Fatalf("admin com escopo dns foi barrado: %s", rec.Body.String())
+	}
+}
+
+func TestAdminWithoutComputeScopeCannotCreateServerGroup(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/server-groups", createServerGroupRequest{Name: "edge"}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-core não deveria criar grupo compute, obtido %d: %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestUnrestrictedAdminStillWritesAllProducts(t *testing.T) {

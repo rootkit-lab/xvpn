@@ -110,6 +110,7 @@ def main() -> None:
                 "icon_url": data.get("icon_url") or "",
                 "visibility": data.get("visibility") or "global",
                 "network": data.get("network") or "public",
+                "kind": data.get("kind") or "desktop",
                 "source": source,
                 "source_path": data.get("source_path") or f"apps/{slug}",
                 "version": str(version),

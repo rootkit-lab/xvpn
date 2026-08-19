@@ -12,6 +12,19 @@ on:
       - main
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      client: ${{ steps.filter.outputs.client }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            client:
+              - 'apps/xvpn-client/**'
+
   marketplace-manifests:
     runs-on: ubuntu-latest
     steps:
@@ -44,6 +57,8 @@ jobs:
       - run: go test ./...
 
   client-linux:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -95,6 +110,8 @@ jobs:
       - run: go test ./...
 
   client-windows-crosscompile:
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:

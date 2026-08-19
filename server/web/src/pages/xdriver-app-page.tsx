@@ -9,6 +9,7 @@ import {
   File,
   FilePenLine,
   Folder,
+  FolderKanban,
   FolderPlus,
   HardDrive,
   Trash2,
@@ -31,12 +32,18 @@ export function XDriverLayout() {
   return <StoreShell kind="xdriver" />
 }
 
-const ROOTS: { id: DriverRoot; label: string; hint: string; icon: typeof HardDrive }[] = [
+const BASE_ROOTS: { id: DriverRoot; label: string; hint: string; icon: typeof HardDrive }[] = [
   { id: 'home', label: 'Meu Drive', hint: 'Pasta pessoal', icon: HardDrive },
   { id: 'shared', label: 'Compartilhado', hint: 'Todos na VPN', icon: Users },
 ]
 
 type MenuState = { x: number; y: number; item: DriverEntry }
+
+function rootLabel(root: DriverRoot, projectName?: string): string {
+  if (root === 'home') return 'Meu Drive'
+  if (root === 'shared') return 'Compartilhado'
+  return projectName || root.slice('project:'.length)
+}
 
 export function XDriverAppPage() {
   const { user } = useAuth()
@@ -51,12 +58,26 @@ export function XDriverAppPage() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const fetchList = useCallback(() => api.listDriver(root, path), [root, path])
+  const fetchProjects = useCallback(() => api.listProjects(), [])
   const { data, loading, error, reload } = usePollingData(fetchList, 12_000)
+  const { data: projects } = usePollingData(fetchProjects, 30_000)
+  const projectRoots = (projects?.items ?? [])
+    .filter((p) => p.files_enabled)
+    .map((p) => ({
+      id: `project:${p.slug}` as DriverRoot,
+      label: p.name,
+      hint: `projeto ${p.slug}`,
+      icon: FolderKanban,
+    }))
+  const roots = [...BASE_ROOTS, ...projectRoots]
 
   const crumbs = path ? path.split('/').filter(Boolean) : []
-  const rootLabel = root === 'home' ? 'Meu Drive' : 'Compartilhado'
+  const currentLabel = rootLabel(
+    root,
+    projectRoots.find((r) => r.id === root)?.label,
+  )
   const folder = crumbs[crumbs.length - 1]
-  useDocumentTitleOverride(folder ? `${folder} · ${rootLabel}` : rootLabel)
+  useDocumentTitleOverride(folder ? `${folder} · ${currentLabel}` : currentLabel)
   const homeOff = root === 'home' && !user?.samba_enabled && !user?.sftp_enabled
   const selectedItem = data?.items.find((e) => e.path === selected)
   const canDownload = Boolean(selectedItem && !selectedItem.is_dir)
@@ -203,7 +224,7 @@ export function XDriverAppPage() {
     <div className="flex h-full min-h-[calc(100svh-8rem)] w-full min-w-0 gap-5 px-4 py-5 md:px-6">
       <aside className="hidden w-56 shrink-0 flex-col gap-1 md:flex">
         <p className="hud-label px-3 pb-2 text-muted-foreground/70">Locais</p>
-        {ROOTS.map(({ id, label, hint, icon: Icon }) => (
+        {roots.map(({ id, label, hint, icon: Icon }) => (
           <button
             key={id}
             type="button"
@@ -221,7 +242,7 @@ export function XDriverAppPage() {
 
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2 md:hidden">
-          {ROOTS.map(({ id, label }) => (
+          {roots.map(({ id, label }) => (
             <Button
               key={id}
               size="sm"
@@ -236,7 +257,7 @@ export function XDriverAppPage() {
 
         <nav className="flex flex-wrap items-center gap-1.5 text-sm" aria-label="Caminho">
           <button type="button" className="font-display font-semibold text-primary hover:underline" onClick={() => openDir('')}>
-            {root === 'home' ? 'Meu Drive' : 'Compartilhado'}
+            {currentLabel}
           </button>
           {crumbs.map((part, i) => {
             const rel = crumbs.slice(0, i + 1).join('/')

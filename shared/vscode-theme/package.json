@@ -1,0 +1,69 @@
+{
+  "name": "ihuull-theme",
+  "displayName": "ihuull",
+  "description": "ihuull Dark e Welcome do XCODESPACES — tokens de shared/ui/scss/_color-system.scss",
+  "version": "0.1.0",
+  "publisher": "ihuull",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Themes"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
+  "contributes": {
+    "themes": [
+      {
+        "label": "ihuull Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/ihuull-dark.json"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "ihuull.codespace",
+        "title": "XCODESPACES",
+        "description": "VS Code na intranet ihuull — clone no XGIT, tema Dark, terminal no container.",
+        "icon": "media/xcodespaces.svg",
+        "featuredFor": ["**"],
+        "steps": [
+          {
+            "id": "welcome",
+            "title": "Bem-vindo ao XCODESPACES",
+            "description": "Tema ihuull Dark, repo em **project/**, IDE fora do Git.\n[Abrir o Explorer](command:workbench.files.action.focusFilesExplorer)",
+            "media": {
+              "markdown": "walkthrough/welcome.md"
+            },
+            "completionEvents": ["onCommand:workbench.files.action.focusFilesExplorer"]
+          },
+          {
+            "id": "git",
+            "title": "O que o Git vê",
+            "description": "Só o clone. Cache e logs do openvscode ficam no HOME.\n[Abrir Source Control](command:workbench.view.scm)",
+            "media": {
+              "markdown": "walkthrough/git.md"
+            },
+            "completionEvents": ["onCommand:workbench.view.scm"]
+          },
+          {
+            "id": "xgit",
+            "title": "XGIT e a intranet",
+            "description": "Push em `xgit.corp`. ENVs em Settings → Codespaces.\n[Abrir o Terminal](command:workbench.action.terminal.new)",
+            "media": {
+              "markdown": "walkthrough/xgit.md"
+            },
+            "completionEvents": ["onCommand:workbench.action.terminal.new"]
+          }
+        ]
+      }
+    ],
+    "configurationDefaults": {
+      "workbench.colorTheme": "ihuull Dark",
+      "workbench.startupEditor": "welcomePage",
+      "workbench.welcomePage.walkthroughs.openOnInstall": true,
+      "experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
+      "experiments.override.gettingStarted.overrideCategory.Setup.when": "false",
+      "experiments.override.gettingStarted.overrideCategory.Beginner.when": "false"
+    }
+  }
+}

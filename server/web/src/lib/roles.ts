@@ -6,15 +6,28 @@ import { isProductAppHost, productKind, storeLoginPath } from '@/lib/product-hos
 export type Role = 'super_admin' | 'admin' | 'viewer' | 'member'
 
 /** Escopos de produto de um admin — espelha store.Product (PLAN.md §6.13). */
-export type Product = 'core' | 'marketplace' | 'xgroup' | 'xdriver'
+export type Product = 'core' | 'marketplace' | 'xgroup' | 'xdriver' | 'forge' | 'compute' | 'dns' | 'managed'
 
-export const ALL_PRODUCTS: Product[] = ['core', 'marketplace', 'xgroup', 'xdriver']
+export const ALL_PRODUCTS: Product[] = [
+  'core',
+  'marketplace',
+  'xgroup',
+  'xdriver',
+  'forge',
+  'compute',
+  'dns',
+  'managed',
+]
 
 export const PRODUCT_LABELS: Record<Product, string> = {
   core: 'Core VPN',
   marketplace: 'Marketplace',
   xgroup: 'XGROUP',
   xdriver: 'XDRIVER',
+  forge: 'XGIT',
+  compute: 'Compute',
+  dns: 'DNS',
+  managed: 'Serviços',
 }
 
 export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
@@ -22,6 +35,10 @@ export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
   marketplace: 'ACL da loja (quem vê app restrito).',
   xgroup: 'Operação da rede social.',
   xdriver: 'Shares Samba, SFTP e cota de disco.',
+  forge: 'XGIT: repositórios, membros, git em xgit.corp, MRs, CI e branches protegidas.',
+  compute: 'VPS da malha, contas BitLaunch, saldo, console e token do runner CI.',
+  dns: 'Zona corp (dnsmasq) e DNS público (Fase 39).',
+  managed: 'Mongo, Redis, Rabbit e LB na malha (Fase 43).',
 }
 
 export const ROLE_RANK: Record<Role, number> = {
@@ -42,7 +59,7 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
   super_admin: 'Controle total: altera papéis, apaga outros admins e gerencia toda a operação.',
   admin: 'Gerencia IAM e os produtos do escopo (lista vazia = todos). Sem promover a super admin.',
   viewer: 'Só leitura no painel de administração (dashboard, listas, auditoria).',
-  member: 'Acesso ao próprio espaço: VPN, arquivos, apps e conta. Sem telas de admin.',
+  member: 'Acesso ao próprio espaço: VPN, arquivos, apps, conta e repositórios XGIT em que participa.',
 }
 
 export type RoleCapability = {
@@ -61,7 +78,8 @@ export const ROLE_CAPABILITIES: RoleCapability[] = [
   { id: 'admin-write', label: 'Criar usuários, convites e resetar senhas', roles: ['super_admin', 'admin'] },
   { id: 'file-access', label: 'Ligar SFTP/Samba e cota (escopo xdriver)', roles: ['super_admin', 'admin'] },
   { id: 'marketplace-acl', label: 'Gerenciar ACL da loja (escopo marketplace)', roles: ['super_admin', 'admin'] },
-  { id: 'product-scope', label: 'Restringir admin a products: [core, marketplace, xgroup, xdriver]', roles: ['super_admin', 'admin'] },
+  { id: 'forge-write', label: 'Criar repositórios XGIT e membros (escopo forge)', roles: ['super_admin', 'admin'] },
+  { id: 'product-scope', label: 'Restringir admin a products: [core, marketplace, xgroup, xdriver, forge, compute, dns, managed]', roles: ['super_admin', 'admin'] },
   { id: 'super', label: 'Promover ou rebaixar super admin', roles: ['super_admin'] },
 ]
 
@@ -104,10 +122,11 @@ export function assignableRoles(actor: Role | undefined): Role[] {
   return ALL_ROLES.filter((r) => canManageRole(actor, r))
 }
 
-/** Home pós-login: app de produto → `/`; portal XVPN → `/` ou `/admin`; marca → `/my` ou painel. */
+/** Home pós-login: app de produto → `/`; portal XVPN → `/`; console → `/admin`. */
 export function defaultRouteForRole(role: Role): string {
+  if (productKind() === 'xadmin-corp') return role === 'member' ? '/' : '/admin'
   if (isProductAppHost()) return '/'
-  if (productKind() === 'xvpn') return role === 'member' ? '/' : '/admin'
+  if (productKind() === 'xvpn') return '/'
   return role === 'member' ? '/my' : '/admin'
 }
 

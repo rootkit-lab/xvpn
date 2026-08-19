@@ -12,6 +12,8 @@
 //	xvpn-user-provision set-quota <username> <mb>  # 0 = sem limite (Fase 15)
 //	xvpn-user-provision disable <username>
 //	xvpn-user-provision dns-apply                  # JSON no stdin (zona corp)
+//	xvpn-user-provision svc-apply                  # JSON no stdin (serviço gerenciado)
+//	xvpn-user-provision cs-apply                   # JSON no stdin (codespace Docker)
 //
 // O username é validado via regex (ver provision.ValidUsername) ANTES de
 // qualquer chamada de sistema — defesa em profundidade contra injeção
@@ -55,7 +57,7 @@ func main() {
 // errUsage sinaliza erro de linha de comando (subcomando desconhecido,
 // argumento faltando) — mapeado pra exit code 2, distinto de erros de
 // runtime (exit 1). Separado pra run() ser testável sem os.Exit.
-var errUsage = errors.New("uso: xvpn-user-provision <create|enable-sftp|enable-samba|set-quota|disable|dns-apply|…> [username] [mb]")
+var errUsage = errors.New("uso: xvpn-user-provision <create|enable-sftp|enable-samba|set-quota|disable|dns-apply|svc-apply|cs-apply|…> [username] [mb]")
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	if len(args) < 1 {
@@ -66,6 +68,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 			return errUsage
 		}
 		return provision.ApplyDNS(runnerFn(), stdin)
+	}
+	if args[0] == "svc-apply" {
+		if len(args) != 1 {
+			return errUsage
+		}
+		return provision.ApplyService(svcRunnerFn(), stdin)
+	}
+	if args[0] == "cs-apply" {
+		if len(args) != 1 {
+			return errUsage
+		}
+		return provision.ApplyCodespace(csRunnerFn(), stdin, "", "")
 	}
 	if len(args) < 2 {
 		return errUsage
@@ -126,3 +140,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 // um fake pra validar a dispatch sem precisar de root. Padrão comum
 // de "variável de pacote injetável" em CLIs Go testáveis.
 var runnerFn = provision.NewRunner
+
+// svcRunnerFn isola apt/systemctl do apply de serviços (Fase 43).
+var svcRunnerFn = provision.NewSvcRunner
+
+// csRunnerFn isola git/docker do apply de codespace (Fase 50).
+var csRunnerFn = provision.NewCsRunner

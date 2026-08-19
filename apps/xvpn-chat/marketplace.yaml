@@ -4,6 +4,7 @@ name: XCHAT Client
 description: Messenger da intranet ihuull (xchat.corp.ihuull.com) — exige xvpn conectado
 visibility: global
 network: vpn
+kind: desktop
 source: build
 channel: stable
 assets:

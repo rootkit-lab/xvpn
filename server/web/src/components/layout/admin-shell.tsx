@@ -11,6 +11,10 @@ import {
   Store,
   Shield,
   AtSign,
+  GitBranch,
+  Server,
+  Boxes,
+  Archive,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -37,14 +41,51 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
       { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES, product: 'core' },
-      { to: '/admin/dns', label: 'DNS intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'core' },
+      { to: '/admin/backups', label: 'Backups', icon: Archive, roles: VIEWER_UP_ROLES, product: 'core' },
     ],
+  },
+  {
+    id: 'dns',
+    label: 'DNS',
+    product: 'dns',
+    items: [
+      { to: '/admin/dns', label: 'Intranet', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' },
+      { to: '/admin/dns/public', label: 'Zonas', icon: Globe, roles: VIEWER_UP_ROLES, product: 'dns' },
+      { to: '/admin/dns/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'dns' },
+    ],
+  },
+  {
+    id: 'forge',
+    label: 'XGIT',
+    product: 'forge',
+    items: [
+      { to: '/admin/xgit', label: 'Repositórios', icon: GitBranch, roles: VIEWER_UP_ROLES, product: 'forge', end: true },
+      { to: '/admin/xgit/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'forge' },
+    ],
+  },
+  {
+    id: 'compute',
+    label: 'Compute',
+    product: 'compute',
+    items: [
+      { to: '/admin/servers', label: 'Servidores', icon: Server, roles: VIEWER_UP_ROLES, product: 'compute' },
+      { to: '/admin/compute/settings', label: 'Configurações', icon: Settings, roles: VIEWER_UP_ROLES, product: 'compute' },
+    ],
+  },
+  {
+    id: 'managed',
+    label: 'Serviços',
+    product: 'managed',
+    items: [{ to: '/admin/services', label: 'Instâncias', icon: Boxes, roles: VIEWER_UP_ROLES, product: 'managed' }],
   },
   {
     id: 'marketplace',
     label: 'Marketplace',
     product: 'marketplace',
-    items: [{ to: '/admin/marketplace', label: 'Catálogo e ACL', icon: Store, roles: VIEWER_UP_ROLES, product: 'marketplace' }],
+    items: [
+      { to: '/admin/marketplace/catalog', label: 'Catálogo', icon: Store, roles: VIEWER_UP_ROLES, product: 'marketplace' },
+      { to: '/admin/marketplace/acl', label: 'ACL', icon: Shield, roles: VIEWER_UP_ROLES, product: 'marketplace' },
+    ],
   },
   {
     id: 'xgroup',

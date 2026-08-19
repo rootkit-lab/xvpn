@@ -9,7 +9,7 @@ import (
 
 const (
 	dnsmasqMainPath  = "/etc/dnsmasq.d/xvpn-corp.conf"
-	dnsmasqHostsPath = "/etc/dnsmasq.d/xvpn-records.hosts"
+	dnsmasqHostsPath = "/etc/xvpn/dnsmasq-records.hosts"
 )
 
 // ApplyDNS writes the intranet dnsmasq files from a JSON payload on r
@@ -27,7 +27,11 @@ func ApplyDNS(r Runner, stdin io.Reader) error {
 	if err := corpdns.AssertSafeMain(main); err != nil {
 		return err
 	}
-	hosts := corpdns.RenderHosts(p.Records)
+	all := append(append([]corpdns.Record{}, p.Records...), p.StackRecords...)
+	hosts := corpdns.RenderHosts(all)
+	if err := r.MkdirAll("/etc/xvpn", 0o755); err != nil {
+		return fmt.Errorf("mkdir /etc/xvpn: %w", err)
+	}
 	if err := r.WriteFile(dnsmasqMainPath, main, 0644); err != nil {
 		return fmt.Errorf("gravando %s: %w", dnsmasqMainPath, err)
 	}

@@ -21,6 +21,8 @@ type UserProvisioner interface {
 	Disable(ctx context.Context, username string) error
 	SetQuota(ctx context.Context, username string, quotaMB uint64) error
 	ApplyDNS(ctx context.Context, payload string) error
+	ApplySvc(ctx context.Context, payload string) error
+	ApplyCodespace(ctx context.Context, payload string) error
 }
 
 // fileAccessRequest é o corpo do PUT /api/users/:id/file-access. Os

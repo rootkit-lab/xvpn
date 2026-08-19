@@ -84,6 +84,34 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return (await res.json()) as T
 }
 
+async function requestText(path: string): Promise<string> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  return res.text()
+}
+
+async function downloadBinary(path: string, filename: string): Promise<void> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 // downloadMarketplaceAsset também não passa por request(): a resposta é o
 // binário do asset, não JSON, e um <a href> simples não anexaria o header
 // Authorization (o token vive em localStorage, não em cookie) — o
@@ -196,6 +224,8 @@ export interface User {
   samba_enabled?: boolean
   ssh_public_key?: string
   disk_quota_mb?: number
+  xgit_enabled?: boolean
+  xcodespaces_enabled?: boolean
 }
 
 export interface FileAccessResponse {
@@ -281,6 +311,77 @@ export interface ConfigResponse {
   jwt_token_ttl_minutes: number
 }
 
+export type CodespaceLLMProvider = 'glm' | 'openai' | 'anthropic' | 'compatible'
+
+export interface CodespaceLLMModelOption {
+  id: string
+  label: string
+}
+
+export interface CodespaceLLMSettings {
+  provider: CodespaceLLMProvider
+  base_url: string
+  model: string
+  has_key: boolean
+  catalog?: Record<string, CodespaceLLMModelOption[]>
+}
+
+export type BackupKind = 'sftp' | 'b2' | 's3' | 'webdav' | 'drive' | 'xdriver'
+
+export interface BackupSettings {
+  retention_days: number
+  include_mongo: boolean
+  include_marketplace: boolean
+  include_git: boolean
+  include_social: boolean
+}
+
+export interface BackupDestination {
+  id: number
+  name: string
+  kind: BackupKind
+  endpoint: string
+  path: string
+  enabled: boolean
+  has_secret: boolean
+  offsite: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BackupJob {
+  id: number
+  destination_id: number
+  destination: string
+  dry_run: boolean
+  status: 'pending' | 'running' | 'ok' | 'error'
+  snapshot_id?: string
+  bytes: number
+  error?: string
+  started_at?: string
+  finished_at?: string
+  created_at: string
+}
+
+export interface BackupSecret {
+  password?: string
+  sftp_user?: string
+  sftp_host?: string
+  sftp_path?: string
+  sftp_key?: string
+  b2_account_id?: string
+  b2_key?: string
+  s3_endpoint?: string
+  s3_access?: string
+  s3_secret?: string
+  s3_bucket?: string
+  s3_region?: string
+  webdav_url?: string
+  webdav_user?: string
+  webdav_pass?: string
+  rclone_conf?: string
+}
+
 export interface DNSRecord {
   id: number
   hostname: string
@@ -303,11 +404,39 @@ export interface DNSResponse {
   records: DNSRecord[]
 }
 
+export interface CloudflareAccount {
+  id: number
+  name: string
+  email: string
+  token_hint: string
+}
+
+export interface PublicZone {
+  id: number
+  account_id: number
+  name: string
+  status: string
+  name_servers: string[]
+  intranet: boolean
+}
+
+export interface PublicRecord {
+  id: number
+  type: string
+  name: string
+  content: string
+  ttl: number
+  proxied: boolean
+  intranet_ipv4?: string
+  comment?: string
+}
+
 // Espelha store.Platform/store.AppVisibility (server/internal/store/models.go)
 // — Fase 11, ver PLAN.md §6.8.
 export type MarketplacePlatform = 'linux' | 'windows' | 'android'
 export type MarketplaceVisibility = 'global' | 'restricted'
 export type MarketplaceNetwork = 'public' | 'vpn'
+export type MarketplaceKind = 'desktop' | 'web' | 'service' | 'library' | 'infra' | 'docs' | 'container'
 export type MarketplaceChannel = 'stable' | 'beta'
 
 export interface MarketplaceAsset {
@@ -340,6 +469,7 @@ export interface MarketplaceApp {
   icon_url?: string
   visibility: MarketplaceVisibility
   network: MarketplaceNetwork
+  kind: MarketplaceKind
   source?: string
   source_path?: string
   created_at: string
@@ -424,6 +554,9 @@ export interface SocialPost {
   reposts: number
   reposted: boolean
   original?: SocialPostOriginal
+  project_slug?: string
+  project_name?: string
+  social_group_id?: number
   created_at: string
 }
 
@@ -467,7 +600,357 @@ export interface SocialAttachment {
   kind: string
 }
 
-export type DriverRoot = 'home' | 'shared'
+export type DriverRoot = 'home' | 'shared' | `project:${string}`
+
+export type ProjectRole = 'guest' | 'reporter' | 'developer' | 'maintainer' | 'owner'
+
+export interface ProjectMember {
+  user_id: number
+  username: string
+  role: ProjectRole
+}
+
+export type MeshServerRole = 'control' | 'mesh' | 'runner' | 'external'
+
+export interface MeshServer {
+  id: number
+  bitlaunch_id: string
+  name: string
+  hostname: string
+  role: MeshServerRole | string
+  ipv4: string
+  wg_ip: string
+  region: string
+  size: string
+  status: string
+  labels: string[]
+  group_id?: number
+  device_id?: number
+  access_user_ids?: number[]
+  account_id?: number
+  notes?: string
+  protected?: boolean
+  has_runner_token?: boolean
+  has_agent_token?: boolean
+  created_at: string
+  enroll_token?: string
+}
+
+export type ServiceKind = 'mongo' | 'redis' | 'rabbitmq' | 'lb'
+export type ServiceBind = 'wg0' | 'loopback'
+export type ServiceHost = 'local' | 'mesh'
+export type ServiceStatus = 'pending' | 'ready' | 'error' | 'stopped'
+
+export interface ManagedService {
+  id: number
+  slug: string
+  kind: ServiceKind
+  project_slug?: string
+  host: ServiceHost
+  mesh_server_id?: number
+  mesh_hostname?: string
+  bind: ServiceBind
+  listen: string
+  port: number
+  hostname?: string
+  endpoint: string
+  status: ServiceStatus
+  error?: string
+  created_at: string
+  password?: string
+}
+
+export type CiJobStatus =
+  | 'awaiting_approval'
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'canceled'
+
+export interface CiJobStep {
+  name: string
+  status: CiJobStatus
+}
+
+export interface CiWorkflow {
+  name: string
+  path: string
+}
+
+export interface CiJob {
+  number: number
+  workflow: string
+  title: string
+  event: string
+  trigger: string
+  ref: string
+  branch: string
+  sha: string
+  actor?: string
+  merge_request_number?: number
+  status: CiJobStatus
+  runner?: string
+  has_log: boolean
+  has_artifact: boolean
+  error?: string
+  jobs: CiJobStep[]
+  duration_ms?: number
+  can_approve?: boolean
+  can_rerun?: boolean
+  can_cancel?: boolean
+  started_at?: string
+  finished_at?: string
+  created_at: string
+}
+
+export interface CiRunner {
+  hostname: string
+  name: string
+  status: string
+  labels?: string[]
+  wg_ip?: string
+}
+
+export interface BitLaunchAccount {
+  id: number
+  name: string
+  email: string
+  token_hint: string
+  balance_usd?: number
+  used?: number
+  limit?: number
+  cost_per_hr?: number
+  billing_alert_days?: number
+}
+
+export interface BitLaunchTopUp {
+  id: string
+  address: string
+  crypto_symbol: string
+  amount_usd: number
+  amount_crypto: string
+  status: string
+  status_url: string
+}
+
+export interface ServerGroup {
+  id: number
+  name: string
+  description: string
+  created_at: string
+}
+
+export interface Project {
+  slug: string
+  name: string
+  description: string
+  app_id?: number
+  social_group_id: number
+  files_enabled: boolean
+  visibility: MarketplaceVisibility
+  network: MarketplaceNetwork
+  runners: string[]
+  member_count: number
+  members?: ProjectMember[]
+  created_at: string
+  updated_at: string
+  language?: string
+  last_commit_at?: string
+  starred?: boolean
+  star_count?: number
+  spark?: number[]
+}
+
+export interface XgitOverview {
+  profile: SocialProfile
+  repo_count: number
+  star_count: number
+  popular: Project[]
+  contributions: { total: number; days: { date: string; count: number }[] }
+  activity: XgitActivityItem[]
+}
+
+export interface XgitActivityItem {
+  kind: 'commits' | 'repos_created' | 'repo_created' | 'merge_request' | string
+  month?: string
+  count?: number
+  repo_count?: number
+  repos?: string[]
+  slug?: string
+  number?: number
+  title?: string
+  description?: string
+  comments?: number
+  thread_id?: number
+  language?: string
+  created_at: string
+}
+
+export interface ProtectedBranch {
+  pattern: string
+  min_push_role: ProjectRole
+}
+
+export interface ProjectCodespaceEnv {
+  name: string
+  secret: boolean
+  value?: string
+  has_value: boolean
+}
+
+export interface ProjectGit {
+  clone_url: string
+  exists: boolean
+  protected_branches: ProtectedBranch[]
+}
+
+export interface GitLangStat {
+  name: string
+  bytes: number
+  pct: number
+}
+
+export interface GitTreeEntry {
+  name: string
+  path: string
+  type: 'blob' | 'tree' | string
+  mode: string
+  size: number
+  sha: string
+  last_commit?: GitCommit
+}
+
+export interface GitCommit {
+  sha: string
+  subject: string
+  author: string
+  date: string
+}
+
+export type MergeRequestStatus = 'open' | 'merged' | 'closed'
+
+export interface MergeRequest {
+  number: number
+  title: string
+  description: string
+  source_branch: string
+  target_branch: string
+  author_id: number
+  author: string
+  status: MergeRequestStatus
+  thread_id: number
+  social_post_id?: number
+  merged_at?: string
+  merged_by?: string
+  created_at: string
+  updated_at: string
+  can_merge?: boolean
+  can_edit?: boolean
+  checks_block?: string
+}
+
+export type IssueStatus = 'open' | 'closed'
+
+export interface Issue {
+  number: number
+  title: string
+  body: string
+  status: IssueStatus
+  labels: string[]
+  assignees: string[]
+  milestone?: number
+  milestone_title?: string
+  author_id: number
+  author: string
+  thread_id: number
+  closed_at?: string
+  closed_by?: string
+  created_at: string
+  updated_at: string
+  can_close?: boolean
+  can_reopen?: boolean
+  can_update?: boolean
+}
+
+export interface IssueList {
+  items: Issue[]
+  open_count: number
+  closed_count: number
+}
+
+export interface Milestone {
+  number: number
+  title: string
+  description: string
+  status: 'open' | 'closed'
+  due_on?: string
+  open_issues: number
+  closed_issues: number
+  author: string
+  closed_at?: string
+  created_at: string
+  updated_at: string
+  can_update?: boolean
+}
+
+export type WorkProjectLayout = 'table' | 'board'
+export type WorkProjectTemplate = 'kanban' | 'board' | 'table' | 'bug' | 'roadmap'
+
+export interface WorkItem {
+  id: number
+  title: string
+  column: string
+  position: number
+  issue?: number
+  mr?: number
+  author: string
+  created_at: string
+}
+
+export interface Codespace {
+  id: string
+  slug: string
+  branch: string
+  author: string
+  kind: 'quick' | 'remote' | string
+  status: 'stopped' | 'starting' | 'running' | 'error' | string
+  created_at: string
+  updated_at: string
+  can_write?: boolean
+  open_url: string
+  runtime_url?: string
+  demo_name?: string
+  demo_host?: string
+  demo_url?: string
+}
+
+export interface WorkProject {
+  number: number
+  title: string
+  description: string
+  status: 'open' | 'closed'
+  layout: WorkProjectLayout | string
+  template: string
+  columns: string[]
+  item_count: number
+  author: string
+  closed_at?: string
+  created_at: string
+  updated_at: string
+  can_update?: boolean
+  items?: WorkItem[]
+}
+
+export type MRReviewState = 'approve' | 'request_changes' | 'comment'
+
+export interface MRReview {
+  id: number
+  author: string
+  state: MRReviewState
+  body: string
+  created_at: string
+}
 
 export interface DriverEntry {
   name: string
@@ -531,10 +1014,10 @@ function withQuery(path: string, params?: PageParams): string {
 }
 
 export const api = {
-  login: (username: string, password: string) =>
+  login: (username: string, password: string, aud?: string) =>
     request<{ token: string; user: User }>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, ...(aud ? { aud } : {}) }),
     }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   // me restaura {id, username, role} depois de um refresh — cookie SSO
@@ -609,6 +1092,54 @@ export const api = {
   getConfig: () => request<ConfigResponse>('/config'),
   updateConfig: (body: { invite_token_ttl_minutes?: number; jwt_token_ttl_minutes?: number }) =>
     request<ConfigResponse>('/config', { method: 'PATCH', body: JSON.stringify(body) }),
+  getCodespaceLLMSettings: () => request<CodespaceLLMSettings>('/config/xcodespaces'),
+  updateCodespaceLLMSettings: (body: {
+    provider?: CodespaceLLMProvider
+    base_url?: string
+    model?: string
+    api_key?: string
+  }) => request<CodespaceLLMSettings>('/config/xcodespaces', { method: 'PATCH', body: JSON.stringify(body) }),
+  testCodespaceLLM: (body: {
+    provider?: CodespaceLLMProvider
+    base_url?: string
+    model?: string
+    api_key?: string
+  }) =>
+    request<{ ok: boolean; model: string; text: string }>('/config/xcodespaces/test', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getBackupSettings: () => request<BackupSettings>('/backups/settings'),
+  updateBackupSettings: (body: Partial<BackupSettings>) =>
+    request<BackupSettings>('/backups/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  listBackupDestinations: () => request<{ items: BackupDestination[] }>('/backups/destinations'),
+  createBackupDestination: (body: {
+    name: string
+    kind: BackupKind
+    endpoint?: string
+    path?: string
+    enabled?: boolean
+    secret?: BackupSecret
+  }) => request<BackupDestination>('/backups/destinations', { method: 'POST', body: JSON.stringify(body) }),
+  updateBackupDestination: (
+    id: number,
+    body: {
+      name?: string
+      kind?: BackupKind
+      endpoint?: string
+      path?: string
+      enabled?: boolean
+      secret?: BackupSecret
+    },
+  ) => request<BackupDestination>(`/backups/destinations/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteBackupDestination: (id: number) => request<void>(`/backups/destinations/${id}`, { method: 'DELETE' }),
+  listBackupJobs: () => request<{ items: BackupJob[] }>('/backups/jobs'),
+  runBackup: (id: number, dryRun: boolean) =>
+    request<BackupJob>(`/backups/destinations/${id}/run`, {
+      method: 'POST',
+      body: JSON.stringify({ dry_run: dryRun }),
+    }),
 
   getDNS: () => request<DNSResponse>('/dns'),
   updateDNS: (body: { forwarders?: string; cache_size?: number; catch_all?: boolean }) =>
@@ -621,6 +1152,33 @@ export const api = {
   ) => request<DNSResponse>(`/dns/records/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteDNSRecord: (id: number) => request<DNSResponse>(`/dns/records/${id}`, { method: 'DELETE' }),
   applyDNS: () => request<DNSResponse>('/dns/apply', { method: 'POST' }),
+  getPublicDNSSettings: () =>
+    request<{ accounts: CloudflareAccount[]; cloudflare: boolean }>('/dns/public/settings'),
+  createCloudflareAccount: (body: { name: string; email: string; token: string }) =>
+    request<CloudflareAccount>('/dns/public/settings/accounts', { method: 'POST', body: JSON.stringify(body) }),
+  deleteCloudflareAccount: (id: number) =>
+    request<void>(`/dns/public/settings/accounts/${id}`, { method: 'DELETE' }),
+  listPublicZones: () => request<{ items: PublicZone[]; cloudflare: boolean }>('/dns/public/zones'),
+  importPublicZones: () => request<{ items: PublicZone[]; cloudflare: boolean }>('/dns/public/zones/import', { method: 'POST' }),
+  createPublicZone: (body: { name: string; account_id?: number; intranet?: boolean }) =>
+    request<PublicZone>('/dns/public/zones', { method: 'POST', body: JSON.stringify(body) }),
+  getPublicZone: (id: number) => request<PublicZone>(`/dns/public/zones/${id}`),
+  listPublicRecords: (zoneId: number) =>
+    request<{ items: PublicRecord[]; zone: PublicZone }>(`/dns/public/zones/${zoneId}/records`),
+  createPublicRecord: (
+    zoneId: number,
+    body: {
+      type: string
+      name: string
+      content: string
+      ttl?: number
+      proxied?: boolean
+      intranet_ipv4?: string
+      comment?: string
+    },
+  ) => request<PublicRecord>(`/dns/public/zones/${zoneId}/records`, { method: 'POST', body: JSON.stringify(body) }),
+  deletePublicRecord: (zoneId: number, id: number) =>
+    request<void>(`/dns/public/zones/${zoneId}/records/${id}`, { method: 'DELETE' }),
 
   // joinWaitlist é o único endpoint de escrita público (sem
   // autenticação) de toda a API — chamado da landing page em "/". Ver
@@ -652,6 +1210,384 @@ export const api = {
     }),
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
+
+  listProjects: (scope?: 'all' | 'mine', cards?: boolean) => {
+    const q = new URLSearchParams()
+    if (scope) q.set('scope', scope)
+    if (cards) q.set('cards', '1')
+    const qs = q.toString()
+    return request<{ items: Project[] }>(qs ? `/projects?${qs}` : '/projects')
+  },
+  getXgitOverview: () => request<XgitOverview>('/xgit/overview'),
+  listXgitStars: () => request<{ items: Project[] }>('/xgit/stars'),
+  toggleProjectStar: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}/star`, { method: 'POST' }),
+  createXgitRepo: (body: { slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
+    request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
+  getXgitSettings: () =>
+    request<{
+      default_visibility: MarketplaceVisibility
+      default_network: MarketplaceNetwork
+      allow_member_create: boolean
+      clone_host: string
+    }>('/xgit/settings'),
+  updateXgitSettings: (body: {
+    default_visibility?: MarketplaceVisibility
+    default_network?: MarketplaceNetwork
+    allow_member_create?: boolean
+  }) =>
+    request<{
+      default_visibility: MarketplaceVisibility
+      default_network: MarketplaceNetwork
+      allow_member_create: boolean
+      clone_host: string
+    }>('/xgit/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+  listProjectTree: (slug: string, ref?: string, path?: string) => {
+    const q = new URLSearchParams()
+    if (ref) q.set('ref', ref)
+    if (path) q.set('path', path)
+    const qs = q.toString()
+    return request<{
+      items: GitTreeEntry[]
+      ref: string
+      path: string
+      commit_count?: number
+      tags?: string[]
+      languages?: GitLangStat[]
+    }>(`/projects/${encodeURIComponent(slug)}/tree${qs ? `?${qs}` : ''}`)
+  },
+  getProjectBlob: (slug: string, path: string, ref?: string) => {
+    const q = new URLSearchParams({ path })
+    if (ref) q.set('ref', ref)
+    return request<{ path: string; ref: string; binary: boolean; content: string }>(
+      `/projects/${encodeURIComponent(slug)}/blob?${q}`,
+    )
+  },
+  listProjectCommits: (slug: string, ref?: string, path?: string) => {
+    const q = new URLSearchParams()
+    if (ref) q.set('ref', ref)
+    if (path) q.set('path', path)
+    const qs = q.toString()
+    return request<{ items: GitCommit[] }>(`/projects/${encodeURIComponent(slug)}/commits${qs ? `?${qs}` : ''}`)
+  },
+  getProject: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}`),
+  createProject: (body: {
+    slug: string
+    name: string
+    description?: string
+    files_enabled?: boolean
+    visibility?: MarketplaceVisibility
+    network?: MarketplaceNetwork
+    runners?: string[]
+  }) => request<Project>('/projects', { method: 'POST', body: JSON.stringify(body) }),
+  updateProject: (
+    slug: string,
+    body: {
+      name?: string
+      description?: string
+      files_enabled?: boolean
+      visibility?: MarketplaceVisibility
+      network?: MarketplaceNetwork
+      runners?: string[]
+    },
+  ) => request<Project>(`/projects/${encodeURIComponent(slug)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  setProjectMembers: (slug: string, members: { user_id: number; role: ProjectRole }[]) =>
+    request<Project>(`/projects/${encodeURIComponent(slug)}/members`, {
+      method: 'PUT',
+      body: JSON.stringify({ members }),
+    }),
+  getProjectCodespaceEnvs: (slug: string) =>
+    request<{ items: ProjectCodespaceEnv[] }>(`/projects/${encodeURIComponent(slug)}/codespaces/envs`),
+  putProjectCodespaceEnvs: (slug: string, items: { name: string; value: string; secret: boolean }[]) =>
+    request<{ items: ProjectCodespaceEnv[] }>(`/projects/${encodeURIComponent(slug)}/codespaces/envs`, {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    }),
+  getProjectGit: (slug: string) => request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`),
+  initProjectGit: (slug: string) =>
+    request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`, { method: 'POST' }),
+  setProtectedBranches: (slug: string, branches: ProtectedBranch[]) =>
+    request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/protected-branches`, {
+      method: 'PUT',
+      body: JSON.stringify({ branches }),
+    }),
+  listProjectBranches: (slug: string) =>
+    request<{ items: string[] }>(`/projects/${encodeURIComponent(slug)}/branches`),
+  listMergeRequests: (slug: string, status?: MergeRequestStatus) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : ''
+    return request<{ items: MergeRequest[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests${q}`)
+  },
+  getMergeRequest: (slug: string, iid: number) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}`),
+  createMergeRequest: (
+    slug: string,
+    body: { title: string; description?: string; source_branch: string; target_branch: string },
+  ) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchMergeRequest: (slug: string, iid: number, body: { title?: string; description?: string }) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  mergeMergeRequest: (slug: string, iid: number) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/merge`, { method: 'POST' }),
+  closeMergeRequest: (slug: string, iid: number) =>
+    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/close`, { method: 'POST' }),
+  listMRCommits: (slug: string, iid: number) =>
+    request<{ items: GitCommit[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/commits`),
+  getMRDiff: (slug: string, iid: number) =>
+    request<{ diff: string }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/diff`),
+  listMRReviews: (slug: string, iid: number) =>
+    request<{ items: MRReview[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/reviews`),
+  createMRReview: (slug: string, iid: number, body: { state: MRReviewState; body?: string }) =>
+    request<MRReview>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  listIssues: (
+    slug: string,
+    opts?: {
+      status?: IssueStatus
+      q?: string
+      author?: string
+      assignee?: string
+      label?: string
+      mentioned?: string
+      milestone?: number
+      sort?: 'newest' | 'oldest' | 'updated'
+    },
+  ) => {
+    const q = new URLSearchParams()
+    if (opts?.status) q.set('status', opts.status)
+    if (opts?.q) q.set('q', opts.q)
+    if (opts?.author) q.set('author', opts.author)
+    if (opts?.assignee) q.set('assignee', opts.assignee)
+    if (opts?.label) q.set('label', opts.label)
+    if (opts?.mentioned) q.set('mentioned', opts.mentioned)
+    if (opts?.milestone) q.set('milestone', String(opts.milestone))
+    if (opts?.sort) q.set('sort', opts.sort)
+    const qs = q.toString()
+    return request<IssueList>(`/projects/${encodeURIComponent(slug)}/issues${qs ? `?${qs}` : ''}`)
+  },
+  getIssue: (slug: string, n: number) =>
+    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`),
+  createIssue: (
+    slug: string,
+    body: { title: string; body?: string; labels?: string[]; assignees?: string[]; milestone?: number },
+  ) =>
+    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchIssue: (
+    slug: string,
+    n: number,
+    body: { title?: string; body?: string; status?: IssueStatus; labels?: string[]; assignees?: string[]; milestone?: number },
+  ) =>
+    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  listIssueLabels: (slug: string) =>
+    request<{ items: string[] }>(`/projects/${encodeURIComponent(slug)}/labels`),
+  listMilestones: (slug: string, status?: 'open' | 'closed') => {
+    const q = status ? `?status=${status}` : ''
+    return request<{ items: Milestone[] }>(`/projects/${encodeURIComponent(slug)}/milestones${q}`)
+  },
+  createMilestone: (slug: string, body: { title: string; description?: string; due_on?: string }) =>
+    request<Milestone>(`/projects/${encodeURIComponent(slug)}/milestones`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchMilestone: (slug: string, n: number, body: { title?: string; description?: string; status?: 'open' | 'closed'; due_on?: string }) =>
+    request<Milestone>(`/projects/${encodeURIComponent(slug)}/milestones/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  listWorkProjects: (slug: string, opts?: { status?: 'open' | 'closed'; q?: string }) => {
+    const q = new URLSearchParams()
+    if (opts?.status) q.set('status', opts.status)
+    if (opts?.q) q.set('q', opts.q)
+    const qs = q.toString()
+    return request<{ items: WorkProject[] }>(`/projects/${encodeURIComponent(slug)}/work-projects${qs ? `?${qs}` : ''}`)
+  },
+  getWorkProject: (slug: string, n: number) =>
+    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}`),
+  createWorkProject: (slug: string, body: { title: string; description?: string; template?: WorkProjectTemplate }) =>
+    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchWorkProject: (slug: string, n: number, body: { title?: string; description?: string; status?: 'open' | 'closed' }) =>
+    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  createWorkItem: (slug: string, n: number, body: { title?: string; issue?: number; mr?: number; column?: string }) =>
+    request<WorkItem>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  patchWorkItem: (slug: string, n: number, id: number, body: { title?: string; column?: string; position?: number }) =>
+    request<WorkItem>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteWorkItem: (slug: string, n: number, id: number) =>
+    request<void>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items/${id}`, { method: 'DELETE' }),
+  putContents: (
+    slug: string,
+    body: { path: string; ref: string; content: string; message: string; description?: string; new_branch?: string; open_pr?: boolean },
+  ) =>
+    request<{ sha: string; branch: string; merge_request_number?: number }>(
+      `/projects/${encodeURIComponent(slug)}/contents`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+  downloadProjectArchive: (slug: string, ref?: string) => {
+    const q = ref ? `?ref=${encodeURIComponent(ref)}` : ''
+    return downloadBinary(`/projects/${encodeURIComponent(slug)}/archive${q}`, `${slug}.zip`)
+  },
+  listCodespaces: (slug?: string) => {
+    const q = slug ? `?slug=${encodeURIComponent(slug)}` : ''
+    return request<{ items: Codespace[] }>(`/xcodespaces${q}`)
+  },
+  createCodespace: (body: { slug: string; branch?: string; kind?: 'quick' | 'remote' }) =>
+    request<Codespace>('/xcodespaces', { method: 'POST', body: JSON.stringify(body) }),
+  getCodespace: (id: string) => request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}`),
+  startCodespace: (id: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/start`, { method: 'POST' }),
+  stopCodespace: (id: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+  patchCodespaceDemo: (id: string, name: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/demo`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+  deleteCodespace: (id: string) =>
+    request<void>(`/xcodespaces/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  listCodespaceTree: (id: string, path?: string) => {
+    const q = path ? `?path=${encodeURIComponent(path)}` : ''
+    return request<{ path: string; items: { name: string; path: string; type: 'tree' | 'blob'; size: number }[] }>(
+      `/xcodespaces/${encodeURIComponent(id)}/tree${q}`,
+    )
+  },
+  getCodespaceBlob: (id: string, path: string) =>
+    request<{ path: string; content: string; size: number }>(
+      `/xcodespaces/${encodeURIComponent(id)}/blob?path=${encodeURIComponent(path)}`,
+    ),
+  writeCodespaceFile: (id: string, body: { path: string; content: string }) =>
+    request<{ path: string }>(`/xcodespaces/${encodeURIComponent(id)}/contents`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  commitCodespace: (id: string, body: { message: string; description?: string }) =>
+    request<{ sha: string; branch: string; merge_request_number?: number }>(
+      `/xcodespaces/${encodeURIComponent(id)}/commit`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+  listCiJobs: (slug: string, workflow?: string, mr?: number) => {
+    const q = new URLSearchParams()
+    if (workflow) q.set('workflow', workflow)
+    if (mr) q.set('mr', String(mr))
+    const qs = q.toString()
+    return request<{ items: CiJob[]; workflows: CiWorkflow[] }>(
+      `/projects/${encodeURIComponent(slug)}/jobs${qs ? `?${qs}` : ''}`,
+    )
+  },
+  getCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}`),
+  getCiJobLog: (slug: string, n: number) => requestText(`/projects/${encodeURIComponent(slug)}/jobs/${n}/log`),
+  cancelCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/cancel`, { method: 'POST' }),
+  approveCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/approve`, { method: 'POST' }),
+  rerunCiJob: (slug: string, n: number) =>
+    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/rerun`, { method: 'POST' }),
+  listProjectRunners: (slug: string) =>
+    request<{ items: CiRunner[] }>(`/projects/${encodeURIComponent(slug)}/runners`),
+  downloadCiArtifact: (slug: string, n: number) =>
+    downloadBinary(`/projects/${encodeURIComponent(slug)}/jobs/${n}/artifact`, `job-${n}-artifact`),
+
+  listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
+  getServer: (id: number) => request<MeshServer>(`/servers/${id}`),
+  importServers: () => request<{ items: MeshServer[]; bitlaunch: boolean }>('/servers/import', { method: 'POST' }),
+  createServer: (body: {
+    name?: string
+    hostname: string
+    host_id: number
+    host_image_id: string
+    size_id: string
+    region_id: string
+    ssh_keys?: string[]
+    labels?: string[]
+    role?: MeshServerRole
+    account_id?: number
+  }) => request<MeshServer>('/servers', { method: 'POST', body: JSON.stringify(body) }),
+  updateServer: (
+    id: number,
+    body: { name?: string; labels?: string[]; role?: MeshServerRole; group_id?: number; notes?: string },
+  ) => request<MeshServer>(`/servers/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  destroyServer: (id: number) => request<void>(`/servers/${id}`, { method: 'DELETE' }),
+  rebuildServer: (id: number, hostImageId: string, imageDescription?: string) =>
+    request<MeshServer>(`/servers/${id}/rebuild`, {
+      method: 'POST',
+      body: JSON.stringify({ host_image_id: hostImageId, image_description: imageDescription }),
+    }),
+  setServerAccess: (id: number, userIds: number[]) =>
+    request<{ ok: boolean }>(`/servers/${id}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+  issueRunnerToken: (id: number) =>
+    request<{ runner_token: string; ci_url: string }>(`/servers/${id}/runner-token`, { method: 'POST' }),
+  issueAgentToken: (id: number) =>
+    request<{ agent_token: string; svc_url: string }>(`/servers/${id}/agent-token`, { method: 'POST' }),
+  listServices: (project?: string) =>
+    request<{ items: ManagedService[] }>(project ? `/services?project=${encodeURIComponent(project)}` : '/services'),
+  getService: (slug: string) => request<ManagedService>(`/services/${encodeURIComponent(slug)}`),
+  createService: (body: {
+    slug: string
+    kind: ServiceKind
+    project_slug?: string
+    host: ServiceHost
+    mesh_server_id?: number
+    bind: ServiceBind
+    port?: number
+    backends?: string[]
+  }) => request<ManagedService>('/services', { method: 'POST', body: JSON.stringify(body) }),
+  applyService: (slug: string) =>
+    request<ManagedService>(`/services/${encodeURIComponent(slug)}/apply`, { method: 'POST' }),
+  stopService: (slug: string) =>
+    request<ManagedService>(`/services/${encodeURIComponent(slug)}/stop`, { method: 'POST' }),
+  rotateService: (slug: string) =>
+    request<ManagedService>(`/services/${encodeURIComponent(slug)}/rotate`, { method: 'POST' }),
+  deleteService: (slug: string) => request<{ ok: boolean }>(`/services/${encodeURIComponent(slug)}`, { method: 'DELETE' }),
+  listProjectServices: (slug: string) =>
+    request<{ items: ManagedService[] }>(`/projects/${encodeURIComponent(slug)}/services`),
+  listServerGroups: () => request<{ items: ServerGroup[] }>('/server-groups'),
+  createServerGroup: (name: string, description?: string) =>
+    request<ServerGroup>('/server-groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    }),
+  setServerGroupAccess: (id: number, userIds: number[]) =>
+    request<{ ok: boolean; access_user_ids: number[] }>(`/server-groups/${id}/access`, {
+      method: 'PUT',
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+  getComputeSettings: () => request<{ accounts: BitLaunchAccount[]; bitlaunch: boolean }>('/compute/settings'),
+  createBitLaunchAccount: (body: { name: string; email: string; token: string }) =>
+    request<BitLaunchAccount>('/compute/settings/accounts', { method: 'POST', body: JSON.stringify(body) }),
+  updateBitLaunchAccount: (id: number, body: { name: string; email: string; token?: string }) =>
+    request<BitLaunchAccount>(`/compute/settings/accounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteBitLaunchAccount: (id: number) => request<void>(`/compute/settings/accounts/${id}`, { method: 'DELETE' }),
+  topUpBitLaunchAccount: (id: number, body: { amount_usd: number; crypto_symbol: 'BTC' | 'LTC' | 'ETH' }) =>
+    request<BitLaunchTopUp>(`/compute/settings/accounts/${id}/topup`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   listSocialPeople: (params?: PageParams) =>
     request<PageEnvelope<SocialProfile>>(withQuery('/social/people', params)),
@@ -697,8 +1633,11 @@ export const api = {
   listSocialFeed: (params?: PageParams) => request<PageEnvelope<SocialPost>>(withQuery('/social/feed', params)),
   listSocialUserPosts: (username: string, params?: PageParams) =>
     request<PageEnvelope<SocialPost>>(withQuery(`/social/u/${encodeURIComponent(username)}/posts`, params)),
-  createSocialPost: (body: string) =>
-    request<SocialPost>('/social/posts', { method: 'POST', body: JSON.stringify({ body }) }),
+  createSocialPost: (body: string, projectSlug?: string) =>
+    request<SocialPost>('/social/posts', {
+      method: 'POST',
+      body: JSON.stringify({ body, project_slug: projectSlug || undefined }),
+    }),
   deleteSocialPost: (id: number) => request<void>(`/social/posts/${id}`, { method: 'DELETE' }),
   starSocialPost: (id: number) =>
     request<{ starred: boolean; stars: number; post_id: number }>(`/social/posts/${id}/star`, {

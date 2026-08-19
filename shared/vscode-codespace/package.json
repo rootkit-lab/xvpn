@@ -1,0 +1,102 @@
+{
+  "name": "codespace",
+  "displayName": "XCODESPACES",
+  "description": "Agente ihuull, skills e generate commit no codespace remoto.",
+  "version": "0.5.7",
+  "publisher": "ihuull",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "extensionKind": ["workspace"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "ihuull.generateCommitMessage",
+        "title": "Generate commit message",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "ihuull.openChat",
+        "title": "XCODESPACES: Chat"
+      },
+      {
+        "command": "ihuull.openPorts",
+        "title": "XCODESPACES: Ports"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "ihuull.generateCommitMessage",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "ihuull-ports",
+          "title": "Ports",
+          "icon": "media/ports.svg"
+        }
+      ],
+      "secondarySideBar": [
+        {
+          "id": "ihuull-agent",
+          "title": "XCODESPACES",
+          "icon": "media/agent.svg"
+        }
+      ]
+    },
+    "views": {
+      "ihuull-ports": [
+        {
+          "type": "webview",
+          "id": "ihuull.portsView",
+          "name": "Ports"
+        }
+      ],
+      "ihuull-agent": [
+        {
+          "type": "webview",
+          "id": "ihuull.agentView",
+          "name": "XCODESPACES"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "XCODESPACES",
+      "properties": {
+        "ihuull.codespace.id": {
+          "type": "string",
+          "default": "",
+          "description": "Public ID do codespace (12 hex). O helper grava isso nas Machine settings."
+        },
+        "ihuull.codespace.gitName": {
+          "type": "string",
+          "default": "",
+          "description": "user.name do Git no clone (dono do codespace)."
+        },
+        "ihuull.codespace.gitEmail": {
+          "type": "string",
+          "default": "",
+          "description": "user.email do Git no clone (username@corp.ihuull.com)."
+        },
+        "ihuull.codespace.demoHost": {
+          "type": "string",
+          "default": "",
+          "description": "Hostname demo-<nome>.corp.ihuull.com para preview intranet (Fase 56)."
+        },
+        "ihuull.codespace.autoApply": {
+          "type": "boolean",
+          "default": false,
+          "description": "Aplica write_file e apply_patch sem pedir Aplicar. Terminal e MCP extra continuam a confirmar."
+        }
+      }
+    }
+  }
+}

@@ -25,6 +25,32 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/repositories',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Repositórios',
+      description: 'Repositórios do usuário logado em xgit.corp.',
+    },
+  },
+  {
+    prefix: '/packages',
+    exact: true,
+    meta: {
+      kicker: 'XGIT',
+      title: 'Packages',
+      description: 'Registry na malha — Fase 45+.',
+    },
+  },
+  {
+    prefix: '/stars',
+    exact: true,
+    meta: {
+      kicker: 'XGIT',
+      title: 'Stars',
+      description: 'Repositórios marcados com estrela.',
+    },
+  },
+  {
     prefix: '/my/profile',
     meta: {
       kicker: 'xvpn',
@@ -134,11 +160,75 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/xgit/settings',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Configurações',
+      description: 'Visibility/network padrão, quem cria repositório e clone só em xgit.corp.',
+    },
+  },
+  {
+    prefix: '/admin/xgit',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Repositórios',
+      description: 'Forge: no xadmin lista todos os repos; em xgit.corp só os do membro. ACL do app no Marketplace.',
+    },
+  },
+  {
+    prefix: '/admin/projects',
+    meta: {
+      kicker: 'XGIT',
+      title: 'Repositórios',
+      description: 'Redireciona para /admin/xgit. Um slug, membros, git em xgit.corp, MRs e branches protegidas.',
+    },
+  },
+  {
+    prefix: '/admin/compute/settings',
+    meta: {
+      kicker: 'Compute',
+      title: 'Configurações',
+      description: 'Contas BitLaunch (e-mail + API), saldo e recarga cripto. Token só no VPS.',
+    },
+  },
+  {
+    prefix: '/admin/services',
+    meta: {
+      kicker: 'Serviços',
+      title: 'Instâncias',
+      description: 'Mongo, Redis, Rabbit e LB no local ou na malha. Bind só wg0/loopback. Sem 27017 do control-plane.',
+    },
+  },
+  {
+    prefix: '/admin/servers',
+    meta: {
+      kicker: 'Compute',
+      title: 'Servidores',
+      description: 'Malha BitLaunch. Console xterm e observações no detalhe. Hosts externos só inventário.',
+    },
+  },
+  {
+    prefix: '/admin/marketplace/acl',
+    meta: {
+      kicker: 'Marketplace',
+      title: 'ACL',
+      description: 'Quem acessa apps restricted. Não mistura com versões nem assets.',
+    },
+  },
+  {
+    prefix: '/admin/marketplace/catalog',
+    meta: {
+      kicker: 'Marketplace',
+      title: 'Catálogo',
+      description: 'Espelho de apps/*/marketplace.yaml — kind, network, versões e assets.',
+    },
+  },
+  {
     prefix: '/admin/marketplace',
     meta: {
       kicker: 'Marketplace',
-      title: 'Catálogo e ACL',
-      description: 'Catálogo espelhado de apps/*/marketplace.yaml — ACL, network e download.',
+      title: 'Catálogo',
+      description: 'Espelho de apps/*/marketplace.yaml — kind, network, versões e assets.',
     },
   },
   {
@@ -154,13 +244,37 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Core VPN',
       title: 'Gerais',
-      description: 'Rede WireGuard (somente leitura) e TTLs de convite/sessão.',
+      description: 'Rede WireGuard (somente leitura), assistente XCODESPACES e TTLs de convite/sessão.',
+    },
+  },
+  {
+    prefix: '/admin/backups',
+    meta: {
+      kicker: 'Core VPN',
+      title: 'Backups',
+      description: 'Destinos off-site (restic + rclone). Credenciais só no VPS. Dry-run e último job.',
+    },
+  },
+  {
+    prefix: '/admin/dns/settings',
+    meta: {
+      kicker: 'DNS',
+      title: 'Configurações',
+      description: 'Contas Cloudflare. Token só no VPS. Nameservers do stack saem daqui.',
+    },
+  },
+  {
+    prefix: '/admin/dns/public',
+    meta: {
+      kicker: 'DNS',
+      title: 'Zonas públicas',
+      description: 'Domínios do stack. NS no registrador. Visão interna no dnsmasq.',
     },
   },
   {
     prefix: '/admin/dns',
     meta: {
-      kicker: 'Core VPN',
+      kicker: 'DNS',
       title: 'DNS intranet',
       description: 'Zona corp.ihuull.com no dnsmasq (10.66.66.1:53, só wg0).',
     },

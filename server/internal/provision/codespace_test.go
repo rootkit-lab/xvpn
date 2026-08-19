@@ -311,8 +311,8 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	if !strings.Contains(string(pkg), `"id": "ihuull.agentView"`) {
 		t.Fatal("extensão precisa da view do agente")
 	}
-	if !strings.Contains(string(pkg), `"secondarySidebar"`) || strings.Contains(string(pkg), `"activitybar"`) {
-		t.Fatal("agente deve viver na secondary sidebar, não no activity bar")
+	if !strings.Contains(string(pkg), `"workbench.panel.chat"`) || strings.Contains(string(pkg), `"activitybar"`) {
+		t.Fatal("OpenVSCode 1.98 ignora secondarySidebar — o chat mora no container Chat da direita")
 	}
 	if !strings.Contains(string(js), "/api/xcodespaces/llm/models") {
 		t.Fatal("chat precisa listar modelos no proxy")

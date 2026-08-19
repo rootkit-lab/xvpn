@@ -20,7 +20,7 @@ async function applyCodespaceLayout(vscode) {
   }
   for (const cmd of [
     "workbench.action.focusAuxiliaryBar",
-    "workbench.panel.chat.focus",
+    "workbench.view.extension.ihuull-agent",
     "ihuull.agentView.focus",
   ]) {
     try {

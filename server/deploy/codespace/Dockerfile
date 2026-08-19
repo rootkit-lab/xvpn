@@ -23,7 +23,6 @@ ENV PATH="/usr/local/go/bin:/usr/local/node-v${NODE_VER}-linux-x64/bin:${PATH}" 
     GOPROXY=https://proxy.golang.org,direct
 
 COPY shared/vscode-theme /home/.openvscode-server/extensions/ihuull.theme-0.1.0
-COPY shared/vscode-codespace /home/.openvscode-server/extensions/ihuull.codespace-0.1.0
 COPY server/deploy/codespace/machine-settings.json /home/.openvscode-server/data/Machine/settings.json
 COPY server/deploy/codespace/gitignore-global /tmp/ihuull-gitignore
 RUN if [ -f /home/.openvscode-server/product.json ]; then \
@@ -34,7 +33,6 @@ RUN mkdir -p /home/workspace/.config/git /home/.openvscode-server/data/Machine \
     && printf '[core]\n\texcludesFile = ~/.config/git/ignore\n' > /home/workspace/.gitconfig \
     && chown -R 1000:1000 \
       /home/.openvscode-server/extensions/ihuull.theme-0.1.0 \
-      /home/.openvscode-server/extensions/ihuull.codespace-0.1.0 \
       /home/.openvscode-server/data \
       /home/workspace/.config \
       /home/workspace/.gitconfig
@@ -49,4 +47,12 @@ RUN chmod +x /tmp/install-ovsx.sh \
 # A imagem-base injeta --without-connection-token no ENTRYPOINT; o proxy exige token.
 USER 1000
 RUN bash /tmp/install-ovsx.sh
+
+# Extensão + patch da auxiliary bar por último: não invalida o cache do Open VSX.
+USER root
+COPY shared/vscode-codespace /home/.openvscode-server/extensions/ihuull.codespace-0.1.0
+COPY server/deploy/codespace/patch-auxiliary-bar.js /tmp/patch-auxiliary-bar.js
+RUN node /tmp/patch-auxiliary-bar.js \
+    && chown -R 1000:1000 /home/.openvscode-server/extensions/ihuull.codespace-0.1.0
+USER 1000
 ENTRYPOINT ["/home/.openvscode-server/bin/openvscode-server"]

@@ -6,6 +6,7 @@
   "workbench.welcomePage.walkthroughs.openOnInstall": true,
   "git.openRepositoryInParentFolders": "never",
   "chat.commandCenter.enabled": false,
+  "chat.agent.enabled": false,
   "remote.autoForwardPorts": false,
   "workbench.panel.opensMaximized": "never",
   "workbench.auxiliaryBar.enabled": true,

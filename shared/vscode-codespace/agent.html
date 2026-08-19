@@ -18,11 +18,12 @@
   --safe: oklch(0.72 0.17 150);
   --font-mono: ui-monospace, "JetBrains Mono", "Fira Code", SFMono-Regular, Menlo, Consolas, monospace;
 }
-html, body { height: 100%; }
+html, body { height: 100%; min-width: 0; }
 body {
   font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
   background: var(--bg); color: var(--fg);
   margin: 0; display: flex; flex-direction: column; height: 100%;
+  min-width: 0; overflow: hidden;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklch, var(--fg) 28%, transparent) transparent;
 }
@@ -32,8 +33,9 @@ body {
   border-radius: 999px;
 }
 .bar {
-  display: flex; gap: 8px; align-items: center;
-  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  display: flex; gap: 6px; align-items: center;
+  padding: 8px; border-bottom: 1px solid var(--border);
+  min-width: 0;
   background:
     radial-gradient(120% 80% at 50% 0%, color-mix(in oklch, var(--product) 22%, transparent) 0%, transparent 55%),
     var(--bg);
@@ -44,18 +46,18 @@ select {
   appearance: none; width: 100%;
   background: var(--secondary); color: var(--fg);
   border: 1px solid var(--border); border-radius: 8px;
-  padding: 6px 22px 6px 10px; font-size: 12px;
+  padding: 5px 20px 5px 8px; font-size: 11px;
 }
 .sel::after {
   content: "▾"; position: absolute; right: 8px; top: 50%;
   transform: translateY(-50%); color: var(--muted-fg); font-size: 10px; pointer-events: none;
 }
-#log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 12px 14px 16px; }
+#log { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 10px 12px; }
 .me {
-  align-self: flex-end; max-width: 92%;
-  padding: 8px 12px; border-radius: 14px;
+  align-self: flex-end; max-width: 100%;
+  padding: 7px 10px; border-radius: 12px;
   background: color-mix(in oklch, var(--safe) 22%, var(--card));
-  white-space: pre-wrap; font-size: 13px;
+  white-space: pre-wrap; font-size: 13px; word-break: break-word;
 }
 .turn { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
 .thought {
@@ -96,6 +98,7 @@ select {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tool-tag {
+  display: none;
   flex: 0 0 auto; color: var(--muted-fg); font-size: 11px;
   font-family: var(--font-mono);
 }
@@ -122,12 +125,14 @@ select {
 }
 .warn { color: var(--muted-fg); font-size: 12px; padding: 0 2px; }
 #confirm {
-  display: none; margin: 0 12px 8px; padding: 10px; background: var(--card);
-  border: 1px solid var(--border); border-radius: 12px; font-size: 13px;
+  display: none; flex-shrink: 0; margin: 0 8px 8px; padding: 8px 10px; background: var(--card);
+  border: 1px solid var(--border); border-radius: 10px; font-size: 12px;
+  word-break: break-word;
 }
 #confirm.show { display: block; }
-#confirm .row { display: flex; gap: 8px; margin-top: 8px; }
-footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; position: relative; }
+#confirm .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+#confirm .row button { flex: 1 1 72px; }
+footer { flex-shrink: 0; border-top: 1px solid var(--border); padding: 8px; position: relative; min-width: 0; }
 .ctx, .jobs, .hooks, .pins {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   margin: 0 0 8px;
@@ -139,8 +144,8 @@ footer { border-top: 1px solid var(--border); padding: 8px 10px 10px; position: 
 .ctx[hidden], .jobs[hidden], .hooks[hidden], .pins:empty { display: none; }
 .ctx b, .jobs b { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review {
-  display: none; margin: 0 12px 8px; padding: 8px 10px;
-  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  display: none; flex-shrink: 0; margin: 0 8px 8px; padding: 6px 8px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
 }
 .review.show { display: block; }
 .review-head { display: flex; align-items: center; gap: 8px; }
@@ -190,15 +195,25 @@ textarea {
 #chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
 #chips button {
   background: var(--muted); color: var(--fg); border: 1px solid var(--border);
-  border-radius: 999px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+  border-radius: 999px; padding: 2px 7px; font-size: 10px; cursor: pointer;
+}
+button.auto {
+  flex: 0 0 auto; background: var(--secondary); color: var(--muted-fg);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 8px; font-size: 11px; cursor: pointer; white-space: nowrap;
+}
+button.auto.on {
+  background: color-mix(in oklch, var(--product) 28%, var(--card));
+  color: var(--fg); border-color: color-mix(in oklch, var(--product) 45%, var(--border));
 }
 button.go {
   width: 32px; height: 32px; padding: 0;
   background: var(--product); color: var(--primary-fg); border: 0;
   border-radius: 999px; font-size: 16px; line-height: 1; cursor: pointer;
 }
-button.ok { background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 6px 10px; }
-button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+button.ok { background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 6px 8px; cursor: pointer; }
+button.always { background: var(--product); color: var(--primary-fg); border: 0; border-radius: 8px; padding: 6px 8px; cursor: pointer; }
+button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -214,6 +229,7 @@ button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--
   <label class="sel grow">
     <select id="model" title="Modelo"></select>
   </label>
+  <button type="button" class="auto" id="auto" aria-pressed="false" title="Aplicar edições sem perguntar">Auto</button>
 </header>
 <div id="log"></div>
 <div id="review" class="review" hidden>
@@ -224,7 +240,7 @@ button.no { background: var(--muted); color: var(--fg); border: 1px solid var(--
   </div>
   <ul id="reviewlist"></ul>
 </div>
-<div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="no" id="no">Recusar</button></div></div>
+<div id="confirm"><div id="cdetail"></div><div class="row"><button class="ok" id="yes">Aplicar</button><button class="always" id="always">Sempre</button><button class="no" id="no">Recusar</button></div></div>
 <footer>
   <div id="ctx" class="ctx" hidden>arquivo <b id="ctxfile"></b></div>
   <div id="jobs" class="jobs" hidden><b id="jobn">0</b> terminais em background</div>
@@ -269,7 +285,9 @@ const reviewlist = document.getElementById('reviewlist');
 const reviewbtn = document.getElementById('reviewbtn');
 const stopBtn = document.getElementById('stop');
 const goBtn = document.querySelector('button.go');
+const autoBtn = document.getElementById('auto');
 let confirmId = '';
+let autoApply = false;
 let turn = null;
 let busy = false;
 let pal = { commands: [], files: [], hashes: [], dollars: [] };
@@ -277,8 +295,16 @@ let palItems = [];
 let palIdx = 0;
 const saved = vscode.getState() || {};
 if (saved.mode) modeEl.value = saved.mode;
+if (saved.autoApply) setAutoApplyUI(true);
 function persist() {
-  vscode.setState({ mode: modeEl.value, model: modelEl.value });
+  vscode.setState({ mode: modeEl.value, model: modelEl.value, autoApply });
+}
+function setAutoApplyUI(on) {
+  autoApply = Boolean(on);
+  autoBtn.classList.toggle('on', autoApply);
+  autoBtn.setAttribute('aria-pressed', autoApply ? 'true' : 'false');
+  autoBtn.textContent = autoApply ? 'Auto ✓' : 'Auto';
+  persist();
 }
 function scrollLog() {
   log.scrollTop = log.scrollHeight;
@@ -569,9 +595,18 @@ document.getElementById('yes').onclick = () => {
   box.classList.remove('show');
   vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: true });
 };
+document.getElementById('always').onclick = () => {
+  box.classList.remove('show');
+  setAutoApplyUI(true);
+  vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: true, always: true });
+};
 document.getElementById('no').onclick = () => {
   box.classList.remove('show');
   vscode.postMessage({ type: 'confirmResult', id: confirmId, ok: false });
+};
+autoBtn.onclick = () => {
+  setAutoApplyUI(!autoApply);
+  vscode.postMessage({ type: 'setAutoApply', on: autoApply });
 };
 stopBtn.onclick = () => vscode.postMessage({ type: 'stop' });
 reviewbtn.onclick = () => reviewEl.classList.toggle('open');
@@ -606,6 +641,7 @@ window.addEventListener('message', (e) => {
     ctx.hidden = !name;
     ctxfile.textContent = name;
   }
+  if (m.type === 'autoApply') setAutoApplyUI(m.on);
   if (m.type === 'confirm') {
     confirmId = m.id;
     document.getElementById('cdetail').textContent = (m.kind || '') + ': ' + (m.detail || '');

@@ -337,8 +337,14 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	if !strings.Contains(string(pkg), `"id": "ihuull.agentView"`) {
 		t.Fatal("extensão precisa da view do agente")
 	}
-	if !strings.Contains(string(pkg), `"workbench.panel.chat"`) || strings.Contains(string(pkg), `"activitybar"`) {
-		t.Fatal("OpenVSCode 1.98 ignora secondarySidebar — o chat mora no container Chat da direita")
+	if !strings.Contains(string(pkg), `"ihuull.codespace.autoApply"`) {
+		t.Fatal("extensão precisa de autoApply para não pedir Aplicar em cada edição")
+	}
+	if !strings.Contains(string(pkg), `"secondarySideBar"`) || !strings.Contains(string(pkg), `"id": "ihuull-agent"`) {
+		t.Fatal("chat ihuull deve ser viewsContainers.secondarySideBar (direita)")
+	}
+	if strings.Contains(string(pkg), `"activitybar"`) || strings.Contains(string(pkg), `"workbench.panel.chat"`) {
+		t.Fatal("XCODESPACES na activitybar ou workbench.panel.chat cai no Explorer (esquerda)")
 	}
 	if !strings.Contains(string(pkg), `"id": "ihuull-ports"`) || strings.Contains(string(pkg), `"workbench.panel":`) {
 		t.Fatal("Ports deve ser viewsContainers.panel — workbench.panel cai no Explorer")
@@ -455,6 +461,16 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	}
 	if !strings.Contains(text, "xcs-analyze") {
 		t.Fatal("analyzer Go deve ir na imagem")
+	}
+	if !strings.Contains(text, "patch-auxiliary-bar.js") {
+		t.Fatal("Dockerfile deve aplicar o patch da auxiliary bar no OpenVSCode 1.98")
+	}
+	patch, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "patch-auxiliary-bar.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(patch), `case"secondarySideBar"`) || !strings.Contains(string(patch), ",t,2)") {
+		t.Fatal("patch deve registrar secondarySideBar em AuxiliaryBar (location 2)")
 	}
 	if !strings.Contains(text, "install-ovsx.sh") {
 		t.Fatal("Open VSX deve ser bakeado via install-ovsx.sh")

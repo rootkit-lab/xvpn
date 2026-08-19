@@ -68,6 +68,8 @@ test("webview do chat tem timeline Thought / cards / composer", () => {
   assert.match(html, /id="review"/);
   assert.match(html, /id="stop"/);
   assert.match(html, /data-insert="\$"/);
+  assert.match(html, /id="always"/);
+  assert.match(html, /id="auto"/);
   assert.doesNotMatch(html, /tool 6/);
 });
 
@@ -108,6 +110,8 @@ test("loop do agente tem Stop, Review, artifact, wait e MCP", () => {
   assert.match(src, /attachAgentTerminal/);
   assert.match(src, /this.abort.signal/);
   assert.match(src, /list_mcp/);
+  assert.match(src, /shouldPromptConfirm/);
+  assert.match(src, /setAutoApply/);
 });
 
 test("listSkills recusa SKILL.md symlink para .git", () => {
@@ -129,6 +133,14 @@ test("call_mcp do clone pede confirmação; think bakeado não", () => {
   assert.equal(needsConfirm("call_mcp", { server: "think", name: "think" }), false);
   assert.equal(needsConfirm("call_mcp", { server: "custom", name: "foo" }), true);
   assert.equal(needsConfirm("run_terminal", { argv: ["python3"] }), true);
+});
+
+test("autoApply dispensa Aplicar em write/patch e mantém o terminal", () => {
+  const { shouldPromptConfirm } = require("./auto-apply");
+  assert.equal(shouldPromptConfirm("write_file", { path: "a.py" }, false), true);
+  assert.equal(shouldPromptConfirm("write_file", { path: "a.py" }, true), false);
+  assert.equal(shouldPromptConfirm("apply_patch", { path: "a.py" }, true), false);
+  assert.equal(shouldPromptConfirm("run_terminal", { argv: ["python3"] }, true), true);
 });
 
 test("MCP think responde e python3 espera env", async () => {

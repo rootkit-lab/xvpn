@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const vscode = require("vscode");
+const { resolveWorkspacePath } = require("./sandbox");
 
 const AGENTS_CAP = 8 * 1024;
 const RULE_CAP = 2 * 1024;
@@ -36,7 +37,12 @@ function parseFrontmatter(raw) {
 }
 
 function listSkills(root) {
-  const dir = path.join(root, ".cursor", "skills");
+  let dir;
+  try {
+    dir = resolveWorkspacePath(root, path.join(".cursor", "skills"));
+  } catch (_) {
+    return [];
+  }
   let names = [];
   try {
     names = fs.readdirSync(dir);
@@ -45,7 +51,15 @@ function listSkills(root) {
   }
   const out = [];
   for (const name of names) {
-    const file = path.join(dir, name, "SKILL.md");
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      continue;
+    }
+    let file;
+    try {
+      file = resolveWorkspacePath(root, path.join(".cursor", "skills", name, "SKILL.md"));
+    } catch (_) {
+      continue;
+    }
     const raw = readLimited(file, 32 * 1024);
     if (!raw) {
       continue;
@@ -62,7 +76,12 @@ function listSkills(root) {
 }
 
 function listRules(root) {
-  const dir = path.join(root, ".cursor", "rules");
+  let dir;
+  try {
+    dir = resolveWorkspacePath(root, path.join(".cursor", "rules"));
+  } catch (_) {
+    return [];
+  }
   let names = [];
   try {
     names = fs.readdirSync(dir);
@@ -74,7 +93,16 @@ function listRules(root) {
     if (!name.endsWith(".mdc") && !name.endsWith(".md")) {
       continue;
     }
-    const raw = readLimited(path.join(dir, name), RULE_CAP);
+    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+      continue;
+    }
+    let file;
+    try {
+      file = resolveWorkspacePath(root, path.join(".cursor", "rules", name));
+    } catch (_) {
+      continue;
+    }
+    const raw = readLimited(file, RULE_CAP);
     if (raw) {
       out.push({ name, text: raw });
     }
@@ -92,6 +120,11 @@ function currentFileSnippet() {
   let rel = ed.document.uri.fsPath;
   if (folder) {
     rel = path.relative(folder.uri.fsPath, ed.document.uri.fsPath) || rel;
+    try {
+      resolveWorkspacePath(folder.uri.fsPath, rel);
+    } catch (_) {
+      return "";
+    }
   }
   const text = (sel || ed.document.getText()).slice(0, FILE_CAP);
   if (!text.trim()) {
@@ -102,7 +135,12 @@ function currentFileSnippet() {
 
 function buildContext(root, extraSkill) {
   const parts = [];
-  const agents = readLimited(path.join(root, "AGENTS.md"), AGENTS_CAP);
+  let agents = "";
+  try {
+    agents = readLimited(resolveWorkspacePath(root, "AGENTS.md"), AGENTS_CAP);
+  } catch (_) {
+    agents = "";
+  }
   if (agents) {
     parts.push("## AGENTS.md\n" + agents);
   }

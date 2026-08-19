@@ -147,11 +147,16 @@ async function runTool(root, name, rawArgs) {
       }
       const target = args.path ? resolveWorkspacePath(root, args.path) : resolveWorkspacePath(root, ".");
       try {
-        const { stdout } = await execFileAsync("rg", ["-n", "--max-count", "40", "-m", "40", "--", pattern, target], {
-          cwd: root,
-          maxBuffer: OUT_CAP,
-          timeout: 8000,
-        });
+        const { stdout } = await execFileAsync(
+          "rg",
+          ["--no-config", "-n", "--max-count", "40", "-m", "40", "--", pattern, target],
+          {
+            cwd: root,
+            env: { ...process.env, RIPGREP_CONFIG_PATH: "" },
+            maxBuffer: OUT_CAP,
+            timeout: 8000,
+          },
+        );
         return (stdout || "").slice(0, OUT_CAP) || "(sem matches)";
       } catch (err) {
         if (err && err.code === 1) {

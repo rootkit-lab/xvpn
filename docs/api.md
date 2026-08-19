@@ -61,7 +61,9 @@ Mesmo backend. Hostname de produto: `xchat.corp` (WS/mensagens) e `xgroup.corp` 
 | GET | `/api/driver/ls` | `root=home\|shared`, `path=` |
 | POST | `/api/driver/mkdir` | |
 | POST | `/api/driver/upload` | multipart, 2 GiB |
-| GET | `/api/driver/download` | |
+| GET | `/api/driver/download` | `inline=1` para visualizar no browser |
+| PUT | `/api/driver/write` | texto até 2 MiB (`root`, `path`, `content`) |
+| POST | `/api/driver/extract` | zip / tar.gz; recusa `..`; pasta nova ao lado |
 | DELETE | `/api/driver/rm` | path obrigatório |
 
 Qualquer outro `Host` → 404. `xdriver.ihuull.com` não serve estas rotas.

@@ -15,3 +15,4 @@ coverage.out
 # IDE no HOME do codespace (defesa; o mount já isola)
 .cache/
 .openvscode-server/
+.cursor/agent/

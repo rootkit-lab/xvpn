@@ -180,16 +180,26 @@ async function fetchSocialAttachment(id: number): Promise<Blob> {
   return res.blob()
 }
 
-async function downloadDriverFile(root: DriverRoot, path: string, filename: string): Promise<void> {
+export function driverFileURL(root: DriverRoot, path: string, inline = false): string {
+  const sp = new URLSearchParams({ root, path })
+  if (inline) sp.set('inline', '1')
+  return `/api/driver/download?${sp}`
+}
+
+async function fetchDriverBlob(root: DriverRoot, path: string, inline = false): Promise<Blob> {
   const headers = new Headers()
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const sp = new URLSearchParams({ root, path })
-  const apiPath = `/driver/download?${sp}`
-  const res = await fetch(`/api${apiPath}`, { headers, credentials: 'include' })
+  const url = driverFileURL(root, path, inline)
+  const apiPath = url.replace(/^\/api/, '')
+  const res = await fetch(url, { headers, credentials: 'include' })
   if (res.status === 401) handleUnauthorized(apiPath)
   if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
-  const blob = await res.blob()
+  return res.blob()
+}
+
+async function downloadDriverFile(root: DriverRoot, path: string, filename: string): Promise<void> {
+  const blob = await fetchDriverBlob(root, path)
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -910,6 +920,9 @@ export interface Codespace {
   can_write?: boolean
   open_url: string
   runtime_url?: string
+  demo_name?: string
+  demo_host?: string
+  demo_url?: string
 }
 
 export interface WorkProject {
@@ -1447,6 +1460,11 @@ export const api = {
     request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/start`, { method: 'POST' }),
   stopCodespace: (id: string) =>
     request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/stop`, { method: 'POST' }),
+  patchCodespaceDemo: (id: string, name: string) =>
+    request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}/demo`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
   deleteCodespace: (id: string) =>
     request<void>(`/xcodespaces/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   listCodespaceTree: (id: string, path?: string) => {
@@ -1661,6 +1679,11 @@ export const api = {
     }),
   uploadDriver: (root: DriverRoot, path: string, file: File) => uploadDriverFile(root, path, file),
   downloadDriver: (root: DriverRoot, path: string, filename: string) => downloadDriverFile(root, path, filename),
+  fetchDriverBlob: (root: DriverRoot, path: string, inline = false) => fetchDriverBlob(root, path, inline),
+  writeDriver: (root: DriverRoot, path: string, content: string) =>
+    request<{ ok: boolean }>('/driver/write', { method: 'PUT', body: JSON.stringify({ root, path, content }) }),
+  extractDriver: (root: DriverRoot, path: string) =>
+    request<{ ok: boolean; path: string }>('/driver/extract', { method: 'POST', body: JSON.stringify({ root, path }) }),
   rmDriver: (root: DriverRoot, path: string) =>
     request<void>('/driver/rm', { method: 'DELETE', body: JSON.stringify({ root, path }) }),
 }

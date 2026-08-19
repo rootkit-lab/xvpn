@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/rootkit-lab/xvpn/server/internal/auth"
+	"github.com/rootkit-lab/xvpn/server/internal/provision"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -27,7 +28,7 @@ const (
 	maxLLMDiffBytes       = 8 << 10
 	maxLLMMsgBytes        = 4 << 10
 	maxLLMToolResultBytes = 16 << 10
-	maxLLMChatMsgs        = 32
+	maxLLMChatMsgs        = 80
 	maxLLMContextBytes    = 24 << 10
 	maxLLMChatTokens      = 2048
 	maxLLMTools           = 16
@@ -93,6 +94,17 @@ type llmChatRequest struct {
 	Messages []llmMessage  `json:"messages"`
 	Context  string        `json:"context"`
 	Tools    []llmToolSpec `json:"tools"`
+	Model    string        `json:"model"`
+	Mode     string        `json:"mode"`
+}
+
+type llmModelsJSON struct {
+	Provider string           `json:"provider"`
+	Model    string           `json:"model"`
+	HasKey   bool             `json:"has_key"`
+	Catalog  []llmModelOption `json:"catalog"`
+	GitName  string           `json:"git_name,omitempty"`
+	GitEmail string           `json:"git_email,omitempty"`
 }
 
 type llmResult struct {
@@ -238,19 +250,33 @@ func (a *App) handleTestCodespaceLLM(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "model": model, "text": firstLine(text)})
 }
 
+func (a *App) handleLLMModels(c *gin.Context) {
+	row, err := a.loadOrInitCodespaceSettings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "falha ao ler settings"})
+		return
+	}
+	c.JSON(http.StatusOK, llmModelsPayload(row, callerUsername(c)))
+}
+
 func (a *App) handleLLMChat(c *gin.Context) {
 	var req llmChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido"})
 		return
 	}
-	msgs, err := sanitizeLLMMessages(req.Messages, req.Context)
+	mode, err := normalizeLLMMode(req.Mode)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	tools := sanitizeLLMTools(req.Tools)
-	res, err := a.callProjectLLMChat(c, msgs, tools, maxLLMChatTokens)
+	msgs, err := sanitizeLLMMessages(req.Messages, req.Context, mode)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	tools := filterToolsForMode(mode, sanitizeLLMTools(req.Tools))
+	res, err := a.callProjectLLMChat(c, msgs, tools, maxLLMChatTokens, req.Model)
 	if err != nil {
 		writeLLMError(c, err)
 		return
@@ -312,7 +338,7 @@ func (a *App) callProjectLLM(c *gin.Context, msgs []llmMessage, maxTokens int) (
 	return a.completeLLM(u, provider, model, row.APIKey, msgs, maxTokens)
 }
 
-func (a *App) callProjectLLMChat(c *gin.Context, msgs []llmMessage, tools []llmToolSpec, maxTokens int) (llmResult, error) {
+func (a *App) callProjectLLMChat(c *gin.Context, msgs []llmMessage, tools []llmToolSpec, maxTokens int, modelOverride string) (llmResult, error) {
 	row, err := a.loadOrInitCodespaceSettings()
 	if err != nil {
 		return llmResult{}, err
@@ -325,9 +351,12 @@ func (a *App) callProjectLLMChat(c *gin.Context, msgs []llmMessage, tools []llmT
 	if err != nil {
 		return llmResult{}, errLLM(err.Error(), http.StatusBadRequest)
 	}
-	model := displayLLMModel(row.Model, row.Provider)
 	provider := displayLLMProvider(row.Provider)
-	_ = a.Store.LogAudit(callerUsername(c), "xcodespaces.llm", provider)
+	model, err := resolveChatModel(provider, displayLLMModel(row.Model, row.Provider), modelOverride)
+	if err != nil {
+		return llmResult{}, err
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "xcodespaces.llm", provider+" "+model)
 	return a.completeLLMChat(u, provider, model, row.APIKey, msgs, tools, maxTokens)
 }
 
@@ -746,11 +775,101 @@ func displayLLMModel(raw, provider string) string {
 	}
 }
 
-func sanitizeLLMMessages(in []llmMessage, context string) ([]llmMessage, error) {
+func llmModelsPayload(row store.CodespaceSettings, username string) llmModelsJSON {
+	provider := displayLLMProvider(row.Provider)
+	model := displayLLMModel(row.Model, row.Provider)
+	catalog := append([]llmModelOption(nil), llmModelCatalog()[provider]...)
+	if model != "" && !llmModelInCatalog(provider, model) {
+		catalog = append([]llmModelOption{{ID: model, Label: model + " (settings)"}}, catalog...)
+	}
+	if catalog == nil {
+		catalog = []llmModelOption{}
+	}
+	out := llmModelsJSON{
+		Provider: provider,
+		Model:    model,
+		HasKey:   strings.TrimSpace(row.APIKey) != "",
+		Catalog:  catalog,
+	}
+	if name, email, ok := provision.CodespaceGitIdentity(username); ok {
+		out.GitName = name
+		out.GitEmail = email
+	}
+	return out
+}
+
+func normalizeLLMMode(mode string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "", "agent", "agents":
+		return "agent", nil
+	case "ask":
+		return "ask", nil
+	case "plan":
+		return "plan", nil
+	case "debug":
+		return "debug", nil
+	default:
+		return "", fmt.Errorf("modo inválido")
+	}
+}
+
+func llmModePrompt(mode string) string {
+	switch mode {
+	case "ask":
+		return "Modo Ask: responda perguntas sobre o código. Não edite arquivos e não use tools."
+	case "plan":
+		return "Modo Plan: produza um plano passo a passo. Só leia o workspace (read_file, list_dir, grep, read_skill). Não escreva arquivos nem rode terminal."
+	case "debug":
+		return "Modo Debug: diagnostique o erro no arquivo ou na seleção atuais. Use tools para inspecionar. Só edite se o usuário pediu a correção."
+	default:
+		return "Modo Agent: use as tools para cumprir o pedido. Leia o workspace antes de editar."
+	}
+}
+
+func filterToolsForMode(mode string, tools []llmToolSpec) []llmToolSpec {
+	if mode == "ask" {
+		return nil
+	}
+	if mode != "plan" {
+		return tools
+	}
+	allow := map[string]struct{}{
+		"read_file": {}, "list_dir": {}, "grep": {}, "read_skill": {}, "glob": {},
+	}
+	out := make([]llmToolSpec, 0, len(tools))
+	for _, t := range tools {
+		if _, ok := allow[t.Function.Name]; ok {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func llmModelInCatalog(provider, model string) bool {
+	for _, opt := range llmModelCatalog()[provider] {
+		if opt.ID == model {
+			return true
+		}
+	}
+	return false
+}
+
+func resolveChatModel(provider, current, requested string) (string, error) {
+	req := strings.TrimSpace(requested)
+	if req == "" || req == current {
+		return current, nil
+	}
+	if llmModelInCatalog(provider, req) {
+		return req, nil
+	}
+	return "", errLLM("modelo não está no catálogo do provedor", http.StatusBadRequest)
+}
+
+func sanitizeLLMMessages(in []llmMessage, context, mode string) ([]llmMessage, error) {
 	if len(in) == 0 || len(in) > maxLLMChatMsgs {
 		return nil, fmt.Errorf("informe de 1 a %d mensagens", maxLLMChatMsgs)
 	}
-	sys := "Você é o agente do XCODESPACES (intranet ihuull). Entende skills (.cursor/skills), AGENTS.md, rules e slash commands. Use as tools quando precisar ler ou editar o workspace. Sem pedir login Microsoft."
+	sys := "Você é o agente do XCODESPACES (intranet ihuull). Entende skills (.cursor/skills), AGENTS.md, rules e slash commands. Sem pedir login Microsoft.\n\n" + llmModePrompt(mode)
 	if ctx := strings.TrimSpace(context); ctx != "" {
 		if len(ctx) > maxLLMContextBytes {
 			ctx = ctx[:maxLLMContextBytes]

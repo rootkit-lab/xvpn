@@ -282,6 +282,7 @@ func NewRouter(app *App) *gin.Engine {
 		llm := apiGroup.Group("")
 		llm.Use(app.requireCodespaceLLMHost(), app.requireLLMCaller(), app.refreshCallerFromDB())
 		{
+			llm.GET("/xcodespaces/llm/models", app.handleLLMModels)
 			llm.POST("/xcodespaces/llm/chat", rateLimit(app.llmLimiter), app.handleLLMChat)
 			llm.POST("/xcodespaces/llm/commit-message", rateLimit(app.llmLimiter), app.handleLLMCommitMessage)
 		}
@@ -361,6 +362,7 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/xcodespaces/:id", app.handleGetCodespace)
 			authed.POST("/xcodespaces/:id/start", app.handleStartCodespace)
 			authed.POST("/xcodespaces/:id/stop", app.handleStopCodespace)
+			authed.PATCH("/xcodespaces/:id/demo", app.handlePatchCodespaceDemo)
 			authed.DELETE("/xcodespaces/:id", app.handleDeleteCodespace)
 			authed.GET("/xcodespaces/:id/tree", app.handleCodespaceTree)
 			authed.GET("/xcodespaces/:id/blob", app.handleCodespaceBlob)
@@ -412,6 +414,8 @@ func NewRouter(app *App) *gin.Engine {
 				driver.POST("/mkdir", app.handleDriverMkdir)
 				driver.POST("/upload", app.handleDriverUpload)
 				driver.GET("/download", app.handleDriverDownload)
+				driver.PUT("/write", app.handleDriverWrite)
+				driver.POST("/extract", app.handleDriverExtract)
 				driver.DELETE("/rm", app.handleDriverDelete)
 			}
 		}

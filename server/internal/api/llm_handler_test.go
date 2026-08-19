@@ -402,17 +402,195 @@ func TestLLMChat_ContextAndToolCalls(t *testing.T) {
 	}
 }
 
+func TestSanitizeLLMMessages_AllowsLongToolLoop(t *testing.T) {
+	in := make([]llmMessage, 0, 49)
+	in = append(in, llmMessage{Role: "user", Content: "explore o repo"})
+	for i := 0; i < 24; i++ {
+		in = append(in, llmMessage{
+			Role: "assistant",
+			ToolCalls: []llmToolCall{{
+				ID: "c1", Name: "read_file", Arguments: `{"path":"go.mod"}`,
+			}},
+		})
+		in = append(in, llmMessage{
+			Role: "tool", ToolCallID: "c1", Name: "read_file", Content: "module x",
+		})
+	}
+	if _, err := sanitizeLLMMessages(in, "", "agent"); err != nil {
+		t.Fatalf("loop de 24 tools deveria caber: %v", err)
+	}
+}
+
+func TestSanitizeLLMMessages_RejectsOverCap(t *testing.T) {
+	in := make([]llmMessage, maxLLMChatMsgs+1)
+	for i := range in {
+		in[i] = llmMessage{Role: "user", Content: "x"}
+	}
+	if _, err := sanitizeLLMMessages(in, "", "ask"); err == nil {
+		t.Fatal("acima do cap deveria falhar")
+	}
+}
+
 func TestSanitizeLLMMessages_CapsContext(t *testing.T) {
 	huge := strings.Repeat("x", maxLLMContextBytes+80)
-	out, err := sanitizeLLMMessages([]llmMessage{{Role: "user", Content: "oi"}}, huge)
+	out, err := sanitizeLLMMessages([]llmMessage{{Role: "user", Content: "oi"}}, huge, "agent")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out[0].Content, "Contexto do workspace") {
 		t.Fatal("system deve incluir context")
 	}
+	if !strings.Contains(out[0].Content, "Modo Agent") {
+		t.Fatal("system deve incluir o modo")
+	}
 	if len(out[0].Content) > maxLLMContextBytes+400 {
 		t.Fatalf("context não foi capado: %d", len(out[0].Content))
+	}
+}
+
+func TestNormalizeLLMMode(t *testing.T) {
+	got, err := normalizeLLMMode("Agents")
+	if err != nil || got != "agent" {
+		t.Fatalf("agents: %q %v", got, err)
+	}
+	if _, err := normalizeLLMMode("pwn"); err == nil {
+		t.Fatal("modo inválido deveria falhar")
+	}
+}
+
+func TestFilterToolsForMode_AskDropsAll(t *testing.T) {
+	tools := []llmToolSpec{{
+		Type:     "function",
+		Function: llmToolFnSpec{Name: "read_file", Parameters: json.RawMessage(`{}`)},
+	}, {
+		Type:     "function",
+		Function: llmToolFnSpec{Name: "write_file", Parameters: json.RawMessage(`{}`)},
+	}}
+	if got := filterToolsForMode("ask", tools); len(got) != 0 {
+		t.Fatalf("ask: %+v", got)
+	}
+	plan := filterToolsForMode("plan", tools)
+	if len(plan) != 1 || plan[0].Function.Name != "read_file" {
+		t.Fatalf("plan: %+v", plan)
+	}
+}
+
+func TestResolveChatModel_Allowlist(t *testing.T) {
+	got, err := resolveChatModel("glm", "glm-4.7-flash", "")
+	if err != nil || got != "glm-4.7-flash" {
+		t.Fatalf("default: %q %v", got, err)
+	}
+	got, err = resolveChatModel("glm", "glm-4.7-flash", "glm-5.2")
+	if err != nil || got != "glm-5.2" {
+		t.Fatalf("override: %q %v", got, err)
+	}
+	if _, err := resolveChatModel("glm", "glm-4.7-flash", "gpt-4o"); err == nil {
+		t.Fatal("modelo de outro provedor deveria falhar")
+	}
+}
+
+func TestLLMModels_GitTokenOnCodespaceHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", Model: "glm-4.7-flash", APIKey: "secret-llm-key-must-not-leak",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create project: %d %s", rec.Code, rec.Body.String())
+	}
+	var admin store.User
+	if err := app.Store.DB.Where("username = ?", "admin").First(&admin).Error; err != nil {
+		t.Fatal(err)
+	}
+	var lab store.Project
+	if err := app.Store.DB.Where("slug = ?", "lab").First(&lab).Error; err != nil {
+		t.Fatal(err)
+	}
+	gitTok := "tokentokentoken1"
+	if err := app.Store.DB.Create(&store.CodeSpace{
+		PublicID:     "aabbccddeeff",
+		UserID:       admin.ID,
+		ProjectID:    lab.ID,
+		Branch:       "main",
+		RelPath:      "admin/lab/aabbccddeeff",
+		Kind:         store.CodespaceKindRemote,
+		Status:       store.CodespaceRunning,
+		GitTokenHash: hashCodespaceToken(gitTok),
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec = doJSONHost(t, router, http.MethodGet, "/api/xcodespaces/llm/models", nil, gitTok, "cs-aabbccddeeff.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("models: %d %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "secret-llm") || strings.Contains(rec.Body.String(), `"api_key"`) {
+		t.Fatal("GET models vazou a key")
+	}
+	if !strings.Contains(rec.Body.String(), `"glm-4.7-flash"`) || !strings.Contains(rec.Body.String(), `"has_key":true`) {
+		t.Fatalf("body: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"git_name":"admin"`) || !strings.Contains(rec.Body.String(), `"git_email":"admin@corp.ihuull.com"`) {
+		t.Fatalf("identidade git: %s", rec.Body.String())
+	}
+}
+
+func TestLLMChat_RejectsUnknownModelAndAskDropsTools(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	app, router, adminTok := setupGitApp(t)
+	var saw struct {
+		model string
+		tools bool
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		saw.model, _ = body["model"].(string)
+		_, saw.tools = body["tools"]
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{"message": map[string]string{"content": "ok"}},
+			},
+		})
+	}))
+	t.Cleanup(upstream.Close)
+	app.llmHTTP = upstream.Client()
+	if err := app.Store.DB.Save(&store.CodespaceSettings{
+		ID: 1, Provider: "glm", BaseURL: upstream.URL, Model: "glm-4.7-flash", APIKey: "test-llm-key-value-xx",
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/chat", llmChatRequest{
+		Messages: []llmMessage{{Role: "user", Content: "oi"}},
+		Model:    "gpt-4o",
+	}, adminTok, "xcodespaces.corp.ihuull.com")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("modelo fora do catálogo: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSONHost(t, router, http.MethodPost, "/api/xcodespaces/llm/chat", llmChatRequest{
+		Messages: []llmMessage{{Role: "user", Content: "explique"}},
+		Mode:     "ask",
+		Model:    "glm-5.2",
+		Tools: []llmToolSpec{{
+			Type:     "function",
+			Function: llmToolFnSpec{Name: "write_file", Parameters: json.RawMessage(`{"type":"object"}`)},
+		}},
+	}, adminTok, "xcodespaces.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ask: %d %s", rec.Code, rec.Body.String())
+	}
+	if saw.model != "glm-5.2" {
+		t.Fatalf("override: %s", saw.model)
+	}
+	if saw.tools {
+		t.Fatal("Ask não pode encaminhar tools")
 	}
 }
 

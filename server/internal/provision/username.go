@@ -15,7 +15,10 @@
 //     as chamadas em memória.
 package provision
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // usernameRegex é o padrão de nome de usuário Unix aceito pelo
 // provisionador (ver PLAN.md §6.9): começa com letra minúscula, 3–32
@@ -33,4 +36,14 @@ var usernameRegex = regexp.MustCompile(`^[a-z][a-z0-9_-]{2,31}$`)
 // aqui é defesa em profundidade contra injeção de argumento.
 func ValidUsername(name string) bool {
 	return usernameRegex.MatchString(name)
+}
+
+// CodespaceGitIdentity is the author used by Source Control in the
+// container (username@corp.ihuull.com — same as XGIT contents/commit).
+func CodespaceGitIdentity(username string) (name, email string, ok bool) {
+	name = strings.TrimSpace(username)
+	if !ValidUsername(name) {
+		return "", "", false
+	}
+	return name, name + "@corp.ihuull.com", true
 }

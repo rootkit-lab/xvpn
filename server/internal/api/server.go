@@ -6,8 +6,10 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -43,6 +45,11 @@ const (
 	enrollRateLimitMax    = 20
 	enrollRateLimitWindow = 10 * time.Minute
 
+	wsConnRateLimitMax    = 30
+	wsConnRateLimitWindow = 1 * time.Minute
+	msgRateLimitMax       = 60
+	msgRateLimitWindow    = 1 * time.Minute
+
 	// POST /api/me/ssh-key só responde dentro do túnel e é idempotente
 	// (mesma chave = no-op), mas trocar de chave a cada requisição faz o
 	// servidor reescrever o authorized_keys e recarregar o sshd. O limite
@@ -68,12 +75,30 @@ type App struct {
 	Store  *store.Store
 	WG     wireguard.PeerManager
 	Tokens *auth.TokenManager
-	Config *config.Config
+	// Handoff guarda tickets opacos de SSO (uso único, 60s).
+	Handoff *auth.TicketStore
+	Config  *config.Config
 
 	// Marketplace grava/lê os blobs de asset do catálogo de software
 	// (Fase 11 — ver PLAN.md §6.8). Nunca nil em produção (inicializado
 	// em cmd/xvpn-server/main.go junto com o restante do App).
 	Marketplace *marketplace.Store
+
+	// SocialMedia guarda anexos/áudio/stories do chat (Fase 21). Mesmo
+	// store content-addressed do marketplace, raiz distinta.
+	SocialMedia *marketplace.Store
+
+	// BitLaunch (Fase 38). Só os testes injetam o fake. Em produção o
+	// cliente sai de BitLaunchAccount (Compute → Configurações).
+	BitLaunch BitLaunchAPI
+
+	// Cloudflare (Fase 39). Só os testes injetam o fake. Em produção o
+	// cliente sai de CloudflareAccount (DNS → Configurações).
+	Cloudflare CloudflareAPI
+
+	// fetchAsset baixa um asset por URL durante o sync (Fase 16). Nil =
+	// marketplace.FetchAndPut. Os testes injetam um fake sem rede.
+	fetchAsset func(context.Context, *marketplace.Store, string, string) (marketplace.PutResult, string, error)
 
 	// UserProvisioner chama o binário privilegiado xvpn-user-provision
 	// (Fase 13 — ver PLAN.md §6.9) para criar contas Unix e habilitar/
@@ -82,6 +107,9 @@ type App struct {
 	// o handler devolve 503 nesse caso. Em produção é inicializado em
 	// cmd/xvpn-server/main.go junto com o restante do App.
 	UserProvisioner UserProvisioner
+
+	// Backup (Fase 44) roda restic/rclone. Nil = backup.Runner no PATH.
+	Backup backupEngine
 
 	// ServerPublicKey é derivada da chave privada lida na inicialização
 	// (nunca a chave privada em si) e devolvida aos clientes no enrollment.
@@ -106,6 +134,19 @@ type App struct {
 	// (autentica pelo IP de origem dentro do túnel) e chama o
 	// provisionador — ver sshKeyRateLimitMax.
 	sshKeyLimiter *ipRateLimiter
+
+	// llmLimiter limita chat/generate commit por usuário.
+	llmLimiter *ipRateLimiter
+	// llmHTTP é injetado nos testes (httptest). Nil = http.Client padrão.
+	llmHTTP *http.Client
+
+	// Hub entrega eventos do social (Fase 19.3) em memória. Um node.
+	Hub *Hub
+
+	// wsLimiter limita tentativas de upgrade por IP; msgLimiter limita
+	// POST de mensagem por usuário (chave "u:<id>").
+	wsLimiter  *ipRateLimiter
+	msgLimiter *ipRateLimiter
 
 	// statusCache* memoizam a última resposta de GET /api/status por
 	// statusCacheTTL — endpoint público e chamado em polling pelo painel
@@ -152,6 +193,7 @@ func NewRouter(app *App) *gin.Engine {
 
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
+	r.Use(app.maybeCodespaceProxy())
 
 	if app.waitlistLimiter == nil {
 		// 5 tentativas por IP a cada 10 minutos — generoso pra um
@@ -169,16 +211,39 @@ func NewRouter(app *App) *gin.Engine {
 	if app.sshKeyLimiter == nil {
 		app.sshKeyLimiter = newIPRateLimiter(sshKeyRateLimitMax, sshKeyRateLimitWindow)
 	}
+	if app.llmLimiter == nil {
+		app.llmLimiter = newIPRateLimiter(20, time.Minute)
+	}
+	if app.Hub == nil {
+		app.Hub = newHub()
+	}
+	if app.wsLimiter == nil {
+		app.wsLimiter = newIPRateLimiter(wsConnRateLimitMax, wsConnRateLimitWindow)
+	}
+	if app.msgLimiter == nil {
+		app.msgLimiter = newIPRateLimiter(msgRateLimitMax, msgRateLimitWindow)
+	}
+	if app.Handoff == nil {
+		app.Handoff = auth.NewTicketStore()
+	}
 
 	apiGroup := r.Group("/api")
 	{
 		apiGroup.POST("/auth/login", rateLimit(app.loginLimiter), app.handleLogin)
+		apiGroup.POST("/auth/session", rateLimit(app.loginLimiter), app.handleEstablishSession)
+		apiGroup.GET("/auth/handoff-continue", rateLimit(app.loginLimiter), app.handleHandoffContinue)
+		apiGroup.GET("/auth/redeem", rateLimit(app.loginLimiter), app.handleRedeemHandoff)
+		apiGroup.POST("/auth/logout", app.handleLogout)
 		apiGroup.POST("/devices/enroll", rateLimit(app.enrollLimiter), app.handleDeviceEnroll)
+		apiGroup.POST("/servers/enroll", rateLimit(app.enrollLimiter), app.handleMeshServerEnroll)
 		apiGroup.GET("/status", app.handleStatus)
-		// Único endpoint de escrita da API sem autenticação — ver
-		// waitlist_handler.go e AGENTS.md (qualquer superfície pública
-		// nova precisa de justificativa explícita).
+		// Escritas públicas: login, session (handoff SSO), enroll, waitlist.
+		// Qualquer superfície pública nova precisa de justificativa (AGENTS.md).
 		apiGroup.POST("/waitlist", rateLimit(app.waitlistLimiter), app.handleJoinWaitlist)
+
+		// WebSocket social (Fase 19.3): upgrade sem JWT no handshake —
+		// o token vai no primeiro frame, nunca na query (access log).
+		apiGroup.GET("/ws", rateLimit(app.wsLimiter), app.handleSocialWS)
 
 		// Identidade por túnel (Fase 14, PLAN.md §6.9): as duas únicas
 		// rotas que autenticam por IP de origem em vez de JWT. Ficam neste
@@ -195,17 +260,50 @@ func NewRouter(app *App) *gin.Engine {
 			tunnel.POST("/me/ssh-key", rateLimit(app.sshKeyLimiter), app.handleRegisterDeviceSSHKey)
 		}
 
+		// CI runner (Fase 42): só wg0. Token do MeshServer role=runner.
+		// O agent fala com 10.66.66.1:8080 — Nginx público (127.0.0.1) cai.
+		ci := apiGroup.Group("/ci", app.RequireVPN())
+		{
+			ci.GET("/jobs/next", app.handleCiClaim)
+			ci.POST("/jobs/:id/log", app.handleCiLog)
+			ci.POST("/jobs/:id/finish", app.handleCiFinish)
+			ci.POST("/jobs/:id/artifact", app.handleCiArtifact)
+		}
+
+		// Agent de serviços (Fase 43): só wg0. Token do MeshServer mesh/runner.
+		svcAgent := apiGroup.Group("/svc", app.RequireVPN())
+		{
+			svcAgent.GET("/desired", app.handleSvcDesired)
+			svcAgent.POST("/:id/status", app.handleSvcAgentStatus)
+		}
+
+		// Assistente do codespace: JWE (painel) ou token Git do
+		// container (extensão Node — sem cookie do browser).
+		llm := apiGroup.Group("")
+		llm.Use(app.requireCodespaceLLMHost(), app.requireLLMCaller(), app.refreshCallerFromDB())
+		{
+			llm.GET("/xcodespaces/llm/models", app.handleLLMModels)
+			llm.POST("/xcodespaces/llm/chat", rateLimit(app.llmLimiter), app.handleLLMChat)
+			llm.POST("/xcodespaces/llm/commit-message", rateLimit(app.llmLimiter), app.handleLLMCommitMessage)
+		}
+
 		// authed: qualquer papel autenticado (inclusive member) — só
 		// identidade própria, sem telas de admin (ver PLAN.md §6.7,
 		// tabela de papéis: "member: sem telas de admin, portal
 		// mínimo").
 		authed := apiGroup.Group("")
-		authed.Use(auth.RequireAuth(app.Tokens))
+		authed.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB())
 		{
 			authed.GET("/auth/me", app.handleMe)
 
 			authed.GET("/me/devices", app.handleListMyDevices)
 			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
+			authed.PUT("/me/ssh-public-key", app.handleUpdateMySSHPublicKey)
+			// Troca de senha do próprio usuário (Fase 18). Rate limit
+			// reusa o do login: a senha atual é o mesmo segredo que o
+			// POST /auth/login protege contra força bruta.
+			authed.PATCH("/me/password", rateLimit(app.loginLimiter), app.handleChangeMyPassword)
+			authed.GET("/me/dns-suffixes", app.handleMeDNSSuffixes)
 
 			// Marketplace (Fase 11, PLAN.md §6.8): catálogo e download são
 			// liberados a qualquer papel autenticado (inclusive member) —
@@ -215,23 +313,145 @@ func NewRouter(app *App) *gin.Engine {
 			// Marketplace: viewer/member "download se ACL permitir").
 			authed.GET("/marketplace/apps", app.handleListMarketplaceApps)
 			authed.GET("/marketplace/assets/:id/download", app.handleDownloadMarketplaceAsset)
+
+			authed.GET("/social/people", app.handleSocialPeople)
+			authed.GET("/social/profile", app.handleSocialMeGet)
+			authed.PATCH("/social/profile", app.handleSocialMePatch)
+			authed.GET("/social/u/:username", app.handleSocialProfileGet)
+			authed.POST("/social/follow/:username", app.handleSocialFollow)
+			authed.DELETE("/social/follow/:username", app.handleSocialUnfollow)
+			authed.GET("/social/groups", app.handleSocialListGroups)
+			authed.POST("/social/groups", app.handleSocialCreateGroup)
+			authed.POST("/social/groups/:id/invite", app.handleSocialInviteGroup)
+			authed.GET("/social/threads", app.handleSocialListThreads)
+			authed.POST("/social/threads", app.handleSocialOpenThread)
+			authed.GET("/social/threads/:kind/:id/messages", app.handleSocialListMessages)
+			authed.POST("/social/threads/:kind/:id/messages", app.handleSocialPostMessage)
+			authed.POST("/social/attachments", app.handleSocialUploadAttachment)
+			authed.GET("/social/attachments/:id", app.handleSocialDownloadAttachment)
+			authed.GET("/social/stories", app.handleSocialListStories)
+			authed.POST("/social/stories", app.handleSocialCreateStory)
+			authed.POST("/social/stories/:id/view", app.handleSocialViewStory)
+			authed.POST("/social/acks", app.handleSocialAck)
+			authed.GET("/social/feed", app.handleSocialFeed)
+			authed.POST("/social/posts", app.handleSocialCreatePost)
+			authed.GET("/social/u/:username/posts", app.handleSocialUserPosts)
+			authed.DELETE("/social/posts/:id", app.handleSocialDeletePost)
+			authed.POST("/social/posts/:id/star", app.handleSocialStarPost)
+			authed.GET("/social/posts/:id/comments", app.handleSocialListComments)
+			authed.POST("/social/posts/:id/comments", app.handleSocialCreateComment)
+			authed.POST("/social/posts/:id/repost", app.handleSocialRepost)
+
+			// Forge (Fase 37): listagem e detalhe para o picker do feed
+			// e o XDRIVER. Member só vê projetos em que participa.
+			authed.GET("/projects", app.handleListProjects)
+			authed.POST("/xgit/repos", app.handleCreateProjectAuthed)
+			authed.GET("/projects/:slug", app.handleGetProject)
+			authed.GET("/projects/:slug/git", app.handleGetProjectGit)
+			authed.GET("/projects/:slug/codespaces/envs", app.handleGetProjectCodespaceEnvs)
+			authed.PUT("/projects/:slug/codespaces/envs", app.handlePutProjectCodespaceEnvs)
+			authed.GET("/projects/:slug/tree", app.handleListTree)
+			authed.GET("/projects/:slug/blob", app.handleGetBlob)
+			authed.GET("/projects/:slug/commits", app.handleListCommits)
+			authed.GET("/xgit/settings", app.handleGetForgeSettings)
+			authed.GET("/xgit/overview", app.handleXgitOverview)
+			authed.GET("/xgit/stars", app.handleXgitStars)
+			authed.POST("/projects/:slug/star", app.handleToggleProjectStar)
+			authed.GET("/xcodespaces", app.handleListCodespaces)
+			authed.POST("/xcodespaces", app.handleCreateCodespace)
+			authed.GET("/xcodespaces/:id", app.handleGetCodespace)
+			authed.POST("/xcodespaces/:id/start", app.handleStartCodespace)
+			authed.POST("/xcodespaces/:id/stop", app.handleStopCodespace)
+			authed.PATCH("/xcodespaces/:id/demo", app.handlePatchCodespaceDemo)
+			authed.DELETE("/xcodespaces/:id", app.handleDeleteCodespace)
+			authed.GET("/xcodespaces/:id/tree", app.handleCodespaceTree)
+			authed.GET("/xcodespaces/:id/blob", app.handleCodespaceBlob)
+			authed.PUT("/xcodespaces/:id/contents", app.handleCodespaceWrite)
+			authed.POST("/xcodespaces/:id/commit", app.handleCodespaceCommit)
+			authed.GET("/projects/:slug/branches", app.handleListProjectBranches)
+			authed.GET("/projects/:slug/issues", app.handleListIssues)
+			authed.POST("/projects/:slug/issues", app.handleCreateIssue)
+			authed.GET("/projects/:slug/issues/:n", app.handleGetIssue)
+			authed.PATCH("/projects/:slug/issues/:n", app.handlePatchIssue)
+			authed.GET("/projects/:slug/labels", app.handleListIssueLabels)
+			authed.GET("/projects/:slug/milestones", app.handleListMilestones)
+			authed.POST("/projects/:slug/milestones", app.handleCreateMilestone)
+			authed.PATCH("/projects/:slug/milestones/:n", app.handlePatchMilestone)
+			authed.GET("/projects/:slug/work-projects", app.handleListWorkProjects)
+			authed.POST("/projects/:slug/work-projects", app.handleCreateWorkProject)
+			authed.GET("/projects/:slug/work-projects/:n", app.handleGetWorkProject)
+			authed.PATCH("/projects/:slug/work-projects/:n", app.handlePatchWorkProject)
+			authed.GET("/projects/:slug/work-projects/:n/items", app.handleListWorkItems)
+			authed.POST("/projects/:slug/work-projects/:n/items", app.handleCreateWorkItem)
+			authed.PATCH("/projects/:slug/work-projects/:n/items/:id", app.handlePatchWorkItem)
+			authed.DELETE("/projects/:slug/work-projects/:n/items/:id", app.handleDeleteWorkItem)
+			authed.GET("/projects/:slug/merge-requests", app.handleListMergeRequests)
+			authed.POST("/projects/:slug/merge-requests", app.handleCreateMergeRequest)
+			authed.GET("/projects/:slug/merge-requests/:iid", app.handleGetMergeRequest)
+			authed.PATCH("/projects/:slug/merge-requests/:iid", app.handlePatchMergeRequest)
+			authed.POST("/projects/:slug/merge-requests/:iid/merge", app.handleMergeMergeRequest)
+			authed.POST("/projects/:slug/merge-requests/:iid/close", app.handleCloseMergeRequest)
+			authed.GET("/projects/:slug/merge-requests/:iid/commits", app.handleListMRCommits)
+			authed.GET("/projects/:slug/merge-requests/:iid/diff", app.handleGetMRDiff)
+			authed.GET("/projects/:slug/merge-requests/:iid/reviews", app.handleListMRReviews)
+			authed.POST("/projects/:slug/merge-requests/:iid/reviews", app.handleCreateMRReview)
+			authed.PUT("/projects/:slug/contents", app.handlePutContents)
+			authed.GET("/projects/:slug/archive", app.handleGetArchive)
+			authed.GET("/projects/:slug/jobs", app.handleListCiJobs)
+			authed.GET("/projects/:slug/jobs/:n", app.handleGetCiJob)
+			authed.GET("/projects/:slug/jobs/:n/log", app.handleGetCiJobLog)
+			authed.GET("/projects/:slug/jobs/:n/artifact", app.handleGetCiJobArtifact)
+			authed.POST("/projects/:slug/jobs/:n/cancel", app.handleCancelCiJob)
+			authed.POST("/projects/:slug/jobs/:n/approve", app.handleApproveCiJob)
+			authed.POST("/projects/:slug/jobs/:n/rerun", app.handleRerunCiJob)
+			authed.GET("/projects/:slug/runners", app.handleListProjectRunners)
+			authed.GET("/projects/:slug/services", app.handleListProjectServices)
+
+			driver := authed.Group("/driver")
+			driver.Use(app.RequireDriverHost())
+			{
+				driver.GET("/ls", app.handleDriverList)
+				driver.POST("/mkdir", app.handleDriverMkdir)
+				driver.POST("/upload", app.handleDriverUpload)
+				driver.GET("/download", app.handleDriverDownload)
+				driver.PUT("/write", app.handleDriverWrite)
+				driver.POST("/extract", app.handleDriverExtract)
+				driver.DELETE("/rm", app.handleDriverDelete)
+			}
 		}
 
 		// viewerUp: leitura das telas de admin (dashboard, listas,
 		// audit) — inclui viewer, admin e super_admin.
 		viewerUp := apiGroup.Group("")
-		viewerUp.Use(auth.RequireAuth(app.Tokens), auth.RequireRole(store.ViewerUpRoles...))
+		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.ViewerUpRoles...))
 		{
 			viewerUp.GET("/users", app.handleListUsers)
+			viewerUp.GET("/users/:id", app.handleGetUser)
 			viewerUp.GET("/devices", app.handleListDevices)
 			viewerUp.GET("/waitlist", app.handleListWaitlist)
 			viewerUp.GET("/audit", app.handleListAudit)
 			viewerUp.GET("/config", app.handleGetConfig)
+			viewerUp.GET("/config/xcodespaces", app.handleGetCodespaceSettings)
+			viewerUp.GET("/dns", app.handleGetDNS)
+			viewerUp.GET("/dns/recursor", app.handleDNSRecursor)
+			viewerUp.GET("/dns/public/settings", app.handleGetPublicDNSSettings)
+			viewerUp.GET("/dns/public/zones", app.handleListPublicZones)
+			viewerUp.GET("/dns/public/zones/:id", app.handleGetPublicZone)
+			viewerUp.GET("/dns/public/zones/:id/records", app.handleListPublicRecords)
 			// Estatísticas agregadas do marketplace (Fase 12): mesmo nível
 			// de leitura do resto do dashboard — não authed (não é algo
 			// que member precise pra navegar o catálogo) nem adminOnly
 			// (não escreve nada).
 			viewerUp.GET("/marketplace/stats", app.handleMarketplaceStats)
+			viewerUp.GET("/servers", app.handleListMeshServers)
+			viewerUp.GET("/servers/:id", app.handleGetMeshServer)
+			viewerUp.GET("/server-groups", app.handleListServerGroups)
+			viewerUp.GET("/compute/settings", app.handleGetComputeSettings)
+			viewerUp.GET("/services", app.handleListServices)
+			viewerUp.GET("/services/:slug", app.handleGetService)
+			viewerUp.GET("/backups/settings", app.handleGetBackupSettings)
+			viewerUp.GET("/backups/destinations", app.handleListBackupDestinations)
+			viewerUp.GET("/backups/jobs", app.handleListBackupJobs)
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.
@@ -241,43 +461,134 @@ func NewRouter(app *App) *gin.Engine {
 		// aplicada dentro de cada handler via store.Role.CanManage, não
 		// aqui no roteamento.
 		adminOnly := apiGroup.Group("")
-		adminOnly.Use(auth.RequireAuth(app.Tokens), auth.RequireRole(store.AdminRoles...))
+		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.AdminRoles...))
 		{
+			// IAM: create/invite/patch/reset — não é produto. Todo admin+
+			// continua gerenciando contas (CanManage + CoversAccount).
+			// DELETE revoga peers/SFTP: exige core, senão a loja
+			// contorna RequireProduct(core) em /devices.
 			adminOnly.POST("/users", app.handleCreateUser)
 			adminOnly.PATCH("/users/:id", app.handleUpdateUser)
-			adminOnly.DELETE("/users/:id", app.handleDeleteUser)
 			adminOnly.POST("/users/:id/invite", app.handleCreateInvite)
 			adminOnly.POST("/users/:id/reset-password", app.handleResetPassword)
-			// Acesso a arquivos (Fase 13, PLAN.md §6.9): toggle SFTP/Samba
-			// + chave pública SSH por usuário. adminOnly — ação de escrita
-			// que provisiona conta Unix na VPS.
-			adminOnly.PUT("/users/:id/file-access", app.handleSetFileAccess)
-			// Chaves SSH auto-registradas pelos dispositivos do usuário
-			// (Fase 14), em modo leitura: alimenta o diálogo de acesso a
-			// arquivos do painel. adminOnly pelo mesmo motivo do PUT acima
-			// — é a superfície administrativa de acesso a arquivos, e o
-			// diálogo que consome isso só aparece para quem pode gerenciar
-			// aquele usuário.
-			adminOnly.GET("/users/:id/ssh-keys", app.handleListUserSSHKeys)
 
-			adminOnly.DELETE("/devices/:id", app.handleDeleteDevice)
+			// Core VPN (Fase 33): peers, waitlist, TTLs, apagar usuário.
+			// Admin sem products:["core"] não revoga WireGuard.
+			coreWrite := adminOnly.Group("")
+			coreWrite.Use(auth.RequireProduct(store.ProductCore))
+			{
+				coreWrite.DELETE("/users/:id", app.handleDeleteUser)
+				coreWrite.DELETE("/devices/:id", app.handleDeleteDevice)
+				coreWrite.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
+				coreWrite.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
+				coreWrite.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
+				coreWrite.PATCH("/config", app.handleUpdateConfig)
+				coreWrite.PATCH("/config/xcodespaces", app.handlePatchCodespaceSettings)
+				coreWrite.POST("/config/xcodespaces/test", rateLimit(app.llmLimiter), app.handleTestCodespaceLLM)
+				coreWrite.PATCH("/backups/settings", app.handlePatchBackupSettings)
+				coreWrite.POST("/backups/destinations", app.handleCreateBackupDestination)
+				coreWrite.PATCH("/backups/destinations/:id", app.handlePatchBackupDestination)
+				coreWrite.DELETE("/backups/destinations/:id", app.handleDeleteBackupDestination)
+				coreWrite.POST("/backups/destinations/:id/run", app.handleRunBackup)
+			}
 
-			adminOnly.POST("/waitlist/:id/approve", app.handleApproveWaitlist)
-			adminOnly.POST("/waitlist/:id/reject", app.handleRejectWaitlist)
-			adminOnly.POST("/waitlist/:id/provision", app.handleProvisionWaitlist)
+			// DNS intranet (Fase 35) + público do stack (Fase 39).
+			dnsWrite := adminOnly.Group("")
+			dnsWrite.Use(auth.RequireProduct(store.ProductDNS))
+			{
+				dnsWrite.PATCH("/dns", app.handleUpdateDNSSettings)
+				dnsWrite.POST("/dns/records", app.handleCreateDNSRecord)
+				dnsWrite.PATCH("/dns/records/:id", app.handleUpdateDNSRecord)
+				dnsWrite.DELETE("/dns/records/:id", app.handleDeleteDNSRecord)
+				dnsWrite.POST("/dns/apply", app.handleApplyDNS)
+				dnsWrite.POST("/dns/public/settings/accounts", app.handleCreateCloudflareAccount)
+				dnsWrite.DELETE("/dns/public/settings/accounts/:id", app.handleDeleteCloudflareAccount)
+				dnsWrite.POST("/dns/public/zones", app.handleCreatePublicZone)
+				dnsWrite.POST("/dns/public/zones/import", app.handleImportPublicZones)
+				dnsWrite.POST("/dns/public/zones/:id/records", app.handleCreatePublicRecord)
+				dnsWrite.DELETE("/dns/public/zones/:id/records/:rid", app.handleDeletePublicRecord)
+			}
 
-			// Marketplace: gestão do catálogo (criar/editar/remover
-			// apps/versões, subir asset, ajustar ACL) — ver PLAN.md §6.7,
-			// "admin: Admin + download" no marketplace.
-			adminOnly.POST("/marketplace/apps", app.handleCreateMarketplaceApp)
-			adminOnly.PATCH("/marketplace/apps/:id", app.handleUpdateMarketplaceApp)
-			adminOnly.DELETE("/marketplace/apps/:id", app.handleDeleteMarketplaceApp)
-			adminOnly.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
-			adminOnly.POST("/marketplace/apps/:id/versions", app.handleCreateMarketplaceVersion)
-			adminOnly.DELETE("/marketplace/versions/:id", app.handleDeleteMarketplaceVersion)
-			adminOnly.POST("/marketplace/versions/:id/assets", app.handleUploadMarketplaceAsset)
-			adminOnly.DELETE("/marketplace/assets/:id", app.handleDeleteMarketplaceAsset)
+			// XDriver: SFTP/Samba/cota. Fora do escopo xdriver → 403.
+			driverWrite := adminOnly.Group("")
+			driverWrite.Use(auth.RequireProduct(store.ProductXDriver))
+			{
+				driverWrite.PUT("/users/:id/file-access", app.handleSetFileAccess)
+				driverWrite.GET("/users/:id/ssh-keys", app.handleListUserSSHKeys)
+			}
+
+			// Marketplace: só a ACL operacional no painel (Fase 16).
+			marketWrite := adminOnly.Group("")
+			marketWrite.Use(auth.RequireProduct(store.ProductMarketplace))
+			{
+				marketWrite.PUT("/marketplace/apps/:id/access", app.handleSetMarketplaceAppAccess)
+			}
+
+			// Forge (Fase 37+40): projeto, membros, bare repo e protected branches.
+			forgeWrite := adminOnly.Group("")
+			forgeWrite.Use(auth.RequireProduct(store.ProductForge))
+			{
+				forgeWrite.POST("/projects", app.handleCreateProject)
+				forgeWrite.PATCH("/projects/:slug", app.handleUpdateProject)
+				forgeWrite.PATCH("/xgit/settings", app.handleUpdateForgeSettings)
+				forgeWrite.PUT("/projects/:slug/members", app.handleSetProjectMembers)
+				forgeWrite.POST("/projects/:slug/git", app.handleInitProjectGit)
+				forgeWrite.PUT("/projects/:slug/protected-branches", app.handleSetProtectedBranches)
+			}
+
+			// Compute (Fase 38): malha BitLaunch. Token só no VPS.
+			computeWrite := adminOnly.Group("")
+			computeWrite.Use(auth.RequireProduct(store.ProductCompute))
+			{
+				computeWrite.POST("/servers/import", app.handleImportMeshServers)
+				computeWrite.POST("/servers", app.handleCreateMeshServer)
+				computeWrite.PATCH("/servers/:id", app.handleUpdateMeshServer)
+				computeWrite.DELETE("/servers/:id", app.handleDestroyMeshServer)
+				computeWrite.POST("/servers/:id/rebuild", app.handleRebuildMeshServer)
+				computeWrite.POST("/servers/:id/runner-token", app.handleIssueRunnerToken)
+				computeWrite.PUT("/servers/:id/access", app.handleSetServerAccess)
+				computeWrite.POST("/server-groups", app.handleCreateServerGroup)
+				computeWrite.PUT("/server-groups/:id/access", app.handleSetGroupAccess)
+				computeWrite.POST("/compute/settings/accounts", app.handleCreateBitLaunchAccount)
+				computeWrite.PATCH("/compute/settings/accounts/:id", app.handleUpdateBitLaunchAccount)
+				computeWrite.DELETE("/compute/settings/accounts/:id", app.handleDeleteBitLaunchAccount)
+				computeWrite.POST("/compute/settings/accounts/:id/topup", app.handleCreateBitLaunchTopUp)
+				computeWrite.POST("/servers/:id/agent-token", app.handleIssueAgentToken)
+			}
+
+			// Serviços gerenciados (Fase 43 — PLAN.md §6.18).
+			managedWrite := adminOnly.Group("")
+			managedWrite.Use(auth.RequireProduct(store.ProductManaged))
+			{
+				managedWrite.POST("/services", app.handleCreateService)
+				managedWrite.POST("/services/:slug/apply", app.handleApplyService)
+				managedWrite.POST("/services/:slug/stop", app.handleStopService)
+				managedWrite.POST("/services/:slug/rotate", app.handleRotateServiceSecret)
+				managedWrite.DELETE("/services/:slug", app.handleDeleteService)
+			}
 		}
+
+		// Sync do catálogo a partir de apps/*/marketplace.yaml (Fase 16).
+		// Só registra a rota se XVPN_PUBLISH_TOKEN estiver definido —
+		// servidor sem publicação não expõe a superfície.
+		if app.Config != nil && app.Config.PublishToken != "" {
+			publish := apiGroup.Group("")
+			publish.Use(app.requireMarketplacePublishAuth())
+			publish.POST("/marketplace/sync", app.handleMarketplaceSync)
+		}
+
+		if app.Config != nil && app.Config.XbotToken != "" {
+			apiGroup.POST("/hooks/chat/broadcast", app.handleHooksChatBroadcast)
+		}
+	}
+
+	// Smart HTTP (Fase 40): só xgit.corp. Fora da VPN o Nginx recusa.
+	git := r.Group("")
+	git.Use(app.RequireGitHost())
+	{
+		git.GET("/:slug/info/refs", app.handleGitSmartHTTP)
+		git.POST("/:slug/git-upload-pack", app.handleGitSmartHTTP)
+		git.POST("/:slug/git-receive-pack", app.handleGitSmartHTTP)
 	}
 
 	registerWebUI(r)

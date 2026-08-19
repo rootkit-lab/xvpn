@@ -1,12 +1,13 @@
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2, UserRound } from 'lucide-react'
 import { api, ApiError, type Device } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime, formatRelativeTime } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -28,23 +29,31 @@ function isOnline(device: Device): boolean {
   return Date.now() - new Date(device.last_handshake).getTime() < HANDSHAKE_RECENT_THRESHOLD_MS
 }
 
-// PortalPage é o autosserviço mínimo da Fase 10 (ver PLAN.md §6.7):
-// qualquer papel autenticado — mas sobretudo member, que não tem acesso às
-// telas administrativas — consegue ver e revogar os próprios dispositivos
-// sem precisar de um admin. Para registrar um dispositivo *novo*, ainda é
-// preciso pedir um convite a um admin/super_admin (tela Usuários);
-// autosserviço aqui é só leitura + revogação.
+const SHORTCUTS = [
+  { to: '/my/profile', label: 'Perfil', description: 'Papel, cota e resumo da conta', icon: UserRound },
+  { to: '/my/account', label: 'Editar conta', description: 'Trocar senha e chave SSH', icon: Pencil },
+] as const
+
+// PortalPage é o autosserviço (Fase 10 + Fase 18): dispositivos próprios e
+// atalhos para as páginas da conta. Senha/SSH ficam em /my/account.
 export function PortalPage() {
   const fetchDevices = useCallback(() => api.listMyDevices(), [])
   const { data: devices, loading, error, reload } = usePollingData(fetchDevices, 10_000)
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Meus dispositivos</h1>
-        <p className="text-muted-foreground">
-          Dispositivos VPN registrados na sua conta. Para adicionar um novo, peça um convite a um administrador.
-        </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {SHORTCUTS.map(({ to, label, description, icon: Icon }) => (
+          <Link key={to} to={to} className="group">
+            <Card className="h-full transition-colors group-hover:border-primary/40 group-hover:bg-primary/5">
+              <CardHeader className="pb-2">
+                <Icon className="mb-1 size-5 text-muted-foreground group-hover:text-primary" />
+                <CardTitle className="text-base">{label}</CardTitle>
+                <CardDescription>{description}</CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        ))}
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}

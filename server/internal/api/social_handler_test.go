@@ -1,0 +1,257 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/rootkit-lab/xvpn/server/internal/store"
+)
+
+func TestSocialPeople_MemberCanList(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodGet, "/api/social/people?q=bob", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	env := decodePage[socialProfileResponse](t, rec.Body.Bytes())
+	items := pageItems[socialProfileResponse](t, env)
+	if env.Total != 1 || len(items) != 1 || items[0].Username != "bob" {
+		t.Fatalf("q=bob deveria achar só bob: %+v", env)
+	}
+}
+
+func TestSocialDM_OnlyExistingUsers(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/social/threads", openThreadRequest{Username: "naoexiste"}, token)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("DM com usuário inexistente deveria 404, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/social/threads", openThreadRequest{Username: "bob"}, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("DM com bob deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var th socialThreadResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &th); err != nil {
+		t.Fatalf("thread inválida: %v", err)
+	}
+	if th.Kind != "dm" || th.ID == 0 {
+		t.Fatalf("thread inesperada: %+v", th)
+	}
+
+	path := "/api/social/threads/dm/" + strconv.FormatUint(uint64(th.ID), 10) + "/messages"
+	rec = doJSON(t, router, http.MethodPost, path, postMessageRequest{Body: "oi bob"}, token)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("post mensagem deveria 201, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var logs []store.AuditLog
+	if err := app.Store.DB.Where("action = ?", "social.message").Find(&logs).Error; err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("esperava 1 audit social.message, obtido %d", len(logs))
+	}
+	if logs[0].Detail == "" || strings.Contains(logs[0].Detail, "oi bob") {
+		t.Fatalf("audit não pode conter o corpo da mensagem: %q", logs[0].Detail)
+	}
+}
+
+func TestSocialGroup_DoesNotLeakToNonMember(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "eve", "senha-eve-ok", store.RoleMember)
+	router := NewRouter(app)
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-ok")
+	eveTok := loginAndGetToken(t, app, router, "eve", "senha-eve-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/social/groups", createGroupRequest{Name: "ops"}, aliceTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("criar grupo: %d %s", rec.Code, rec.Body.String())
+	}
+	var g socialGroupResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &g); err != nil {
+		t.Fatalf("grupo: %v", err)
+	}
+
+	rec = doJSON(t, router, http.MethodPost, "/api/social/groups/"+strconv.FormatUint(uint64(g.ID), 10)+"/invite",
+		joinGroupRequest{Username: "bob"}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("convidar bob: %d %s", rec.Code, rec.Body.String())
+	}
+
+	msgPath := "/api/social/threads/group/" + strconv.FormatUint(uint64(g.ID), 10) + "/messages"
+	rec = doJSON(t, router, http.MethodPost, msgPath, postMessageRequest{Body: "segredo"}, aliceTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("alice post: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, msgPath, nil, bobTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bob membro deveria ler: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodGet, msgPath, nil, eveTok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("eve não-membro deveria 403, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPost, msgPath, postMessageRequest{Body: "intrusa"}, eveTok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("eve post deveria 403, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSocialMessages_Pagination(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/social/threads", openThreadRequest{Username: "bob"}, token)
+	var th socialThreadResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &th); err != nil {
+		t.Fatalf("thread: %v", err)
+	}
+	path := "/api/social/threads/dm/" + strconv.FormatUint(uint64(th.ID), 10) + "/messages"
+	for i := 0; i < 12; i++ {
+		rec = doJSON(t, router, http.MethodPost, path, postMessageRequest{Body: "m" + strconv.Itoa(i)}, token)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("post %d: %d %s", i, rec.Code, rec.Body.String())
+		}
+	}
+
+	rec = doJSON(t, router, http.MethodGet, path+"?page=1&per_page=5", nil, token)
+	env := decodePage[socialMessageResponse](t, rec.Body.Bytes())
+	items := pageItems[socialMessageResponse](t, env)
+	if env.Total != 12 || env.PerPage != 5 || len(items) != 5 {
+		t.Fatalf("página 1 inesperada: total=%d per=%d n=%d", env.Total, env.PerPage, len(items))
+	}
+
+	rec = doJSON(t, router, http.MethodGet, path+"?page=3&per_page=5", nil, token)
+	env = decodePage[socialMessageResponse](t, rec.Body.Bytes())
+	items = pageItems[socialMessageResponse](t, env)
+	if env.Total != 12 || len(items) != 2 {
+		t.Fatalf("última página deveria ter 2 items, obtido %d total=%d", len(items), env.Total)
+	}
+}
+
+func TestSocialProfile_ExposesVisiblePresence(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Hub = newHub()
+	bob := createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	app.Hub.setStatus(bob.ID, "online")
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodGet, "/api/social/u/bob", nil, token)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("esperado 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var got socialProfileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("perfil: %v", err)
+	}
+	if got.Presence != "online" {
+		t.Fatalf("bob online deveria aparecer no perfil, obtido %q", got.Presence)
+	}
+
+	app.Hub.setStatus(bob.ID, "invisible")
+	rec = doJSON(t, router, http.MethodGet, "/api/social/u/bob", nil, token)
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("perfil invisível: %v", err)
+	}
+	if got.Presence != "offline" {
+		t.Fatalf("invisible deve vazar como offline, obtido %q", got.Presence)
+	}
+}
+
+func TestSocialProfile_PatchMediaRefs(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	createTestUserWithRole(t, app, "bob", "senha-bob-ok", store.RoleMember)
+	router := NewRouter(app)
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-ok")
+
+	rec := doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{BannerURL: strPtr("https://evil.example/x")}, aliceTok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("URL externa deveria 400, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{BannerURL: strPtr("tone:primary")}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tom válido deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var got socialProfileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.BannerURL != "tone:primary" {
+		t.Fatalf("banner_url: %q", got.BannerURL)
+	}
+	if got.Theme != "primary" {
+		t.Fatalf("theme deveria resolver o tom da capa, got %q", got.Theme)
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{Theme: strPtr("xgroup")}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("tema válido deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Theme != "xgroup" {
+		t.Fatalf("theme: %q", got.Theme)
+	}
+	if got.BannerURL != "" {
+		t.Fatalf("tom da capa deveria limpar ao gravar theme, got %q", got.BannerURL)
+	}
+
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{Theme: strPtr("rainbow")}, aliceTok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("tema inventado deveria 400, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	png := []byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d}
+	attID := uploadSocialFile(t, router, aliceTok, "avatar.png", "image/png", png)
+	ref := "attachment:" + strconv.FormatUint(uint64(attID), 10)
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{AvatarURL: &ref}, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("avatar próprio deveria 200, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	bobAtt := uploadSocialFile(t, router, bobTok, "bob.png", "image/png", png)
+	bobRef := "attachment:" + strconv.FormatUint(uint64(bobAtt), 10)
+	rec = doJSON(t, router, http.MethodPatch, "/api/social/profile",
+		patchSocialProfileRequest{AvatarURL: &bobRef}, aliceTok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("anexo de outro usuário deveria 400, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+
+	req := doJSON(t, router, http.MethodGet, "/api/social/attachments/"+strconv.FormatUint(uint64(attID), 10), nil, bobTok)
+	if req.Code != http.StatusOK {
+		t.Fatalf("avatar público deveria ser lido por outro membro, obtido %d: %s", req.Code, req.Body.String())
+	}
+}

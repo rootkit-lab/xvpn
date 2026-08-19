@@ -6,7 +6,7 @@
 
 Rede privada própria com exit node via VPS, painel web de administração e cliente desktop multiplataforma — **Go**, **Wails3**, **React + Tailwind + shadcn/ui**.
 
-> Status: Fases **0–5** na `main` (produção). Fases **6–7** em PRs abertas; **Fase 8** (observabilidade/docs) nesta linha de trabalho. Checklist: [`ROADMAP.md`](./ROADMAP.md). Arquitetura: [`PLAN.md`](./PLAN.md).
+> Status: ciclos **v0.2–v0.7** — plataforma ihuull. Checklist: [`ROADMAP.md`](./ROADMAP.md). Arquitetura: [`PLAN.md`](./PLAN.md).
 
 ---
 
@@ -15,20 +15,21 @@ Rede privada própria com exit node via VPS, painel web de administração e cli
 Dispositivos Windows/Linux entram numa rede privada cujo nó central é um VPS próprio e saem para a internet com o IP desse servidor (full-tunnel), com:
 
 - **VPN WireGuard** com engine embarcada no cliente (kernel no Linux, `wireguard-go`+`wintun` no Windows).
-- **Painel web** em `https://vpn.officeempresa.com` para usuários, dispositivos, convites e auditoria.
+- **Painel web** em `https://xvpn.ihuull.com` para usuários, dispositivos, convites e auditoria.
 - **Cliente desktop** (Wails3): enrollment por convite, conectar/desconectar, bandeja; helper privilegiado separado da GUI.
-- **Arquivos só na VPN**: Samba (`\\10.66.66.1\shared`) e FileBrowser Quantum (`http://10.66.66.1:8081`) — nunca na internet pública.
+- **Apps na intranet** (`*.corp.ihuull.com`, só com VPN): xchat, xgroup, xdriver.
+- **Arquivos só na VPN**: Samba (`\\10.66.66.1\shared`) e xdriver (`https://xdriver.corp.ihuull.com`) — nunca na internet pública.
 
 ## Como operar (produção)
 
 | Item | Valor |
 |---|---|
-| Painel / API | `https://vpn.officeempresa.com` |
+| Painel / API | `https://xvpn.ihuull.com` |
 | VPS | `206.189.224.72` (Ubuntu 26.04) |
 | Sub-rede WireGuard | `10.66.66.0/24` (servidor `10.66.66.1`) |
 | Serviço | `systemctl status xvpn-server` |
 | Logs | `journalctl -u xvpn-server -f` (JSON estruturado a partir da Fase 8) |
-| Saúde | `curl -sS https://vpn.officeempresa.com/api/status` |
+| Saúde | `curl -sS https://xvpn.ihuull.com/api/status` |
 
 Deploy do servidor: build embutindo o painel e substituir `/opt/xvpn/bin/xvpn-server` — ver [`server/README.md`](./server/README.md).
 
@@ -87,4 +88,4 @@ Auditoria rápida do VPS: skill `vps-security-audit` (`.cursor/skills/vps-securi
 
 ## Licença / visibilidade
 
-Repositório **público** (branch protection na `main`). Segredos nunca commitados — ver [`SECURITY.md`](./SECURITY.md). Licença de código ainda não definida.
+Repositório **público** (branch protection na `main`). Licença: [MIT](./LICENSE). Segredos nunca commitados — ver [`SECURITY.md`](./SECURITY.md).

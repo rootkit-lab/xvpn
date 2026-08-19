@@ -1,0 +1,18 @@
+# Manifesto do catálogo (Fase 16 — PLAN.md §6.10).
+# Pasta sem este arquivo é ignorada pelo sync.
+slug: xvpn-client
+name: XVPN Client
+description: Cliente desktop da VPN privada XVPN (Windows e Linux)
+visibility: global
+network: public
+kind: desktop
+source: build
+channel: stable
+# ${VERSION} é resolvido pelo CI a partir do release-please / tag xvpn-client-v*.
+assets:
+  - platform: linux
+    arch: amd64
+    url: https://github.com/rootkit-lab/xvpn/releases/download/xvpn-client-v${VERSION}/xvpn-client_${VERSION}_amd64.deb
+  - platform: windows
+    arch: amd64
+    url: https://github.com/rootkit-lab/xvpn/releases/download/xvpn-client-v${VERSION}/xvpn-client_${VERSION}_amd64-setup.exe

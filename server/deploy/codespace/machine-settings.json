@@ -1,0 +1,20 @@
+{
+  "workbench.colorTheme": "ihuull Dark",
+  "editor.fontFamily": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+  "editor.minimap.enabled": false,
+  "workbench.startupEditor": "welcomePage",
+  "workbench.welcomePage.walkthroughs.openOnInstall": true,
+  "git.openRepositoryInParentFolders": "never",
+  "chat.commandCenter.enabled": false,
+  "chat.agent.enabled": false,
+  "remote.autoForwardPorts": false,
+  "workbench.panel.opensMaximized": "never",
+  "workbench.auxiliaryBar.enabled": true,
+  "workbench.secondarySideBar.defaultVisibility": "visible",
+  "github.copilot.enable": {
+    "*": false
+  },
+  "experiments.override.gettingStarted.overrideCategory.SetupWeb.when": "false",
+  "experiments.override.gettingStarted.overrideCategory.Setup.when": "false",
+  "experiments.override.gettingStarted.overrideCategory.Beginner.when": "false"
+}

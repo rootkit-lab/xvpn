@@ -6,7 +6,7 @@ import { api, ApiError, type ProvisionWaitlistResponse, type WaitlistEntry } fro
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole, type Role } from '@/lib/roles'
+import { canWriteAdminProduct, isAdminRole, type Role } from '@/lib/roles'
 import { CopyField } from '@/components/copy-field'
 import { RoleSelect } from '@/components/role-select'
 import { Badge } from '@/components/ui/badge'
@@ -14,8 +14,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
+import { FilterBar } from '@/components/filter-bar'
+import { DataTable, type DataTableColumn } from '@/components/data-table'
 import {
   Dialog,
   DialogContent,
@@ -26,9 +26,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 
-// suggestUsername vira o ponto de partida editável do campo "Usuário" no
-// diálogo de provisionamento — só remove acentos/espaços do nome
-// cadastrado na waitlist, unicidade de fato é validada pelo backend.
 function suggestUsername(name: string): string {
   return name
     .normalize('NFD')
@@ -40,99 +37,106 @@ function suggestUsername(name: string): string {
 
 export function WaitlistPage() {
   const { user: caller } = useAuth()
-  const fetchWaitlist = useCallback(() => api.listWaitlist(), [])
-  const { data: entries, loading, error, reload } = usePollingData(fetchWaitlist, 15_000)
-  const canReview = isAdminRole(caller?.role)
+  const canReview = isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'core')
+  const [page, setPage] = useState(1)
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
 
-  const pending = entries?.filter((e) => e.status === 'pending') ?? []
-  const reviewed = entries?.filter((e) => e.status !== 'pending') ?? []
+  const fetchWaitlist = useCallback(
+    () => api.listWaitlist({ page, per_page: 25, q, status: status === 'all' ? undefined : status }),
+    [page, q, status],
+  )
+  const { data, loading, error, reload } = usePollingData(fetchWaitlist, 15_000)
+
+  const columns: DataTableColumn<WaitlistEntry>[] = [
+    { key: 'name', header: 'Nome', cell: (e) => <span className="font-medium">{e.name}</span> },
+    { key: 'email', header: 'E-mail', cell: (e) => <span className="text-muted-foreground">{e.email}</span> },
+    {
+      key: 'msg',
+      header: 'Mensagem',
+      cell: (e) => (
+        <span className="max-w-xs truncate text-muted-foreground" title={e.message}>
+          {e.message || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'when',
+      header: 'Cadastrado em',
+      cell: (e) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(e.created_at)}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (e) => (
+        <Badge variant={e.status === 'approved' ? 'default' : e.status === 'rejected' ? 'destructive' : 'secondary'}>
+          {e.status === 'pending' ? 'Pendente' : e.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-right',
+      cell: (e) =>
+        canReview && e.status === 'pending' ? (
+          <span className="flex justify-end gap-2" onClick={(ev) => ev.stopPropagation()}>
+            <ProvisionDialog entry={e} onChanged={reload} />
+            <RejectButton entry={e} onChanged={reload} />
+          </span>
+        ) : null,
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Lista de espera</h1>
-        <p className="text-muted-foreground">
-          Cadastros recebidos pela landing pública em "/". Provisionar cria o usuário e o convite num só passo.
-        </p>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
-
+      <FilterBar
+        q={q}
+        onQChange={(next) => {
+          setQ(next)
+          setPage(1)
+        }}
+        placeholder="Buscar nome ou e-mail"
+      >
+        {(['all', 'pending', 'approved', 'rejected'] as const).map((s) => (
+          <Button
+            key={s}
+            type="button"
+            size="sm"
+            variant={status === s ? 'default' : 'outline'}
+            onClick={() => {
+              setStatus(s)
+              setPage(1)
+            }}
+          >
+            {s === 'all' ? 'Todos' : s === 'pending' ? 'Pendentes' : s === 'approved' ? 'Aprovados' : 'Rejeitados'}
+          </Button>
+        ))}
+      </FilterBar>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Pendentes ({pending.length})</CardTitle>
+          <CardTitle className="text-base">Lista de espera</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading || !entries ? (
-            <Skeleton className="h-32 w-full" />
-          ) : (
-            <WaitlistTable entries={pending} onChanged={reload} showActions={canReview} />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Já avaliados</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading || !entries ? (
-            <Skeleton className="h-32 w-full" />
-          ) : (
-            <WaitlistTable entries={reviewed} onChanged={reload} showActions={false} />
-          )}
+          <DataTable
+            columns={columns}
+            rows={data?.items ?? []}
+            rowKey={(e) => e.id}
+            loading={loading || !data}
+            emptyTitle="Nenhum cadastro neste filtro."
+            page={data?.page ?? page}
+            perPage={data?.per_page ?? 25}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
     </div>
   )
 }
 
-function WaitlistTable({
-  entries,
-  onChanged,
-  showActions,
-}: {
-  entries: WaitlistEntry[]
-  onChanged: () => void
-  showActions: boolean
-}) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Nome</TableHead>
-          <TableHead>E-mail</TableHead>
-          <TableHead>Mensagem</TableHead>
-          <TableHead>Cadastrado em</TableHead>
-          <TableHead>Status</TableHead>
-          {showActions && <TableHead className="text-right">Ações</TableHead>}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {entries.map((entry) => (
-          <WaitlistRow key={entry.id} entry={entry} onChanged={onChanged} showActions={showActions} />
-        ))}
-        {entries.length === 0 && (
-          <TableRow>
-            <TableCell colSpan={showActions ? 6 : 5} className="text-center text-muted-foreground">
-              Nenhum cadastro aqui.
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  )
-}
-
-function WaitlistRow({
-  entry,
-  onChanged,
-  showActions,
-}: {
-  entry: WaitlistEntry
-  onChanged: () => void
-  showActions: boolean
-}) {
+function RejectButton({ entry, onChanged }: { entry: WaitlistEntry; onChanged: () => void }) {
   const [rejecting, setRejecting] = useState(false)
 
   async function handleReject() {
@@ -149,27 +153,9 @@ function WaitlistRow({
   }
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">{entry.name}</TableCell>
-      <TableCell className="text-muted-foreground">{entry.email}</TableCell>
-      <TableCell className="max-w-xs truncate text-muted-foreground" title={entry.message}>
-        {entry.message || '—'}
-      </TableCell>
-      <TableCell className="whitespace-nowrap text-muted-foreground">{formatDateTime(entry.created_at)}</TableCell>
-      <TableCell>
-        <Badge variant={entry.status === 'approved' ? 'default' : entry.status === 'rejected' ? 'destructive' : 'secondary'}>
-          {entry.status === 'pending' ? 'Pendente' : entry.status === 'approved' ? 'Aprovado' : 'Rejeitado'}
-        </Badge>
-      </TableCell>
-      {showActions && (
-        <TableCell className="flex justify-end gap-2">
-          <ProvisionDialog entry={entry} onChanged={onChanged} />
-          <Button variant="ghost" size="icon" disabled={rejecting} title="Rejeitar" onClick={handleReject}>
-            <X className="size-4 text-destructive" />
-          </Button>
-        </TableCell>
-      )}
-    </TableRow>
+    <Button variant="ghost" size="icon" disabled={rejecting} title="Rejeitar" onClick={handleReject}>
+      <X className="size-4 text-destructive" />
+    </Button>
   )
 }
 

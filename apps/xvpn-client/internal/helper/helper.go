@@ -19,6 +19,7 @@ import (
 
 	"github.com/rootkit-lab/xvpn/client/internal/apiclient"
 	"github.com/rootkit-lab/xvpn/client/internal/config"
+	"github.com/rootkit-lab/xvpn/client/internal/intranet"
 	"github.com/rootkit-lab/xvpn/client/internal/ipc"
 	"github.com/rootkit-lab/xvpn/client/internal/tunnel"
 )
@@ -200,6 +201,8 @@ func (h *Helper) registerHandlers(server *ipc.Server) {
 	server.Handle(ipc.MethodGetMTU, h.handleGetMTU)
 	server.Handle(ipc.MethodSetMTU, h.handleSetMTU)
 	server.Handle(ipc.MethodGetLogs, h.handleGetLogs)
+	server.HandlePeer(ipc.MethodMountSMB, h.handleMountSMB)
+	server.HandlePeer(ipc.MethodUnmountSMB, h.handleUnmountSMB)
 }
 
 func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {
@@ -243,7 +246,9 @@ func (h *Helper) handleEnroll(raw json.RawMessage) (any, error) {
 		// Username chega já aqui (caminho rápido); os toggles de acesso a
 		// arquivos só na primeira conexão, via GET /api/me — o enrollment
 		// acontece fora do túnel, onde essa rota não responde.
-		Username: result.Username,
+		Username:      result.Username,
+		DNS:           intranetDNS(result.DNS),
+		IntranetHosts: toConfigHosts(result.IntranetHosts),
 		// AutoReconnect começa ligado por padrão (ver ROADMAP.md Fase 6)
 		// — é o comportamento que a maioria das VPNs pessoais espera.
 		// KillSwitch e SplitTunnel começam desligados: são recursos
@@ -291,7 +296,7 @@ func (h *Helper) buildTunnelConfig() (tunnel.Config, error) {
 		ServerPublicKey:     h.state.ServerPublicKey,
 		ServerEndpoint:      h.state.ServerEndpoint,
 		AllowedIPs:          allowedIPs,
-		DNS:                 h.state.DNS,
+		DNS:                 intranetDNS(h.state.DNS),
 		PersistentKeepalive: time.Duration(h.state.PersistentKeepalive) * time.Second,
 		MTU:                 h.state.MTU,
 		KillSwitch:          h.state.Preferences.KillSwitch,
@@ -306,6 +311,7 @@ func (h *Helper) handleConnect(_ json.RawMessage) (any, error) {
 	}
 	cfg, err := h.buildTunnelConfig()
 	assignedIP, endpoint := h.state.AssignedIP, h.state.ServerEndpoint
+	cachedHosts := h.state.IntranetHosts
 	h.mu.Unlock()
 	if err != nil {
 		return nil, err
@@ -318,6 +324,7 @@ func (h *Helper) handleConnect(_ json.RawMessage) (any, error) {
 		slog.Error("connect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível conectar: %w", err)
 	}
+	applyIntranetHosts(cachedHosts)
 	slog.Info("connected", "assigned_ip", assignedIP, "endpoint", endpoint)
 
 	h.mu.Lock()
@@ -350,18 +357,24 @@ func (h *Helper) refreshIdentity() {
 		h.mu.Unlock()
 		return
 	}
+	hosts := toConfigHosts(me.IntranetHosts)
 	unchanged := h.state.Username == me.Username &&
 		h.state.SambaEnabled == me.SambaEnabled &&
-		h.state.SFTPEnabled == me.SFTPEnabled
-	if unchanged {
-		h.mu.Unlock()
-		return
-	}
+		h.state.SFTPEnabled == me.SFTPEnabled &&
+		sameHosts(h.state.IntranetHosts, hosts)
 	h.state.Username = me.Username
 	h.state.SambaEnabled = me.SambaEnabled
 	h.state.SFTPEnabled = me.SFTPEnabled
-	saveErr := h.persistState(h.state)
+	if len(hosts) > 0 {
+		h.state.IntranetHosts = hosts
+	}
+	var saveErr error
+	if !unchanged {
+		saveErr = h.persistState(h.state)
+	}
+	cached := h.state.IntranetHosts
 	h.mu.Unlock()
+	applyIntranetHosts(cached)
 
 	if saveErr != nil {
 		slog.Warn("persisting identity failed", "err", saveErr)
@@ -386,6 +399,9 @@ func (h *Helper) handleDisconnect(_ json.RawMessage) (any, error) {
 	if err != nil {
 		slog.Error("disconnect failed", "err", err)
 		return nil, fmt.Errorf("não foi possível desconectar: %w", err)
+	}
+	if err := intranet.Revert(intranet.HostsPath()); err != nil {
+		slog.Warn("intranet hosts revert failed", "err", err)
 	}
 	slog.Info("disconnected")
 	return nil, nil
@@ -529,4 +545,46 @@ func (h *Helper) handleSetMTU(raw json.RawMessage) (any, error) {
 
 func (h *Helper) handleGetLogs(_ json.RawMessage) (any, error) {
 	return map[string][]string{"lines": h.logs.Lines()}, nil
+}
+
+// intranetDNS garante o resolvedor da wg0 mesmo em devices enrolled
+// antes da Fase 23 (estado sem o campo DNS).
+func intranetDNS(fromServer []string) []string {
+	if len(fromServer) > 0 {
+		return fromServer
+	}
+	return []string{"10.66.66.1"}
+}
+
+func applyIntranetHosts(entries []config.HostEntry) {
+	mapped := make([]intranet.HostEntry, 0, len(entries))
+	for _, e := range entries {
+		mapped = append(mapped, intranet.HostEntry{Hostname: e.Hostname, IPv4: e.IPv4})
+	}
+	if err := intranet.ApplyEntries(intranet.HostsPath(), mapped); err != nil {
+		slog.Warn("intranet hosts apply failed", "err", err)
+	}
+}
+
+func toConfigHosts(in []apiclient.HostEntry) []config.HostEntry {
+	out := make([]config.HostEntry, 0, len(in))
+	for _, e := range in {
+		if e.Hostname == "" || e.IPv4 == "" {
+			continue
+		}
+		out = append(out, config.HostEntry{Hostname: e.Hostname, IPv4: e.IPv4})
+	}
+	return out
+}
+
+func sameHosts(a, b []config.HostEntry) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Hostname != b[i].Hostname || a[i].IPv4 != b[i].IPv4 {
+			return false
+		}
+	}
+	return true
 }

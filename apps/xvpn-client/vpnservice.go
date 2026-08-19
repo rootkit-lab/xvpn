@@ -35,6 +35,10 @@ var marketplace = marketplaceclient.New()
 // público do servidor.
 const serverVPNAddress = "10.66.66.1"
 
+// intranetCatalogURL é o host da API dentro do túnel. marketplace.ihuull.com
+// sai pela rota /32 do VPS — o servidor vê IP público e esconde network:vpn.
+const intranetCatalogURL = "https://corp.ihuull.com"
+
 // sharedSambaName é o nome do compartilhamento Samba criado na Fase 5 (ver
 // server/deploy/samba/smb.conf).
 const sharedSambaName = "shared"
@@ -192,11 +196,48 @@ func (s *VPNService) Connect() error {
 		return fmt.Errorf("serviço xvpn-client-helper indisponível: %w", err)
 	}
 	defer client.Close()
-	return client.Call(ipc.MethodConnect, nil, nil)
+	if err := client.Call(ipc.MethodConnect, nil, nil); err != nil {
+		return err
+	}
+	s.mountFileSharesBestEffort()
+	return nil
 }
 
-// Disconnect desfaz o túnel.
+// mountFileSharesBestEffort monta [shared] e [home-<user>] — CIFS no
+// kernel (helper) e GVFS como fallback. Falha silenciosa: o clique em
+// Compartilhado ainda tenta montar de novo e devolve o erro ao usuário.
+func (s *VPNService) mountFileSharesBestEffort() {
+	status, err := s.Status()
+	if err != nil || !status.Connected || !status.SambaEnabled {
+		return
+	}
+	_ = s.mountSMBViaHelper(sharedSambaName)
+	if status.Username != "" {
+		_ = s.mountSMBViaHelper(homeSambaPrefix + status.Username)
+	}
+	_ = opener.EnsureSMBMounted(serverVPNAddress, sharedSambaName)
+	if status.Username != "" {
+		_ = opener.EnsureSMBMounted(serverVPNAddress, homeSambaPrefix+status.Username)
+	}
+}
+
+func (s *VPNService) mountSMBViaHelper(share string) error {
+	client, err := ipc.Dial()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Call(ipc.MethodMountSMB, helper.MountSMBRequest{
+		Host:  serverVPNAddress,
+		Share: share,
+	}, nil)
+}
+
+// Disconnect desfaz o túnel. Antes, remove mounts/atalhos SMB do servidor
+// — senão o Cosmic/Nautilus continua mostrando "shared on 10.66.66.1"
+// com a VPN já desligada (e o FUSE fica órfão).
 func (s *VPNService) Disconnect() error {
+	s.unmountFileSharesBestEffort()
 	client, err := ipc.Dial()
 	if err != nil {
 		return fmt.Errorf("serviço xvpn-client-helper indisponível: %w", err)
@@ -205,10 +246,33 @@ func (s *VPNService) Disconnect() error {
 	return client.Call(ipc.MethodDisconnect, nil, nil)
 }
 
+// unmountFileSharesBestEffort limpa CIFS/GVFS/~/XVPN/Desktop deste servidor.
+func (s *VPNService) unmountFileSharesBestEffort() {
+	_ = s.unmountSMBViaHelper(sharedSambaName)
+	if status, err := s.Status(); err == nil && status.Username != "" {
+		_ = s.unmountSMBViaHelper(homeSambaPrefix + status.Username)
+	}
+	if err := opener.UnmountServerSMBShares(serverVPNAddress); err != nil {
+		slog.Warn("unmount smb shares failed", "err", err)
+	}
+}
+
+func (s *VPNService) unmountSMBViaHelper(share string) error {
+	client, err := ipc.Dial()
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+	return client.Call(ipc.MethodUnmountSMB, helper.MountSMBRequest{
+		Host:  serverVPNAddress,
+		Share: share,
+	}, nil)
+}
+
 // OpenServerFiles abre o acesso a arquivos do servidor no aplicativo
 // padrão do SO. kind é "smb-home" (o compartilhamento pessoal desta
 // pessoa), "smb-shared" (o compartilhamento comum da Fase 5) ou
-// "filebrowser" (interface web).
+// "filebrowser" (XDriver web em xdriver.corp).
 //
 // Confere o estado real da conexão com o helper antes de abrir, em vez de
 // confiar no que a UI tinha em mãos: um clique num status de 2 segundos
@@ -235,14 +299,26 @@ func (s *VPNService) OpenServerFiles(kind string) error {
 		if status.Username == "" {
 			return fmt.Errorf("ainda não foi possível descobrir qual é a sua conta no painel — desconecte e conecte de novo para o servidor informar")
 		}
-		return opener.OpenSMBShare(serverVPNAddress, homeSambaPrefix+status.Username)
+		err := opener.OpenSMBShare(serverVPNAddress, homeSambaPrefix+status.Username)
+		if err != nil {
+			slog.Warn("open smb-home failed", "err", err, "user", status.Username)
+		}
+		return err
 	case "smb-shared":
 		if err := requireSamba(status); err != nil {
 			return err
 		}
-		return opener.OpenSMBShare(serverVPNAddress, sharedSambaName)
+		err := opener.OpenSMBShare(serverVPNAddress, sharedSambaName)
+		if err != nil {
+			slog.Warn("open smb-shared failed", "err", err)
+		}
+		return err
 	case "filebrowser":
-		return opener.OpenURL(fmt.Sprintf("http://%s:8081", serverVPNAddress))
+		return opener.OpenURL("https://xdriver.corp.ihuull.com")
+	case "xchat":
+		return opener.OpenURL("https://xchat.corp.ihuull.com")
+	case "xgroup":
+		return opener.OpenURL("https://xgroup.corp.ihuull.com")
 	default:
 		return fmt.Errorf("tipo de acesso a arquivos desconhecido: %q", kind)
 	}
@@ -398,7 +474,16 @@ func (s *VPNService) MarketplaceSessionStatus() MarketplaceSession {
 // expirada ou falha de rede — o frontend trata voltando pra tela de
 // login com a mensagem de erro visível, em vez de tentar distinguir os
 // dois casos por conteúdo da mensagem (ver ROADMAP.md Fase 12).
+func (s *VPNService) preferIntranetCatalog() {
+	if st, err := s.Status(); err == nil && st.Connected {
+		marketplace.UseAPIBase(intranetCatalogURL)
+		return
+	}
+	marketplace.UseAPIBase("")
+}
+
 func (s *VPNService) ListMarketplaceApps() ([]MarketplaceApp, error) {
+	s.preferIntranetCatalog()
 	apps, err := marketplace.ListApps(context.Background())
 	if err != nil {
 		return nil, err
@@ -463,6 +548,7 @@ type MarketplaceDownloadResult struct {
 // algum tempo — o frontend mostra um spinner enquanto aguarda, mesmo
 // padrão usado para Enroll/Connect.
 func (s *VPNService) DownloadMarketplaceAsset(args MarketplaceDownloadArgs) (MarketplaceDownloadResult, error) {
+	s.preferIntranetCatalog()
 	result, err := marketplace.DownloadAsset(context.Background(), args.AssetID, args.Filename, args.SHA256)
 	if err != nil {
 		return MarketplaceDownloadResult{}, err

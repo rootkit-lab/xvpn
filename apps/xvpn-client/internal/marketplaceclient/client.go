@@ -46,11 +46,12 @@ var ErrNotLoggedIn = errors.New("sessão do marketplace expirada ou inexistente 
 type Client struct {
 	httpClient *http.Client
 
-	mu       sync.Mutex
-	baseURL  string
-	token    string
-	username string
-	role     string
+	mu          sync.Mutex
+	baseURL     string
+	apiOverride string
+	token       string
+	username    string
+	role        string
 }
 
 // New cria um Client pronto para uso, sem sessão ativa.
@@ -83,6 +84,7 @@ func (c *Client) Logout() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.baseURL = ""
+	c.apiOverride = ""
 	c.token = ""
 	c.username = ""
 	c.role = ""
@@ -314,13 +316,27 @@ func uniqueDestPath(dir, filename string) string {
 	}
 }
 
+// UseAPIBase aponta listagem/download para outro host (ex. corp.ihuull.com
+// quando o túnel está no ar). Login continua no host público — a rota
+// /32 do IP do VPS faz marketplace.ihuull.com sair da VPN, e apps
+// network:vpn somem se o servidor vê o IP público.
+func (c *Client) UseAPIBase(base string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.apiOverride = strings.TrimSuffix(strings.TrimSpace(base), "/")
+}
+
 func (c *Client) authSnapshot() (token, baseURL string, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.token == "" {
 		return "", "", ErrNotLoggedIn
 	}
-	return c.token, c.baseURL, nil
+	baseURL = c.baseURL
+	if c.apiOverride != "" {
+		baseURL = c.apiOverride
+	}
+	return c.token, baseURL, nil
 }
 
 type apiError struct {

@@ -2,6 +2,76 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.6](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.5...xvpn-client-v0.1.6) (2026-08-16)
+
+
+### Bug Fixes
+
+* **client:** Chrome usa o DNS do sistema para resolver *.corp ([#96](https://github.com/rootkit-lab/xvpn/issues/96)) ([9c3abd9](https://github.com/rootkit-lab/xvpn/commit/9c3abd908afadef479d98437db7e87d50368333a))
+* **client:** helper grava /etc/hosts e fala com o systemd-resolved ([#98](https://github.com/rootkit-lab/xvpn/issues/98)) ([fd9eeee](https://github.com/rootkit-lab/xvpn/commit/fd9eeeea83193e04bf06e0a6c5698915d8fb79ef))
+
+## [0.1.5](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.4...xvpn-client-v0.1.5) (2026-08-16)
+
+
+### Bug Fixes
+
+* split-horizon DNS no túnel e loop SSO no xauth ([#93](https://github.com/rootkit-lab/xvpn/issues/93)) ([5113c43](https://github.com/rootkit-lab/xvpn/commit/5113c43c499a4ee1b067d2852cb2551d5c30e35b))
+
+## [0.1.4](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.3...xvpn-client-v0.1.4) (2026-08-16)
+
+
+### Features
+
+* **server:** DNS intranet e chrome padronizado dos produtos ([#89](https://github.com/rootkit-lab/xvpn/issues/89)) ([9012237](https://github.com/rootkit-lab/xvpn/commit/901223734744cec2c507f66187104764f71f6579))
+
+
+### Bug Fixes
+
+* **client:** coloca usuários locais no grupo xvpn na instalação ([#92](https://github.com/rootkit-lab/xvpn/issues/92)) ([bd354f3](https://github.com/rootkit-lab/xvpn/commit/bd354f3eff38efee23f6b0cab1b9002fcf8e3ae3))
+
+## [0.1.3](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.2...xvpn-client-v0.1.3) (2026-08-16)
+
+
+### Features
+
+* **client:** abre xchat/xgroup e resolve *.corp com a VPN ([#83](https://github.com/rootkit-lab/xvpn/issues/83)) ([d5adf05](https://github.com/rootkit-lab/xvpn/commit/d5adf05bab96012700df4f86ed46e4c6bdd6b953))
+
+## [0.1.2](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.1...xvpn-client-v0.1.2) (2026-08-16)
+
+
+### Features
+
+* plataforma ihuull com JWE e design system compartilhado ([#71](https://github.com/rootkit-lab/xvpn/issues/71)) ([377587c](https://github.com/rootkit-lab/xvpn/commit/377587c9f6f3609a87f76a042fcf213689d41413))
+* **server:** apps do catálogo públicos ou só na VPN ([#77](https://github.com/rootkit-lab/xvpn/issues/77)) ([33c9522](https://github.com/rootkit-lab/xvpn/commit/33c95228770fe2897ddca7e1fa9ea6756d0d243d))
+* **web:** alinha o design system ao client e reorganiza Marketplace ([#73](https://github.com/rootkit-lab/xvpn/issues/73)) ([521f287](https://github.com/rootkit-lab/xvpn/commit/521f2873d61b64322d8a0193014cd6be164fcbbc))
+* **web:** hosts de produto, xgroup Twitter e XDriver nativo ([#75](https://github.com/rootkit-lab/xvpn/issues/75)) ([aa54d45](https://github.com/rootkit-lab/xvpn/commit/aa54d45311af38ec5e351412d651b55d0c388c49))
+
+
+### Bug Fixes
+
+* **web:** carrega o Sass do design system fora do pipeline do Tailwind ([#74](https://github.com/rootkit-lab/xvpn/issues/74)) ([9af006f](https://github.com/rootkit-lab/xvpn/commit/9af006f2ed37b543fab6a85683a7bc813b3a2942))
+
+## [0.1.1](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.0...xvpn-client-v0.1.1) (2026-08-15)
+
+
+### Features
+
+* **client:** chrome watchOS, auth no Connect e estado verde ([#53](https://github.com/rootkit-lab/xvpn/issues/53)) ([a092d89](https://github.com/rootkit-lab/xvpn/commit/a092d898f975e05ea7406e1ace13eeb12c960bd9))
+* redesign da home do cliente no estilo watchOS ([#52](https://github.com/rootkit-lab/xvpn/issues/52)) ([e6301dd](https://github.com/rootkit-lab/xvpn/commit/e6301ddbf0b18381241fda5e1061633a1cd181aa))
+* **server:** alimenta o marketplace a partir de apps/ via CI (Fase 16) ([#37](https://github.com/rootkit-lab/xvpn/issues/37)) ([5ba7620](https://github.com/rootkit-lab/xvpn/commit/5ba762095e9c65b502694206387a2fab39e509de))
+* sincroniza acesso a arquivos com o usuário da VPN (Fase 14) ([#35](https://github.com/rootkit-lab/xvpn/issues/35)) ([cf23b56](https://github.com/rootkit-lab/xvpn/commit/cf23b56b682f3a4d9cf3709907da4584b0e2e661))
+
+
+### Bug Fixes
+
+* abre Samba via ~/XVPN symlink + FileManager1 no Cosmic ([#48](https://github.com/rootkit-lab/xvpn/issues/48)) ([f711894](https://github.com/rootkit-lab/xvpn/commit/f7118947f909c21a81a71c22b4ac5738dccb991a))
+* **client:** adiciona rota /32 de exceção no engine Windows ([#41](https://github.com/rootkit-lab/xvpn/issues/41)) ([4d0f3f3](https://github.com/rootkit-lab/xvpn/commit/4d0f3f39b96cf07dff28a3a465ea778306438f7f))
+* desmonta shares SMB e limpa ~/XVPN/Desktop no Disconnect ([#49](https://github.com/rootkit-lab/xvpn/issues/49)) ([c9c6767](https://github.com/rootkit-lab/xvpn/commit/c9c676798c3e2db89b536538377913a9dd5db79f))
+* desmonta shares SMB e limpa ~/XVPN/Desktop no Disconnect ([#50](https://github.com/rootkit-lab/xvpn/issues/50)) ([043b951](https://github.com/rootkit-lab/xvpn/commit/043b951f7ee7a3f703c809d9581336096dff6641))
+* espera o path GVFS após gio mount --anonymous ([#47](https://github.com/rootkit-lab/xvpn/issues/47)) ([8e521fc](https://github.com/rootkit-lab/xvpn/commit/8e521fc035fba0c11e77e431906ce09782fb51be))
+* monta Samba via GVFS anônimo antes de abrir no Cosmic ([#46](https://github.com/rootkit-lab/xvpn/issues/46)) ([c10ea53](https://github.com/rootkit-lab/xvpn/commit/c10ea53d63b680b7c7f35c7bf64831220a3272fc))
+* UI do botão/globe, botões de arquivo e docs do FileBrowser ([#51](https://github.com/rootkit-lab/xvpn/issues/51)) ([839b7c7](https://github.com/rootkit-lab/xvpn/commit/839b7c71a76e9fa6a70bfb1aa33c36389ee6d0d1))
+
 ## [0.1.0](https://github.com/rootkit-lab/xvpn/compare/client-v0.0.0...client-v0.1.0) — 2026-08-14
 
 Primeira release empacotada do cliente desktop XVPN (Windows + Linux).

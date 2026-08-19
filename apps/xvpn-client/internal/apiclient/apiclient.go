@@ -41,7 +41,7 @@ const TunnelBaseURL = "http://10.66.66.1:8080"
 const tunnelTimeout = 5 * time.Second
 
 // Client fala com um único xvpn-server, identificado por BaseURL (ex.:
-// "https://vpn.officeempresa.com").
+// "https://xvpn.ihuull.com").
 type Client struct {
 	BaseURL string
 	http    *http.Client
@@ -86,7 +86,14 @@ type EnrollResult struct {
 	// Username é o dono do dispositivo no painel — caminho rápido para o
 	// cliente saber quem ele é já no enrollment, sem esperar a primeira
 	// conexão para perguntar em GET /api/me.
-	Username string
+	Username      string
+	DNS           []string
+	IntranetHosts []HostEntry
+}
+
+type HostEntry struct {
+	Hostname string `json:"hostname"`
+	IPv4     string `json:"ipv4"`
 }
 
 type enrollRequest struct {
@@ -96,13 +103,15 @@ type enrollRequest struct {
 }
 
 type enrollResponse struct {
-	AssignedIP          string `json:"assigned_ip"`
-	ServerPublicKey     string `json:"server_public_key"`
-	Endpoint            string `json:"endpoint"`
-	AllowedIPs          string `json:"allowed_ips"`
-	PersistentKeepalive int    `json:"persistent_keepalive"`
-	APIVersion          int    `json:"api_version"`
-	Username            string `json:"username"`
+	AssignedIP          string      `json:"assigned_ip"`
+	ServerPublicKey     string      `json:"server_public_key"`
+	Endpoint            string      `json:"endpoint"`
+	AllowedIPs          string      `json:"allowed_ips"`
+	PersistentKeepalive int         `json:"persistent_keepalive"`
+	APIVersion          int         `json:"api_version"`
+	Username            string      `json:"username"`
+	DNS                 []string    `json:"dns"`
+	IntranetHosts       []HostEntry `json:"intranet_hosts"`
 }
 
 // Enroll gera um par de chaves WireGuard localmente (a privada nunca deixa
@@ -145,6 +154,8 @@ func (c *Client) Enroll(ctx context.Context, inviteToken, deviceName string) (*E
 		PersistentKeepalive: time.Duration(resp.PersistentKeepalive) * time.Second,
 		APIVersion:          resp.APIVersion,
 		Username:            resp.Username,
+		DNS:                 resp.DNS,
+		IntranetHosts:       resp.IntranetHosts,
 	}, nil
 }
 
@@ -152,9 +163,10 @@ func (c *Client) Enroll(ctx context.Context, inviteToken, deviceName string) (*E
 // partir do IP de origem dentro do túnel (não falsificável: o
 // allowed-ips do WireGuard amarra o IP ao peer).
 type MeResult struct {
-	Username     string `json:"username"`
-	SFTPEnabled  bool   `json:"sftp_enabled"`
-	SambaEnabled bool   `json:"samba_enabled"`
+	Username      string      `json:"username"`
+	SFTPEnabled   bool        `json:"sftp_enabled"`
+	SambaEnabled  bool        `json:"samba_enabled"`
+	IntranetHosts []HostEntry `json:"intranet_hosts"`
 }
 
 // Me descobre quem é o dono deste dispositivo no painel e se os acessos a

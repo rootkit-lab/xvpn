@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -45,6 +46,18 @@ func (f *fakeUserProvisioner) DisableSamba(_ context.Context, username string) e
 }
 func (f *fakeUserProvisioner) Disable(_ context.Context, username string) error {
 	return f.record("Disable(" + username + ")")
+}
+func (f *fakeUserProvisioner) SetQuota(_ context.Context, username string, quotaMB uint64) error {
+	return f.record("SetQuota(" + username + "," + strconv.FormatUint(quotaMB, 10) + ")")
+}
+func (f *fakeUserProvisioner) ApplyDNS(_ context.Context, payload string) error {
+	return f.record("ApplyDNS(" + payload + ")")
+}
+func (f *fakeUserProvisioner) ApplySvc(_ context.Context, payload string) error {
+	return f.record("ApplySvc(" + payload + ")")
+}
+func (f *fakeUserProvisioner) ApplyCodespace(_ context.Context, payload string) error {
+	return f.record("ApplyCodespace(" + payload + ")")
 }
 
 // withProvisioner retorna um App de teste com o provisioner fake injetado.

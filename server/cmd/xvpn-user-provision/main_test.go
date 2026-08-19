@@ -69,9 +69,12 @@ func (n *noopRunner) ReadDir(dir string) ([]string, error) {
 	}
 	return names, nil
 }
-func (n *noopRunner) RemoveFile(path string) error { delete(n.writes, path); return nil }
-func (n *noopRunner) ReloadSSH() error             { return nil }
-func (n *noopRunner) ReloadSamba() error           { return nil }
+func (n *noopRunner) RemoveFile(path string) error      { delete(n.writes, path); return nil }
+func (n *noopRunner) ReloadSSH() error                  { return nil }
+func (n *noopRunner) ReloadSamba() error                { return nil }
+func (n *noopRunner) ReloadDnsmasq() error              { return nil }
+func (n *noopRunner) SetUserQuota(string, uint64) error { return nil }
+func (n *noopRunner) GrantXvpnACL(string, string) error { return nil }
 
 func TestRun_InvalidArgCount(t *testing.T) {
 	for _, args := range [][]string{{}, {"create"}, {"create", "alice", "extra"}} {
@@ -178,5 +181,37 @@ func TestRun_DisableSFTPAndDisableSambaDispatch(t *testing.T) {
 		}
 		// Ambos os subcomandos são dispatchados sem erro; a granularidade
 		// (qual arquivo cada um remove) já é coberta no pacote provision.
+	}
+}
+
+type noopSvcRunner struct {
+	writes map[string]string
+}
+
+func (n *noopSvcRunner) LookPath(string) (string, error) { return "/usr/bin/redis-server", nil }
+func (n *noopSvcRunner) InstallPackage(string) error     { return nil }
+func (n *noopSvcRunner) WriteFile(path, content string, _ os.FileMode) error {
+	if n.writes == nil {
+		n.writes = map[string]string{}
+	}
+	n.writes[path] = content
+	return nil
+}
+func (n *noopSvcRunner) MkdirAll(string, os.FileMode) error { return nil }
+func (n *noopSvcRunner) Chmod(string, os.FileMode) error    { return nil }
+func (n *noopSvcRunner) FileExists(string) (bool, error)    { return false, nil }
+func (n *noopSvcRunner) RemoveFile(string) error            { return nil }
+func (n *noopSvcRunner) Systemctl(...string) error          { return nil }
+
+func TestRun_SvcApplyDispatches(t *testing.T) {
+	r := &noopSvcRunner{}
+	svcRunnerFn = func() provision.SvcRunner { return r }
+	defer func() { svcRunnerFn = provision.NewSvcRunner }()
+	stdin := strings.NewReader(`{"action":"apply","slug":"cache","kind":"redis","bind":"10.66.66.1","port":6379,"password":"x"}`)
+	if err := run([]string{"svc-apply"}, stdin, nil, nil); err != nil {
+		t.Fatalf("svc-apply: %v", err)
+	}
+	if _, ok := r.writes["/opt/xvpn/data/svc/cache/redis.conf"]; !ok {
+		t.Fatalf("config não escrita: %v", r.writes)
 	}
 }

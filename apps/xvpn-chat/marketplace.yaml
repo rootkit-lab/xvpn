@@ -1,0 +1,16 @@
+# Manifesto do catálogo (Fase 19.4).
+slug: xchat
+name: XCHAT Client
+description: Messenger da intranet ihuull (xchat.corp.ihuull.com) — exige xvpn conectado
+visibility: global
+network: vpn
+kind: desktop
+source: build
+channel: stable
+assets:
+  - platform: linux
+    arch: amd64
+    url: https://github.com/rootkit-lab/xvpn/releases/download/xvpn-chat-v${VERSION}/xvpn-chat_${VERSION}_amd64.deb
+  - platform: windows
+    arch: amd64
+    url: https://github.com/rootkit-lab/xvpn/releases/download/xvpn-chat-v${VERSION}/xvpn-chat_${VERSION}_amd64-setup.exe

@@ -37,5 +37,6 @@ Exemplo:
 ## Depois de aberto
 
 - Revise o diff completo na interface do GitHub (ou `gh pr view --web`) antes de mergear — esse é o ponto de checagem final, mesmo trabalhando sozinho (ver `CONTRIBUTING.md`).
-- Faça o merge com `gh pr merge --squash --delete-branch`.
-- Sincronize a `main` local: `git checkout main && git pull --ff-only`, e remova a branch local com `git branch -D <branch>` (use `-D` maiúsculo — o squash merge cria um SHA novo, então o Git não reconhece a branch local como "merged" para o `-d` minúsculo funcionar).
+- Quando o usuário pedir para mergear / continuar: use a skill **`land-pr`** (`land-pr.sh`). Não chame `gh pr view --json statusCheckRollup` (payload enorme). Não use `--admin`.
+- Se a PR mudou o painel/servidor, em seguida **`deploy-xvpn-server`**.
+- Sincronize a `main` local: o `land-pr.sh` já faz `checkout main && pull --ff-only` e `git branch -D`.

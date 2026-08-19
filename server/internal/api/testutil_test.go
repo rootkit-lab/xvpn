@@ -63,6 +63,15 @@ func (f *fakePeerManager) RemovePeer(publicKey string) error {
 	return nil
 }
 
+func (f *fakePeerManager) setHandshake(publicKey string, t time.Time) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p := f.peers[publicKey]
+	p.PublicKey = publicKey
+	p.LastHandshake = &t
+	f.peers[publicKey] = p
+}
+
 func (f *fakePeerManager) ListPeers() ([]wireguard.PeerStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -97,8 +106,22 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	if err := db.AutoMigrate(
 		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
+		&store.PanelSettings{}, &store.ForgeSettings{}, &store.CodespaceSettings{},
+		&store.DNSSettings{}, &store.DNSRecord{},
+		&store.CloudflareAccount{}, &store.PublicZone{}, &store.PublicRecord{},
+		&store.SocialProfile{}, &store.Follow{}, &store.SocialGroup{}, &store.SocialGroupMember{},
+		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
+		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
+		&store.SocialPost{}, &store.SocialPostStar{}, &store.SocialPostComment{},
+		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.ProjectEnv{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CodeSpace{}, &store.CiJob{},
+		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
+		&store.ServiceInstance{},
+		&store.BackupSettings{}, &store.BackupDestination{}, &store.BackupJob{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
+	}
+	if err := store.SeedIntranetDNS(db); err != nil {
+		t.Fatalf("erro semeando DNS: %v", err)
 	}
 
 	fakeWG := newFakePeerManager()
@@ -113,12 +136,18 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		t.Fatalf("erro criando marketplace store de teste: %v", err)
 	}
 
+	socialStore, err := marketplace.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("erro criando social media store de teste: %v", err)
+	}
+
 	app := &App{
 		Store:           &store.Store{DB: db},
 		WG:              fakeWG,
 		Tokens:          auth.NewTokenManager("segredo-de-teste-com-pelo-menos-32-bytes", time.Hour),
 		Config:          cfg,
 		Marketplace:     marketplaceStore,
+		SocialMedia:     socialStore,
 		ServerPublicKey: "test-server-public-key=",
 	}
 	return app, fakeWG

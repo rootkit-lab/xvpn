@@ -1,0 +1,171 @@
+name: release-chat
+
+# Build + GitHub Release na tag xvpn-chat-v*, depois sync do marketplace.
+# O release-please cria a tag com GITHUB_TOKEN — isso NÃO dispara este
+# workflow. Por isso existe workflow_dispatch: depois de land da PR de
+# release, rode com a tag (ex. xvpn-chat-v0.1.1).
+on:
+  push:
+    tags:
+      - "xvpn-chat-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag a publicar (ex.: xvpn-chat-v0.1.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/xvpn-chat
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/xvpn-chat/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/xvpn-chat/frontend/package-lock.json
+      - name: Dependências GTK/WebKit
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libgtk-3-dev libwebkit2gtk-4.1-dev libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Cache go-task/wails3
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: chat-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('apps/xvpn-chat/go.mod') }}
+      - name: Instala go-task e wails3
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.52.0
+          WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+      - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Instala nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.3
+      - name: Versão da tag
+        id: ver
+        run: |
+          VERSION="${RELEASE_TAG#xvpn-chat-v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - name: Package (.deb)
+        run: task package
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+      - name: Renomeia artefato versionado
+        run: |
+          mkdir -p dist
+          if ls dist/*.deb >/dev/null 2>&1; then
+            cp dist/*.deb "dist/xvpn-chat_${VERSION}_amd64.deb" 2>/dev/null || true
+          elif ls bin/*.deb >/dev/null 2>&1; then
+            cp bin/*.deb "dist/xvpn-chat_${VERSION}_amd64.deb"
+          else
+            echo "nenhum .deb gerado" >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: apps/xvpn-chat/dist/*.deb
+
+  windows:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/xvpn-chat
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/xvpn-chat/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/xvpn-chat/frontend/package-lock.json
+      - name: Dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential libgtk-3-dev libwebkit2gtk-4.1-dev libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: Cache go-task/wails3
+        id: cache-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: chat-tools-${{ runner.os }}-task3.52.0-${{ hashFiles('apps/xvpn-chat/go.mod') }}
+      - name: Instala go-task e wails3
+        if: steps.cache-tools.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@v3.52.0
+          WAILS_VERSION="$(grep -oP 'github.com/wailsapp/wails/v3 \K\S+' go.mod)"
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}"
+      - run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Versão da tag
+        run: |
+          VERSION="${RELEASE_TAG#xvpn-chat-v}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+      - name: Build Windows .exe (best-effort)
+        continue-on-error: true
+        run: |
+          task frontend
+          mkdir -p dist bin
+          GOOS=windows CGO_ENABLED=0 go build -ldflags="-X github.com/rootkit-lab/xvpn/chat/internal/version.Version=${VERSION}" -o "dist/xvpn-chat_${VERSION}_amd64-setup.exe" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: apps/xvpn-chat/dist/*
+          if-no-files-found: warn
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Publica na GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${RELEASE_TAG}"
+          VERSION="${TAG#xvpn-chat-v}"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --notes "Release automática do XVPN Chat ${VERSION}"
+          find artifacts -type f \( -name '*.deb' -o -name '*.exe' \) -print0 | xargs -0 -r gh release upload "$TAG" --clobber
+      - name: Dispara sync do marketplace
+        env:
+          XVPN_PUBLISH_TOKEN: ${{ secrets.XVPN_PUBLISH_TOKEN }}
+          XVPN_SYNC_URL: ${{ secrets.XVPN_SYNC_URL }}
+        run: |
+          if [ -z "${XVPN_PUBLISH_TOKEN}" ] || [ -z "${XVPN_SYNC_URL}" ]; then
+            echo "XVPN_PUBLISH_TOKEN / XVPN_SYNC_URL não configurados — sync ignorado"
+            exit 0
+          fi
+          pip install --user pyyaml
+          python3 .github/scripts/marketplace-sync-payload.py \
+            --commit "${GITHUB_SHA}" \
+            --out /tmp/sync.json
+          curl -fsS -X POST "${XVPN_SYNC_URL%/}/api/marketplace/sync" \
+            -H "Authorization: Bearer ${XVPN_PUBLISH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/sync.json

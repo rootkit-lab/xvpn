@@ -1,0 +1,9 @@
+version: '3'
+info:
+  companyName: "rootkit-lab"
+  productName: "xchat"
+  productIdentifier: "com.ihuull.xchat"
+  description: "Messenger da intranet ihuull"
+  copyright: "(c) 2026, rootkit-lab"
+  comments: "Cliente desktop do xchat"
+  version: "0.1.0"

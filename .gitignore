@@ -42,6 +42,8 @@ vendor/
 # ===== Node / React / Vite (painel web e frontend do cliente) =====
 node_modules/
 apps/xvpn-client/frontend/dist/
+apps/xvpn-chat/frontend/dist/*
+!apps/xvpn-chat/frontend/dist/placeholder.txt
 .vite/
 .cache/
 *.local
@@ -58,6 +60,8 @@ server/internal/webui/dist/*
 
 # ===== Wails (cliente desktop) =====
 apps/xvpn-client/bin/
+apps/xvpn-chat/bin/
+apps/xvpn-chat/frontend/bindings
 apps/xvpn-client/build/dist/
 apps/xvpn-client/build/darwin/
 apps/xvpn-client/build/windows/*.exe
@@ -88,3 +92,4 @@ Desktop.ini
 
 # ===== Cursor (estado local, não configuração versionada) =====
 .cursor/*.log
+.cursor/agent/

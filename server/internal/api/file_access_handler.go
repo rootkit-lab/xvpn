@@ -19,15 +19,21 @@ type UserProvisioner interface {
 	DisableSFTP(ctx context.Context, username string) error
 	DisableSamba(ctx context.Context, username string) error
 	Disable(ctx context.Context, username string) error
+	SetQuota(ctx context.Context, username string, quotaMB uint64) error
+	ApplyDNS(ctx context.Context, payload string) error
+	ApplySvc(ctx context.Context, payload string) error
+	ApplyCodespace(ctx context.Context, payload string) error
 }
 
 // fileAccessRequest é o corpo do PUT /api/users/:id/file-access. Os
-// três campos formam o estado DESEJADO pelo admin — o handler calcula
+// campos formam o estado DESEJADO pelo admin — o handler calcula
 // o diff contra o estado atual e aplica só o que mudou.
 type fileAccessRequest struct {
 	SFTPEnabled  bool   `json:"sftp_enabled"`
 	SambaEnabled bool   `json:"samba_enabled"`
 	SSHPublicKey string `json:"ssh_public_key"`
+	// DiskQuotaMB: 0 = sem limite. Aplicado quando SFTP ou Samba está on.
+	DiskQuotaMB uint64 `json:"disk_quota_mb"`
 }
 
 // fileAccessResponse espelha o estado persistido no User depois de
@@ -36,6 +42,7 @@ type fileAccessResponse struct {
 	SFTPEnabled  bool   `json:"sftp_enabled"`
 	SambaEnabled bool   `json:"samba_enabled"`
 	SSHPublicKey string `json:"ssh_public_key"`
+	DiskQuotaMB  uint64 `json:"disk_quota_mb"`
 }
 
 // acceptedSSHKeyTypes são os tipos de chave que o painel aceita colar e

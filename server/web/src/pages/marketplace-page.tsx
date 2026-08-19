@@ -1,18 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import {
-  Copy,
-  Download,
-  Monitor,
-  Package,
-  Pencil,
-  Plus,
-  Smartphone,
-  Terminal,
-  Trash2,
-  UploadCloud,
-  Users as UsersIcon,
-} from 'lucide-react'
+import { Copy, Download, ExternalLink, Monitor, Smartphone, Terminal, Users as UsersIcon } from 'lucide-react'
 import {
   api,
   ApiError,
@@ -21,22 +9,23 @@ import {
   type MarketplaceChannel,
   type MarketplacePlatform,
   type MarketplaceVersion,
+  type MarketplaceKind,
+  type MarketplaceNetwork,
   type MarketplaceVisibility,
   type User,
 } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatBytes, formatDateTime } from '@/lib/format'
 import { useAuth } from '@/lib/auth-context'
-import { isAdminRole, ROLE_BADGE_VARIANT, ROLE_LABELS } from '@/lib/roles'
+import { canWriteAdminProduct, isAdminRole } from '@/lib/roles'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
+import { UserPicker } from '@/components/user-picker'
+import { FilterBar } from '@/components/filter-bar'
+import { PaginationBar, EmptyState } from '@/components/pagination'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { MarketplaceAppIcon } from '@/components/marketplace-app-icon'
 import {
   Dialog,
   DialogContent,
@@ -46,20 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
 
-// Espelha store.Platform (server/internal/store/models.go) — ícone e rótulo
-// de cada plataforma de asset suportada (ver PLAN.md §6.8).
 const PLATFORM_LABELS: Record<MarketplacePlatform, string> = {
   linux: 'Linux',
   windows: 'Windows',
@@ -77,205 +53,228 @@ const VISIBILITY_LABELS: Record<MarketplaceVisibility, string> = {
   restricted: 'Restrito (ACL)',
 }
 
+const NETWORK_LABELS: Record<MarketplaceNetwork, string> = {
+  public: 'Rede pública',
+  vpn: 'Só VPN / *.corp',
+}
+
+const KIND_LABELS: Record<MarketplaceKind, string> = {
+  desktop: 'Desktop',
+  web: 'Web',
+  service: 'Serviço',
+  library: 'Biblioteca',
+  infra: 'Infra',
+  docs: 'Docs',
+  container: 'Container',
+}
+
 const CHANNEL_LABELS: Record<MarketplaceChannel, string> = {
   stable: 'Estável',
   beta: 'Beta',
 }
 
-export function MarketplacePage() {
+const GITHUB_APPS_BASE = 'https://github.com/rootkit-lab/xvpn/tree/main/'
+
+export function MarketplacePage({
+  variant = 'consume',
+  section = 'catalog',
+}: {
+  variant?: 'consume' | 'manage'
+  section?: 'catalog' | 'acl'
+}) {
   const { user: caller } = useAuth()
-  const isAdmin = isAdminRole(caller?.role)
+  const isManage =
+    variant === 'manage' && isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'marketplace')
+  const isACL = section === 'acl'
   const fetchApps = useCallback(() => api.listMarketplaceApps(), [])
   const { data: apps, loading, error, reload } = usePollingData(fetchApps, 30_000)
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(1)
+  const [openId, setOpenId] = useState<number | null>(null)
+  const perPage = 24
+
+  const filtered = (apps ?? []).filter((app) => {
+    const needle = q.trim().toLowerCase()
+    if (!needle) return true
+    return app.name.toLowerCase().includes(needle) || app.slug.toLowerCase().includes(needle)
+  })
+  const total = filtered.length
+  const slice = filtered.slice((page - 1) * perPage, page * perPage)
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Marketplace</h1>
-          <p className="text-muted-foreground">
-            Catálogo interno de programas para Linux, Windows e Android — separado do cliente XVPN (ver Downloads).
-          </p>
-        </div>
-        {isAdmin && <CreateAppDialog onCreated={reload} />}
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <FilterBar
+        q={q}
+        onQChange={(next) => {
+          setQ(next)
+          setPage(1)
+        }}
+        placeholder={isACL ? 'Buscar na ACL' : 'Buscar no catálogo'}
+      />
 
       {loading || !apps ? (
         <Skeleton className="h-32 w-full" />
       ) : apps.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground">
-            {isAdmin
-              ? 'Nenhum app publicado ainda. Use "Novo app" para começar.'
-              : 'Nenhum app disponível para o seu usuário no momento.'}
-          </CardContent>
-        </Card>
+        isManage ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{isACL ? 'Nenhum app para ACL' : 'Catálogo ainda vazio'}</CardTitle>
+              <CardDescription>
+                O painel só espelha o que o CI publicou. Nada aparece aqui até existir uma release GitHub
+                compatível com o manifesto e um sync bem-sucedido.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <ol className="list-decimal space-y-2 pl-5">
+                <li>
+                  Release com tag <code className="font-mono text-xs">xvpn-client-v*</code> e assets
+                  nomeados como no <code className="font-mono text-xs">apps/xvpn-client/marketplace.yaml</code>.
+                </li>
+                <li>
+                  Workflow <code className="font-mono text-xs">marketplace-sync</code> no GitHub Actions.
+                </li>
+              </ol>
+              <p>
+                Fonte:{' '}
+                <a
+                  href={`${GITHUB_APPS_BASE}xvpn-client/marketplace.yaml`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-foreground underline-offset-4 hover:underline"
+                >
+                  apps/xvpn-client/marketplace.yaml
+                  <ExternalLink className="size-3" />
+                </a>
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Marketplace vazio</CardTitle>
+              <CardDescription>
+                Quando um administrador liberar programas para você, eles aparecem aqui.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )
+      ) : slice.length === 0 ? (
+        <EmptyState title="Nenhum item neste filtro." />
       ) : (
         <div className="flex flex-col gap-4">
-          {apps.map((app) => (
-            <AppCard key={app.id} app={app} isAdmin={isAdmin} onChanged={reload} />
-          ))}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {slice.map((app) => (
+              <button
+                key={app.id}
+                type="button"
+                onClick={() => setOpenId((id) => (id === app.id ? null : app.id))}
+                className={`watch-complication flex flex-col items-center gap-2 rounded-[18px] px-3 py-5 text-center transition-transform hover:scale-[1.02] ${
+                  openId === app.id ? 'ring-1 ring-safe' : ''
+                }`}
+              >
+                <MarketplaceAppIcon app={app} className="size-12 rounded-[16px]" />
+                <span className="font-display w-full truncate text-[13px] font-semibold">{app.name}</span>
+                {app.description && (
+                  <span className="line-clamp-2 text-[11px] text-muted-foreground">{app.description}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          {slice
+            .filter((app) => app.id === openId)
+            .map((app) => (
+              <AppCard key={app.id} app={app} isAdmin={isManage} section={section} onChanged={reload} />
+            ))}
+          <PaginationBar page={page} perPage={perPage} total={total} onPageChange={setPage} />
         </div>
       )}
     </div>
   )
 }
 
-function AppCard({ app, isAdmin, onChanged }: { app: MarketplaceApp; isAdmin: boolean; onChanged: () => void }) {
-  const [deleting, setDeleting] = useState(false)
-
-  async function handleDelete() {
-    setDeleting(true)
-    try {
-      await api.deleteMarketplaceApp(app.id)
-      toast.success(`App "${app.name}" removido`)
-      onChanged()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Falha ao remover app')
-    } finally {
-      setDeleting(false)
-    }
-  }
-
+function AppCard({
+  app,
+  isAdmin,
+  section,
+  onChanged,
+}: {
+  app: MarketplaceApp
+  isAdmin: boolean
+  section: 'catalog' | 'acl'
+  onChanged: () => void
+}) {
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          {app.icon_url ? (
-            <img src={app.icon_url} alt="" className="size-10 shrink-0 rounded-full object-cover" />
-          ) : (
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary shadow-[0_0_20px_-6px_var(--color-glow)]">
-              <Package className="size-5" />
-            </div>
-          )}
+          <MarketplaceAppIcon app={app} className="size-10 shrink-0 rounded-full" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="text-base">{app.name}</CardTitle>
               <Badge variant={app.visibility === 'global' ? 'outline' : 'secondary'}>
                 {VISIBILITY_LABELS[app.visibility]}
               </Badge>
+              <Badge variant={app.network === 'vpn' ? 'secondary' : 'outline'}>
+                {NETWORK_LABELS[app.network] ?? NETWORK_LABELS.public}
+              </Badge>
+              {app.kind && (
+                <Badge variant="outline">{KIND_LABELS[app.kind] ?? app.kind}</Badge>
+              )}
+              {app.source_path && (
+                <a
+                  href={`${GITHUB_APPS_BASE}${app.source_path}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-0.5 font-mono text-xs text-muted-foreground hover:text-foreground"
+                  title="Origem no repositório"
+                >
+                  {app.source_path}
+                  <ExternalLink className="size-3" />
+                </a>
+              )}
             </div>
             {app.description && <CardDescription>{app.description}</CardDescription>}
           </div>
         </div>
-        {isAdmin && (
-          <div className="flex shrink-0 gap-1">
-            <ManageAccessDialog app={app} onChanged={onChanged} />
-            <CreateVersionDialog appId={app.id} onCreated={onChanged} />
-            <EditAppDialog app={app} onChanged={onChanged} />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" disabled={deleting} title="Remover app">
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remover app "{app.name}"?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Remove todas as versões, arquivos enviados e a lista de acesso deste app. Essa ação não pode ser
-                    desfeita.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>Remover</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
+        {isAdmin && section === 'acl' && <ManageAccessDialog app={app} onChanged={onChanged} />}
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {app.versions.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão publicada ainda.</p>}
-        {app.versions.map((version) => (
-          <VersionBlock key={version.id} version={version} isAdmin={isAdmin} onChanged={onChanged} />
-        ))}
-      </CardContent>
+      {section === 'catalog' && (
+        <CardContent className="flex flex-col gap-3">
+          {app.versions.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma versão sincronizada ainda.</p>}
+          {app.versions.map((version) => (
+            <VersionBlock key={version.id} version={version} />
+          ))}
+        </CardContent>
+      )}
     </Card>
   )
 }
 
-function VersionBlock({
-  version,
-  isAdmin,
-  onChanged,
-}: {
-  version: MarketplaceVersion
-  isAdmin: boolean
-  onChanged: () => void
-}) {
-  const [deleting, setDeleting] = useState(false)
+function VersionBlock({ version }: { version: MarketplaceVersion }) {
   const channelLabel = CHANNEL_LABELS[version.channel as MarketplaceChannel] ?? version.channel
-
-  async function handleDelete() {
-    setDeleting(true)
-    try {
-      await api.deleteMarketplaceVersion(version.id)
-      toast.success(`Versão ${version.version} removida`)
-      onChanged()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Falha ao remover versão')
-    } finally {
-      setDeleting(false)
-    }
-  }
 
   return (
     <div className="rounded-lg border border-white/5 bg-background/40 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">v{version.version}</span>
-          <Badge variant="outline">{channelLabel}</Badge>
-          <span className="text-xs text-muted-foreground">{formatDateTime(version.created_at)}</span>
-        </div>
-        {isAdmin && (
-          <div className="flex gap-1">
-            <UploadAssetDialog versionId={version.id} onUploaded={onChanged} />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon-sm" disabled={deleting} title="Remover versão">
-                  <Trash2 className="size-4 text-destructive" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remover versão {version.version}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Remove os arquivos enviados para esta versão. Essa ação não pode ser desfeita.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete}>Remover</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-medium">v{version.version}</span>
+        <Badge variant="outline">{channelLabel}</Badge>
+        <span className="text-xs text-muted-foreground">{formatDateTime(version.created_at)}</span>
       </div>
       {version.changelog && <p className="mt-2 text-sm text-muted-foreground">{version.changelog}</p>}
       <div className="mt-3 flex flex-col gap-2">
-        {version.assets.length === 0 && <p className="text-xs text-muted-foreground">Nenhum arquivo enviado ainda.</p>}
+        {version.assets.length === 0 && <p className="text-xs text-muted-foreground">Nenhum arquivo nesta versão.</p>}
         {version.assets.map((asset) => (
-          <AssetRow key={asset.id} asset={asset} isAdmin={isAdmin} onChanged={onChanged} />
+          <AssetRow key={asset.id} asset={asset} />
         ))}
       </div>
     </div>
   )
 }
 
-// AssetRow sempre mostra o botão de baixar: se o asset apareceu na resposta
-// de GET /marketplace/apps é porque o app é global, o papel é admin+, ou o
-// servidor já confirmou AppAccess pra este usuário — as mesmas três
-// condições checadas de novo em handleDownloadMarketplaceAsset (ver
-// marketplace_handler.go), então nunca há um asset visível aqui que o
-// download vá rejeitar com 403.
-function AssetRow({ asset, isAdmin, onChanged }: { asset: MarketplaceAsset; isAdmin: boolean; onChanged: () => void }) {
+function AssetRow({ asset }: { asset: MarketplaceAsset }) {
   const [downloading, setDownloading] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const Icon = PLATFORM_ICONS[asset.platform]
 
   async function handleDownload() {
@@ -292,19 +291,6 @@ function AssetRow({ asset, isAdmin, onChanged }: { asset: MarketplaceAsset; isAd
   function copyHash() {
     navigator.clipboard.writeText(asset.sha256)
     toast.success('SHA-256 copiado')
-  }
-
-  async function handleDelete() {
-    setDeleting(true)
-    try {
-      await api.deleteMarketplaceAsset(asset.id)
-      toast.success(`Arquivo "${asset.filename}" removido`)
-      onChanged()
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Falha ao remover arquivo')
-    } finally {
-      setDeleting(false)
-    }
   }
 
   return (
@@ -333,288 +319,13 @@ function AssetRow({ asset, isAdmin, onChanged }: { asset: MarketplaceAsset; isAd
           </div>
         </div>
       </div>
-      <div className="flex shrink-0 gap-1">
-        <Button variant="ghost" size="icon-sm" onClick={handleDownload} disabled={downloading} title="Baixar">
-          <Download className="size-4" />
-        </Button>
-        {isAdmin && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon-sm" disabled={deleting} title="Remover arquivo">
-                <Trash2 className="size-4 text-destructive" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remover arquivo "{asset.filename}"?</AlertDialogTitle>
-                <AlertDialogDescription>Essa ação não pode ser desfeita.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete}>Remover</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-      </div>
+      <Button variant="ghost" size="icon-sm" onClick={handleDownload} disabled={downloading} title="Baixar">
+        <Download className="size-4" />
+      </Button>
     </div>
   )
 }
 
-function VisibilitySelect({
-  value,
-  onChange,
-}: {
-  value: MarketplaceVisibility
-  onChange: (v: MarketplaceVisibility) => void
-}) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as MarketplaceVisibility)}>
-      <SelectTrigger className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(VISIBILITY_LABELS) as MarketplaceVisibility[]).map((v) => (
-          <SelectItem key={v} value={v}>
-            {VISIBILITY_LABELS[v]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function PlatformSelect({ value, onChange }: { value: MarketplacePlatform; onChange: (p: MarketplacePlatform) => void }) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as MarketplacePlatform)}>
-      <SelectTrigger className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(PLATFORM_LABELS) as MarketplacePlatform[]).map((p) => (
-          <SelectItem key={p} value={p}>
-            {PLATFORM_LABELS[p]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function ChannelSelect({ value, onChange }: { value: MarketplaceChannel; onChange: (c: MarketplaceChannel) => void }) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as MarketplaceChannel)}>
-      <SelectTrigger className="w-full">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(CHANNEL_LABELS) as MarketplaceChannel[]).map((c) => (
-          <SelectItem key={c} value={c}>
-            {CHANNEL_LABELS[c]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-}
-
-function CreateAppDialog({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [iconUrl, setIconUrl] = useState('')
-  const [visibility, setVisibility] = useState<MarketplaceVisibility>('global')
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (next) {
-      setName('')
-      setDescription('')
-      setIconUrl('')
-      setVisibility('global')
-      setError(null)
-    }
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    setError(null)
-    setSubmitting(true)
-    try {
-      await api.createMarketplaceApp({ name, description, icon_url: iconUrl, visibility })
-      toast.success(`App "${name}" criado`)
-      setOpen(false)
-      onCreated()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao criar app')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="size-4" />
-          Novo app
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Novo app</DialogTitle>
-            <DialogDescription>
-              Cria a entrada no catálogo. Depois, publique uma versão e envie os arquivos de instalação.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="new-app-name">Nome</Label>
-              <Input id="new-app-name" required value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="new-app-description">Descrição</Label>
-              <Textarea
-                id="new-app-description"
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="new-app-icon">URL do ícone (opcional)</Label>
-              <Input
-                id="new-app-icon"
-                type="url"
-                placeholder="https://…"
-                value={iconUrl}
-                onChange={(e) => setIconUrl(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>Visibilidade</Label>
-              <VisibilitySelect value={visibility} onChange={setVisibility} />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Criando…' : 'Criar app'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function EditAppDialog({ app, onChanged }: { app: MarketplaceApp; onChanged: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [name, setName] = useState(app.name)
-  const [description, setDescription] = useState(app.description)
-  const [iconUrl, setIconUrl] = useState(app.icon_url ?? '')
-  const [visibility, setVisibility] = useState<MarketplaceVisibility>(app.visibility)
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (next) {
-      setName(app.name)
-      setDescription(app.description)
-      setIconUrl(app.icon_url ?? '')
-      setVisibility(app.visibility)
-      setError(null)
-    }
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    setError(null)
-    setSubmitting(true)
-    try {
-      const changes: {
-        name?: string
-        description?: string
-        icon_url?: string
-        visibility?: MarketplaceVisibility
-      } = {}
-      if (name !== app.name) changes.name = name
-      if (description !== app.description) changes.description = description
-      if (iconUrl !== (app.icon_url ?? '')) changes.icon_url = iconUrl
-      if (visibility !== app.visibility) changes.visibility = visibility
-      await api.updateMarketplaceApp(app.id, changes)
-      toast.success(`App "${name}" atualizado`)
-      setOpen(false)
-      onChanged()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao atualizar app')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Editar app">
-          <Pencil className="size-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Editar "{app.name}"</DialogTitle>
-            <DialogDescription>Altera metadados do app — não mexe em versões ou arquivos.</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`edit-app-name-${app.id}`}>Nome</Label>
-              <Input id={`edit-app-name-${app.id}`} required value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`edit-app-description-${app.id}`}>Descrição</Label>
-              <Textarea
-                id={`edit-app-description-${app.id}`}
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor={`edit-app-icon-${app.id}`}>URL do ícone (opcional)</Label>
-              <Input
-                id={`edit-app-icon-${app.id}`}
-                type="url"
-                placeholder="https://…"
-                value={iconUrl}
-                onChange={(e) => setIconUrl(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>Visibilidade</Label>
-              <VisibilitySelect value={visibility} onChange={setVisibility} />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ManageAccessDialog busca a lista de usuários toda vez que abre (em vez de
-// cachear) — a tela só existe pra admin, então o custo é uma chamada leve a
-// mais por abertura, e evita mostrar a ACL de outro app defasada se um
-// usuário foi criado/removido enquanto o diálogo estava fechado.
 function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged: () => void }) {
   const [open, setOpen] = useState(false)
   const [users, setUsers] = useState<User[] | null>(null)
@@ -630,8 +341,8 @@ function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged
       setSelected(new Set(app.access_user_ids ?? []))
       setLoadingUsers(true)
       api
-        .listUsers()
-        .then(setUsers)
+        .listUsers({ per_page: 100 })
+        .then((page) => setUsers(page.items))
         .catch((err) => setError(err instanceof ApiError ? err.message : 'Falha ao carregar usuários'))
         .finally(() => setLoadingUsers(false))
     } else {
@@ -642,11 +353,8 @@ function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged
   function toggle(id: number) {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -680,200 +388,21 @@ function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged
             <DialogTitle>Acesso a "{app.name}"</DialogTitle>
             <DialogDescription>
               {app.visibility === 'global'
-                ? 'Este app é global — todo mundo já enxerga e baixa. A lista abaixo só passa a valer se você trocar a visibilidade para restrita.'
-                : 'Só os usuários marcados abaixo enxergam e baixam este app (além de admin/super_admin, que sempre têm acesso).'}
+                ? 'Este app é global — todo mundo já enxerga e baixa. A lista abaixo só passa a valer se o manifesto trocar a visibilidade para restrita.'
+                : 'Só os usuários marcados abaixo enxergam e baixam este app (além de admin/super_admin).'}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex max-h-72 flex-col gap-1 overflow-y-auto py-4">
+          <div className="py-4">
             {loadingUsers || !users ? (
               <Skeleton className="h-32 w-full" />
             ) : (
-              <>
-                {users.map((u) => (
-                  <div key={u.id} className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent">
-                    <Checkbox
-                      id={`access-user-${u.id}`}
-                      checked={selected.has(u.id)}
-                      onCheckedChange={() => toggle(u.id)}
-                    />
-                    <Label htmlFor={`access-user-${u.id}`} className="flex-1 cursor-pointer font-normal">
-                      {u.username}
-                    </Label>
-                    <Badge variant={ROLE_BADGE_VARIANT[u.role]}>{ROLE_LABELS[u.role]}</Badge>
-                  </div>
-                ))}
-                {users.length === 0 && <p className="text-sm text-muted-foreground">Nenhum usuário cadastrado.</p>}
-              </>
+              <UserPicker users={users} selected={selected} onToggle={toggle} />
             )}
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={submitting || loadingUsers}>
               {submitting ? 'Salvando…' : 'Salvar acesso'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function CreateVersionDialog({ appId, onCreated }: { appId: number; onCreated: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [version, setVersion] = useState('')
-  const [channel, setChannel] = useState<MarketplaceChannel>('stable')
-  const [changelog, setChangelog] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (next) {
-      setVersion('')
-      setChannel('stable')
-      setChangelog('')
-      setError(null)
-    }
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    setError(null)
-    setSubmitting(true)
-    try {
-      await api.createMarketplaceVersion(appId, { version, channel, changelog })
-      toast.success(`Versão ${version} publicada`)
-      setOpen(false)
-      onCreated()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao publicar versão')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" title="Nova versão">
-          <Plus className="size-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Nova versão</DialogTitle>
-            <DialogDescription>Depois de publicar, envie os arquivos de cada plataforma.</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="new-version-number">Versão</Label>
-              <Input
-                id="new-version-number"
-                required
-                placeholder="1.0.0"
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label>Canal</Label>
-              <ChannelSelect value={channel} onChange={setChannel} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="new-version-changelog">Changelog (opcional)</Label>
-              <Textarea
-                id="new-version-changelog"
-                rows={3}
-                value={changelog}
-                onChange={(e) => setChangelog(e.target.value)}
-              />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Publicando…' : 'Publicar versão'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-function UploadAssetDialog({ versionId, onUploaded }: { versionId: number; onUploaded: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [platform, setPlatform] = useState<MarketplacePlatform>('linux')
-  const [arch, setArch] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [submitting, setSubmitting] = useState(false)
-
-  function handleOpenChange(next: boolean) {
-    setOpen(next)
-    if (next) {
-      setPlatform('linux')
-      setArch('')
-      setFile(null)
-      setError(null)
-    }
-  }
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!file) {
-      setError('Selecione um arquivo')
-      return
-    }
-    setError(null)
-    setSubmitting(true)
-    try {
-      await api.uploadMarketplaceAsset(versionId, file, platform, arch)
-      toast.success(`Arquivo "${file.name}" enviado`)
-      setOpen(false)
-      onUploaded()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Falha ao enviar arquivo')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon-sm" title="Enviar arquivo">
-          <UploadCloud className="size-4" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Enviar arquivo</DialogTitle>
-            <DialogDescription>
-              O SHA-256 e o tamanho são calculados pelo servidor a partir do arquivo enviado, nunca informados pelo
-              navegador.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <div className="flex flex-col gap-2">
-              <Label>Plataforma</Label>
-              <PlatformSelect value={platform} onChange={setPlatform} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="upload-arch">Arquitetura (opcional)</Label>
-              <Input id="upload-arch" placeholder="amd64" value={arch} onChange={(e) => setArch(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="upload-file">Arquivo</Label>
-              <Input id="upload-file" type="file" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Enviando…' : 'Enviar'}
             </Button>
           </DialogFooter>
         </form>

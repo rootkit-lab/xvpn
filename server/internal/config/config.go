@@ -20,7 +20,7 @@ type Config struct {
 	// interface; ver PLAN.md §5). Existe por roteamento, não por segurança:
 	// o cliente instala uma rota /32 para o IP público do VPS antes de
 	// trocar a rota padrão (senão o próprio handshake WireGuard entraria em
-	// loop), e como vpn.officeempresa.com resolve para esse mesmo IP, o
+	// loop), e como xvpn.ihuull.com resolve para esse mesmo IP, o
 	// HTTPS do painel nunca trafega dentro do túnel. Sem este listener, um
 	// peer não teria como falar com a API tendo um 10.66.66.x como IP de
 	// origem, e as rotas de identidade por túnel (GET /api/me,
@@ -84,6 +84,24 @@ type Config struct {
 	// PLAN.md §5), nunca fora dele.
 	MarketplaceDataDir string
 
+	// SocialMediaDir guarda blobs de anexo/áudio/stories do chat (Fase 21).
+	// Em produção: /opt/xvpn/data/social (dentro de ReadWritePaths).
+	SocialMediaDir string
+
+	// MongoURI, se definido, torna o Mongo a fonte da verdade (Fase 28).
+	// Bind só 127.0.0.1:27017 em produção. Vazio = SQLite (testes/CI).
+	MongoURI string
+
+	// XbotToken autentica POST /api/hooks/chat/broadcast (Fase 27).
+	// Comparado em tempo constante. Vazio = rota de hook não é registrada.
+	XbotToken string
+
+	// PublishToken autentica POST /api/marketplace/sync (Fase 16 —
+	// PLAN.md §6.10.3). Comparado em tempo constante. Vazio = a rota de
+	// sync nem é registrada (servidor que não publica não expõe a
+	// superfície). Em produção fica em /opt/xvpn/xvpn-server.env.
+	PublishToken string
+
 	// UserProvisionBinaryPath é o caminho absoluto do binário
 	// privilegiado xvpn-user-provision (Fase 13 — ver PLAN.md §6.9),
 	// invocado pelo xvpn-server via sudoers.d restrito (NOPASSWD, sem
@@ -94,6 +112,42 @@ type Config struct {
 	// internal/userprovision) nunca chama o binário de verdade nos
 	// testes.
 	UserProvisionBinaryPath string
+
+	// DriverSharedDir é o share [shared] do Samba (/srv/xvpn/shared).
+	// XDriver nativo lê/grava daqui — sem FileBrowser.
+	DriverSharedDir string
+
+	// DriverHomeRoot é o prefixo das pastas pessoais (/home). O path
+	// real é <root>/<username>/files.
+	DriverHomeRoot string
+
+	// DriverProjectsDir é a raiz dos shares de projeto no XDRIVER
+	// (Fase 37 — /opt/xvpn/data/projects/<slug>). Sem FileBrowser e
+	// sem Samba [project-*] nesta fase; só o Drive web em xdriver.corp.
+	DriverProjectsDir string
+
+	// GitDir é a raiz dos bare repos do forge (Fase 40 —
+	// /opt/xvpn/data/git/<slug>.git). Smart HTTP só em xgit.corp.
+	GitDir string
+
+	// CodespacesDir é a raiz dos worktrees do XCODESPACES (Fase 49 —
+	// /opt/xvpn/data/codespaces/<user>/<slug>/<id>/). Fora do bare.
+	CodespacesDir string
+
+	// BackupDir é o staging dos jobs off-site (Fase 44 — restic cache,
+	// rclone.conf temporário). Credenciais ficam no Mongo, não aqui.
+	BackupDir string
+
+	// BitLaunchToken (Fase 38) só no VPS, chmod 600. Se o banco estiver
+	// vazio, semeia a primeira BitLaunchAccount. O caminho normal é
+	// Compute → Configurações (várias contas). Vazio e sem contas =
+	// só import do node local; create/rebuild devolvem 503.
+	BitLaunchToken string
+
+	// CloudflareToken (Fase 39) só no VPS. Semeia a primeira
+	// CloudflareAccount se o banco estiver vazio. Caminho normal:
+	// DNS → Configurações.
+	CloudflareToken string
 }
 
 func getEnv(key, fallback string) string {
@@ -132,7 +186,19 @@ func Load() (*Config, error) {
 		AdminBootstrapUsername:  os.Getenv("XVPN_ADMIN_USERNAME"),
 		AdminBootstrapPassword:  os.Getenv("XVPN_ADMIN_PASSWORD"),
 		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
+		SocialMediaDir:          getEnv("XVPN_SOCIAL_MEDIA_DIR", "social-media-data"),
+		PublishToken:            os.Getenv("XVPN_PUBLISH_TOKEN"),
+		MongoURI:                os.Getenv("XVPN_MONGO_URI"),
+		XbotToken:               os.Getenv("XVPN_XBOT_TOKEN"),
 		UserProvisionBinaryPath: getEnv("XVPN_USER_PROVISION_BIN", "/opt/xvpn/bin/xvpn-user-provision"),
+		DriverSharedDir:         getEnv("XVPN_DRIVER_SHARED_DIR", "/srv/xvpn/shared"),
+		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
+		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
+		GitDir:                  getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
+		CodespacesDir:           getEnv("XVPN_CODESPACES_DIR", "/opt/xvpn/data/codespaces"),
+		BackupDir:               getEnv("XVPN_BACKUP_DIR", "/opt/xvpn/data/backups"),
+		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
+		CloudflareToken:         os.Getenv("XVPN_CLOUDFLARE_TOKEN"),
 	}
 
 	var err error

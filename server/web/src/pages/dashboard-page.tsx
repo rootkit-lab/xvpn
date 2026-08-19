@@ -14,7 +14,7 @@ export function DashboardPage() {
     // indisponível, o restante (peers, dispositivos, tráfego) continua
     // valendo. Por isso ele vai num allSettled à parte, em vez de derrubar
     // a tela inteira junto com um Promise.all.
-    const [status, devices] = await Promise.all([api.status(), api.listDevices()])
+    const [status, devices] = await Promise.all([api.status(), api.listDevices({ page: 1, per_page: 1 })])
     const [statsResult] = await Promise.allSettled([api.marketplaceStats()])
     const marketplaceStats = statsResult.status === 'fulfilled' ? statsResult.value : null
     const totalTraffic = status.receive_bytes_total + status.transmit_bytes_total
@@ -27,12 +27,7 @@ export function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <span className="hud-label text-muted-foreground/70">// painel administrativo</span>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Visão geral da VPN em tempo real.</p>
-        </div>
+      <div className="flex justify-end">
         {/* Status "Secured" — losango cyber com glow quando há peers
             conectados; cinza quando ocioso. Indicador HUD do estado
             de proteção ativa. */}
@@ -79,7 +74,7 @@ export function DashboardPage() {
         <MetricCard
           icon={Laptop}
           label="Dispositivos cadastrados"
-          value={loading || !data ? undefined : String(data.devices.length)}
+          value={loading || !data ? undefined : String(data.devices.total)}
         />
         <MetricCard
           icon={ArrowDownUp}

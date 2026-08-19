@@ -7,35 +7,50 @@ import {
   Loader2,
   FolderOpen,
   Globe,
+  MessageCircle,
   Settings,
   Stethoscope,
   ShieldCheck,
   Store,
+  Share2,
+  Users,
 } from 'lucide-react'
 
 import type { StatusView } from '../../bindings/github.com/rootkit-lab/xvpn/client'
 import { VPNService } from '../../bindings/github.com/rootkit-lab/xvpn/client'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { NetworkGlobe } from '@/components/network-globe'
+import { ConnectionRings } from '@/components/connection-rings'
+import { CredentialPrompt, saveLastUsername } from '@/components/credential-prompt'
+import { WatchIconButton, WatchShell } from '@/components/watch-chrome'
 import { formatBytes, formatElapsedSince, formatRelativeTime } from '@/lib/format'
+
+/** Evento emitido pela bandeja quando Conectar exige login na janela. */
+export const REQUEST_CONNECT_AUTH_EVENT = 'xvpn:request-connect-auth'
 
 interface MainPageProps {
   status: StatusView
   onChange: () => void
   error: string | null
+  /** Incrementado pelo App quando a bandeja pede o sheet de credenciais. */
+  connectAuthNonce?: number
   onOpenSettings: () => void
   onOpenDiagnostics: () => void
   onOpenApps: () => void
 }
 
-export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagnostics, onOpenApps }: MainPageProps) {
+export function MainPage({
+  status,
+  onChange,
+  error,
+  connectAuthNonce = 0,
+  onOpenSettings,
+  onOpenDiagnostics,
+  onOpenApps,
+}: MainPageProps) {
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  // Re-renderiza 1x/s só pra o timer "conectado há" contar em tempo real,
-  // sem depender do intervalo de polling do status (2s, ver App.tsx) —
-  // formatElapsedSince recalcula a partir de status.connectedSince a cada
-  // chamada, então um tick local aqui já é suficiente.
+  const [authOpen, setAuthOpen] = useState(false)
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -44,16 +59,51 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
     return () => clearInterval(id)
   }, [status.connected])
 
+  // Túnel já up → sheet nunca pode ficar por cima da face conectada.
+  useEffect(() => {
+    if (!status.connected) return
+    setAuthOpen(false)
+    setAuthSubmitting(false)
+    setAuthError(null)
+  }, [status.connected])
+
+  useEffect(() => {
+    if (connectAuthNonce === 0 || status.connected || busy || authSubmitting) return
+    setAuthError(null)
+    setAuthOpen(true)
+  }, [connectAuthNonce, status.connected, busy, authSubmitting])
+
+  async function connectWithSession() {
+    await VPNService.Connect()
+    onChange()
+  }
+
   async function toggle() {
-    setBusy(true)
     setActionError(null)
-    try {
-      if (status.connected) {
+    if (status.connected) {
+      setBusy(true)
+      try {
         await VPNService.Disconnect()
-      } else {
-        await VPNService.Connect()
+        onChange()
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : String(err))
+      } finally {
+        setBusy(false)
       }
-      onChange()
+      return
+    }
+
+    if (authOpen || authSubmitting) return
+
+    setBusy(true)
+    try {
+      const session = await VPNService.MarketplaceSessionStatus()
+      if (session.loggedIn) {
+        await connectWithSession()
+        return
+      }
+      setAuthError(null)
+      setAuthOpen(true)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -61,7 +111,38 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
     }
   }
 
-  async function openFiles(kind: 'smb-home' | 'smb-shared' | 'filebrowser') {
+  async function handleAuthSubmit(username: string, password: string) {
+    setAuthSubmitting(true)
+    setAuthError(null)
+    try {
+      await VPNService.MarketplaceLogin({
+        serverBaseURL: status.serverBaseURL,
+        username,
+        password,
+      })
+      saveLastUsername(username)
+      // Fecha o sheet ANTES do Connect — evita face "Protegido" + modal
+      // "Conectando…" sobrepostos enquanto o status atualiza.
+      setAuthOpen(false)
+      setBusy(true)
+      await connectWithSession()
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : String(err))
+      // Mantém o sheet aberto só em falha de login/connect.
+      setAuthOpen(true)
+    } finally {
+      setAuthSubmitting(false)
+      setBusy(false)
+    }
+  }
+
+  function cancelAuth() {
+    if (authSubmitting) return
+    setAuthOpen(false)
+    setAuthError(null)
+  }
+
+  async function openFiles(kind: 'smb-home' | 'smb-shared' | 'filebrowser' | 'xchat' | 'xgroup') {
     setActionError(null)
     try {
       await VPNService.OpenServerFiles(kind)
@@ -77,215 +158,316 @@ export function MainPage({ status, onChange, error, onOpenSettings, onOpenDiagno
       ? 'Seu usuário ainda não tem Samba habilitado no painel'
       : undefined
 
-  const glowVar = status.reconnecting ? 'var(--glow-amber)' : status.connected ? 'var(--glow)' : undefined
+  const statusLabel = status.reconnecting
+    ? 'Reconectando'
+    : status.connected
+      ? 'Protegido'
+      : 'Desligado'
+
+  const statusTone = status.connected
+    ? 'text-safe'
+    : status.reconnecting
+      ? 'text-amber-400'
+      : 'text-muted-foreground'
+
+  const elapsed = status.connectedSince ? formatElapsedSince(status.connectedSince) : '00:00'
 
   return (
-    <div className="dot-grid relative flex h-full flex-col gap-4 overflow-y-auto p-6">
-      <div className="glow-blob pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2" />
+    <WatchShell>
+      <CredentialPrompt
+        open={authOpen}
+        serverBaseURL={status.serverBaseURL}
+        submitting={authSubmitting}
+        error={authError}
+        onCancel={cancelAuth}
+        onSubmit={handleAuthSubmit}
+      />
 
-      <header className="relative z-10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/logo-192.png" alt="" className="size-6 drop-shadow-[0_0_10px_var(--color-glow)]" />
-          <h1 className="text-lg font-semibold tracking-tight">XVPN</h1>
+      <motion.div
+        className="relative z-10 flex min-h-0 flex-1 flex-col"
+        animate={{
+          opacity: authOpen ? 0.35 : 1,
+          scale: authOpen ? 0.985 : 1,
+          filter: authOpen ? 'blur(2px)' : 'blur(0px)',
+        }}
+        transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        style={{ pointerEvents: authOpen ? 'none' : 'auto' }}
+      >
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/logo-192.png"
+            alt=""
+            className="size-7 rounded-[9px] shadow-[inset_0_1px_0_color-mix(in_oklch,white_20%,transparent)]"
+          />
+          <span className="font-display text-[17px] font-semibold tracking-tight">XVPN</span>
         </div>
         <div className="flex items-center gap-2">
-          <Badge
-            variant={status.connected ? 'default' : 'outline'}
-            className="rounded-md font-mono tracking-wide"
-          >
-            {status.reconnecting
-              ? `Reconectando (${status.reconnectAttempt + 1})`
-              : status.connected
-                ? 'Conectado'
-                : 'Desconectado'}
-          </Badge>
-          <button
-            onClick={onOpenApps}
-            aria-label="Apps"
-            title="Marketplace de programas"
-            className="rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Store className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onOpenDiagnostics}
-            aria-label="Diagnóstico"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Stethoscope className="h-4 w-4" />
-          </button>
-          <button
-            onClick={onOpenSettings}
-            aria-label="Preferências"
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
+          <WatchIconButton onClick={onOpenApps} label="Marketplace" title="Marketplace" filled>
+            <Store className="h-4 w-4" strokeWidth={2} />
+          </WatchIconButton>
+          <WatchIconButton onClick={onOpenDiagnostics} label="Diagnóstico" filled>
+            <Stethoscope className="h-4 w-4" strokeWidth={2} />
+          </WatchIconButton>
+          <WatchIconButton onClick={onOpenSettings} label="Preferências" filled>
+            <Settings className="h-4 w-4" strokeWidth={2} />
+          </WatchIconButton>
         </div>
       </header>
 
-      <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3">
-        <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-1/2 z-0 h-56 w-full -translate-y-1/2 opacity-60" />
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+        <AnimatePresence mode="wait">
+          {status.connected ? (
+            <motion.div
+              key="on"
+              initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-1 flex flex-col items-center"
+            >
+              <p className="font-display text-[52px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+                {elapsed}
+              </p>
+              <p className={`mt-2 flex items-center gap-1.5 font-display text-[13px] font-medium ${statusTone}`}>
+                <span className="status-safe-dot size-1.5 rounded-full" />
+                {statusLabel}
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="off"
+              initial={{ opacity: 0, y: 10, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-1 flex flex-col items-center"
+            >
+              <p className="font-display text-[52px] font-semibold leading-none tracking-tight text-muted-foreground/30">
+                —:—
+              </p>
+              <p className={`mt-2 flex items-center gap-1.5 font-display text-[13px] font-medium ${statusTone}`}>
+                <span
+                  className={`size-1.5 rounded-full ${
+                    status.reconnecting ? 'bg-amber-400' : 'bg-muted-foreground/50'
+                  }`}
+                />
+                {status.reconnecting ? 'Reconectando' : 'Pronto'}
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {status.connected && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 flex flex-col items-center gap-1.5"
-          >
-            <div className="flex items-center gap-2">
-              <span className="cyber-diamond size-2 bg-primary" />
-              <span className="hud-label text-muted-foreground/80">Conexão segura</span>
-            </div>
-            <p className="font-mono text-3xl font-semibold tabular-nums text-glow">
-              {status.connectedSince ? formatElapsedSince(status.connectedSince) : '--:--'}
-            </p>
-          </motion.div>
-        )}
-
-        <div className="relative z-20 flex size-36 items-center justify-center">
-          {/* Anel decorativo: pointer-events-none obrigatório — com
-              animate-spin (transform) o SVG cria stacking context e, no
-              WebKitGTK do Wails, interceptava cliques no botão por baixo. */}
-          <svg
-            viewBox="0 0 100 100"
-            className="pointer-events-none absolute inset-0 h-full w-full animate-spin-slow text-primary/40"
-            aria-hidden="true"
-          >
-            <circle
-              cx="50"
-              cy="50"
-              r="47"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeDasharray="2 8"
-              strokeLinecap="round"
-            />
-          </svg>
+        <div className="relative mt-1 flex size-[200px] items-center justify-center">
+          <ConnectionRings
+            className="absolute inset-0"
+            active={status.connected && !busy}
+            reconnecting={status.reconnecting}
+          />
           <motion.button
             type="button"
             onClick={toggle}
-            disabled={busy}
+            disabled={busy || authOpen || authSubmitting}
             aria-label={status.connected ? 'Desconectar' : 'Conectar'}
-            whileTap={{ scale: 0.94 }}
-            animate={status.connected && !busy ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-            transition={status.connected ? { duration: 2.6, repeat: Infinity, ease: 'easeInOut' } : undefined}
-            className={`relative z-10 flex h-32 w-32 cursor-pointer items-center justify-center rounded-full border-4 transition-colors disabled:cursor-wait disabled:opacity-60 ${
+            whileTap={{ scale: 0.92 }}
+            whileHover={busy || status.connected ? undefined : { scale: 1.04 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+            className={`relative z-10 flex size-[88px] cursor-pointer items-center justify-center rounded-full transition-colors duration-300 disabled:cursor-wait ${
               status.connected
-                ? 'animate-pulse-glow border-primary bg-primary/10 text-primary'
+                ? 'power-safe'
                 : status.reconnecting
-                  ? 'border-amber-500/60 bg-amber-500/10 text-amber-400'
-                  : 'border-border bg-secondary text-muted-foreground hover:border-primary/50'
+                  ? 'bg-amber-500/90 text-black shadow-[0_8px_28px_-6px_var(--glow-amber)]'
+                  : 'bg-white/10 text-foreground backdrop-blur-md hover:bg-white/16'
             }`}
-            style={glowVar ? ({ '--glow': glowVar } as React.CSSProperties) : undefined}
           >
             <AnimatePresence mode="wait">
               {busy ? (
-                <motion.div key="busy" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
-                  <Loader2 className="h-10 w-10 animate-spin" />
+                <motion.div
+                  key="busy"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Loader2 className="h-8 w-8 animate-spin" strokeWidth={2.25} />
                 </motion.div>
               ) : (
-                <motion.div key="power" initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}>
-                  <Power className="h-10 w-10" />
+                <motion.div
+                  key="power"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Power className="h-8 w-8" strokeWidth={2.25} />
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.button>
         </div>
 
-        <p className="relative z-10 text-sm text-muted-foreground">
+        <p className="mt-3 font-display text-[13px] text-muted-foreground">
           {busy
             ? 'Aplicando…'
             : status.reconnecting
-              ? 'Túnel caiu, tentando reconectar automaticamente…'
+              ? 'Restaurando o túnel…'
               : status.connected
-                ? 'Toque para desconectar'
+                ? 'Toque para desligar'
                 : 'Toque para conectar'}
         </p>
+
         {status.killSwitchActive && (
-          <p className="relative z-10 flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mt-1.5 flex items-center gap-1 font-display text-[11px] text-muted-foreground/80">
             <ShieldCheck className="h-3.5 w-3.5" />
-            Kill switch ativo — tráfego fora da VPN bloqueado
+            Kill switch ativo
           </p>
         )}
       </div>
 
       {(error || actionError) && (
-        <p className="relative z-10 text-center text-sm text-destructive">{actionError ?? error}</p>
+        <p className="mb-2 text-center font-display text-[13px] text-destructive">{actionError ?? error}</p>
       )}
 
-      {status.connected && (
-        <Card className="cyber-frame relative z-10 border-white/5 bg-card/70">
-          <CardContent className="grid grid-cols-2 gap-3 p-4 text-sm">
-            <InfoItem label="IP atribuído" value={status.assignedIP} />
-            <InfoItem label="Servidor" value={status.serverEndpoint} />
-            <InfoItem
-              label="Último handshake"
-              value={status.lastHandshake ? formatRelativeTime(status.lastHandshake) : '—'}
-            />
-            <InfoItem
-              label="Recebido"
-              value={formatBytes(status.receiveBytes)}
-              icon={<ArrowDown className="h-3.5 w-3.5 text-primary" />}
-            />
-            <InfoItem
-              label="Enviado"
-              value={formatBytes(status.transmitBytes)}
-              icon={<ArrowUp className="h-3.5 w-3.5 text-primary" />}
-            />
-          </CardContent>
-        </Card>
-      )}
+      <AnimatePresence>
+        {status.connected && (
+          <motion.div
+            key="complications"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-3"
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <Complication label="IP" value={shortIP(status.assignedIP)} />
+              <Complication label="Servidor" value={shortEndpoint(status.serverEndpoint)} />
+              <Complication
+                label="Handshake"
+                value={status.lastHandshake ? formatRelativeTime(status.lastHandshake) : '—'}
+              />
+              <Complication
+                label="Tráfego"
+                value={`${formatBytes(status.receiveBytes)} ↓`}
+                icon={<ArrowDown className="h-3 w-3 opacity-70" />}
+                secondary={`${formatBytes(status.transmitBytes)} ↑`}
+                secondaryIcon={<ArrowUp className="h-3 w-3 opacity-70" />}
+              />
+            </div>
 
-      {status.connected && (
-        <div className="relative z-10 flex flex-col gap-2">
-          <div className="flex gap-3">
-            <button
-              onClick={() => openFiles('smb-home')}
-              disabled={!sambaReady}
-              title={sambaHint}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:shadow-none"
-            >
-              <FolderOpen className="h-4 w-4" />
-              Meus arquivos
-            </button>
-            <button
-              onClick={() => openFiles('smb-shared')}
-              disabled={!sambaReady}
-              title={sambaHint}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:shadow-none"
-            >
-              <FolderOpen className="h-4 w-4" />
-              Compartilhado
-            </button>
-            <button
-              onClick={() => openFiles('filebrowser')}
-              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-border bg-secondary px-3 py-2.5 font-mono text-sm font-medium tracking-wide text-secondary-foreground transition-all hover:border-primary/40 hover:bg-secondary/80 hover:shadow-[0_0_20px_-6px_var(--color-glow)]"
-            >
-              <Globe className="h-4 w-4" />
-              Navegador
-            </button>
-          </div>
-          {status.connected && !status.sambaEnabled && (
-            <p className="text-center text-xs text-muted-foreground">
-              Samba desabilitado para {status.username || 'seu usuário'} — peça ao admin no painel.
-            </p>
-          )}
-        </div>
+            <div className="flex flex-wrap justify-center gap-4 pt-1">
+              <AppSlot
+                onClick={() => openFiles('smb-home')}
+                disabled={!sambaReady}
+                title={sambaHint ?? 'Meus arquivos'}
+                label="Arquivos"
+                icon={<FolderOpen className="h-5 w-5" />}
+              />
+              <AppSlot
+                onClick={() => openFiles('smb-shared')}
+                disabled={!sambaReady}
+                title={sambaHint ?? 'Compartilhado'}
+                label="Shared"
+                icon={<Share2 className="h-5 w-5" />}
+              />
+              <AppSlot
+                onClick={() => openFiles('filebrowser')}
+                title="XDriver na VPN"
+                label="XDriver"
+                icon={<Globe className="h-5 w-5" />}
+              />
+              <AppSlot
+                onClick={() => openFiles('xchat')}
+                title="xchat na VPN"
+                label="xchat"
+                icon={<MessageCircle className="h-5 w-5" />}
+              />
+              <AppSlot
+                onClick={() => openFiles('xgroup')}
+                title="xgroup na VPN"
+                label="xgroup"
+                icon={<Users className="h-5 w-5" />}
+              />
+            </div>
+
+            {!status.sambaEnabled && (
+              <p className="text-center font-display text-[11px] text-muted-foreground">
+                Samba desabilitado para {status.username || 'seu usuário'}
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      </motion.div>
+    </WatchShell>
+  )
+}
+
+function Complication({
+  label,
+  value,
+  icon,
+  secondary,
+  secondaryIcon,
+}: {
+  label: string
+  value: string
+  icon?: ReactNode
+  secondary?: string
+  secondaryIcon?: ReactNode
+}) {
+  return (
+    <div className="watch-complication rounded-[18px] px-3.5 py-2.5">
+      <p className="hud-label text-muted-foreground/75">{label}</p>
+      <p className="mt-0.5 flex items-center gap-1 font-display text-[13px] font-semibold tabular-nums tracking-tight">
+        {icon}
+        <span className="truncate">{value}</span>
+      </p>
+      {secondary && (
+        <p className="mt-0.5 flex items-center gap-1 font-display text-[12px] tabular-nums text-muted-foreground">
+          {secondaryIcon}
+          {secondary}
+        </p>
       )}
     </div>
   )
 }
 
-function InfoItem({ label, value, icon }: { label: string; value: string; icon?: ReactNode }) {
+function AppSlot({
+  onClick,
+  disabled,
+  title,
+  label,
+  icon,
+}: {
+  onClick: () => void
+  disabled?: boolean
+  title: string
+  label: string
+  icon: ReactNode
+}) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="hud-label text-muted-foreground/70">{label}</span>
-      <span className="flex items-center gap-1 font-mono font-medium">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="group flex flex-col items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <span className="icon-well-lg flex size-12 items-center justify-center rounded-[16px] text-foreground transition-transform group-hover:scale-105 group-active:scale-95">
         {icon}
-        {value}
       </span>
-    </div>
+      <span className="font-display text-[10px] font-medium text-muted-foreground">{label}</span>
+    </button>
   )
+}
+
+function shortIP(ip: string) {
+  return ip.replace(/\/\d+$/, '')
+}
+
+function shortEndpoint(ep: string) {
+  if (ep.length <= 18) return ep
+  const [host, port] = ep.split(':')
+  if (!port) return ep.slice(0, 16) + '…'
+  return `${host.slice(0, 10)}…:${port}`
 }

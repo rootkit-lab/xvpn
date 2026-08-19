@@ -1,47 +1,41 @@
 ---
 name: samba-user-ops
-description: Cria, lista ou remove usuários Samba manualmente no VPS do XVPN (share [shared], acessível só via wg0). Não há sincronização automática com o painel/usuários XVPN — é uma decisão de escopo da Fase 5 do ROADMAP, ver justificativa abaixo. Use quando o usuário pedir para dar acesso a arquivos do servidor pra alguém, ou remover esse acesso.
+description: Garante o usuário de sistema xvpn-shared (force user do share [shared]) e opera contas Samba legadas no VPS do XVPN. Os shares pessoais home-<user> e o [shared] em guest são sincronizados pelo painel (Fases 13/14) — esta skill não cria home-* e não é o caminho normal de acesso. Use quando precisar recriar xvpn-shared após reprovisionar o Samba, ou limpar contas smbpasswd antigas.
 ---
 
-# Operações manuais de usuário Samba (XVPN)
+# Operações Samba no VPS (XVPN)
 
-Pré-requisito: Fase 5 do `ROADMAP.md` concluída — Samba instalado e configurado (`server/deploy/samba/smb.conf` aplicado em `/etc/samba/smb.conf` no VPS, serviço `smbd` ativo, bind restrito a `wg0`/`lo`).
+Pré-requisito: Samba instalado com `server/deploy/samba/smb.conf` aplicado em `/etc/samba/smb.conf`, `smbd` ativo, bind só em `wg0`/`lo`.
 
-## Por que não é sincronizado com o painel XVPN
+## Modelo atual (Fases 13/14)
 
-O processo `xvpn-server` roda como usuário de sistema sem privilégio para criar contas Unix/Samba (least privilege — só tem `CAP_NET_ADMIN`, ver `PLAN.md` §6). Automatizar isso exigiria dar ao painel poder de criar usuários de sistema, o que aumenta bastante a superfície de risco de qualquer bug/RCE no painel. Por ora, a criação de usuário Samba é manual (via esta skill), independente da criação de usuário XVPN pelo painel. Isso pode ser revisitado numa fase futura se fizer sentido (ex.: endpoint de admin dedicado, com seu próprio hardening).
+- Shares pessoais `[home-<username>]`: provisionados pelo painel (`PUT /api/users/:id/file-access` → `xvpn-user-provision`), com `guest ok = yes` + `force user = <username>`. A VPN é a barreira de autenticação.
+- Share `[shared]`: também `guest ok = yes`, com `force user = xvpn-shared` (conta de sistema no grupo `xvpn-samba`) e `force group = xvpn-samba`.
+- O cliente desktop abre `smb-home` / `smb-shared` sem senha Samba.
 
-## Scripts disponíveis
+**Não use esta skill para “dar acesso a arquivos” a um usuário XVPN** — ligue Samba/SFTP no painel. Contas `smbpasswd` manuais eram o modelo da Fase 5 e ficaram obsoletas para o fluxo normal.
 
-### Criar/atualizar usuário
+## Garantir `xvpn-shared` (force user do [shared])
+
+```bash
+ssh root@206.189.224.72 'getent group xvpn-samba >/dev/null || groupadd xvpn-samba
+getent passwd xvpn-shared >/dev/null || useradd --system --no-create-home --shell /usr/sbin/nologin -g xvpn-samba xvpn-shared
+install -d -o root -g xvpn-samba -m 2770 /srv/xvpn/shared
+id xvpn-shared'
+```
+
+## Scripts legados (contas smbpasswd)
+
+Ainda úteis só para limpeza ou compatibilidade com clientes antigos que autentiquem de verdade:
 
 ```bash
 .cursor/skills/samba-user-ops/scripts/add-user.sh <username> [usuario@host]
-```
-
-Cria o usuário de sistema (sem shell, sem home — `--no-create-home --shell /usr/sbin/nologin`), adiciona ao grupo `xvpn-samba` (dono do compartilhamento `[shared]`), gera uma senha aleatória e cadastra no Samba (`smbpasswd`). Imprime a senha gerada **uma única vez** no terminal — copie e passe pro usuário por um canal seguro; não fica salva em nenhum arquivo.
-
-Se o usuário já existir (de sistema), só atualiza a senha/conta Samba.
-
-### Listar usuários Samba ativos
-
-```bash
 .cursor/skills/samba-user-ops/scripts/list-users.sh [usuario@host]
-```
-
-### Remover usuário
-
-```bash
 .cursor/skills/samba-user-ops/scripts/remove-user.sh <username> [usuario@host]
 ```
 
-Remove a conta Samba e o usuário de sistema.
+## Acesso com a VPN conectada
 
-## Acesso ao compartilhamento
-
-Com a VPN conectada (túnel WireGuard ativo):
-- Windows: barra de endereço do Explorer → `\\10.66.66.1\shared`
-- Linux (GVFS/Nautilus/Dolphin): `smb://10.66.66.1/shared`
-- macOS: Finder → Ir → Conectar ao Servidor → `smb://10.66.66.1/shared`
-
-Sem a VPN ativa, a conexão nem chega no servidor — `smbd` só escuta em `wg0`/`lo` (ver `PLAN.md` §3.4 e §5).
+- Pessoal: `smb://10.66.66.1/home-<usuario>` ou botão “Meus arquivos” no cliente
+- Compartilhado: `smb://10.66.66.1/shared` ou botão “Compartilhado”
+- FileBrowser: `http://10.66.66.1:8081`

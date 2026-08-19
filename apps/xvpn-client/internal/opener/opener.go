@@ -12,10 +12,25 @@ func OpenURL(url string) error {
 }
 
 // OpenSMBShare abre o compartilhamento SMB especificado no gerenciador de
-// arquivos padrão do SO — Explorer via caminho UNC no Windows,
-// GVFS/Nautilus/Dolphin via URI smb:// no Linux.
+// arquivos padrão do SO — Explorer via caminho UNC no Windows; no Linux
+// prefere o mount CIFS do helper em ~/XVPN e cai no GVFS anônimo (Cosmic
+// Files não trata smb:// como pasta — ver opener_linux.go).
 func OpenSMBShare(host, share string) error {
 	return openSMBShare(host, share)
+}
+
+// EnsureSMBMounted prepara o share no SO (no Linux: CIFS se já montado,
+// senão gio mount --anonymous) sem abrir o gerenciador. Chamado após
+// Connect para os mounts já existirem quando o usuário clicar.
+func EnsureSMBMounted(host, share string) error {
+	return ensureSMBMounted(host, share)
+}
+
+// UnmountServerSMBShares desmonta todos os shares SMB desse host no SO
+// (GVFS no Linux), remove atalhos ~/XVPN e restos de ícones/pastas no
+// Desktop. Chamado no Disconnect e quando a bandeja detecta queda do túnel.
+func UnmountServerSMBShares(host string) error {
+	return unmountServerSMBShares(host)
 }
 
 // OpenPath abre um arquivo ou pasta local no aplicativo/gerenciador de

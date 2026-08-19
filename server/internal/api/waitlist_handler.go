@@ -113,11 +113,25 @@ func (a *App) handleJoinWaitlist(c *gin.Context) {
 	c.JSON(http.StatusCreated, toWaitlistResponse(entry))
 }
 
-// handleListWaitlist lista todos os cadastros (pendentes e já avaliados).
-// GET /api/waitlist
+// handleListWaitlist lista cadastros (pendentes e já avaliados).
+// GET /api/waitlist?page=&per_page=&q=&status=
 func (a *App) handleListWaitlist(c *gin.Context) {
+	p := parsePage(c)
+	q := a.Store.DB.Model(&store.WaitlistEntry{})
+	if p.Q != "" {
+		like := p.like()
+		q = q.Where("name LIKE ? OR email LIKE ?", like, like)
+	}
+	if status := c.Query("status"); status == waitlistStatusPending || status == waitlistStatusApproved || status == waitlistStatusRejected {
+		q = q.Where("status = ?", status)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
 	var entries []store.WaitlistEntry
-	if err := a.Store.DB.Order("created_at desc").Find(&entries).Error; err != nil {
+	if err := p.apply(q.Order("created_at desc")).Find(&entries).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -125,7 +139,7 @@ func (a *App) handleListWaitlist(c *gin.Context) {
 	for _, e := range entries {
 		resp = append(resp, toWaitlistResponse(e))
 	}
-	c.JSON(http.StatusOK, resp)
+	writePage(c, resp, total, p)
 }
 
 // handleApproveWaitlist e handleRejectWaitlist só atualizam o status
@@ -206,7 +220,12 @@ func (a *App) handleProvisionWaitlist(c *gin.Context) {
 		return
 	}
 
-	user := store.User{Username: req.Username, PasswordHash: hash, Role: role}
+	products, err := store.ResolveAssignedProducts(callerRole(c), callerProducts(c), nil, role)
+	if err != nil {
+		writeProductAssignError(c, err)
+		return
+	}
+	user := store.User{Username: req.Username, PasswordHash: hash, Role: role, Products: products}
 	var invite store.InviteToken
 	now := time.Now()
 

@@ -11,7 +11,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(rootDir, './src'),
+      '@chat': path.resolve(rootDir, '../../apps/xvpn-chat/frontend/src'),
+      '@xvpn/ui': path.resolve(rootDir, '../../shared/ui'),
+      react: path.resolve(rootDir, './node_modules/react'),
+      'react-dom': path.resolve(rootDir, './node_modules/react-dom'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   build: {
     // Sai direto dentro do pacote Go que faz o embed (server/internal/webui/dist)
@@ -32,6 +37,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
+        ws: true,
       },
     },
   },

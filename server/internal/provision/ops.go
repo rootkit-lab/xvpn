@@ -114,6 +114,9 @@ func Create(r Runner, username string) error {
 	if err := r.Chmod(files, 0o700); err != nil {
 		return fmt.Errorf("chmod 0700 %s: %w", files, err)
 	}
+	if err := r.GrantXvpnACL(files, username); err != nil {
+		return fmt.Errorf("acl xvpn em %s: %w", files, err)
+	}
 
 	// .ssh/: root:root 0755 (dentro da raiz do chroot, mas o usuário não
 	// escreve aqui — só o binário privilegiado escreve o authorized_keys

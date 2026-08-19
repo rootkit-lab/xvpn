@@ -9,8 +9,10 @@ package linux
 
 import (
 	"fmt"
+	"log/slog"
 	"net"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -207,9 +209,9 @@ func (e *Engine) Connect(cfg tunnel.Config) error {
 
 	if len(cfg.DNS) > 0 {
 		if err := applyDNS(cfg.DNS); err != nil {
-			// DNS é best-effort: sem systemd-resolved, seguimos conectados
-			// mas sem resolução automática — documentado como limitação
-			// conhecida (ver ROADMAP.md Fase 4).
+			// DNS é best-effort: sem systemd-resolved/polkit, seguimos
+			// conectados mas sem resolução automática (ROADMAP Fase 4).
+			slog.Warn("apply dns failed", "err", err)
 			e.dnsApplied = false
 		} else {
 			e.dnsApplied = true
@@ -437,25 +439,34 @@ func removeRoute(route *netlink.Route) error {
 	return netlink.RouteDel(route)
 }
 
-// applyDNS usa systemd-resolved (presente na maioria das distros
-// modernas, incluindo a imagem-base do Ubuntu) para rotear todas as
-// consultas DNS pela xvpn0 enquanto o túnel estiver ativo — o mesmo
-// mecanismo que o `wg-quick` usa. Se resolvectl não existir, é um no-op:
-// o túnel funciona, só sem DNS automático (limitação conhecida da Fase 4;
-// revisitar num hardening futuro, ex. fallback para reescrever
-// /etc/resolv.conf).
+// applyDNS aponta só a zona corp para o dnsmasq da wg0. Não usa ~. nem
+// default-route=yes: isso sequestrava o DNS público (Cursor, apt, etc.)
+// e, se o dnsmasq não encaminhasse, a máquina ficava sem internet.
 func applyDNS(dns []string) error {
 	if _, err := exec.LookPath("resolvectl"); err != nil {
 		return fmt.Errorf("resolvectl não encontrado")
 	}
-	args := append([]string{"dns", ifaceName}, dns...)
-	if err := exec.Command("resolvectl", args...).Run(); err != nil {
-		return fmt.Errorf("resolvectl dns: %w", err)
+	dnsArgs, domainArgs, defaultRouteArgs := splitHorizonResolvectlArgs(ifaceName, dns)
+	if out, err := exec.Command("resolvectl", dnsArgs...).CombinedOutput(); err != nil {
+		return fmt.Errorf("resolvectl dns: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	if err := exec.Command("resolvectl", "domain", ifaceName, "~.").Run(); err != nil {
-		return fmt.Errorf("resolvectl domain: %w", err)
+	if out, err := exec.Command("resolvectl", domainArgs...).CombinedOutput(); err != nil {
+		return fmt.Errorf("resolvectl domain: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
+	_ = exec.Command("resolvectl", "dnsovertls", ifaceName, "no").Run()
+	_ = exec.Command("resolvectl", "dnssec", ifaceName, "no").Run()
+	_ = exec.Command("resolvectl", defaultRouteArgs...).Run()
 	return nil
+}
+
+// splitHorizonResolvectlArgs é o contrato do DNS do túnel: só a zona corp
+// vai para 10.66.66.1. `~.` / default-route=yes sequestram o resolvedor
+// público e derrubam Cursor/apt quando o dnsmasq não encaminha.
+func splitHorizonResolvectlArgs(iface string, dns []string) (dnsArgs, domainArgs, defaultRouteArgs []string) {
+	dnsArgs = append([]string{"dns", iface}, dns...)
+	domainArgs = []string{"domain", iface, "~corp.ihuull.com"}
+	defaultRouteArgs = []string{"default-route", iface, "no"}
+	return
 }
 
 func revertDNS() {

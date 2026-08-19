@@ -1,0 +1,21 @@
+{
+  "name": "teste",
+  "image": "ihuull/codespace:1.98.2",
+  "remoteUser": "openvscode-server",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "workbench.colorTheme": "ihuull Dark",
+        "editor.fontFamily": "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+        "editor.minimap.enabled": false,
+        "files.trimTrailingWhitespace": true
+      },
+      "extensions": [
+        "golang.go",
+        "yzhang.markdown-all-in-one",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "postCreateCommand": "go version && node -v && ./scripts/check.sh"
+}

@@ -13,6 +13,9 @@ const (
 	RoleAdmin      Role = "admin"
 	RoleViewer     Role = "viewer"
 	RoleMember     Role = "member"
+	// RoleBot é o usuário de sistema xbot (Fase 27): sem login no painel,
+	// sem peer WireGuard. Não entra em AdminRoles/ViewerUpRoles.
+	RoleBot Role = "xbot"
 )
 
 // roleRank ordena papéis para checagens de "quem pode gerenciar quem"
@@ -70,7 +73,12 @@ type User struct {
 	// Role nunca fica vazio em produção: AutoMigrate cria a coluna com
 	// default "member" (mais restritivo) e Open() faz backfill explícito
 	// logo em seguida para as linhas pré-existentes — ver store.go.
-	Role      Role `gorm:"not null;default:member"`
+	Role Role `gorm:"not null;default:member"`
+	// Products (Fase 33 — PLAN.md §6.13) restringe um admin a seções do
+	// /admin. Lista vazia/nil = sem restrição (compatível com a matriz
+	// RBAC da Fase 10). super_admin ignora o campo. viewer/member não
+	// usam. Persistido como JSON no SQLite e no documento Mongo.
+	Products  []Product `gorm:"serializer:json"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
@@ -90,6 +98,10 @@ type User struct {
 	// para cobrir celular ou máquina sem o cliente XVPN instalado. Ver
 	// renderAuthorizedKeys em internal/api e PLAN.md §6.9.
 	SSHPublicKey string `gorm:"type:text;default:''"`
+	// DiskQuotaMB (Fase 15): limite hard de disco em /home/<user>/files
+	// via setquota (usrquota). 0 = sem limite. Só faz sentido com
+	// SFTP/Samba ligados; o painel aplica via xvpn-user-provision set-quota.
+	DiskQuotaMB uint64 `gorm:"not null;default:0"`
 
 	Devices      []Device      `gorm:"foreignKey:UserID"`
 	InviteTokens []InviteToken `gorm:"foreignKey:UserID"`
@@ -188,6 +200,54 @@ func (v AppVisibility) Valid() bool {
 	return v == AppVisibilityGlobal || v == AppVisibilityRestricted
 }
 
+// AppNetwork controla ONDE um App aparece no catálogo — distinto de
+// AppVisibility (quem, ACL). Ver PLAN.md §6.13: network:vpn só lista e
+// baixa de dentro do túnel ou de *.corp; network:public aparece na loja
+// pública (marketplace.ihuull.com) com JWE.
+type AppNetwork string
+
+const (
+	AppNetworkPublic AppNetwork = "public"
+	AppNetworkVPN    AppNetwork = "vpn"
+)
+
+// Valid reporta se n é um dos dois modos de rede reconhecidos.
+func (n AppNetwork) Valid() bool {
+	return n == AppNetworkPublic || n == AppNetworkVPN
+}
+
+// AppKind classifica o artefato no catálogo (Fase 36 — PLAN.md §6.8).
+// A loja (member) só lista desktop/web; os demais kinds ficam no xadmin.
+type AppKind string
+
+const (
+	AppKindDesktop   AppKind = "desktop"
+	AppKindWeb       AppKind = "web"
+	AppKindService   AppKind = "service"
+	AppKindLibrary   AppKind = "library"
+	AppKindInfra     AppKind = "infra"
+	AppKindDocs      AppKind = "docs"
+	AppKindContainer AppKind = "container"
+)
+
+func (k AppKind) Valid() bool {
+	switch k {
+	case AppKindDesktop, AppKindWeb, AppKindService, AppKindLibrary, AppKindInfra, AppKindDocs, AppKindContainer:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsStoreKind reporta se o kind entra na vitrine (Play Store / member).
+func (k AppKind) IsStoreKind() bool {
+	kk := k
+	if kk == "" {
+		kk = AppKindDesktop
+	}
+	return kk == AppKindDesktop || kk == AppKindWeb
+}
+
 const (
 	ChannelStable = "stable"
 	ChannelBeta   = "beta"
@@ -199,20 +259,47 @@ func ValidChannel(c string) bool {
 	return c == ChannelStable || c == ChannelBeta
 }
 
-// App é um programa distribuído pelo catálogo interno do marketplace (Fase
-// 11 — ver PLAN.md §6.8). Não confundir com o próprio cliente XVPN (esse
-// continua distribuído via GitHub Releases, ver /download): App é sempre
-// "outro" software (Linux/Windows/Android) que o admin decide disponibilizar
-// aos usuários da VPN.
+// Origem de um App no catálogo (Fase 16 — PLAN.md §6.10): "build" é
+// compilado neste monorepo; "external" é binário de terceiro referenciado
+// por URL+SHA-256 no manifesto.
+const (
+	AppSourceBuild    = "build"
+	AppSourceExternal = "external"
+)
+
+// App é um programa distribuído pelo catálogo interno do marketplace
+// (Fases 11/16 — ver PLAN.md §6.8 e §6.10). A partir da Fase 16 o catálogo
+// é um espelho de `apps/*/marketplace.yaml` publicado pelo CI: o próprio
+// cliente XVPN pode ter entrada aqui (canal de atualização). A página
+// `/download` continua sendo o caminho de primeira instalação — quem
+// chega ali ainda não tem VPN nem, possivelmente, login.
 type App struct {
-	ID          uint   `gorm:"primaryKey"`
+	ID uint `gorm:"primaryKey"`
+	// Slug é a chave estável de identidade (nome da pasta em apps/). Unique;
+	// renomear a pasta arquiva um app e cria outro no próximo sync.
+	Slug        string `gorm:"uniqueIndex;not null;default:''"`
 	Name        string `gorm:"not null"`
 	Description string
 	IconURL     string
+	// Source / SourcePath vêm do manifesto (build|external e
+	// apps/<slug>).
+	Source     string `gorm:"not null;default:''"`
+	SourcePath string `gorm:"not null;default:''"`
 	// Visibility nunca fica vazio: AutoMigrate cria a coluna com default
 	// "global" (mais permissivo dentro do que já é uma rede privada
-	// autenticada) — admin ajusta para "restricted" explicitamente.
+	// autenticada) — admin ajusta para "restricted" explicitamente via
+	// manifesto; a ACL nominal (AppAccess) continua no painel.
 	Visibility AppVisibility `gorm:"not null;default:global"`
+	// Network é onde o app pode ser listado/baixado (public|vpn). Default
+	// public: o cliente da VPN precisa aparecer na loja aberta; apps de
+	// intranet (xchat) declaram vpn no manifesto. Vazio (linhas antigas)
+	// é tratado como public no sync e na listagem.
+	Network AppNetwork `gorm:"not null;default:public"`
+	// Kind (desktop|web|service|…). Vazio nas linhas antigas = desktop.
+	Kind AppKind `gorm:"not null;default:desktop"`
+	// ArchivedAt marca apps cujo slug sumiu do diretório no último sync —
+	// nunca hard-delete pelo CI (PLAN.md §6.10.3). Nil = ativo.
+	ArchivedAt *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 
@@ -288,4 +375,151 @@ type WaitlistEntry struct {
 	Status     string `gorm:"not null;default:pending"`
 	CreatedAt  time.Time
 	ReviewedAt *time.Time
+}
+
+// SocialProfile é a identidade pública do membro na organização (Fase 19.3).
+// Nunca inclui IP WireGuard, chaves, cota ou papel de admin.
+type SocialProfile struct {
+	ID          uint   `gorm:"primaryKey"`
+	UserID      uint   `gorm:"uniqueIndex;not null"`
+	DisplayName string `gorm:"not null"`
+	Bio         string `gorm:"type:text;default:''"`
+	AvatarURL   string `gorm:"default:''"`
+	BannerURL   string `gorm:"default:''"`
+	Theme       string `gorm:"default:''"`
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+
+	User User `gorm:"foreignKey:UserID"`
+}
+
+// Follow é unidirecional (seguir ≠ amizade).
+type Follow struct {
+	ID          uint `gorm:"primaryKey"`
+	FollowerID  uint `gorm:"uniqueIndex:idx_follow_pair;not null"`
+	FollowingID uint `gorm:"uniqueIndex:idx_follow_pair;not null"`
+	CreatedAt   time.Time
+}
+
+type SocialGroup struct {
+	ID          uint   `gorm:"primaryKey"`
+	Name        string `gorm:"not null"`
+	Description string `gorm:"type:text;default:''"`
+	OwnerUserID uint   `gorm:"not null;index"`
+	CreatedAt   time.Time
+
+	Owner User `gorm:"foreignKey:OwnerUserID"`
+}
+
+type SocialGroupMember struct {
+	ID        uint `gorm:"primaryKey"`
+	GroupID   uint `gorm:"uniqueIndex:idx_group_member;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_group_member;not null"`
+	CreatedAt time.Time
+}
+
+const (
+	ThreadKindDM    = "dm"
+	ThreadKindMR    = "mr"
+	ThreadKindIssue = "issue"
+)
+
+// DirectThread é uma conversa 1:1 (Kind=dm), thread de MR (Kind=mr) ou de issue (Kind=issue).
+// findOrCreateDM só casa Kind=dm — senão um MR/issue com 2 membros vira a DM deles.
+type DirectThread struct {
+	ID        uint   `gorm:"primaryKey"`
+	Kind      string `gorm:"not null;default:dm;index"`
+	Title     string
+	CreatedAt time.Time
+}
+
+type DirectThreadMember struct {
+	ID        uint `gorm:"primaryKey"`
+	ThreadID  uint `gorm:"uniqueIndex:idx_thread_member;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_thread_member;not null"`
+	CreatedAt time.Time
+}
+
+// Message.ThreadKind: "dm" | "group". ThreadID aponta para DirectThread ou SocialGroup.
+// Kind: "text" | "image" | "file" | "audio".
+type Message struct {
+	ID           uint   `gorm:"primaryKey"`
+	ThreadKind   string `gorm:"not null;index"`
+	ThreadID     uint   `gorm:"not null;index"`
+	AuthorID     uint   `gorm:"not null;index"`
+	Kind         string `gorm:"not null;default:text"`
+	Body         string `gorm:"type:text;not null;default:''"`
+	AttachmentID *uint
+	CreatedAt    time.Time
+}
+
+// MessageReceipt: entregue/lido por um membro (não o autor).
+type MessageReceipt struct {
+	ID          uint `gorm:"primaryKey"`
+	MessageID   uint `gorm:"uniqueIndex:idx_msg_receipt;not null"`
+	UserID      uint `gorm:"uniqueIndex:idx_msg_receipt;not null"`
+	DeliveredAt *time.Time
+	ReadAt      *time.Time
+}
+
+// SocialAttachment é um blob de mídia do chat/stories (Fase 21).
+// StoragePath é relativo a XVPN_SOCIAL_MEDIA_DIR — nunca um path do cliente.
+type SocialAttachment struct {
+	ID          uint   `gorm:"primaryKey"`
+	UploaderID  uint   `gorm:"not null;index"`
+	StoragePath string `gorm:"not null"`
+	Filename    string `gorm:"not null"`
+	Mime        string `gorm:"not null"`
+	SizeBytes   int64  `gorm:"not null"`
+	SHA256      string `gorm:"not null;index"`
+	CreatedAt   time.Time
+}
+
+// Story expira em 24h (estilo WhatsApp). Kind: "text" | "image".
+type Story struct {
+	ID           uint   `gorm:"primaryKey"`
+	AuthorID     uint   `gorm:"not null;index"`
+	Kind         string `gorm:"not null;default:text"`
+	Body         string `gorm:"type:text;not null;default:''"`
+	AttachmentID *uint
+	ExpiresAt    time.Time `gorm:"index;not null"`
+	CreatedAt    time.Time
+}
+
+type StoryView struct {
+	ID        uint `gorm:"primaryKey"`
+	StoryID   uint `gorm:"uniqueIndex:idx_story_view;not null"`
+	ViewerID  uint `gorm:"uniqueIndex:idx_story_view;not null"`
+	CreatedAt time.Time
+}
+
+// SocialPost é um post público do xgroup (timeline estilo Twitter).
+// Kind = text (padrão) ou repost (OriginalID aponta para o post original).
+// ProjectSlug (Fase 37) liga o post a um projeto do forge — o grupo
+// XGROUP do slug é a activity/issue; sem segundo social.
+type SocialPost struct {
+	ID          uint    `gorm:"primaryKey"`
+	AuthorID    uint    `gorm:"not null;index"`
+	Body        string  `gorm:"type:text;not null"`
+	Kind        string  `gorm:"default:'text'"`
+	OriginalID  *uint   `gorm:"index"`
+	ProjectSlug *string `gorm:"index"`
+	CreatedAt   time.Time
+}
+
+// SocialPostStar é a estrela (favorito) de um membro num post.
+type SocialPostStar struct {
+	ID        uint `gorm:"primaryKey"`
+	PostID    uint `gorm:"uniqueIndex:idx_post_star;not null"`
+	UserID    uint `gorm:"uniqueIndex:idx_post_star;not null"`
+	CreatedAt time.Time
+}
+
+// SocialPostComment é um comentário curto num post.
+type SocialPostComment struct {
+	ID        uint   `gorm:"primaryKey"`
+	PostID    uint   `gorm:"index;not null"`
+	AuthorID  uint   `gorm:"not null"`
+	Body      string `gorm:"type:text;not null"`
+	CreatedAt time.Time
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 )
 
 // Runner isola as chamadas de sistema que o provisionador faz (useradd,
@@ -30,6 +31,15 @@ type Runner interface {
 	RemoveFile(path string) error
 	ReloadSSH() error
 	ReloadSamba() error
+	ReloadDnsmasq() error
+	// SetUserQuota aplica quota de disco (ext4 usrquota) em KB soft=0
+	// hard=blocksKB. blocksKB=0 remove a quota do usuário.
+	SetUserQuota(username string, blocksKB uint64) error
+	// GrantXvpnACL dá rwx ao xvpn (Drive) e ao dono Unix (Samba
+	// force user) na pasta e no default ACL — senão o Drive cria
+	// subdirs como xvpn e o guest Samba (force user = dono) toma
+	// permission denied.
+	GrantXvpnACL(path, owner string) error
 }
 
 // osRunner é a implementação de produção de Runner: chama useradd via
@@ -191,6 +201,18 @@ func (osRunner) ReloadSSH() error {
 	return nil
 }
 
+func (osRunner) ReloadDnsmasq() error {
+	if out, err := exec.Command("dnsmasq", "--test").CombinedOutput(); err != nil {
+		return fmt.Errorf("dnsmasq --test rejeitou a config: %w: %s", err, string(out))
+	}
+	if err := exec.Command("systemctl", "reload", "dnsmasq").Run(); err != nil {
+		if err2 := exec.Command("systemctl", "restart", "dnsmasq").Run(); err2 != nil {
+			return fmt.Errorf("recarregando dnsmasq: %w", err2)
+		}
+	}
+	return nil
+}
+
 func (osRunner) ReloadSamba() error {
 	// testparm valida o smb.conf inteiro (incluindo o include novo)
 	// antes do reload — mesmo princípio do sshd -t.
@@ -212,6 +234,37 @@ func (osRunner) ReloadSamba() error {
 		if err2 := exec.Command("systemctl", "restart", "smbd").Run(); err2 != nil {
 			return fmt.Errorf("recarregando smbd: %w (restart também falhou: %v)", err, err2)
 		}
+	}
+	return nil
+}
+
+func (osRunner) SetUserQuota(username string, blocksKB uint64) error {
+	// setquota -u user soft hard softino hardino filesystem
+	// Valores em blocos de 1 KiB (man setquota). soft=0 → só hard limit.
+	soft, hard := "0", strconv.FormatUint(blocksKB, 10)
+	if blocksKB == 0 {
+		hard = "0"
+	}
+	cmd := exec.Command("setquota", "-u", username, soft, hard, "0", "0", "/")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("setquota %q: %w: %s", username, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func (osRunner) GrantXvpnACL(path, owner string) error {
+	spec := "u:xvpn:rwx"
+	if owner != "" && owner != "xvpn" {
+		if !ValidUsername(owner) {
+			return fmt.Errorf("dono ACL inválido")
+		}
+		spec += ",u:" + owner + ":rwx"
+	}
+	if out, err := exec.Command("setfacl", "-R", "-m", spec, path).CombinedOutput(); err != nil {
+		return fmt.Errorf("setfacl %s: %w: %s", path, err, strings.TrimSpace(string(out)))
+	}
+	if out, err := exec.Command("setfacl", "-R", "-d", "-m", spec, path).CombinedOutput(); err != nil {
+		return fmt.Errorf("setfacl default %s: %w: %s", path, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

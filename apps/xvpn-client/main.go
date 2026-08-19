@@ -67,7 +67,7 @@ func runGUI() {
 		// bandejas). Com UniqueID, a segunda invocação só sinaliza a
 		// primeira — ver https://v3.wails.io/guides/single-instance
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: "com.officeempresa.xvpn",
+			UniqueID: "com.ihuull.xvpn",
 			OnSecondInstanceLaunch: func(_ application.SecondInstanceData) {
 				if mainWindow == nil {
 					return
@@ -145,6 +145,15 @@ func setupTray(app *application.App, window application.Window) *trayHandles {
 	connectItem := menu.Add("Conectar").OnClick(func(_ *application.Context) {
 		go func() {
 			svc := &VPNService{}
+			// Sem sessão do painel (mesmo JWT do marketplace), abre a janela
+			// para o fluxo AnyConnect — usuário/senha antes do túnel. Com
+			// sessão válida nesta execução, sobe o túnel direto.
+			if !svc.MarketplaceSessionStatus().LoggedIn {
+				window.Show()
+				window.Focus()
+				app.Event.Emit("xvpn:request-connect-auth")
+				return
+			}
 			if err := svc.Connect(); err != nil {
 				slog.Warn("tray connect failed", "err", err)
 			}
@@ -233,6 +242,16 @@ func monitorTray(h *trayHandles) {
 		applyTrayStatus(h, status)
 		if status.Connected && !wasConnected {
 			go registerSSHKeyInBackground()
+			// Monta shares Samba (guest/GVFS) assim que o túnel sobe —
+			// inclusive se o app abriu já conectado. Cosmic Files só
+			// abre pasta local; o mount precisa existir antes do clique.
+			go svc.mountFileSharesBestEffort()
+		}
+		if wasConnected && !status.Connected {
+			// Queda do túnel (Disconnect, kill switch, perda de rede):
+			// some com mounts/ícones SMB — não deixar "shared on …" no
+			// gerenciador com a VPN desligada.
+			go svc.unmountFileSharesBestEffort()
 		}
 		wasConnected = status.Connected
 		<-ticker.C

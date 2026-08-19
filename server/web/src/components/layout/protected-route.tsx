@@ -1,27 +1,33 @@
-import { Navigate, Outlet } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/lib/auth-context'
-import { defaultRouteForRole, type Role } from '@/lib/roles'
+import { loginPathForLocation, type Role } from '@/lib/roles'
+import { productKind, ssoLoginURL } from '@/lib/product-host'
 import { PageFallback } from '@/components/layout/page-fallback'
+import { ForbiddenPage } from '@/pages/forbidden-page'
 
 // ProtectedRoute exige sessão válida e, opcionalmente (allowedRoles),
 // restringe por papel — ver PLAN.md §6.7. Sem allowedRoles, qualquer papel
-// autenticado passa (usado pelas telas comuns a todos, ex.: /portal,
-// /download).
+// autenticado passa (usado pelo painel do usuário em /my/*).
+// Sem sessão: SSO no xauth. Com sessão sem permissão: 403, não outro login.
 export function ProtectedRoute({ allowedRoles }: { allowedRoles?: Role[] }) {
   const { isAuthenticated, user, isLoadingUser } = useAuth()
+  const location = useLocation()
+  const loginPath = loginPathForLocation(location.pathname)
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+  if (isLoadingUser) {
+    return <PageFallback label="Verificando sessão…" />
   }
 
-  // Sem o papel carregado ainda não dá pra saber se allowedRoles autoriza
-  // esta rota — evita um flash da tela errada antes de GET /auth/me voltar.
-  if (isLoadingUser) {
-    return <PageFallback />
+  if (!isAuthenticated) {
+    if (productKind() === 'xauth') {
+      return <Navigate to={loginPath} replace state={{ from: location.pathname }} />
+    }
+    window.location.replace(ssoLoginURL())
+    return <PageFallback label="Redirecionando para o login…" />
   }
 
   if (allowedRoles && (!user || !allowedRoles.includes(user.role))) {
-    return <Navigate to={user ? defaultRouteForRole(user.role) : '/login'} replace />
+    return <ForbiddenPage />
   }
 
   return <Outlet />

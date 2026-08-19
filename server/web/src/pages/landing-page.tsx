@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Laptop, Lock, Network, ShieldCheck, Wifi, Zap } from 'lucide-react'
+import { ProductHeader } from '@xvpn/ui/react/product-header'
 import { useAuth } from '@/lib/auth-context'
 import { api, ApiError } from '@/lib/api'
+import { headerProduct } from '@/lib/product-host'
 import { defaultRouteForRole } from '@/lib/roles'
 import { NetworkGlobe } from '@/components/network-globe'
 import { Button } from '@/components/ui/button'
@@ -59,6 +61,8 @@ export function LandingPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
 
+  const product = headerProduct()
+
   if (isAuthenticated && !isLoadingUser) {
     return <Navigate to={defaultRouteForRole(user?.role ?? 'member')} replace />
   }
@@ -78,20 +82,20 @@ export function LandingPage() {
   }
 
   return (
-    <div className="relative min-h-svh overflow-hidden bg-background">
-      {/* Halo + globo decorativos fixos no topo — puramente visuais, atrás de todo o conteúdo real */}
+    <div data-product={product} className="watch-face relative min-h-svh overflow-hidden">
+      <div className="watch-vignette pointer-events-none absolute inset-0" aria-hidden="true" />
       <div className="glow-blob pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[560px] -translate-x-1/2" />
       <NetworkGlobe className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[520px] w-full max-w-3xl opacity-70" />
 
-      <header className="relative z-10 flex items-center justify-between px-6 py-5 sm:px-10">
-        <div className="flex items-center gap-2">
-          <img src="/logo-192.png" alt="XVPN" className="size-9" />
-          <span className="text-lg font-semibold">XVPN</span>
-        </div>
-        <Button variant="ghost" className="rounded-full" asChild>
-          <Link to="/login">Entrar</Link>
-        </Button>
-      </header>
+      <ProductHeader
+        product={product}
+        href="/"
+        trailing={
+          <Button variant="ghost" className="rounded-full" asChild>
+            <Link to="/my/login">Entrar</Link>
+          </Button>
+        }
+      />
 
       <main className="relative z-10 mx-auto flex max-w-5xl flex-col gap-16 px-6 pb-20 sm:px-10">
         <motion.section
@@ -109,19 +113,19 @@ export function LandingPage() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.7, ease: 'easeOut' }}
           />
-          <h1 className="max-w-2xl text-4xl font-bold tracking-tight text-glow sm:text-5xl">
+          <h1 className="font-display max-w-2xl text-4xl font-bold tracking-tight text-glow sm:text-5xl">
             Sua própria VPN privada, do jeito que devia ser
           </h1>
-          <p className="max-w-xl text-lg text-muted-foreground">
+          <p className="font-display max-w-xl text-lg text-muted-foreground">
             Rede privada pessoal com saída própria, rápida e sob seu controle — sem depender de provedores
             terceiros. Acesso liberado por convite, através da lista de espera abaixo.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button size="lg" className="glow-ring rounded-full px-8" asChild>
+            <Button size="lg" asChild>
               <a href="#waitlist">Entrar na lista de espera</a>
             </Button>
-            <Button size="lg" variant="outline" className="rounded-full px-8" asChild>
-              <Link to="/login">Já tenho acesso</Link>
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/my/login">Já tenho acesso</Link>
             </Button>
           </div>
         </motion.section>
@@ -135,12 +139,12 @@ export function LandingPage() {
         >
           {FEATURES.map(({ icon: Icon, title, description }) => (
             <motion.div key={title} variants={fadeUp} transition={{ duration: 0.45, ease: 'easeOut' }}>
-              <Card className="h-full border-white/5 bg-card/60 backdrop-blur transition-all hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_0_30px_-10px_var(--color-glow)]">
+              <Card className="watch-complication-lift h-full">
                 <CardHeader>
-                  <div className="mb-2 flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <div className="icon-well mb-2 flex size-11 items-center justify-center rounded-[10px] text-foreground">
                     <Icon className="size-5" />
                   </div>
-                  <CardTitle className="text-base">{title}</CardTitle>
+                  <CardTitle className="font-display text-base">{title}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <CardDescription>{description}</CardDescription>
@@ -159,9 +163,9 @@ export function LandingPage() {
           variants={fadeUp}
           transition={{ duration: 0.5 }}
         >
-          <Card className="glow-ring w-full max-w-md border-white/5 bg-card/70 backdrop-blur">
+          <Card className="glow-ring w-full max-w-md">
             <CardHeader>
-              <CardTitle>Entre na lista de espera</CardTitle>
+              <CardTitle className="font-display">Entre na lista de espera</CardTitle>
               <CardDescription>
                 O acesso ao XVPN é liberado por aprovação manual. Deixe seus dados e avisamos quando seu
                 acesso estiver pronto.
@@ -172,7 +176,7 @@ export function LandingPage() {
                 <motion.p
                   initial={{ opacity: 0, scale: 0.96 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="rounded-md border border-primary/30 bg-primary/10 p-4 text-sm"
+                  className="watch-complication rounded-[12px] p-4 text-sm"
                 >
                   Cadastro recebido! Entraremos em contato pelo e-mail informado quando seu acesso for
                   aprovado.
@@ -180,11 +184,15 @@ export function LandingPage() {
               ) : (
                 <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="name">Nome</Label>
+                    <Label htmlFor="name" className="hud-label text-muted-foreground/75">
+                      Nome
+                    </Label>
                     <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="email">E-mail</Label>
+                    <Label htmlFor="email" className="hud-label text-muted-foreground/75">
+                      E-mail
+                    </Label>
                     <Input
                       id="email"
                       type="email"
@@ -194,7 +202,9 @@ export function LandingPage() {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="message">Por que você quer acesso? (opcional)</Label>
+                    <Label htmlFor="message" className="hud-label text-muted-foreground/75">
+                      Por que você quer acesso? (opcional)
+                    </Label>
                     <Textarea
                       id="message"
                       rows={3}
@@ -203,7 +213,7 @@ export function LandingPage() {
                     />
                   </div>
                   {error && <p className="text-sm text-destructive">{error}</p>}
-                  <Button type="submit" disabled={submitting} className="rounded-full">
+                  <Button type="submit" disabled={submitting} size="lg">
                     {submitting ? 'Enviando…' : 'Entrar na lista de espera'}
                   </Button>
                 </form>
@@ -213,10 +223,14 @@ export function LandingPage() {
         </motion.section>
       </main>
 
-      <footer className="relative z-10 border-t border-white/5 px-6 py-6 text-center text-sm text-muted-foreground">
+      <footer className="chrome-bar relative z-10 border-t border-white/8 px-6 py-6 text-center font-display text-sm text-muted-foreground">
         XVPN — rede privada pessoal.{' '}
-        <Link to="/login" className="underline">
+        <Link to="/my/login" className="underline underline-offset-4 hover:text-foreground">
           Já tem acesso? Entre aqui.
+        </Link>
+        {' · '}
+        <Link to="/admin/login" className="underline underline-offset-4 hover:text-foreground">
+          Administração
         </Link>
       </footer>
     </div>

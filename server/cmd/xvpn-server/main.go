@@ -51,6 +51,9 @@ func run() error {
 	if err := bootstrapAdmin(db, cfg); err != nil {
 		return err
 	}
+	if err := ensureXbot(db); err != nil {
+		return err
+	}
 
 	privateKey, err := wireguard.ReadPrivateKey(cfg.WireGuardPrivateKeyPath)
 	if err != nil {
@@ -76,6 +79,11 @@ func run() error {
 		return err
 	}
 
+	socialMediaStore, err := marketplace.NewStore(cfg.SocialMediaDir)
+	if err != nil {
+		return err
+	}
+
 	// UserProvisioner (Fase 13, PLAN.md §6.9): cliente do binário
 	// privilegiado xvpn-user-provision. Se o binário não existe no
 	// caminho configurado (XVPN_USER_PROVISION_BIN), o client ainda é
@@ -92,8 +100,18 @@ func run() error {
 		Tokens:          tokens,
 		Config:          cfg,
 		Marketplace:     marketplaceStore,
+		SocialMedia:     socialMediaStore,
 		UserProvisioner: userProvisioner,
 		ServerPublicKey: privateKey.PublicKey().String(),
+	}
+	if err := app.SeedBitLaunchEnvAccount(); err != nil {
+		slog.Error("seed da conta BitLaunch do env falhou", "err", err.Error())
+	}
+	if err := app.SeedCloudflareEnvAccount(); err != nil {
+		slog.Error("seed da conta Cloudflare do env falhou", "err", err.Error())
+	}
+	if err := app.ApplyPanelSettingsOverrides(); err != nil {
+		return fmt.Errorf("carregando overrides de configuração do painel: %w", err)
 	}
 	router := api.NewRouter(app)
 
@@ -231,4 +249,20 @@ func bootstrapAdmin(db *store.Store, cfg *config.Config) error {
 	}
 
 	return nil
+}
+
+func ensureXbot(db *store.Store) error {
+	var u store.User
+	err := db.DB.Where("username = ?", "xbot").First(&u).Error
+	if err == nil {
+		if u.Role != store.RoleBot {
+			return db.DB.Model(&u).Update("role", store.RoleBot).Error
+		}
+		return nil
+	}
+	return db.DB.Create(&store.User{
+		Username:     "xbot",
+		PasswordHash: "!",
+		Role:         store.RoleBot,
+	}).Error
 }

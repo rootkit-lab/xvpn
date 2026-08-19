@@ -1,17 +1,34 @@
 package auth
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
-// Claims são as informações carregadas no token de sessão do painel. Role
-// (Fase 10) é o que os middlewares de autorização checam — mudar o papel de
-// um usuário só tem efeito prático no próximo login (o token antigo carrega
-// o papel de quando foi emitido, até expirar).
+const (
+	IssuerURL       = "https://xauth.ihuull.com"
+	LegacyIssuerURL = "https://xvpn.ihuull.com"
+
+	AudXvpn        = "xvpn"
+	AudXchat       = "xchat"
+	AudXgroup      = "xgroup"
+	AudXdriver     = "xdriver"
+	AudXadmin      = "xadmin"
+	AudXgit        = "xgit"
+	AudXcodespaces = "xcodespaces"
+)
+
+// Claims são as informações do token de sessão (payload do JWE).
 type Claims struct {
 	UserID   uint       `json:"uid"`
 	Username string     `json:"username"`
@@ -19,50 +36,130 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// TokenManager emite e valida JWTs assinados com HMAC-SHA256.
+// TokenManager emite e valida só JWE (dir + A256GCM). JWT HMAC não é aceito.
 type TokenManager struct {
+	mu     sync.Mutex
 	secret []byte
 	ttl    time.Duration
+	issuer string
 }
 
-// NewTokenManager cria um TokenManager. secret deve ter pelo menos 32 bytes
-// (validado em config.Load).
 func NewTokenManager(secret string, ttl time.Duration) *TokenManager {
-	return &TokenManager{secret: []byte(secret), ttl: ttl}
+	return &TokenManager{secret: []byte(secret), ttl: ttl, issuer: IssuerURL}
 }
 
-// Issue gera um novo JWT válido por t.ttl para o usuário informado.
+func (t *TokenManager) SetTTL(ttl time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.ttl = ttl
+}
+
+func (t *TokenManager) TTL() time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.ttl
+}
+
+func (t *TokenManager) aeadKey() []byte {
+	if len(t.secret) >= 32 {
+		return t.secret[:32]
+	}
+	return t.secret
+}
+
+// HMACHex is a deterministic digest for local service tokens (not session JWEs).
+func (t *TokenManager) HMACHex(label string) string {
+	if t == nil {
+		return ""
+	}
+	t.mu.Lock()
+	secret := t.secret
+	t.mu.Unlock()
+	mac := hmac.New(sha256.New, secret)
+	_, _ = mac.Write([]byte(label))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 func (t *TokenManager) Issue(userID uint, username string, role store.Role) (string, error) {
+	return t.IssueFor(userID, username, role, AudXvpn)
+}
+
+func (t *TokenManager) IssueFor(userID uint, username string, role store.Role, aud string) (string, error) {
+	if aud == "" {
+		aud = AudXvpn
+	}
+	t.mu.Lock()
+	ttl := t.ttl
+	t.mu.Unlock()
 	now := time.Now()
 	claims := Claims{
 		UserID:   userID,
 		Username: username,
 		Role:     role,
 		RegisteredClaims: jwt.RegisteredClaims{
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(t.ttl)),
+			Issuer:    t.issuer,
 			Subject:   username,
+			Audience:  jwt.ClaimStrings{aud},
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
 		},
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(t.secret)
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		return "", err
+	}
+	enc, err := jose.NewEncrypter(jose.A256GCM, jose.Recipient{Algorithm: jose.DIRECT, Key: t.aeadKey()}, (&jose.EncrypterOptions{}).WithType("JWE"))
+	if err != nil {
+		return "", fmt.Errorf("jwe encrypter: %w", err)
+	}
+	obj, err := enc.Encrypt(payload)
+	if err != nil {
+		return "", fmt.Errorf("jwe encrypt: %w", err)
+	}
+	return obj.CompactSerialize()
 }
 
-// Parse valida a assinatura/expiração de um token e retorna suas claims.
-// Nunca logar o token completo nem o conteúdo retornado (ver go-backend.mdc).
+// Parse valida um JWE compacto. Qualquer outro formato (incl. JWT HS256) é rejeitado.
 func (t *TokenManager) Parse(tokenString string) (*Claims, error) {
-	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("método de assinatura inesperado: %v", token.Header["alg"])
-		}
-		return t.secret, nil
-	})
+	if strings.Count(tokenString, ".") != 4 {
+		return nil, fmt.Errorf("token não é JWE")
+	}
+	obj, err := jose.ParseEncrypted(tokenString, []jose.KeyAlgorithm{jose.DIRECT}, []jose.ContentEncryption{jose.A256GCM})
 	if err != nil {
 		return nil, err
 	}
-	if !token.Valid {
-		return nil, fmt.Errorf("token inválido")
+	plain, err := obj.Decrypt(t.aeadKey())
+	if err != nil {
+		return nil, err
+	}
+	claims := &Claims{}
+	if err := json.Unmarshal(plain, claims); err != nil {
+		return nil, err
+	}
+	if claims.ExpiresAt != nil && time.Now().After(claims.ExpiresAt.Time) {
+		return nil, fmt.Errorf("token expirado")
+	}
+	if claims.Issuer != "" && claims.Issuer != t.issuer && claims.Issuer != LegacyIssuerURL {
+		return nil, fmt.Errorf("issuer inesperado")
 	}
 	return claims, nil
+}
+
+func NormalizeAudience(aud string) string {
+	switch strings.ToLower(strings.TrimSpace(aud)) {
+	case AudXchat:
+		return AudXchat
+	case AudXgroup:
+		return AudXgroup
+	case AudXdriver:
+		return AudXdriver
+	case AudXadmin:
+		return AudXadmin
+	case AudXgit:
+		return AudXgit
+	case AudXcodespaces:
+		return AudXcodespaces
+	default:
+		return AudXvpn
+	}
 }

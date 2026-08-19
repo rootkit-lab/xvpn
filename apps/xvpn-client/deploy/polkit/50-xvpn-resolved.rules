@@ -1,0 +1,24 @@
+// Só as ações que o helper usa na xvpn0 (resolvectl dns/domain/
+// default-route/dnsovertls/dnssec/revert). Sem prefixo resolve1.* —
+// isso cobriria DNS global, NTA e register-service.
+polkit.addRule(function (action, subject) {
+  if (subject.user !== "xvpn-client-helper") {
+    return polkit.Result.NOT_HANDLED;
+  }
+  var allowed = {
+    "org.freedesktop.resolve1.set-dns-servers": true,
+    "org.freedesktop.resolve1.set-domains": true,
+    "org.freedesktop.resolve1.set-default-route": true,
+    "org.freedesktop.resolve1.set-dns-over-tls": true,
+    "org.freedesktop.resolve1.set-dnssec": true,
+    "org.freedesktop.resolve1.revert": true
+  };
+  if (!allowed[action.id]) {
+    return polkit.Result.NOT_HANDLED;
+  }
+  var iface = action.lookup("interface");
+  if (iface && iface !== "xvpn0") {
+    return polkit.Result.NOT_HANDLED;
+  }
+  return polkit.Result.YES;
+});

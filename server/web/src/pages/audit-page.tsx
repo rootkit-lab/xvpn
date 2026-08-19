@@ -1,64 +1,59 @@
-import { useCallback } from 'react'
-import { api } from '@/lib/api'
+import { useCallback, useState } from 'react'
+import { api, type AuditLog } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { formatDateTime } from '@/lib/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
+import { FilterBar } from '@/components/filter-bar'
+import { DataTable, type DataTableColumn } from '@/components/data-table'
 
 export function AuditPage() {
-  const fetchAudit = useCallback(() => api.listAudit(), [])
-  const { data: logs, loading, error } = usePollingData(fetchAudit, 15_000)
+  const [page, setPage] = useState(1)
+  const [q, setQ] = useState('')
+  const fetchAudit = useCallback(() => api.listAudit({ page, per_page: 25, q }), [page, q])
+  const { data, loading, error } = usePollingData(fetchAudit, 15_000)
+
+  const columns: DataTableColumn<AuditLog>[] = [
+    {
+      key: 'when',
+      header: 'Quando',
+      cell: (log) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(log.created_at)}</span>,
+    },
+    { key: 'actor', header: 'Ator', cell: (log) => <span className="font-medium">{log.actor}</span> },
+    {
+      key: 'action',
+      header: 'Ação',
+      cell: (log) => <code className="text-sm">{log.action}</code>,
+    },
+    { key: 'detail', header: 'Detalhe', cell: (log) => <span className="text-muted-foreground">{log.detail || '—'}</span> },
+  ]
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Auditoria</h1>
-        <p className="text-muted-foreground">Últimas ações administrativas registradas no servidor.</p>
-      </div>
-
       {error && <p className="text-sm text-destructive">{error}</p>}
-
+      <FilterBar
+        q={q}
+        onQChange={(next) => {
+          setQ(next)
+          setPage(1)
+        }}
+        placeholder="Buscar ator ou ação"
+      />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Log de ações</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading || !logs ? (
-            <Skeleton className="h-64 w-full" />
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quando</TableHead>
-                  <TableHead>Ator</TableHead>
-                  <TableHead>Ação</TableHead>
-                  <TableHead>Detalhe</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {logs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">
-                      {formatDateTime(log.created_at)}
-                    </TableCell>
-                    <TableCell className="font-medium">{log.actor}</TableCell>
-                    <TableCell>
-                      <code className="text-sm">{log.action}</code>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{log.detail || '—'}</TableCell>
-                  </TableRow>
-                ))}
-                {logs.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      Nenhuma ação registrada ainda.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
+          <DataTable
+            columns={columns}
+            rows={data?.items ?? []}
+            rowKey={(log) => log.id}
+            loading={loading || !data}
+            emptyTitle="Nenhuma ação registrada ainda."
+            page={data?.page ?? page}
+            perPage={data?.per_page ?? 25}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+          />
         </CardContent>
       </Card>
     </div>

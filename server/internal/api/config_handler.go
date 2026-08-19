@@ -25,14 +25,5 @@ type configResponse struct {
 // ser exposta por API.
 // GET /api/config
 func (a *App) handleGetConfig(c *gin.Context) {
-	c.JSON(http.StatusOK, configResponse{
-		WireGuardInterface:     a.Config.WireGuardInterface,
-		WireGuardAddress:       a.Config.WireGuardAddress,
-		WireGuardAllowedSubnet: a.Config.WireGuardAllowedSubnet,
-		WireGuardListenPort:    a.Config.WireGuardListenPort,
-		WireGuardEndpoint:      a.Config.WireGuardEndpoint,
-		ServerPublicKey:        a.ServerPublicKey,
-		InviteTokenTTLMinutes:  a.Config.InviteTokenTTLMinutes,
-		JWTTokenTTLMinutes:     a.Config.JWTTokenTTLMinutes,
-	})
+	c.JSON(http.StatusOK, a.configResponse())
 }

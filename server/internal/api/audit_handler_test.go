@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 )
@@ -34,10 +33,7 @@ func TestHandleListAudit_ListsMostRecentFirst(t *testing.T) {
 		t.Fatalf("esperado 200, obtido %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var logs []auditLogResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &logs); err != nil {
-		t.Fatalf("erro decodificando resposta: %v", err)
-	}
+	logs := pageItems[auditLogResponse](t, decodePage[auditLogResponse](t, rec.Body.Bytes()))
 	if len(logs) < 2 {
 		t.Fatalf("esperava ao menos 2 entradas de auditoria (login + user.create), obtido %d", len(logs))
 	}

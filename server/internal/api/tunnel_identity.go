@@ -104,9 +104,10 @@ func tunnelDevice(c *gin.Context) (store.Device, bool) {
 // pessoal (`home-<username>`), e os dois toggles, para desabilitar o botão
 // com a razão visível em vez de deixar o usuário cair num erro de mount.
 type tunnelIdentityResponse struct {
-	Username     string `json:"username"`
-	SFTPEnabled  bool   `json:"sftp_enabled"`
-	SambaEnabled bool   `json:"samba_enabled"`
+	Username      string        `json:"username"`
+	SFTPEnabled   bool          `json:"sftp_enabled"`
+	SambaEnabled  bool          `json:"samba_enabled"`
+	IntranetHosts []dnsHostJSON `json:"intranet_hosts"`
 }
 
 // handleTunnelIdentity responde quem é o dono do dispositivo que fez a
@@ -132,9 +133,10 @@ func (a *App) handleTunnelIdentity(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, tunnelIdentityResponse{
-		Username:     owner.Username,
-		SFTPEnabled:  owner.SFTPEnabled,
-		SambaEnabled: owner.SambaEnabled,
+		Username:      owner.Username,
+		SFTPEnabled:   owner.SFTPEnabled,
+		SambaEnabled:  owner.SambaEnabled,
+		IntranetHosts: a.enabledIntranetHosts(),
 	})
 }
 

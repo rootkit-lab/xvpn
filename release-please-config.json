@@ -18,6 +18,14 @@
       "changelog-path": "CHANGELOG.md",
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": true
+    },
+    "apps/xvpn-chat": {
+      "release-type": "go",
+      "package-name": "xvpn-chat",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "initial-version": "0.1.0"
     }
   }
 }

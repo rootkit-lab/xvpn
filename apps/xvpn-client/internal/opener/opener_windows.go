@@ -17,3 +17,16 @@ func openURL(url string) error {
 func openSMBShare(host, share string) error {
 	return exec.Command("cmd", "/c", "start", "", fmt.Sprintf(`\\%s\%s`, host, share)).Start()
 }
+
+// ensureSMBMounted no Windows: Explorer resolve o UNC no open; nada a
+// pré-montar no espaço do usuário sem net use interativo.
+func ensureSMBMounted(host, share string) error {
+	return nil
+}
+
+func unmountServerSMBShares(host string) error {
+	// Remove mapeamentos UNC deste host (se o Explorer tiver feito net use).
+	_ = exec.Command("cmd", "/c", "net", "use", fmt.Sprintf(`\\%s\*`, host), "/delete", "/y").Run()
+	_ = exec.Command("cmd", "/c", "net", "use", fmt.Sprintf(`\\%s\shared`, host), "/delete", "/y").Run()
+	return nil
+}

@@ -32,6 +32,8 @@ func AllocateIP(subnetCIDR string, used []string) (string, error) {
 	usedSet[normalizeIP(network.String())] = true
 	usedSet[normalizeIP(nextIP(network).String())] = true
 	usedSet[normalizeIP(broadcast.String())] = true
+	// VIP do preview de codespace (Fase 56) — nunca peer.
+	usedSet["10.66.66.254"] = true
 
 	for candidate := nextIP(nextIP(network)); compareIPs(candidate, broadcast) < 0; candidate = nextIP(candidate) {
 		if !usedSet[normalizeIP(candidate.String())] {

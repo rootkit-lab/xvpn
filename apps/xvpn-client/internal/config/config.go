@@ -15,16 +15,17 @@ import (
 // DeviceState é o que sobra depois de um enrollment bem-sucedido, o
 // suficiente para reconectar sem precisar de um novo código de convite.
 type DeviceState struct {
-	ServerBaseURL       string   `json:"server_base_url"`
-	DeviceName          string   `json:"device_name"`
-	PrivateKey          string   `json:"private_key"`
-	PublicKey           string   `json:"public_key"`
-	AssignedIP          string   `json:"assigned_ip"`
-	ServerPublicKey     string   `json:"server_public_key"`
-	ServerEndpoint      string   `json:"server_endpoint"`
-	AllowedIPs          []string `json:"allowed_ips"`
-	PersistentKeepalive int      `json:"persistent_keepalive_seconds"`
-	DNS                 []string `json:"dns,omitempty"`
+	ServerBaseURL       string      `json:"server_base_url"`
+	DeviceName          string      `json:"device_name"`
+	PrivateKey          string      `json:"private_key"`
+	PublicKey           string      `json:"public_key"`
+	AssignedIP          string      `json:"assigned_ip"`
+	ServerPublicKey     string      `json:"server_public_key"`
+	ServerEndpoint      string      `json:"server_endpoint"`
+	AllowedIPs          []string    `json:"allowed_ips"`
+	PersistentKeepalive int         `json:"persistent_keepalive_seconds"`
+	DNS                 []string    `json:"dns,omitempty"`
+	IntranetHosts       []HostEntry `json:"intranet_hosts,omitempty"`
 	// MTU sobrescreve o padrão da plataforma (1420) quando != 0. Alguns
 	// usuários (outra VPN ativa, CGNAT, rede móvel restritiva) precisam de
 	// um valor menor para evitar um "black hole" de PMTU — ver
@@ -51,6 +52,12 @@ type DeviceState struct {
 	// explicitamente no enrollment (ver handleEnroll) para não exigir
 	// opt-in de quem já tem o hábito de reconectar manualmente hoje.
 	Preferences Preferences `json:"preferences"`
+}
+
+// HostEntry é um A da zona corp publicado pelo /admin/dns.
+type HostEntry struct {
+	Hostname string `json:"hostname"`
+	IPv4     string `json:"ipv4"`
 }
 
 // Preferences são ajustáveis pela GUI a qualquer momento (via

@@ -2,7 +2,6 @@ package auth
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
@@ -15,27 +14,31 @@ const (
 	ContextUserIDKey   = "xvpn_user_id"
 	ContextUsernameKey = "xvpn_username"
 	ContextRoleKey     = "xvpn_role"
+	ContextProductsKey = "xvpn_products"
 )
 
-// RequireAuth é o middleware Gin que valida o header "Authorization: Bearer
-// <jwt>" antes de deixar a requisição prosseguir. Todo endpoint autenticado
-// deve usar este middleware (ver go-backend.mdc). Só confirma identidade —
-// não decide o que o papel pode fazer (ver RequireRole).
+// RequireAuth é o middleware Gin que valida Authorization: Bearer ou o
+// cookie de SSO (PLAN.md §6.13) antes de deixar a requisição prosseguir.
+// Todo endpoint autenticado deve usar este middleware (ver go-backend.mdc).
+// Só confirma identidade — não decide o que o papel pode fazer (ver
+// RequireRole).
 func RequireAuth(tm *TokenManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if header == "" {
+		token := TokenFromRequest(c)
+		if token == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "credenciais ausentes"})
 			return
 		}
 
-		parts := strings.SplitN(header, " ", 2)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "formato de autorização inválido"})
-			return
+		claims, err := tm.Parse(token)
+		if err != nil {
+			// Bearer velho no localStorage do painel não pode tapar o
+			// cookie SSO válido — senão /admin fica no spinner e o
+			// login nunca fecha.
+			if ck := cookieToken(c); ck != "" && ck != token {
+				claims, err = tm.Parse(ck)
+			}
 		}
-
-		claims, err := tm.Parse(parts[1])
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "sessão inválida ou expirada"})
 			return
@@ -71,4 +74,26 @@ func RequireRole(allowed ...store.Role) gin.HandlerFunc {
 func RoleFromContext(c *gin.Context) (store.Role, bool) {
 	role, ok := c.Value(ContextRoleKey).(store.Role)
 	return role, ok
+}
+
+// ProductsFromContext devolve o escopo de produto lido do banco por
+// refreshCallerFromDB (não do JWE — o claim não carrega products).
+func ProductsFromContext(c *gin.Context) []store.Product {
+	v, _ := c.Get(ContextProductsKey)
+	products, _ := v.([]store.Product)
+	return products
+}
+
+// RequireProduct bloqueia escrita de um admin sem o produto no escopo
+// (Fase 33). super_admin e admin sem lista passam. Deve rodar depois de
+// RequireRole(AdminRoles) — viewer nunca chega aqui.
+func RequireProduct(want store.Product) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := RoleFromContext(c)
+		if store.HasProduct(role, ProductsFromContext(c), want) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "seu escopo não inclui este produto"})
+	}
 }

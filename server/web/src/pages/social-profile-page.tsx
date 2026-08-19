@@ -1,0 +1,217 @@
+import { useCallback, useState } from 'react'
+import { Navigate, useParams } from 'react-router-dom'
+import { isProfileUsername } from '@/lib/social-profile'
+import { MessageCircle, UserPlus, UserMinus } from 'lucide-react'
+import { useOptionalChat } from '@chat/messenger/ChatProvider'
+import { openChat } from '@chat/messenger/open-chat'
+import { XCHAT_CORP_ORIGIN } from '@/lib/product-host'
+import { toast } from 'sonner'
+import { api, ApiError } from '@/lib/api'
+import { usePollingData } from '@/hooks/use-polling-data'
+import { useAuth } from '@/lib/auth-context'
+import { livePresence, presenceLabel } from '@/lib/social-presence'
+import { PostCard } from '@/components/social-post-card'
+import { SocialAvatar } from '@/components/social-avatar'
+import { SocialBanner } from '@/components/social-banner'
+import { SocialStoriesRail } from '@/components/social-stories'
+import { EditSocialProfileDialog } from '@/components/edit-social-profile-dialog'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
+import { profileThemeStyle, resolveProfileTheme } from '@/lib/social-profile-media'
+
+/** `/:username` no host público — só se o slug for um membro. */
+export function SocialProfileGate() {
+  const { username } = useParams()
+  if (!username || !isProfileUsername(username)) {
+    return <Navigate to="/" replace />
+  }
+  return <SocialProfilePage />
+}
+
+export function SocialProfilePage() {
+  const { username } = useParams()
+  const { user } = useAuth()
+  const chat = useOptionalChat()
+  const fetchProfile = useCallback(() => api.getSocialProfile(username ?? ''), [username])
+  const fetchPosts = useCallback(
+    () => api.listSocialUserPosts(username ?? '', { page: 1, per_page: 40 }),
+    [username],
+  )
+  const { data, loading, error, reload } = usePollingData(fetchProfile, 20_000)
+  const { data: posts, loading: postsLoading, reload: reloadPosts } = usePollingData(fetchPosts, 15_000)
+  const [editing, setEditing] = useState(false)
+
+  if (!username) return <p className="text-sm text-destructive">Usuário inválido.</p>
+  if (loading || !data) {
+    return error ? (
+      <p className="text-sm text-destructive">{error}</p>
+    ) : (
+      <Skeleton className="h-72 w-full rounded-[22px]" />
+    )
+  }
+
+  const profile = data
+  const isMe = user?.username === profile.username
+  const display = profile.display_name || profile.username
+  const presence = livePresence(profile.user_id, profile.presence, chat?.presence)
+  const postCount = posts?.items.length ?? 0
+  const theme = resolveProfileTheme(profile.theme, profile.banner_url, profile.username)
+
+  async function toggleFollow() {
+    try {
+      if (profile.following) await api.unfollowUser(profile.username)
+      else await api.followUser(profile.username)
+      reload()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao atualizar follow')
+    }
+  }
+
+  return (
+    <div
+      className="grid w-full min-w-0 gap-6 lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]"
+      style={profileThemeStyle(theme)}
+    >
+      <aside className="flex min-w-0 flex-col gap-4">
+        <section
+          className="overflow-hidden rounded-[22px] border bg-white/[0.03]"
+          style={{ borderColor: 'color-mix(in oklch, var(--profile-accent) 28%, transparent)' }}
+        >
+          <SocialBanner bannerUrl={profile.banner_url} className="h-28 w-full md:h-32">
+            <span
+              className={cn(
+                'absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-medium',
+                presence === 'online' ? 'power-safe' : 'bg-black/40 text-white/80',
+              )}
+            >
+              {presenceLabel(presence)}
+            </span>
+          </SocialBanner>
+          <div className="px-5 pb-5">
+            <SocialAvatar
+              name={display}
+              src={profile.avatar_url}
+              presence={presence}
+              className="-mt-12 size-[5.5rem] border-4 border-background text-2xl ring-2 ring-[var(--profile-accent)]"
+            />
+            <div className="mt-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="font-display text-2xl font-semibold tracking-tight">{display}</h1>
+                {isMe && (
+                  <span className="rounded-full border border-white/12 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    Você
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-sm text-muted-foreground">@{profile.username}</p>
+            </div>
+            {profile.bio ? (
+              <p className="mt-3 text-sm leading-relaxed">{profile.bio}</p>
+            ) : isMe ? (
+              <p className="mt-3 text-sm text-muted-foreground">Sem bio ainda. Edite o perfil para se apresentar.</p>
+            ) : null}
+
+            <dl className="mt-4 flex flex-wrap gap-2">
+              <div
+                className="rounded-full px-3 py-1.5 text-sm"
+                style={{ background: 'var(--profile-accent-soft)' }}
+              >
+                <dt className="sr-only">Seguindo</dt>
+                <dd>
+                  <span className="font-semibold text-foreground">{profile.following_count ?? 0}</span>
+                  <span className="ml-1 text-muted-foreground">seguindo</span>
+                </dd>
+              </div>
+              <div
+                className="rounded-full px-3 py-1.5 text-sm"
+                style={{ background: 'var(--profile-accent-soft)' }}
+              >
+                <dt className="sr-only">Seguidores</dt>
+                <dd>
+                  <span className="font-semibold text-foreground">{profile.followers}</span>
+                  <span className="ml-1 text-muted-foreground">
+                    seguidor{profile.followers === 1 ? '' : 'es'}
+                  </span>
+                </dd>
+              </div>
+            </dl>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {isMe ? (
+                <Button variant="outline" className="rounded-full" onClick={() => setEditing(true)}>
+                  Editar perfil
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant={profile.following ? 'outline' : 'default'}
+                    className="rounded-full"
+                    onClick={toggleFollow}
+                  >
+                    {profile.following ? <UserMinus className="size-4" /> : <UserPlus className="size-4" />}
+                    {profile.following ? 'Seguindo' : 'Seguir'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="rounded-full"
+                    onClick={() => {
+                      if (chat) openChat({ username: profile.username })
+                      else window.location.assign(XCHAT_CORP_ORIGIN)
+                    }}
+                  >
+                    <MessageCircle className="size-4" />
+                    Mensagem
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <div className="flex min-w-0 flex-col gap-4">
+        <SocialStoriesRail filterAuthorId={profile.user_id} allowCompose={isMe} />
+        <section className="flex flex-col gap-3">
+          <div>
+            <p className="hud-label text-muted-foreground/70">Atividade</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {postsLoading || !posts
+                ? 'Carregando publicações…'
+                : postCount > 0
+                  ? `${postCount} publicação${postCount === 1 ? '' : 'ões'}`
+                  : isMe
+                    ? 'Seus posts aparecem aqui.'
+                    : `${display} ainda não publicou.`}
+            </p>
+          </div>
+          {postsLoading || !posts ? (
+            <Skeleton className="h-32 w-full rounded-[22px]" />
+          ) : posts.items.length === 0 ? (
+            <div className="rounded-[18px] border border-white/8 bg-white/[0.03] px-5 py-10 text-center">
+              <p className="font-display text-sm font-semibold">Ainda sem posts</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {isMe ? 'Publique no início para aparecer aqui.' : `${display} ainda não publicou.`}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {posts.items.map((post) => (
+                <PostCard key={post.id} post={post} onChanged={reloadPosts} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {isMe && (
+        <EditSocialProfileDialog
+          profile={profile}
+          open={editing}
+          onOpenChange={setEditing}
+          onSaved={reload}
+        />
+      )}
+    </div>
+  )
+}

@@ -414,6 +414,8 @@ func NewRouter(app *App) *gin.Engine {
 				driver.POST("/mkdir", app.handleDriverMkdir)
 				driver.POST("/upload", app.handleDriverUpload)
 				driver.GET("/download", app.handleDriverDownload)
+				driver.PUT("/write", app.handleDriverWrite)
+				driver.POST("/extract", app.handleDriverExtract)
 				driver.DELETE("/rm", app.handleDriverDelete)
 			}
 		}

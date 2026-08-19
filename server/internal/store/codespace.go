@@ -31,6 +31,7 @@ type CodeSpace struct {
 	Image        string
 	GitTokenHash string
 	LastActiveAt *time.Time
+	DemoName     string `gorm:"index"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 

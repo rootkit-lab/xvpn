@@ -4,91 +4,35 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 const { promisify } = require("util");
-const { resolveWorkspacePath, allowTerminal } = require("./sandbox");
+const { resolveWorkspacePath, allowTerminal, mergeEnv, sanitizeEnv } = require("./sandbox");
+const { startJob, snapshot, waitFor } = require("./jobs");
+const { looksLikeLongRunning, SERVER_WAIT_MS } = require("./terminal-agent");
 const { listSkills } = require("./context");
+const { listMcp, callMcp, BAKED } = require("./mcp-host");
+const { AGENT_TOOLS, READ_TOOLS, toolsForMode } = require("./tool-specs");
 
 const execFileAsync = promisify(execFile);
 const READ_CAP = 12 * 1024;
 const OUT_CAP = 8 * 1024;
+const TERM_WAIT_DEFAULT = 120000;
+const TERM_WAIT_MAX = 180000;
 
-const AGENT_TOOLS = [
-  {
-    type: "function",
-    function: {
-      name: "read_file",
-      description: "Lê um arquivo relativo ao workspace.",
-      parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_dir",
-      description: "Lista um diretório relativo ao workspace.",
-      parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "grep",
-      description: "Busca um padrão (rg) no workspace.",
-      parameters: {
-        type: "object",
-        properties: { pattern: { type: "string" }, path: { type: "string" } },
-        required: ["pattern"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_skill",
-      description: "Lê o corpo de uma skill pelo name (SKILL.md).",
-      parameters: { type: "object", properties: { name: { type: "string" } }, required: ["name"] },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "write_file",
-      description: "Escreve um arquivo (pede confirmação).",
-      parameters: {
-        type: "object",
-        properties: { path: { type: "string" }, content: { type: "string" } },
-        required: ["path", "content"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "apply_patch",
-      description: "Substitui um trecho de arquivo (pede confirmação).",
-      parameters: {
-        type: "object",
-        properties: {
-          path: { type: "string" },
-          old_string: { type: "string" },
-          new_string: { type: "string" },
-        },
-        required: ["path", "old_string", "new_string"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "run_terminal",
-      description: "Roda um comando allowlisted no workspace (pede confirmação).",
-      parameters: {
-        type: "object",
-        properties: { argv: { type: "array", items: { type: "string" } } },
-        required: ["argv"],
-      },
-    },
-  },
-];
+function waitMs(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return TERM_WAIT_DEFAULT;
+  }
+  return Math.min(Math.max(n, 1000), TERM_WAIT_MAX);
+}
+
+function formatJob(rec) {
+  if (!rec) {
+    return "job desapareceu";
+  }
+  const head = rec.id + " " + rec.status + (rec.code == null ? "" : " exit " + rec.code);
+  const log = rec.log ? "\nlog " + rec.log : "";
+  return (head + log + "\n" + (rec.out || "")).slice(0, OUT_CAP);
+}
 
 function parseArgs(raw) {
   if (!raw) {
@@ -104,13 +48,25 @@ function parseArgs(raw) {
   }
 }
 
-function needsConfirm(name) {
-  return name === "write_file" || name === "apply_patch" || name === "run_terminal";
+function needsConfirm(name, args) {
+  if (name === "write_file" || name === "apply_patch" || name === "run_terminal") {
+    return true;
+  }
+  if (name === "call_mcp") {
+    const server = String((args && args.server) || "");
+    return !BAKED.includes(server);
+  }
+  return false;
 }
 
 function confirmDetail(name, args) {
   if (name === "run_terminal") {
-    return (args.argv || []).join(" ");
+    const argv = (args.argv || []).join(" ");
+    const keys = args.env && typeof args.env === "object" ? Object.keys(args.env) : [];
+    return argv + (keys.length ? " env " + keys.join(",") : "");
+  }
+  if (name === "call_mcp") {
+    return "MCP " + (args.server || "") + " " + (args.name || "") + " (python3 do clone)";
   }
   if (name === "write_file") {
     return "Escrever " + args.path + " (" + String(args.content || "").length + " bytes)";
@@ -121,8 +77,9 @@ function confirmDetail(name, args) {
   return name;
 }
 
-async function runTool(root, name, rawArgs) {
+async function runTool(root, name, rawArgs, opts) {
   const args = parseArgs(rawArgs);
+  const extRoot = opts && opts.extRoot ? opts.extRoot : __dirname;
   switch (name) {
     case "read_file": {
       const abs = resolveWorkspacePath(root, args.path);
@@ -165,8 +122,33 @@ async function runTool(root, name, rawArgs) {
         throw new Error(err instanceof Error ? err.message : "rg falhou");
       }
     }
+    case "glob": {
+      const pattern = String(args.pattern || "").trim();
+      if (!pattern) {
+        throw new Error("pattern vazio");
+      }
+      const target = args.path ? resolveWorkspacePath(root, args.path) : resolveWorkspacePath(root, ".");
+      try {
+        const { stdout } = await execFileAsync(
+          "rg",
+          ["--no-config", "--files", "-g", pattern, "--", target],
+          {
+            cwd: root,
+            env: { ...process.env, RIPGREP_CONFIG_PATH: "" },
+            maxBuffer: OUT_CAP,
+            timeout: 8000,
+          },
+        );
+        return (stdout || "").split("\n").filter(Boolean).slice(0, 200).join("\n") || "(sem matches)";
+      } catch (err) {
+        if (err && err.code === 1) {
+          return "(sem matches)";
+        }
+        throw new Error(err instanceof Error ? err.message : "glob falhou");
+      }
+    }
     case "read_skill": {
-      const hit = listSkills(root).find((s) => s.name.toLowerCase() === String(args.name || "").toLowerCase());
+      const hit = listSkills(root, extRoot).find((s) => s.name.toLowerCase() === String(args.name || "").toLowerCase());
       if (!hit) {
         throw new Error("skill não encontrada");
       }
@@ -188,22 +170,60 @@ async function runTool(root, name, rawArgs) {
       fs.writeFileSync(abs, cur.replace(oldS, String(args.new_string ?? "")), "utf8");
       return "patch aplicado em " + args.path;
     }
+    case "analyze_project": {
+      try {
+        const { stdout } = await execFileAsync("xcs-analyze", [root], {
+          cwd: root,
+          maxBuffer: OUT_CAP,
+          timeout: 12000,
+        });
+        return (stdout || "").slice(0, OUT_CAP) || "(vazio)";
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : "xcs-analyze falhou");
+      }
+    }
+    case "job_status": {
+      const rec = snapshot(String(args.id || ""));
+      if (!rec) {
+        throw new Error("job desconhecido");
+      }
+      return JSON.stringify(rec);
+    }
     case "run_terminal": {
       const argv = Array.isArray(args.argv) ? args.argv.map(String) : [];
       const gate = allowTerminal(argv);
       if (!gate.ok) {
         throw new Error(gate.reason);
       }
-      const { stdout, stderr } = await execFileAsync(argv[0], argv.slice(1), {
-        cwd: root,
-        maxBuffer: OUT_CAP,
-        timeout: 20000,
-      });
-      return ((stdout || "") + (stderr ? "\n" + stderr : "")).slice(0, OUT_CAP) || "(ok)";
+      const extra = sanitizeEnv(args.env);
+      const onChunk = opts && typeof opts.onChunk === "function" ? opts.onChunk : undefined;
+      const long = looksLikeLongRunning(argv);
+      const rec = startJob(root, argv, undefined, extra, onChunk);
+      let cap = waitMs(args.wait_ms);
+      if (long) {
+        cap = Math.min(cap, SERVER_WAIT_MS);
+      } else if (args.wait === false) {
+        cap = 400;
+      }
+      const done = await waitFor(rec.id, cap);
+      if (done && done.status === "running") {
+        return (
+          "background " +
+          rec.id +
+          " " +
+          argv.join(" ") +
+          (long ? " — servidor no terminal (job_status / Stop)" : " (job_status depois)") +
+          "\n" +
+          (done.out || "")
+        ).slice(0, OUT_CAP);
+      }
+      return formatJob(done);
     }
-    default:
-      throw new Error("tool desconhecida: " + name);
+    case "list_mcp":
+      return listMcp(root, extRoot);
+    case "call_mcp":
+      return callMcp(root, extRoot, args.server, args.name, args.arguments || args.args || {});
   }
 }
 
-module.exports = { AGENT_TOOLS, needsConfirm, confirmDetail, runTool, parseArgs };
+module.exports = { AGENT_TOOLS, READ_TOOLS, toolsForMode, needsConfirm, confirmDetail, runTool, parseArgs };

@@ -2,7 +2,7 @@
   "name": "codespace",
   "displayName": "XCODESPACES",
   "description": "Agente ihuull, skills e generate commit no codespace remoto.",
-  "version": "0.2.0",
+  "version": "0.5.7",
   "publisher": "ihuull",
   "engines": {
     "vscode": "^1.90.0"
@@ -20,7 +20,11 @@
       },
       {
         "command": "ihuull.openChat",
-        "title": "XCODESPACES: Agente"
+        "title": "XCODESPACES: Chat"
+      },
+      {
+        "command": "ihuull.openPorts",
+        "title": "XCODESPACES: Ports"
       }
     ],
     "menus": {
@@ -33,7 +37,14 @@
       ]
     },
     "viewsContainers": {
-      "activitybar": [
+      "panel": [
+        {
+          "id": "ihuull-ports",
+          "title": "Ports",
+          "icon": "media/ports.svg"
+        }
+      ],
+      "secondarySideBar": [
         {
           "id": "ihuull-agent",
           "title": "XCODESPACES",
@@ -42,11 +53,18 @@
       ]
     },
     "views": {
+      "ihuull-ports": [
+        {
+          "type": "webview",
+          "id": "ihuull.portsView",
+          "name": "Ports"
+        }
+      ],
       "ihuull-agent": [
         {
           "type": "webview",
           "id": "ihuull.agentView",
-          "name": "Agente"
+          "name": "XCODESPACES"
         }
       ]
     },
@@ -57,6 +75,26 @@
           "type": "string",
           "default": "",
           "description": "Public ID do codespace (12 hex). O helper grava isso nas Machine settings."
+        },
+        "ihuull.codespace.gitName": {
+          "type": "string",
+          "default": "",
+          "description": "user.name do Git no clone (dono do codespace)."
+        },
+        "ihuull.codespace.gitEmail": {
+          "type": "string",
+          "default": "",
+          "description": "user.email do Git no clone (username@corp.ihuull.com)."
+        },
+        "ihuull.codespace.demoHost": {
+          "type": "string",
+          "default": "",
+          "description": "Hostname demo-<nome>.corp.ihuull.com para preview intranet (Fase 56)."
+        },
+        "ihuull.codespace.autoApply": {
+          "type": "boolean",
+          "default": false,
+          "description": "Aplica write_file e apply_patch sem pedir Aplicar. Terminal e MCP extra continuam a confirmar."
         }
       }
     }

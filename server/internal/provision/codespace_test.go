@@ -10,11 +10,14 @@ import (
 )
 
 type fakeCsRunner struct {
-	bins   map[string]string
-	git    [][]string
-	docker [][]string
-	writes map[string]string
-	mkdirs []string
+	bins      map[string]string
+	git       [][]string
+	docker    [][]string
+	host      [][]string
+	hostFail  map[string]error
+	writes    map[string]string
+	mkdirs    []string
+	inspectIP string
 }
 
 func newFakeCs() *fakeCsRunner {
@@ -40,6 +43,21 @@ func (f *fakeCsRunner) Git(args ...string) error {
 }
 func (f *fakeCsRunner) Docker(args ...string) error {
 	f.docker = append(f.docker, append([]string{}, args...))
+	return nil
+}
+func (f *fakeCsRunner) DockerOutput(args ...string) (string, error) {
+	f.docker = append(f.docker, append([]string{}, args...))
+	if f.inspectIP != "" {
+		return f.inspectIP, nil
+	}
+	return "172.17.0.2", nil
+}
+func (f *fakeCsRunner) HostCmd(name string, args ...string) error {
+	f.host = append(f.host, append([]string{name}, args...))
+	key := strings.Join(append([]string{name}, args...), " ")
+	if err, ok := f.hostFail[key]; ok {
+		return err
+	}
 	return nil
 }
 func (f *fakeCsRunner) WriteFile(path, content string, _ os.FileMode) error {
@@ -78,6 +96,7 @@ func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://evil.example/lab"}`,
 		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab","image":"evil/pwn:latest"}`,
 		`{"action":"pwn","id":"` + id + `","workspace":"` + ws + `"}`,
+		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab","git_author":"alice","git_email":"eve@evil.com","image":"gitpod/openvscode-server:1.98.2","connection_token":"tokentokentoken1"}`,
 	}
 	for _, raw := range bads {
 		if _, err := ParseCsSpec([]byte(raw), csRoot, gitRoot); err == nil {
@@ -202,6 +221,7 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 		"bare_path":"` + bare + `","branch":"main","port":19003,
 		"clone_url":"https://xgit.corp.ihuull.com/lab",
 		"git_user":"codespace-` + id + `","git_token":"tokentokentoken1",
+		"git_author":"alice","git_email":"alice@corp.ihuull.com",
 		"connection_token":"tokentokentoken1",
 		"env":{"APP_URL":"https://xgit.corp"}
 	}`
@@ -222,12 +242,18 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if f.git[0][len(f.git[0])-2] != bare {
 		t.Fatalf("clone deve ser do bare: %v", f.git[0])
 	}
-	if len(f.docker) != 1 {
-		t.Fatalf("docker: %v", f.docker)
+	run := 0
+	for _, d := range f.docker {
+		if len(d) > 0 && d[0] == "run" {
+			run++
+			joined := strings.Join(d, " ")
+			if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
+				t.Fatalf("container não monta bare nem socket: %s", joined)
+			}
+		}
 	}
-	joined := strings.Join(f.docker[0], " ")
-	if strings.Contains(joined, "docker.sock") || strings.Contains(joined, bare) {
-		t.Fatalf("container não monta bare nem socket: %s", joined)
+	if run != 1 {
+		t.Fatalf("docker run: %v", f.docker)
 	}
 	if _, ok := f.writes[filepath.Join(ws, ".vscode", "settings.json")]; ok {
 		t.Fatal("settings do IDE não podem ir no clone")
@@ -248,12 +274,25 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	if !strings.Contains(f.writes[settings], "chat.commandCenter.enabled") {
 		t.Fatal("Machine settings devem desligar o chat nativo")
 	}
+	if !strings.Contains(f.writes[settings], `"ihuull.codespace.gitName": "alice"`) {
+		t.Fatal("Machine settings devem gravar a identidade Git")
+	}
+	var gitFlat []string
+	for _, g := range f.git {
+		gitFlat = append(gitFlat, strings.Join(g, " "))
+	}
+	joinedAllGit := strings.Join(gitFlat, " | ")
+	if !strings.Contains(joinedAllGit, "user.name") || !strings.Contains(joinedAllGit, "alice") {
+		t.Fatalf("clone precisa de user.name: %v", f.git)
+	}
 	envFile := runtimeEnvHostPath(ws)
 	if !strings.Contains(f.writes[envFile], "APP_URL=https://xgit.corp") {
 		t.Fatalf("env-file não gravado: %v", f.writes)
 	}
-	if strings.Contains(joined, "https://xgit.corp") {
-		t.Fatalf("valor de ENV no argv: %s", joined)
+	for _, d := range f.docker {
+		if len(d) > 0 && d[0] == "run" && strings.Contains(strings.Join(d, " "), "https://xgit.corp") {
+			t.Fatalf("valor de ENV no argv: %v", d)
+		}
 	}
 }
 
@@ -269,8 +308,8 @@ func TestDefaultCodespaceSettings_HidesBuiltinWelcome(t *testing.T) {
 	if s["chat.commandCenter.enabled"] != false {
 		t.Fatal("command center do chat nativo deve ficar off")
 	}
-	if s["workbench.secondarySideBar.defaultVisibility"] != "hidden" {
-		t.Fatal("secondary sidebar (CHAT/COPILOT EDITS) deve ficar hidden")
+	if s["workbench.secondarySideBar.defaultVisibility"] != "visible" {
+		t.Fatal("secondary sidebar deve ficar visible para o chat ihuull")
 	}
 }
 
@@ -296,7 +335,28 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 		t.Fatal("extensão precisa de origin absoluta e do token Git do codespace")
 	}
 	if !strings.Contains(string(pkg), `"id": "ihuull.agentView"`) {
-		t.Fatal("extensão precisa da view do agente no activity bar")
+		t.Fatal("extensão precisa da view do agente")
+	}
+	if !strings.Contains(string(pkg), `"ihuull.codespace.autoApply"`) {
+		t.Fatal("extensão precisa de autoApply para não pedir Aplicar em cada edição")
+	}
+	if !strings.Contains(string(js), "isDemoPreviewUrl") || strings.Contains(string(js), "^https?:") {
+		t.Fatal("Abrir no Ports só pode aceitar http://demo-*.corp.ihuull.com:porta")
+	}
+	if !strings.Contains(string(pkg), `"secondarySideBar"`) || !strings.Contains(string(pkg), `"id": "ihuull-agent"`) {
+		t.Fatal("chat ihuull deve ser viewsContainers.secondarySideBar (direita)")
+	}
+	if strings.Contains(string(pkg), `"activitybar"`) || strings.Contains(string(pkg), `"workbench.panel.chat"`) {
+		t.Fatal("XCODESPACES na activitybar ou workbench.panel.chat cai no Explorer (esquerda)")
+	}
+	if !strings.Contains(string(pkg), `"id": "ihuull-ports"`) || strings.Contains(string(pkg), `"workbench.panel":`) {
+		t.Fatal("Ports deve ser viewsContainers.panel — workbench.panel cai no Explorer")
+	}
+	if !strings.Contains(string(js), "/api/xcodespaces/llm/models") {
+		t.Fatal("chat precisa listar modelos no proxy")
+	}
+	if !strings.Contains(string(js), "user.email") {
+		t.Fatal("extensão deve gravar user.name/email do dono")
 	}
 	banned, err := os.ReadFile(filepath.Join("..", "..", "..", "shared", "vscode-codespace", "banned.js"))
 	if err != nil {
@@ -305,11 +365,17 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	if !strings.Contains(string(banned), "GitHub.copilot") || !strings.Contains(string(banned), "Continue.continue") {
 		t.Fatal("ban list deve incluir Copilot e Continue")
 	}
+	if strings.Contains(string(banned), "closeAuxiliaryBar") {
+		t.Fatal("não fechar a auxiliary bar — o chat ihuull mora lá")
+	}
+	if !strings.Contains(string(banned), "focusAuxiliaryBar") {
+		t.Fatal("activate deve focar a auxiliary bar")
+	}
 }
 
 func TestCodespaceAgentSandbox(t *testing.T) {
 	dir := filepath.Join("..", "..", "..", "shared", "vscode-codespace")
-	cmd := exec.Command("node", "--test", "sandbox.test.js")
+	cmd := exec.Command("node", "--test", "sandbox.test.js", "tools.test.js")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -383,8 +449,50 @@ func TestCodespaceDockerfile_NoSocketOrPrivileged(t *testing.T) {
 	if !strings.Contains(text, "ripgrep") {
 		t.Fatal("imagem precisa de rg para a tool grep do agente")
 	}
+	if !strings.Contains(text, "python3") {
+		t.Fatal("imagem precisa de python3 para o agente")
+	}
 	if !strings.Contains(text, "gitignore-global") {
 		t.Fatal("gitignore global deve ir na imagem")
+	}
+	gi, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "gitignore-global"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(gi), ".cursor/agent/") {
+		t.Fatal("gitignore-global deve ignorar logs do agente")
+	}
+	if !strings.Contains(text, "xcs-analyze") {
+		t.Fatal("analyzer Go deve ir na imagem")
+	}
+	if !strings.Contains(text, "patch-auxiliary-bar.js") {
+		t.Fatal("Dockerfile deve aplicar o patch da auxiliary bar no OpenVSCode 1.98")
+	}
+	patch, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "patch-auxiliary-bar.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(patch), `case"secondarySideBar"`) || !strings.Contains(string(patch), ",t,2)") {
+		t.Fatal("patch deve registrar secondarySideBar em AuxiliaryBar (location 2)")
+	}
+	if !strings.Contains(text, "install-ovsx.sh") {
+		t.Fatal("Open VSX deve ser bakeado via install-ovsx.sh")
+	}
+	if strings.Contains(text, "marketplace.visualstudio.com") {
+		t.Fatal("sem Marketplace Microsoft")
+	}
+	ovsx, err := os.ReadFile(filepath.Join("..", "..", "deploy", "codespace", "install-ovsx.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(ovsx)
+	for _, id := range []string{"golang.go", "dbaeumer.vscode-eslint", "esbenp.prettier-vscode@11.0.0", "yzhang.markdown-all-in-one", "redhat.vscode-yaml"} {
+		if !strings.Contains(script, id) {
+			t.Fatalf("Open VSX sem %s", id)
+		}
+	}
+	if !strings.Contains(script, "https://open-vsx.org/") {
+		t.Fatal("VSIX só do Open VSX")
 	}
 }
 

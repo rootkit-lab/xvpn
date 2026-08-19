@@ -43,6 +43,7 @@ export function XcodespacesHomePage() {
                   </a>
                   <p className="text-xs text-muted-foreground">
                     {cs.status} · {cs.branch} · {formatRelativeTime(cs.updated_at)}
+                    {cs.demo_host ? ` · ${cs.demo_host}:*` : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -50,6 +51,29 @@ export function XcodespacesHomePage() {
                   <Button asChild size="sm" className="btn-glow">
                     <a href={codespaceOpenHref(cs)}>Abrir VS Code</a>
                   </Button>
+                  {cs.kind === 'remote' ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        const name = window.prompt(
+                          'Nome do preview (vira demo-<nome>.corp.ihuull.com)',
+                          cs.demo_name || `cs-${cs.id}`,
+                        )
+                        if (!name) return
+                        void api
+                          .patchCodespaceDemo(cs.id, name)
+                          .then((out) => {
+                            toast.success(out.demo_host ? `${out.demo_host}:*` : 'demo gravado')
+                            reload()
+                          })
+                          .catch((err) => toast.error(err instanceof ApiError ? err.message : 'Falha'))
+                      }}
+                    >
+                      Demo
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     size="sm"

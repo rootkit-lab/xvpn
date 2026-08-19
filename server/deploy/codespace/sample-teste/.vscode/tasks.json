@@ -28,6 +28,35 @@
       "command": "node web/index.mjs",
       "group": "build",
       "problemMatcher": []
+    },
+    {
+      "label": "demo (flask)",
+      "type": "shell",
+      "command": "./scripts/demo-flask.sh",
+      "isBackground": true,
+      "problemMatcher": [],
+      "options": {
+        "env": {
+          "PORT": "8080"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      }
+    },
+    {
+      "label": "agent terminal (go hello)",
+      "type": "shell",
+      "command": "go run ./cmd/hello",
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": []
     }
   ]
 }

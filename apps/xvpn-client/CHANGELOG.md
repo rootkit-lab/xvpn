@@ -2,6 +2,19 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.7](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.6...xvpn-client-v0.1.7) (2026-08-19)
+
+
+### Features
+
+* **server:** move o console para xadmin.corp ([#116](https://github.com/rootkit-lab/xvpn/issues/116)) ([8698cbc](https://github.com/rootkit-lab/xvpn/commit/8698cbc2cdbfbef283403ff3668755d031eaf23d))
+* **server:** separa catálogo e ACL do marketplace ([#117](https://github.com/rootkit-lab/xvpn/issues/117)) ([290ac9b](https://github.com/rootkit-lab/xvpn/commit/290ac9b0bb8a5db65f86269d18e6db473899d16f))
+
+
+### Bug Fixes
+
+* **server:** planta sessão no portal XVPN e separa o chrome do app ([#102](https://github.com/rootkit-lab/xvpn/issues/102)) ([9ebe732](https://github.com/rootkit-lab/xvpn/commit/9ebe7326e13268b8ab970a9e2569a4ee5c8c1b6c))
+
 ## [0.1.6](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.5...xvpn-client-v0.1.6) (2026-08-16)
 
 

@@ -93,8 +93,17 @@ class PortsViewProvider {
       this.refresh().catch(() => {});
       return;
     }
-    if (msg?.type === "open" && typeof msg.url === "string" && msg.url.startsWith("http://")) {
-      vscode.env.openExternal(vscode.Uri.parse(msg.url));
+    if (msg?.type === "open" && typeof msg.url === "string" && /^https?:\/\/[\w.-]+/.test(msg.url)) {
+      const uri = vscode.Uri.parse(msg.url);
+      Promise.resolve(vscode.env.openExternal(uri)).then((ok) => {
+        if (ok === false) {
+          vscode.env.clipboard.writeText(msg.url);
+          vscode.window.showInformationMessage("URL copiada — cole no browser da VPN: " + msg.url);
+        }
+      }).catch(() => {
+        vscode.env.clipboard.writeText(msg.url);
+        vscode.window.showInformationMessage("URL copiada — cole no browser da VPN: " + msg.url);
+      });
     }
   }
 }

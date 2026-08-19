@@ -30,11 +30,11 @@
           {
             "id": "welcome",
             "title": "Bem-vindo ao XCODESPACES",
-            "description": "Tema ihuull Dark, repo em **project/**, IDE fora do Git.\n[Abrir o Explorer](command:workbench.view.explorer)",
+            "description": "Tema ihuull Dark, repo em **project/**, IDE fora do Git.\n[Abrir o Explorer](command:workbench.files.action.focusFilesExplorer)",
             "media": {
               "markdown": "walkthrough/welcome.md"
             },
-            "completionEvents": ["onCommand:workbench.view.explorer"]
+            "completionEvents": ["onCommand:workbench.files.action.focusFilesExplorer"]
           },
           {
             "id": "git",

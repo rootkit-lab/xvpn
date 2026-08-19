@@ -340,6 +340,9 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	if !strings.Contains(string(pkg), `"workbench.panel.chat"`) || strings.Contains(string(pkg), `"activitybar"`) {
 		t.Fatal("OpenVSCode 1.98 ignora secondarySidebar — o chat mora no container Chat da direita")
 	}
+	if !strings.Contains(string(pkg), `"id": "ihuull-ports"`) || strings.Contains(string(pkg), `"workbench.panel":`) {
+		t.Fatal("Ports deve ser viewsContainers.panel — workbench.panel cai no Explorer")
+	}
 	if !strings.Contains(string(js), "/api/xcodespaces/llm/models") {
 		t.Fatal("chat precisa listar modelos no proxy")
 	}

@@ -1643,13 +1643,15 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 
 ### 57.2 Terminal do agente
 
-- [x] Extensão `ihuull.codespace` **0.5.4**: PTY ao vivo + Flask sem hang de 120s.
+- [x] Extensão `ihuull.codespace` **0.5.5**: PTY ao vivo + Flask sem hang de 120s.
 - [ ] Rebuild da imagem + Recreate do codespace (start antigo não troca a layer).
 
 ### 57.3 Ports + layout + CI
 
 - [x] Aba **Ports**: `/proc/net/tcp` + `ss` (`iproute2` na imagem); lista `:8080` com bind e aviso se ≠ `0.0.0.0`.
-- [x] Layout: **Ports** no painel inferior, **XCODESPACES** na auxiliary bar (`layout.js` + machine settings).
+- [x] Layout: **Ports** em `viewsContainers.panel` (painel inferior — `workbench.panel` caía no Explorer), **XCODESPACES** na auxiliary bar.
+- [x] Ports: hostname `demo-*` completo (sem ellipsis); **Abrir** via `window.open` no clique (openExternal no webview é no-op).
+- [x] Demo DNS: `host-record=` vence o catch-all `address=/corp.ihuull.com/` (senão `:8080` cai no landing em `10.66.66.1`).
 - [x] CI: `client-linux` / `client-windows-crosscompile` só com diff em `apps/xvpn-client/**` (`dorny/paths-filter`).
 
 **Critério de saída:** VPN ligada, agente pede Flask → terminal **XCODESPACES** mostra `$ python3 web/flask/app.py` e `Running on 0.0.0.0:8080` em segundos (sem Waiting for shell eterno). Aba **Ports** lista `:8080` → `http://demo-cs-<id>.corp:8080/health` → `{"ok":true}`. PR só codespace: CI ~3 min (sem Wails client).

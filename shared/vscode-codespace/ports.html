@@ -77,14 +77,28 @@ let demoHost = "";
 window.addEventListener("message", (ev) => {
   const msg = ev.data;
   if (msg?.type === "ports") {
-    demoHost = msg.demoHost || demoHost;
-    if (demoHost) hostEl.textContent = demoHost;
+    const next = String(msg.demoHost || "");
+    demoHost = /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i.test(next) ? next.toLowerCase() : "";
+    hostEl.textContent = demoHost || "aguardando hostname demo-…";
     render(msg.ports || []);
   }
 });
 
+function isDemoPreviewUrl(raw) {
+  try {
+    const u = new URL(String(raw || ""));
+    if (u.protocol !== "http:" || u.username || u.password) return false;
+    if ((u.pathname && u.pathname !== "/") || u.search || u.hash) return false;
+    const port = Number(u.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+    return /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i.test(u.hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
 function openUrl(url) {
-  if (!url || !url.startsWith("http://")) {
+  if (!isDemoPreviewUrl(url)) {
     return;
   }
   try {
@@ -96,24 +110,56 @@ function openUrl(url) {
 }
 
 function render(ports) {
+  list.replaceChildren();
   if (!ports.length) {
-    list.innerHTML = '<div class="empty">Nenhuma porta detectada.<br>Flask: <code>python3 web/flask/app.py</code> (0.0.0.0:8080)</div>';
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.append("Nenhuma porta detectada.", document.createElement("br"), "Flask: ");
+    const code = document.createElement("code");
+    code.textContent = "python3 web/flask/app.py";
+    empty.append(code, " (0.0.0.0:8080)");
+    list.appendChild(empty);
     return;
   }
-  list.innerHTML = ports.map((p) => {
+  ports.forEach((p) => {
     const port = typeof p === "number" ? p : p.port;
-    const addr = typeof p === "object" && p.addr ? p.addr : "0.0.0.0";
+    const addr = typeof p === "object" && p.addr ? String(p.addr) : "0.0.0.0";
     const ok = typeof p === "object" ? p.public !== false : true;
-    const url = demoHost ? `http://${demoHost}:${port}` : `:${port}`;
-    const bind = ok ? `bind ${addr}` : `bind ${addr} — use 0.0.0.0 p/ demo-*`;
-    const href = url.startsWith("http://") ? url : "";
-    return `<div class="row"><span class="dot${ok ? "" : " warn"}" title="online"></span><span class="port">:${port}</span><div class="meta"><a class="url" data-u="${url}" ${href ? `href="${href}"` : ""} target="_blank" rel="noopener">${url}</a><div class="bind${ok ? "" : " warn"}">${bind}</div></div><button type="button" class="btn" data-u="${url}">Abrir</button></div>`;
-  }).join("");
-  list.querySelectorAll("[data-u]").forEach((el) => {
-    el.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      openUrl(el.getAttribute("data-u") || "");
-    });
+    const url = demoHost ? "http://" + demoHost + ":" + port : "";
+    const row = document.createElement("div");
+    row.className = "row";
+    const dot = document.createElement("span");
+    dot.className = "dot" + (ok ? "" : " warn");
+    dot.title = "online";
+    const portEl = document.createElement("span");
+    portEl.className = "port";
+    portEl.textContent = ":" + port;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const link = document.createElement(url && isDemoPreviewUrl(url) ? "a" : "span");
+    link.className = "url";
+    link.textContent = url || (":" + port);
+    if (link.tagName === "A") {
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        openUrl(url);
+      });
+    }
+    const bind = document.createElement("div");
+    bind.className = "bind" + (ok ? "" : " warn");
+    bind.textContent = ok ? "bind " + addr : "bind " + addr + " — use 0.0.0.0 p/ demo-*";
+    meta.append(link, bind);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn";
+    btn.textContent = "Abrir";
+    btn.disabled = !url || !isDemoPreviewUrl(url);
+    btn.addEventListener("click", () => openUrl(url));
+    row.append(dot, portEl, meta, btn);
+    list.appendChild(row);
   });
 }
 

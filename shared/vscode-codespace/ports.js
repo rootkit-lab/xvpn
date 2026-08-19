@@ -8,6 +8,42 @@ const execFileAsync = promisify(execFile);
 
 // openvscode-server escuta 3000 no container — não é preview do projeto.
 const SKIP = new Set([3000]);
+const DEMO_HOST_RE = /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i;
+
+function isDemoHost(host) {
+  return DEMO_HOST_RE.test(String(host || ""));
+}
+
+function isDemoPreviewUrl(raw) {
+  let u;
+  try {
+    u = new URL(String(raw || ""));
+  } catch {
+    return false;
+  }
+  if (u.protocol !== "http:") {
+    return false;
+  }
+  if (u.username || u.password) {
+    return false;
+  }
+  if ((u.pathname && u.pathname !== "/") || u.search || u.hash) {
+    return false;
+  }
+  const port = Number(u.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    return false;
+  }
+  return isDemoHost(u.hostname);
+}
+
+function previewUrl(demoHost, port) {
+  const n = Number(port);
+  if (!isDemoHost(demoHost) || !Number.isInteger(n) || n < 1 || n > 65535) {
+    return "";
+  }
+  return "http://" + String(demoHost).toLowerCase() + ":" + n;
+}
 
 function parseHexPort(hex) {
   const n = Number.parseInt(hex, 16);
@@ -131,5 +167,8 @@ module.exports = {
   parseProcNetTcp,
   parseSsOutput,
   isDemoBind,
+  isDemoHost,
+  isDemoPreviewUrl,
+  previewUrl,
   SKIP,
 };

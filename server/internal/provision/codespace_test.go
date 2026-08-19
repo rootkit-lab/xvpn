@@ -340,6 +340,9 @@ func TestCodespaceAssistantExtension_HasGenerateCommit(t *testing.T) {
 	if !strings.Contains(string(pkg), `"ihuull.codespace.autoApply"`) {
 		t.Fatal("extensão precisa de autoApply para não pedir Aplicar em cada edição")
 	}
+	if !strings.Contains(string(js), "isDemoPreviewUrl") || strings.Contains(string(js), "^https?:") {
+		t.Fatal("Abrir no Ports só pode aceitar http://demo-*.corp.ihuull.com:porta")
+	}
 	if !strings.Contains(string(pkg), `"secondarySideBar"`) || !strings.Contains(string(pkg), `"id": "ihuull-agent"`) {
 		t.Fatal("chat ihuull deve ser viewsContainers.secondarySideBar (direita)")
 	}

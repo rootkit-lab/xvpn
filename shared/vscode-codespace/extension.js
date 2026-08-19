@@ -18,7 +18,7 @@ const { writeArtifact, fileDelta } = require("./artifacts");
 const { resolveWorkspacePath } = require("./sandbox");
 const { attachAgentTerminal, looksLikeLongRunning } = require("./terminal-agent");
 const { readHooks } = require("./hooks");
-const { listListeningPorts } = require("./ports");
+const { listListeningPorts, isDemoHost, isDemoPreviewUrl } = require("./ports");
 
 const execFileAsync = promisify(execFile);
 const ID_RE = /^[a-f0-9]{12}$/;
@@ -81,7 +81,8 @@ class PortsViewProvider {
   }
 
   demoHost() {
-    return vscode.workspace.getConfiguration("ihuull.codespace").get("demoHost") || "";
+    const raw = vscode.workspace.getConfiguration("ihuull.codespace").get("demoHost") || "";
+    return isDemoHost(raw) ? String(raw).toLowerCase() : "";
   }
 
   async refresh() {
@@ -94,7 +95,7 @@ class PortsViewProvider {
       this.refresh().catch(() => {});
       return;
     }
-    if (msg?.type === "open" && typeof msg.url === "string" && /^https?:\/\/[\w.-]+/.test(msg.url)) {
+    if (msg?.type === "open" && typeof msg.url === "string" && isDemoPreviewUrl(msg.url)) {
       const uri = vscode.Uri.parse(msg.url);
       Promise.resolve(vscode.env.openExternal(uri)).then((ok) => {
         if (ok === false) {

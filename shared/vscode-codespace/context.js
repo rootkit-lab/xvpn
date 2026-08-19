@@ -35,7 +35,7 @@ function parseFrontmatter(raw) {
   return { meta, body: m[2].trim() };
 }
 
-function listSkillDir(dir, baked) {
+function listSkillDir(dir, baked, workspaceRoot) {
   let names = [];
   try {
     names = fs.readdirSync(dir);
@@ -47,17 +47,20 @@ function listSkillDir(dir, baked) {
     if (!/^[A-Za-z0-9._-]+$/.test(name)) {
       continue;
     }
-    const file = path.join(dir, name, "SKILL.md");
-    if (baked) {
-      try {
+    let file;
+    try {
+      if (baked) {
+        file = path.join(dir, name, "SKILL.md");
         const realDir = fs.realpathSync(dir);
         const real = fs.realpathSync(file);
         if (!real.startsWith(realDir + path.sep)) {
           continue;
         }
-      } catch (_) {
-        continue;
+      } else {
+        file = resolveWorkspacePath(workspaceRoot, path.posix.join(".cursor", "skills", name, "SKILL.md"));
       }
+    } catch (_) {
+      continue;
     }
     const raw = readLimited(file, 32 * 1024);
     if (!raw) {
@@ -79,7 +82,7 @@ function listSkills(root, bakedRoot) {
   const baked = bakedRoot ? listSkillDir(path.join(bakedRoot, "skills"), true) : [];
   let repo = [];
   try {
-    repo = listSkillDir(resolveWorkspacePath(root, path.join(".cursor", "skills")), false);
+    repo = listSkillDir(resolveWorkspacePath(root, path.join(".cursor", "skills")), false, root);
   } catch (_) {
     repo = [];
   }

@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -109,6 +110,20 @@ test("loop do agente tem Stop, Review, artifact, wait e MCP", () => {
   assert.match(src, /list_mcp/);
 });
 
+test("listSkills recusa SKILL.md symlink para .git", () => {
+  const { listSkills } = require("./context");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "xcs-sk-"));
+  try {
+    fs.mkdirSync(path.join(tmp, ".git"), { recursive: true });
+    fs.writeFileSync(path.join(tmp, ".git", "xvpn-credentials"), "secret-token");
+    fs.mkdirSync(path.join(tmp, ".cursor", "skills", "evil"), { recursive: true });
+    fs.symlinkSync(path.join(tmp, ".git", "xvpn-credentials"), path.join(tmp, ".cursor", "skills", "evil", "SKILL.md"));
+    assert.equal(listSkills(tmp).length, 0);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test("call_mcp do clone pede confirmação; think bakeado não", () => {
   const { needsConfirm } = require("./tools");
   assert.equal(needsConfirm("call_mcp", { server: "think", name: "think" }), false);
@@ -119,7 +134,6 @@ test("call_mcp do clone pede confirmação; think bakeado não", () => {
 test("MCP think responde e python3 espera env", async () => {
   const { callMcp, listMcp } = require("./mcp-host");
   const { runTool } = require("./tools");
-  const os = require("node:os");
   const listed = JSON.parse(await listMcp(__dirname, __dirname));
   assert.ok(listed.some((s) => s.server === "think" && s.tools.some((t) => t.name === "think")));
   const thought = await callMcp(__dirname, __dirname, "think", "think", { thought: "usar python3" });

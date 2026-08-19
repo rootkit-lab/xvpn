@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -17,6 +19,16 @@ test("resolveWorkspacePath recusa escape", () => {
   assert.throws(() => resolveWorkspacePath(root, "/etc/passwd"), /absoluto/);
   assert.throws(() => resolveWorkspacePath(root, "a/../../etc"), /fora/);
   assert.throws(() => resolveWorkspacePath("", "x"), /ausente/);
+  assert.throws(() => resolveWorkspacePath(root, ".git/xvpn-credentials"), /bloqueado/);
+  assert.throws(() => resolveWorkspacePath(root, ".git/config"), /bloqueado/);
+});
+
+test("resolveWorkspacePath recusa symlink para fora", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "xcs-sb-"));
+  fs.mkdirSync(path.join(tmp, "proj"));
+  fs.symlinkSync("/etc", path.join(tmp, "proj", "out"));
+  assert.throws(() => resolveWorkspacePath(path.join(tmp, "proj"), "out/passwd"), /fora/);
+  fs.rmSync(tmp, { recursive: true, force: true });
 });
 
 test("allowTerminal allowlist", () => {
@@ -32,5 +44,6 @@ test("allowTerminal blocklist", () => {
   assert.equal(allowTerminal(["ssh", "root@host"]).ok, false);
   assert.equal(allowTerminal(["bash", "-c", "ls"]).ok, false);
   assert.equal(allowTerminal(["git", "status", "&&", "sudo", "id"]).ok, false);
+  assert.equal(allowTerminal(["rg", "--pre", "sh"]).ok, false);
   assert.equal(allowTerminal([]).ok, false);
 });

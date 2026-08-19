@@ -135,6 +135,7 @@ async function runTool(root, name, rawArgs) {
       const abs = resolveWorkspacePath(root, rel);
       return fs
         .readdirSync(abs, { withFileTypes: true })
+        .filter((e) => e.name !== ".git")
         .slice(0, 200)
         .map((e) => (e.isDirectory() ? e.name + "/" : e.name))
         .join("\n");
@@ -144,9 +145,9 @@ async function runTool(root, name, rawArgs) {
       if (!pattern) {
         throw new Error("pattern vazio");
       }
-      const target = args.path ? resolveWorkspacePath(root, args.path) : root;
+      const target = args.path ? resolveWorkspacePath(root, args.path) : resolveWorkspacePath(root, ".");
       try {
-        const { stdout } = await execFileAsync("rg", ["-n", "--max-count", "40", "-m", "40", pattern, target], {
+        const { stdout } = await execFileAsync("rg", ["-n", "--max-count", "40", "-m", "40", "--", pattern, target], {
           cwd: root,
           maxBuffer: OUT_CAP,
           timeout: 8000,

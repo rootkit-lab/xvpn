@@ -33,13 +33,15 @@ export function XgitPackagesPage() {
         <h2 className="font-display mb-1 text-base font-semibold">Packages</h2>
         <p className="text-sm text-muted-foreground">
           Registry na malha em <code className="text-xs">xgit.corp</code> — npm, PyPI ou arquivo genérico. Sem
-          hostname novo. Container registry entra depois.
+          hostname novo. Exemplos: hello-js, hello-py, hello-go, hello-rs, hello-bin.
         </p>
       </div>
       {canPublish ? <PublishForm slug={slug} onPublished={() => void reload()} /> : null}
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {slug ? 'Nenhum package neste repositório.' : 'Nenhum package visível.'}
+          {slug
+            ? 'Nenhum package neste repositório.'
+            : 'Nenhum package visível. Os exemplos hello-* publicam no boot do servidor.'}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">

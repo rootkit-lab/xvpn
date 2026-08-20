@@ -1141,6 +1141,8 @@ Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §
 | MR + protected branches | xadmin + Mongo | 40–41 |
 | CI runners | peers WG `runner` | 42 |
 | Actions (lista, run, aprovação) | XGIT aba Actions | 42.1 |
+| New workflow (galeria) | `/:slug/actions/new` | 42.2 |
+| Packages npm/PyPI/generic + exemplos | `xgit.corp` / hello-* | 45.1–45.3 |
 | Registry / pages / SAST | backlog | 45+ |
 
 ---
@@ -1265,6 +1267,19 @@ A aba Actions deixa o card “Pipeline” e passa a ser a superfície do GitHub 
 
 ---
 
+## Fase 42.2 — New workflow (galeria GitHub Actions)
+
+O botão **New workflow** deixa de estar disabled. A rota `/:slug/actions/new?category=deployment` espelha a galeria do GitHub (`actions/new`): sidebar de categorias, busca e cards (nome, descrição, linguagens). Aplicar um template grava `.xvpn-ci.sh` — continua um job `ci`, sem YAML de múltiplos workflows.
+
+- [x] `GET /api/ci/workflow-templates` (filtro `?category=` e `?q=`). Categorias: Continuous integration, Deployment, Security, Automation, Pages, Publish a package.
+- [x] `POST /api/projects/:slug/workflows` `{template_id}` — developer+ ou `forge`. Funciona em bare vazio.
+- [x] UI: `/:slug/actions/new` (xgit.corp e xadmin). **Configure** aplica e abre o blob `.xvpn-ci.sh`.
+- [x] PLAN §6.15, `docs/api.md`.
+
+**Critério de saída:** em `xgit.corp/<slug>/actions/new?category=deployment` a lista parece a do GitHub; Configure commita o script. Sem multi-job YAML. Sem hostname novo.
+
+---
+
 ## Fase 43 — Serviços orquestrados (local + malha)
 
 xadmin instala e opera **no node local e nos VPS da malha**. Kinds: `mongo`, `redis`, `rabbitmq`, `lb`.
@@ -1288,7 +1303,7 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 - [x] Configurações gerais: visibility/network padrão, `allow_member_create`, host de clone `xgit.corp`. Tree/blob/commits na API.
 - [x] `member` no xadmin vai para `xgit.corp` (não o dashboard). Activity social no XGROUP; Issues first-class na Fase 46. Clone só na VPN.
 - [x] App de sistema `xgit` no catálogo (restricted + vpn). Tile no waffle quando o usuário é `ProjectMember` ou tem ACL do app.
-- [x] Home em `xgit.corp` estilo GitHub: Overview (heatmap + timeline), Repositórios, Packages (futuro), Stars. Chat no chrome (XCHAT nas threads de MR).
+- [x] Home em `xgit.corp` estilo GitHub: Overview (heatmap + timeline), Repositórios, Packages (45.1–45.3), Stars. Chat no chrome (XCHAT nas threads de MR).
 - [x] Seed `xvpn-client` e `xchat` a partir de `apps/` (`server/deploy/xgit/seed-from-monorepo.sh`) — bares deixam de estar vazios antes do registry (Fase 45).
 - [x] Tree/Code: ícones por tipo de ficheiro (Go, TS, MD, YAML, pasta, …), não um `File` genérico.
 - [x] Blob e README `.md`: tabs **Markdown** / **Texto**. Preview GFM (`react-markdown`: títulos, links, tabelas, code fence; HTML sanitizado).
@@ -1335,13 +1350,26 @@ Mesmo host `xgit.corp`, mesmos blobs e ACL da 45.1. Simple API (PEP 503 + PEP 69
 
 ---
 
+## Fase 45.3 — Exemplos por linguagem no XGIT
+
+Cinco repos de exemplo (uma linguagem cada) nascem no boot: git + package publicado no mesmo host `xgit.corp`. Fonte canónica no monorepo (`server/internal/pkgexamples/fs/`). Cópia de trabalho local: `$HOME/Projects/x/packages/<lang>`. Sem hostname novo. Sem Harbor.
+
+- [x] Slugs `hello-js` (npm `@ihuull/hello-js`), `hello-py` (PyPI `hello-ihuull`), `hello-go` / `hello-rs` / `hello-bin` (generic).
+- [x] Seed idempotente: cria projeto (global + vpn), commita o tree se o bare estiver vazio, publica a versão `0.1.0`, adiciona membros existentes como guest.
+- [x] Embed no binário; `SeedLanguagePackageExamples` no boot (best-effort).
+- [x] PLAN §6.15, `docs/api.md`.
+
+**Critério de saída:** após deploy, `xgit.corp` lista os cinco repos e a aba Packages mostra os artefactos. `npm`/`pip`/download autenticado na VPN. Fora da VPN a rota não resolve.
+
+---
+
 ## Fase 45+ — Forge tardio (backlog)
 
 - [ ] Container registry (`registry:2` / Harbor; bind wg0; hostname novo só com `port-domain-registry-check` + PLAN §5).
 - [ ] Pages (Nginx + blob).
 - [ ] Snippets, SAST, feature flags.
 
-Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES). Container/Pages não entram na 45.1/45.2.
+Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES). Container/Pages não entram na 45.1–45.3.
 
 ---
 

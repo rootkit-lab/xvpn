@@ -83,7 +83,9 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/projects` | sessão | `?scope=all` (viewer+) lista todos; `?scope=mine` só `ProjectMember`. `?cards=1` acrescenta language, last_commit, spark e stars. Default: all se viewer+, senão mine. Member + `scope=all` → 403 |
 | GET | `/api/xgit/overview` | sessão | perfil, populares, heatmap (1 ano) e activity (commits, repos, MRs + comentários XCHAT) |
 | GET | `/api/xgit/stars` | sessão | repositórios com estrela |
-| GET | `/api/xgit/packages` | sessão | packages visíveis (ACL do projeto) |
+| GET | `/api/ci/workflow-templates` | sessão | galeria New workflow (`?category=deployment&q=`). Categorias + cards |
+| POST | `/api/projects/:slug/workflows` | developer+ ou `forge` | `{template_id}` grava `.xvpn-ci.sh` |
+| GET | `/api/xgit/packages` | sessão | packages visíveis (ACL do projeto). Exemplos `hello-*` no boot (45.3) |
 | GET | `/api/projects/:slug/packages` | sessão + ACL | lista + `can_publish` |
 | POST | `/api/projects/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`/`pypi`), `file` (≤64 MiB) |
 | GET | `/api/projects/:slug/packages/:id/download` | sessão + ACL | blob da versão |

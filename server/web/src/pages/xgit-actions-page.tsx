@@ -28,9 +28,11 @@ export function XgitActionsPage() {
   return (
     <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
       <aside className="flex flex-col gap-4 text-sm">
-        <Button type="button" variant="outline" size="sm" className="justify-start gap-2" disabled>
-          <CirclePlus className="size-3.5" />
-          New workflow
+        <Button type="button" variant="outline" size="sm" className="justify-start gap-2" asChild>
+          <Link to={xgitPath(`${slug}/actions/new`)}>
+            <CirclePlus className="size-3.5" />
+            New workflow
+          </Link>
         </Button>
         <div>
           <p className="hud-label px-2 text-muted-foreground/70">Workflows</p>

@@ -1,0 +1,11 @@
+{
+  "name": "@ihuull/hello-js",
+  "version": "0.1.0",
+  "description": "Exemplo npm no registry XGIT (xgit.corp).",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  }
+}

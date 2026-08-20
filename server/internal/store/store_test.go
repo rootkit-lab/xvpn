@@ -105,3 +105,51 @@ func TestOpen_DoesNotReRunBackfillOnAlreadyMigratedDatabase(t *testing.T) {
 		t.Fatalf("esperava que o papel customizado (viewer) sobrevivesse a um reboot, obtido %q", reloaded.Role)
 	}
 }
+
+// TestOpen_AddsOrganizationIDToLegacyProjects reproduz o SQLite de
+// produção pré-#167: projects já existe com linhas, sem organization_id.
+// AutoMigrate sozinho faz ADD COLUMN NOT NULL sem default e aborta o boot.
+func TestOpen_AddsOrganizationIDToLegacyProjects(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "pre-org.db")
+
+	pre, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("erro na primeira abertura: %v", err)
+	}
+	now := time.Now()
+	if err := pre.DB.Exec(`INSERT INTO projects (slug, name, social_group_id, files_enabled, visibility, network, created_at, updated_at)
+		VALUES (?, ?, 1, 0, 'global', 'vpn', ?, ?)`, "hello-js", "hello-js", now, now).Error; err != nil {
+		t.Fatalf("erro inserindo projeto legado: %v", err)
+	}
+	if err := pre.DB.Exec(`CREATE TABLE projects_legacy AS SELECT id, slug, name, description, app_id, social_group_id, files_enabled, visibility, network, runners, archived_at, created_at, updated_at FROM projects`).Error; err != nil {
+		t.Fatalf("erro clonando projects sem org: %v", err)
+	}
+	if err := pre.DB.Exec("DROP TABLE projects").Error; err != nil {
+		t.Fatalf("erro derrubando projects: %v", err)
+	}
+	if err := pre.DB.Exec("ALTER TABLE projects_legacy RENAME TO projects").Error; err != nil {
+		t.Fatalf("erro renomeando projects legado: %v", err)
+	}
+	sqlDB, err := pre.DB.DB()
+	if err != nil {
+		t.Fatalf("erro obtendo *sql.DB: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("erro fechando conexão de setup: %v", err)
+	}
+
+	migrated, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("erro reabrindo banco legado (organization_id): %v", err)
+	}
+	if !migrated.DB.Migrator().HasColumn(&Project{}, "organization_id") {
+		t.Fatal("esperava coluna organization_id após Open()")
+	}
+	var row Project
+	if err := migrated.DB.Where("slug = ?", "hello-js").First(&row).Error; err != nil {
+		t.Fatalf("erro lendo projeto legado: %v", err)
+	}
+	if row.OrganizationID != 0 {
+		t.Fatalf("esperava organization_id=0 no legado (cutover no seed), obtido %d", row.OrganizationID)
+	}
+}

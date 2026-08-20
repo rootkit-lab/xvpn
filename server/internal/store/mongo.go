@@ -162,6 +162,9 @@ func mongoIsEmpty(ctx context.Context, db *mongo.Database) (bool, error) {
 
 func finishOpen(db *gorm.DB) (*Store, error) {
 	needsRoleBackfill := !db.Migrator().HasColumn(&User{}, "role")
+	if err := migrateLegacyProjectOrgColumns(db); err != nil {
+		return nil, fmt.Errorf("migrando organization_id: %w", err)
+	}
 	if err := db.AutoMigrate(allModels()...); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}

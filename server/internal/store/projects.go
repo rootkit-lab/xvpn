@@ -38,7 +38,7 @@ func (r ProjectRole) Rank() int {
 // activity social continua no SocialGroup — sem segundo social.
 type Project struct {
 	ID             uint   `gorm:"primaryKey"`
-	OrganizationID uint   `gorm:"uniqueIndex:idx_org_project_slug;not null;index"`
+	OrganizationID uint   `gorm:"uniqueIndex:idx_org_project_slug;not null;default:0;index"`
 	TeamID         *uint  `gorm:"index"`
 	Slug           string `gorm:"uniqueIndex:idx_org_project_slug;not null"`
 	Name           string `gorm:"not null"`

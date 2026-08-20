@@ -23,7 +23,7 @@ func TestCiJobEnqueueClaimAndArtifact(t *testing.T) {
 	app.Config.DriverProjectsDir = t.TempDir()
 	app.Config.WireGuardAllowedSubnet = "10.66.66.0/24"
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -52,7 +52,7 @@ func TestCiJobEnqueueClaimAndArtifact(t *testing.T) {
 
 	app.enqueueCiJob(row, ciTriggerPush, "refs/heads/main", strings.Repeat("a", 40), nil)
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/jobs", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
 	}
@@ -119,7 +119,7 @@ func TestCiJobEnqueueClaimAndArtifact(t *testing.T) {
 		t.Fatalf("finish: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs/1", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/jobs/1", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get: %d", rec.Code)
 	}
@@ -130,11 +130,11 @@ func TestCiJobEnqueueClaimAndArtifact(t *testing.T) {
 	if job.Status != store.CiSuccess || !job.HasLog || !job.HasArtifact || job.Runner != "runner1" {
 		t.Fatalf("job: %+v", job)
 	}
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs/1/log", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/jobs/1/log", nil, adminTok)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "hello ci") {
 		t.Fatalf("read log: %d %s", rec.Code, rec.Body.String())
 	}
-	if _, err := os.Stat(filepath.Join(app.Config.DriverProjectsDir, "lab", "ci", "1", "out.txt")); err != nil {
+	if _, err := os.Stat(filepath.Join(app.Config.DriverProjectsDir, "xcorp", "lab", "ci", "1", "out.txt")); err != nil {
 		t.Fatalf("artifact no XDRIVER: %v", err)
 	}
 }
@@ -145,22 +145,22 @@ func TestCiEnqueueOnMergeAndSkipDelete(t *testing.T) {
 	}
 	app, router, adminTok := setupGitApp(t)
 	app.Config.DriverProjectsDir = t.TempDir()
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d", rec.Code)
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "x", SourceBranch: "feat", TargetBranch: "main",
 	}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("mr: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/merge", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("merge: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/jobs", nil, adminTok)
 	var listed struct {
 		Items []ciJobJSON `json:"items"`
 	}
@@ -223,7 +223,7 @@ func TestCiMRAwaitingApprovalAndApprove(t *testing.T) {
 	alice := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
 	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -231,7 +231,7 @@ func TestCiMRAwaitingApprovalAndApprove(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: alice.ID, Role: store.ProjectRoleDeveloper},
@@ -240,16 +240,16 @@ func TestCiMRAwaitingApprovalAndApprove(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "feat x", SourceBranch: "feat", TargetBranch: "main",
 	}, aliceTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("mr: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/jobs", nil, adminTok)
 	var listed struct {
 		Items     []ciJobJSON      `json:"items"`
 		Workflows []ciWorkflowJSON `json:"workflows"`
@@ -285,11 +285,11 @@ func TestCiMRAwaitingApprovalAndApprove(t *testing.T) {
 		t.Fatalf("runner não deveria reclamar awaiting_approval: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/jobs/1/approve", nil, aliceTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/jobs/1/approve", nil, aliceTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("developer não aprova: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/jobs/1/approve", nil, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/jobs/1/approve", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("approve: %d %s", rec.Code, rec.Body.String())
 	}
@@ -306,7 +306,7 @@ func TestCiMRAwaitingApprovalAndApprove(t *testing.T) {
 		t.Fatalf("claim após approve: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/runners", nil, aliceTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/runners", nil, aliceTok)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "runner-appr") {
 		t.Fatalf("runners: %d %s", rec.Code, rec.Body.String())
 	}
@@ -315,7 +315,7 @@ func TestCiMRAwaitingApprovalAndApprove(t *testing.T) {
 func TestCiRerunCreatesNewJob(t *testing.T) {
 	app, router, adminTok := setupGitApp(t)
 	app.Config.DriverProjectsDir = t.TempDir()
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d", rec.Code)
 	}
@@ -334,7 +334,7 @@ func TestCiRerunCreatesNewJob(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/jobs/1/rerun", nil, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/jobs/1/rerun", nil, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("rerun: %d %s", rec.Code, rec.Body.String())
 	}

@@ -127,7 +127,7 @@ func (a *App) handleListProjectBranches(c *gin.Context) {
 	if !ok {
 		return
 	}
-	heads, err := forge.ListBranches(a.gitDir(), proj.Slug)
+	heads, err := forge.ListBranches(a.gitDir(), a.projectRepo(proj))
 	if err != nil {
 		if errors.Is(err, forge.ErrGitMissing) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "git indisponível"})
@@ -217,11 +217,11 @@ func (a *App) handleCreateMergeRequest(c *gin.Context) {
 		return
 	}
 	root := a.gitDir()
-	if root == "" || !forge.Exists(root, proj.Slug) {
+	if root == "" || !forge.Exists(root, a.projectRepo(proj)) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "repositório git indisponível"})
 		return
 	}
-	if !forge.BranchExists(root, proj.Slug, source) || !forge.BranchExists(root, proj.Slug, target) {
+	if !forge.BranchExists(root, a.projectRepo(proj), source) || !forge.BranchExists(root, a.projectRepo(proj), target) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "branch inexistente"})
 		return
 	}
@@ -232,7 +232,7 @@ func (a *App) handleCreateMergeRequest(c *gin.Context) {
 		return
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "project.mr.open", fmt.Sprintf("%s!%d", proj.Slug, mr.Number))
-	if sha, err := forge.RevParse(a.gitDir(), proj.Slug, source); err == nil {
+	if sha, err := forge.RevParse(a.gitDir(), a.projectRepo(proj), source); err == nil {
 		n := mr.Number
 		st := store.CiAwaitingApproval
 		if a.canApproveCi(user, proj) {
@@ -261,7 +261,7 @@ func (a *App) handleMergeMergeRequest(c *gin.Context) {
 		return
 	}
 	msg := fmt.Sprintf("Merge !%d: %s into %s", mr.Number, mr.SourceBranch, mr.TargetBranch)
-	if err := forge.MergeBranches(a.gitDir(), proj.Slug, mr.SourceBranch, mr.TargetBranch, msg); err != nil {
+	if err := forge.MergeBranches(a.gitDir(), a.projectRepo(proj), mr.SourceBranch, mr.TargetBranch, msg); err != nil {
 		switch {
 		case errors.Is(err, forge.ErrMergeConflict):
 			c.JSON(http.StatusConflict, gin.H{"error": "conflito de merge"})
@@ -292,7 +292,7 @@ func (a *App) handleMergeMergeRequest(c *gin.Context) {
 	}
 	_ = a.Store.DB.Create(&note).Error
 	_ = a.Store.LogAudit(callerUsername(c), "project.mr.merge", fmt.Sprintf("%s!%d", proj.Slug, mr.Number))
-	if sha, err := forge.RevParse(a.gitDir(), proj.Slug, mr.TargetBranch); err == nil {
+	if sha, err := forge.RevParse(a.gitDir(), a.projectRepo(proj), mr.TargetBranch); err == nil {
 		n := mr.Number
 		a.enqueueCiJobAs(proj, ciTriggerMR, "refs/heads/"+mr.TargetBranch, sha, &n, user.Username, store.CiPending)
 	}
@@ -402,7 +402,7 @@ func (a *App) handleListMRCommits(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, err := forge.CompareCommits(a.gitDir(), proj.Slug, mr.TargetBranch, mr.SourceBranch, 80)
+	items, err := forge.CompareCommits(a.gitDir(), a.projectRepo(proj), mr.TargetBranch, mr.SourceBranch, 80)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"items": []forge.CommitInfo{}})
 		return
@@ -415,7 +415,7 @@ func (a *App) handleGetMRDiff(c *gin.Context) {
 	if !ok {
 		return
 	}
-	diff, err := forge.DiffUnified(a.gitDir(), proj.Slug, mr.TargetBranch, mr.SourceBranch)
+	diff, err := forge.DiffUnified(a.gitDir(), a.projectRepo(proj), mr.TargetBranch, mr.SourceBranch)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"diff": ""})
 		return

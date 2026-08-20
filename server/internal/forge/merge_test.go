@@ -21,10 +21,10 @@ func TestListAndMergeBranches(t *testing.T) {
 		t.Skip("git não está no PATH")
 	}
 	root := t.TempDir()
-	if err := InitBare(root, "lab"); err != nil {
+	if err := InitBare(root, "xcorp/lab"); err != nil {
 		t.Fatal(err)
 	}
-	heads, err := ListBranches(root, "lab")
+	heads, err := ListBranches(root, "xcorp/lab")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,25 +32,25 @@ func TestListAndMergeBranches(t *testing.T) {
 		t.Fatalf("bare vazio deveria ter 0 branches, veio %v", heads)
 	}
 
-	seedTwoBranches(t, root, "lab")
-	heads, err = ListBranches(root, "lab")
+	seedTwoBranches(t, root, "xcorp/lab")
+	heads, err = ListBranches(root, "xcorp/lab")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !contains(heads, "main") || !contains(heads, "feat") {
 		t.Fatalf("branches: %v", heads)
 	}
-	if !BranchExists(root, "lab", "feat") || BranchExists(root, "lab", "nope") {
+	if !BranchExists(root, "xcorp/lab", "feat") || BranchExists(root, "xcorp/lab", "nope") {
 		t.Fatal("BranchExists")
 	}
 
-	if err := MergeBranches(root, "lab", "feat", "main", "Merge !1"); err != nil {
+	if err := MergeBranches(root, "xcorp/lab", "feat", "main", "Merge !1"); err != nil {
 		t.Fatalf("merge: %v", err)
 	}
-	if err := MergeBranches(root, "lab", "main", "main", ""); err != ErrSameBranch {
+	if err := MergeBranches(root, "xcorp/lab", "main", "main", ""); err != ErrSameBranch {
 		t.Fatalf("mesmo branch: %v", err)
 	}
-	if err := MergeBranches(root, "lab", "ghost", "main", ""); err != ErrBranchMissing {
+	if err := MergeBranches(root, "xcorp/lab", "ghost", "main", ""); err != ErrBranchMissing {
 		t.Fatalf("ghost: %v", err)
 	}
 }
@@ -99,11 +99,11 @@ func TestListTreeAndReadBlob(t *testing.T) {
 		t.Skip("git não está no PATH")
 	}
 	root := t.TempDir()
-	if err := InitBare(root, "lab"); err != nil {
+	if err := InitBare(root, "xcorp/lab"); err != nil {
 		t.Fatal(err)
 	}
-	seedTwoBranches(t, root, "lab")
-	ents, err := ListTree(root, "lab", "main", "")
+	seedTwoBranches(t, root, "xcorp/lab")
+	ents, err := ListTree(root, "xcorp/lab", "main", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,17 +119,17 @@ func TestListTreeAndReadBlob(t *testing.T) {
 	if !found {
 		t.Fatalf("README ausente: %+v", ents)
 	}
-	if n, err := CountCommits(root, "lab", "main"); err != nil || n < 1 {
+	if n, err := CountCommits(root, "xcorp/lab", "main"); err != nil || n < 1 {
 		t.Fatalf("count: %d %v", n, err)
 	}
-	body, bin, err := ReadBlob(root, "lab", "main", "README")
+	body, bin, err := ReadBlob(root, "xcorp/lab", "main", "README")
 	if err != nil || bin || body != "hello\n" {
 		t.Fatalf("blob: %q bin=%v err=%v", body, bin, err)
 	}
-	if _, err := ListTree(root, "lab", "main", "../etc"); err == nil {
+	if _, err := ListTree(root, "xcorp/lab", "main", "../etc"); err == nil {
 		t.Fatal("path traversal deveria falhar")
 	}
-	logs, err := ListCommits(root, "lab", "main", "", 5)
+	logs, err := ListCommits(root, "xcorp/lab", "main", "", 5)
 	if err != nil || len(logs) == 0 {
 		t.Fatalf("log: %v %v", logs, err)
 	}

@@ -62,11 +62,11 @@ export function CiJobStatusBadge({ status }: { status: CiJobStatus }) {
 }
 
 export function CiJobPage() {
-  const { slug = '', n = '' } = useParams()
+  const { org = '', slug = '', n = '' } = useParams()
   const navigate = useNavigate()
   const number = Number(n)
-  const fetchJob = useCallback(() => api.getCiJob(slug, number), [slug, number])
-  const fetchLog = useCallback(() => api.getCiJobLog(slug, number).catch(() => ''), [slug, number])
+  const fetchJob = useCallback(() => api.getCiJob(`${org}/${slug}`, number), [slug, number])
+  const fetchLog = useCallback(() => api.getCiJobLog(`${org}/${slug}`, number).catch(() => ''), [slug, number])
   const { data, loading, error, reload } = usePollingData(fetchJob, 8_000)
   const { data: log } = usePollingData(fetchLog, 8_000)
   const [busy, setBusy] = useState(false)
@@ -82,17 +82,17 @@ export function CiJobPage() {
     setBusy(true)
     try {
       if (kind === 'cancel') {
-        await api.cancelCiJob(slug, number)
+        await api.cancelCiJob(`${org}/${slug}`, number)
         toast.success('Run cancelado')
         reload()
       } else if (kind === 'approve') {
-        await api.approveCiJob(slug, number)
+        await api.approveCiJob(`${org}/${slug}`, number)
         toast.success('Workflow aprovado')
         reload()
       } else {
-        const next = await api.rerunCiJob(slug, number)
+        const next = await api.rerunCiJob(`${org}/${slug}`, number)
         toast.success(`Re-run #${next.number}`)
-        navigate(xgitPath(`${slug}/actions/${next.number}`))
+        navigate(xgitPath(`${org}/${slug}/actions/${next.number}`))
       }
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha na ação')
@@ -111,11 +111,11 @@ export function CiJobPage() {
           XGIT
         </Link>
         <span className="px-1.5">/</span>
-        <Link to={xgitPath(slug)} className="hover:underline">
+        <Link to={xgitPath(`${org}/${slug}`)} className="hover:underline">
           {slug}
         </Link>
         <span className="px-1.5">/</span>
-        <Link to={xgitPath(`${slug}/actions`)} className="hover:underline">
+        <Link to={xgitPath(`${org}/${slug}/actions`)} className="hover:underline">
           Actions
         </Link>
         <span className="px-1.5">/</span>
@@ -166,7 +166,7 @@ export function CiJobPage() {
               <>
                 {' '}
                 from a maintainer in{' '}
-                <Link to={xgitPath(`${slug}/mrs/${data.merge_request_number}`)} className="text-primary hover:underline">
+                <Link to={xgitPath(`${org}/${slug}/mrs/${data.merge_request_number}`)} className="text-primary hover:underline">
                   #{data.merge_request_number}
                 </Link>
                 .
@@ -200,7 +200,7 @@ export function CiJobPage() {
           <dt className="hud-label text-muted-foreground/70">Artifacts</dt>
           <dd className="mt-1">
             {data.has_artifact ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => void api.downloadCiArtifact(slug, number)}>
+              <Button type="button" variant="outline" size="sm" onClick={() => void api.downloadCiArtifact(`${org}/${slug}`, number)}>
                 Download
               </Button>
             ) : (

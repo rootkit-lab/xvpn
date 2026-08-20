@@ -27,6 +27,10 @@ func (a *App) SeedLanguagePackageExamples() error {
 	if a == nil || a.Store == nil || a.Packages == nil {
 		return nil
 	}
+	if err := store.SeedXcorp(a.Store.DB); err != nil {
+		return err
+	}
+	a.remountProjectsToDefaultOrg()
 	owner, ok := a.firstProjectOwner()
 	if !ok {
 		return nil
@@ -54,18 +58,17 @@ func (a *App) seedOneLanguageExample(owner store.User, spec pkgexamples.Spec) er
 	if err != nil {
 		return err
 	}
-	a.ensureExampleGuests(proj)
 	if a.gitDir() != "" {
-		if err := a.ensureGitRepo(proj.Slug); err != nil {
+		if err := a.ensureGitRepo(proj); err != nil {
 			return err
 		}
-		if !forge.HasCommits(a.gitDir(), proj.Slug) {
+		if !forge.HasCommits(a.gitDir(), a.projectRepo(proj)) {
 			list := make([]forge.FileContent, 0, len(files))
 			for p, body := range files {
 				list = append(list, forge.FileContent{Path: p, Content: body})
 			}
 			sort.Slice(list, func(i, j int) bool { return list[i].Path < list[j].Path })
-			if _, err := forge.CommitFiles(a.gitDir(), proj.Slug, forge.CommitFilesOpts{
+			if _, err := forge.CommitFiles(a.gitDir(), a.projectRepo(proj), forge.CommitFilesOpts{
 				Files:       list,
 				Message:     "chore: seed exemplo " + spec.Slug,
 				AuthorName:  owner.Username,
@@ -88,16 +91,29 @@ func (a *App) seedOneLanguageExample(owner store.User, spec pkgexamples.Spec) er
 }
 
 func (a *App) ensureExampleProject(owner store.User, spec pkgexamples.Spec) (store.Project, error) {
+	org, ok := a.defaultOrganization()
+	if !ok {
+		return store.Project{}, errors.New("org xcorp ausente")
+	}
 	var existing store.Project
-	err := a.Store.DB.Where("slug = ?", spec.Slug).First(&existing).Error
+	err := a.Store.DB.Where("organization_id = ? AND slug = ?", org.ID, spec.Slug).First(&existing).Error
 	if err == nil {
 		if !a.isOwnedSeedExample(existing, owner, spec) {
 			return store.Project{}, errForeignExampleSlug
 		}
+		if existing.OrganizationID == 0 {
+			existing.OrganizationID = org.ID
+			_ = a.Store.DB.Save(&existing).Error
+		}
+		existing.Organization = org
 		return existing, nil
 	}
-	return a.createProject(owner.ID, spec.Slug, spec.Title, spec.Description,
-		store.AppVisibilityGlobal, store.AppNetworkVPN, nil, false)
+	teamID := (*uint)(nil)
+	if team, ok := a.orgTeam(org.ID, "packages"); ok {
+		teamID = &team.ID
+	}
+	return a.createProject(owner.ID, org, spec.Slug, spec.Title, spec.Description,
+		store.AppVisibilityGlobal, store.AppNetworkVPN, nil, false, teamID)
 }
 
 func (a *App) isOwnedSeedExample(proj store.Project, owner store.User, spec pkgexamples.Spec) bool {
@@ -111,17 +127,8 @@ func (a *App) isOwnedSeedExample(proj store.Project, owner store.User, spec pkge
 	return n > 0
 }
 
-func (a *App) ensureExampleGuests(proj store.Project) {
-	var users []store.User
-	if err := a.Store.DB.Find(&users).Error; err != nil {
-		return
-	}
-	for _, u := range users {
-		row := store.ProjectMember{ProjectID: proj.ID, UserID: u.ID, Role: store.ProjectRoleGuest}
-		_ = a.Store.DB.Where("project_id = ? AND user_id = ?", proj.ID, u.ID).FirstOrCreate(&row).Error
-	}
-	_ = a.syncProjectGroupMembers(proj)
-}
+// ensureExampleGuests removido: o finding da #166 alargava guest a
+// toda a VPN. Quem vê o exemplo é OrgMember da xcorp / time packages.
 
 func packageTarball(spec pkgexamples.Spec, files map[string]string) ([]byte, error) {
 	prefix := spec.Slug + "-" + spec.Version

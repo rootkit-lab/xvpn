@@ -293,7 +293,7 @@ function XGitCorpApp() {
               <Route path="packages" element={<XgitPackagesPage />} />
               <Route path="stars" element={<XgitStarsPage />} />
             </Route>
-            <Route path=":slug" element={<XgitRepoLayout />}>
+            <Route path=":org/:slug" element={<XgitRepoLayout />}>
               <Route index element={<XgitCodePage />} />
               <Route path="tree/*" element={<XgitCodePage />} />
               <Route path="blob/*" element={<XgitCodePage />} />
@@ -372,11 +372,12 @@ function CorpHubApp() {
 }
 
 function ProjectToXgit() {
-  const { slug = '', iid, n } = useParams()
+  const { org = '', slug = '', iid, n } = useParams()
   const { pathname } = useLocation()
-  if (iid) return <Navigate to={`/admin/xgit/${slug}/mrs/${iid}`} replace />
-  if (n && pathname.includes('/jobs/')) return <Navigate to={`/admin/xgit/${slug}/actions/${n}`} replace />
-  return <Navigate to={`/admin/xgit/${slug}`} replace />
+  const base = `/admin/xgit/${org}/${slug}`
+  if (iid) return <Navigate to={`${base}/mrs/${iid}`} replace />
+  if (n && pathname.includes('/jobs/')) return <Navigate to={`${base}/actions/${n}`} replace />
+  return <Navigate to={base} replace />
 }
 
 function AdminIndex() {
@@ -425,13 +426,13 @@ function XAdminCorpApp() {
               <Route path="audit" element={<AuditPage />} />
             </Route>
             <Route path="projects" element={<Navigate to="/admin/xgit" replace />} />
-            <Route path="projects/:slug" element={<ProjectToXgit />} />
-            <Route path="projects/:slug/mrs/:iid" element={<ProjectToXgit />} />
-            <Route path="projects/:slug/jobs/:n" element={<ProjectToXgit />} />
+            <Route path="projects/:org/:slug" element={<ProjectToXgit />} />
+            <Route path="projects/:org/:slug/mrs/:iid" element={<ProjectToXgit />} />
+            <Route path="projects/:org/:slug/jobs/:n" element={<ProjectToXgit />} />
             <Route element={<MemberLeaveXadminXgit />}>
               <Route path="xgit" element={<XgitReposPage />} />
               <Route path="xgit/settings" element={<XgitSettingsPage />} />
-              <Route path="xgit/:slug" element={<XgitRepoLayout />}>
+              <Route path="xgit/:org/:slug" element={<XgitRepoLayout />}>
                 <Route index element={<XgitCodePage />} />
                 <Route path="tree/*" element={<XgitCodePage />} />
                 <Route path="blob/*" element={<XgitCodePage />} />

@@ -22,7 +22,7 @@ func TestXgitSettingsAndMemberCreate(t *testing.T) {
 		t.Fatalf("settings member: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Slug: "lab", Name: "Lab"}, aliceTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, aliceTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("member sem flag deveria 403, veio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -35,9 +35,24 @@ func TestXgitSettingsAndMemberCreate(t *testing.T) {
 		t.Fatalf("patch settings: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Slug: "lab", Name: "Lab"}, aliceTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, aliceTok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("member fora da org deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var alice store.User
+	if err := app.Store.DB.Where("username = ?", "alice").First(&alice).Error; err != nil {
+		t.Fatal(err)
+	}
+	org, ok := app.defaultOrganization()
+	if !ok {
+		t.Fatal("xcorp")
+	}
+	app.ensureOrgMember(org.ID, alice.ID, store.OrgRoleMember)
+
+	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, aliceTok)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("member com flag deveria criar, veio %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("member da org com flag deveria criar, veio %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -51,13 +66,13 @@ func TestProjectTreeAPI(t *testing.T) {
 	router := NewRouter(app)
 	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, tok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, tok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/tree?ref=main", nil, tok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/tree?ref=main", nil, tok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("tree: %d %s", rec.Code, rec.Body.String())
 	}
@@ -90,12 +105,12 @@ func TestProjectTreeAPI(t *testing.T) {
 		t.Fatalf("commit_count: %d", tree.CommitCount)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/blob?path=README&ref=main", nil, tok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/blob?path=README&ref=main", nil, tok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("blob: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/commits?ref=main", nil, tok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/commits?ref=main", nil, tok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("commits: %d %s", rec.Code, rec.Body.String())
 	}

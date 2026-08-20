@@ -83,11 +83,11 @@ func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 	gitRoot := filepath.Join(root, "git")
 	id := "aabbccddeeff"
 	ws := filepath.Join(csRoot, "alice", "lab", id, "workspace")
-	bare := filepath.Join(gitRoot, "lab.git")
+	bare := filepath.Join(gitRoot, "xcorp", "lab.git")
 	ok := `{
 		"action":"create","id":"` + id + `","workspace":"` + ws + `",
 		"bare_path":"` + bare + `","branch":"main","port":19000,
-		"clone_url":"https://xgit.corp.ihuull.com/lab",
+		"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab",
 		"image":"gitpod/openvscode-server:1.98.2",
 		"connection_token":"tokentokentoken1"
 	}`
@@ -95,14 +95,14 @@ func TestParseCsSpec_RejectsUnsafe(t *testing.T) {
 		t.Fatalf("payload válido: %v", err)
 	}
 	bads := []string{
-		`{"action":"create","id":"../etc","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab"}`,
-		`{"action":"create","id":"` + id + `","workspace":"/etc/passwd","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab"}`,
-		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"/opt/xvpn/data/git/../etc","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab"}`,
-		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":22,"clone_url":"https://xgit.corp.ihuull.com/lab"}`,
+		`{"action":"create","id":"../etc","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab"}`,
+		`{"action":"create","id":"` + id + `","workspace":"/etc/passwd","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab"}`,
+		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"/opt/xvpn/data/git/../etc","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab"}`,
+		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":22,"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab"}`,
 		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://evil.example/lab"}`,
-		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab","image":"evil/pwn:latest"}`,
+		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab","image":"evil/pwn:latest"}`,
 		`{"action":"pwn","id":"` + id + `","workspace":"` + ws + `"}`,
-		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/lab","git_author":"alice","git_email":"eve@evil.com","image":"gitpod/openvscode-server:1.98.2","connection_token":"tokentokentoken1"}`,
+		`{"action":"create","id":"` + id + `","workspace":"` + ws + `","bare_path":"` + bare + `","branch":"main","port":19000,"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab","git_author":"alice","git_email":"eve@evil.com","image":"gitpod/openvscode-server:1.98.2","connection_token":"tokentokentoken1"}`,
 	}
 	for _, raw := range bads {
 		if _, err := ParseCsSpec([]byte(raw), csRoot, gitRoot); err == nil {
@@ -221,11 +221,11 @@ func TestApplyCodespace_CreateClonesBareNotWorktree(t *testing.T) {
 	gitRoot := filepath.Join(root, "git")
 	id := "aabbccddeeff"
 	ws := filepath.Join(csRoot, "alice", "lab", id, "workspace")
-	bare := filepath.Join(gitRoot, "lab.git")
+	bare := filepath.Join(gitRoot, "xcorp", "lab.git")
 	payload := `{
 		"action":"create","id":"` + id + `","workspace":"` + ws + `",
 		"bare_path":"` + bare + `","branch":"main","port":19003,
-		"clone_url":"https://xgit.corp.ihuull.com/lab",
+		"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab",
 		"git_user":"codespace-` + id + `","git_token":"tokentokentoken1",
 		"git_author":"alice","git_email":"alice@corp.ihuull.com",
 		"connection_token":"tokentokentoken1",
@@ -511,7 +511,7 @@ func TestApplyCodespace_StartRewritesCreds(t *testing.T) {
 	payload := `{
 		"action":"start","id":"` + id + `","workspace":"` + ws + `",
 		"port":19003,"image":"gitpod/openvscode-server:1.98.2",
-		"clone_url":"https://xgit.corp.ihuull.com/lab",
+		"clone_url":"https://xgit.corp.ihuull.com/xcorp/lab",
 		"git_user":"codespace-` + id + `","git_token":"rotatedtoken0001",
 		"connection_token":"tokentokentoken1"
 	}`

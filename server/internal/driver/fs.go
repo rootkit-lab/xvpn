@@ -73,14 +73,22 @@ func (r Roots) Resolve(username, root, rel string) (string, error) {
 }
 
 func validProjectSlug(slug string) bool {
-	if len(slug) < 2 || len(slug) > 20 {
+	org, name, ok := strings.Cut(slug, "/")
+	if !ok {
 		return false
 	}
-	if slug[0] == '-' || slug[len(slug)-1] == '-' {
+	return ValidSegment(org) && ValidSegment(name)
+}
+
+func ValidSegment(s string) bool {
+	if len(s) < 2 || len(s) > 20 {
 		return false
 	}
-	for i := 0; i < len(slug); i++ {
-		c := slug[i]
+	if s[0] == '-' || s[len(s)-1] == '-' {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
 		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' {
 			continue
 		}

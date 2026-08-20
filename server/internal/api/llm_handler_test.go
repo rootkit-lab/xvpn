@@ -250,7 +250,7 @@ func TestLLMCommitMessage_AcceptsCodespaceGitToken(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create project: %d %s", rec.Code, rec.Body.String())
 	}
@@ -497,7 +497,7 @@ func TestLLMModels_GitTokenOnCodespaceHost(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create project: %d %s", rec.Code, rec.Body.String())
 	}

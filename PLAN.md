@@ -143,7 +143,7 @@ Reabrir a decisão “sem VM/Docker/shell” da Fase 49 é consciente: o bloquei
 
 **O que o container pode e não pode:**
 
-- Create = `git clone` do slug (smart HTTP em `xgit.corp`) **para um volume do container**. Não é worktree do bare; o bare em `/opt/xvpn/data/git/` continua intocado. **Nunca** abre o checkout do GitHub nem um fork — o origin é só `https://xgit.corp.ihuull.com/<slug>`. Fork duplicaria o repo; o fluxo é GitHub Flow no **mesmo** slug (branch + PR).
+- Create = `git clone` de `<org>/<slug>` (smart HTTP em `xgit.corp`) **para um volume do container**. Não é worktree do bare; o bare em `/opt/xvpn/data/git/<org>/<slug>.git` continua intocado. **Nunca** abre o checkout do GitHub nem um fork — o origin é só `https://xgit.corp.ihuull.com/<org>/<slug>` (Fase 58). Sem URL plana `/<slug>`. Fork duplicaria o repo; o fluxo é GitHub Flow no **mesmo** `<org>/<slug>` (branch + PR).
 - Terminal = PTY do VS Code **dentro** do container (usuário sem root). Não é SSH no VPS. Não é o console xterm do Compute (§6.16).
 - Sem `--privileged`, sem `/var/run/docker.sock`, sem `--network=host`. Publish só `127.0.0.1:<porta>` (faixa em §5.3).
 - O `xvpn-server` **não** fala com o Docker: helper privilegiado no padrão do `xvpn-user-provision` (`cs-create` / `cs-start` / `cs-stop` / `cs-rm`, JSON no stdin). Socket Unix do daemon, nunca TCP.
@@ -237,7 +237,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 |---|---|---|---|
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice da intranet. `/admin` → `xadmin.corp` |
 | xadmin (console) | `xadmin.corp.ihuull.com` | `127.0.0.1:8080` (`/admin/*`) | Gerenciador geral. **Só VPN.** JWE `aud=xadmin`. Sem A público. §6.14 |
-| xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos do forge. Packages npm/generic/PyPI em `/api/packages/:slug/npm`, `/api/packages/:slug/pypi/simple` e `/api/projects/:slug/packages` (Fases 45.1–45.3). Exemplos `hello-*` no boot. Blobs em `/opt/xvpn/data/packages`. **Só VPN** (`RequirePackagesHost`). Sem A público. Sem hostname extra. Fase 40 |
+| xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos `<org>/<slug>` (Fase 58). Packages em `/api/packages/:org/:slug/{npm,pypi,maven,nuget,rubygems,generic}` (45.1–45.3 + 59). Container registry = hostname novo só com `port-domain-registry-check` (60). Blobs em `/opt/xvpn/data/packages`. **Só VPN** (`RequirePackagesHost`). Sem A público. Sem URL plana `/<slug>`. Fase 40 + 58 |
 | xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | Catálogo + editor rápido (Monaco, Fase 49). **Só VPN.** Sem A público. Sem landing pública |
 | codespace VS Code | `cs-<id>.corp.ihuull.com` | `127.0.0.1:19000–19007` (openvscode-server no container) | Um host por codespace em execução. Catch-all `*.corp` + cert `*.corp.ihuull.com`. **Só VPN.** Sem A público. Fase 50 |
 | codespace demo / ports | `demo-<nome>.corp.ihuull.com` | VIP `10.66.66.254` no `wg0` → DNAT para o IP docker0 do container (`:*` TCP/UDP) | Um rótulo (cert `*.corp`). **Não** `demo.cs-<id>.corp` (dois rótulos). Só origem `10.66.66.0/24`. Sem A público. Sem ufw. O botão Ports da Microsoft **não** entra (túnel internet). Fase 56 |
@@ -727,25 +727,30 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 
 | Feature GitLab | Onde no ihuull |
 |---|---|
-| SSO / membros | xauth + IAM + `ProjectMember` (guest/reporter/developer/maintainer/owner) |
-| Issues, labels, assignees, milestones | XGIT (`Issue` + `Milestone` no Mongo, Fases 46/46.1). Activity social continua no XGROUP (grupo por slug) — post = link, não o tracker |
+| SSO / membros | xauth + IAM + `OrgMember` / `ProjectMember` (Fase 58 + 37) |
+| Organização | `ForgeOrganization` + times. Path canónico `<org>/<slug>` como no GitHub. Org seed **`xcorp`**. Sem hostname `xcorp.corp` |
+| Issues, labels, assignees, milestones | XGIT (`Issue` + `Milestone` no Mongo, Fases 46/46.1). Activity social continua no XGROUP — post = link, não o tracker |
 | Projects (board/table) | XGIT (`WorkProject` / `WorkItem` no Mongo, Fase 46.1). Não é o `Project` do forge (repo). Itens apontam para issue/PR ou draft |
 | Discussão ao vivo / review | XCHAT (thread por MR e por issue; skill `chat-chrome`) |
-| Wiki, LFS, artifacts, job logs | XDRIVER share `project-<slug>` (só VPN) |
+| Wiki | XGIT aba Wiki (markdown no bare, Fase 61). LFS / artifacts / job logs: XDRIVER `project-<org>-<slug>` |
 | Releases / deb-exe-apk | Marketplace (`AppVersion` / `AppAsset`) |
-| Packages npm / generic / PyPI | XGIT no mesmo host (`/api/packages/:slug/npm`, `/api/packages/:slug/pypi/simple`, blobs em `/opt/xvpn/data/packages`). Fases 45.1–45.3. Exemplos `hello-js` / `hello-py` / `hello-go` / `hello-rs` / `hello-bin` no boot. Auth = JWE Bearer ou Basic (senha = JWE). Sem Harbor |
+| Packages (GitHub Packages) | XGIT no mesmo host. Kinds: npm, PyPI, generic (45.1–45.3); Maven, NuGet, RubyGems (59). URL `/api/packages/:org/:slug/<kind>`. Auth = JWE Bearer ou Basic (senha = JWE) — o equivalente do PAT. Publish via Actions (`.xvpn-ci.sh`, templates da 42.2). Sem npmjs/PyPI.org/Maven Central. Container = Fase 60 |
+| Security and quality | Aba no repo (Fase 62): policy, advisories, reporting, Dependabot, code scanning, secret scanning |
+| Agents | Aba no repo (Fase 63): sessões do agente ihuull (não Copilot). Lista Created by me / Needs attention |
 | Audit | IAM `/admin/audit` |
-| Git | `internal/forge`: bare em `/opt/xvpn/data/git/<slug>.git`; smart HTTP só em `xgit.corp` (`git-http-backend`). Auth: Basic (usuário + JWE) ou Bearer. Sem `git://` público. Sem shell SSH (Fase 13 rejeitou bash na 22). Push por SSH, se um dia, só `git-shell` + `Match User git` |
+| Git | `internal/forge`: bare em `/opt/xvpn/data/git/<org>/<slug>.git`; smart HTTP `https://xgit.corp.ihuull.com/<org>/<slug>`. Auth: Basic (usuário + JWE) ou Bearer. Sem `git://` público. Sem shell SSH. Sem path plano `/<slug>` |
 | Protected branches | Modelo `ProtectedBranch` no projeto (`main`/`master` no create). Developer faz push; maintainer+ em branch protegida. MR (Fase 41) é o caminho de merge |
 | CI/CD | Pipeline no xadmin; **runners** = peers WG com label `runner` (não no PID do `xvpn-server`). Artifacts → XDRIVER |
-| Pages | Nginx gerado + blob; hostname `*.corp` ou A público via §6.17 |
+| Pages | Nginx + blob em `https://<org>.pages.corp.ihuull.com/<slug>` ou path no `xgit.corp` (Fase 61). Hostname novo só com `port-domain-registry-check` + §5 |
 | Editor web (arquivo único) | Monaco no blob `/edit` do XGIT; salvar = commit (ou branch + PR se a ref for protegida). Fase 48 |
-| Codespaces / IDE | App `xcodespaces.corp`: editor rápido Monaco (Fase 49) + codespace Docker / openvscode-server / clone (Fase 50, §3.6). Sem shell no host |
-| Container registry, snippets, SAST, feature flags | Fases 45+ (depois de 45.3) |
+| Codespaces / IDE | App `xcodespaces.corp`: editor rápido Monaco (Fase 49) + codespace Docker / openvscode-server / clone de `<org>/<slug>` (Fase 50 + 58, §3.6). `xcs-detect` (64) lê o clone e sugere langs/comandos/portas. Sem shell no host |
+| Container registry | Fase 60 (`registry:2` / Harbor, bind wg0). Sem misturar com 59 |
 
-Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
+Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do marketplace. Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 58 → 64), não um checkbox. Arquivos do projeto (artifacts) ficam em `/opt/xvpn/data/projects/<org>/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`. Sem fallback para slug plano: o stack ainda não está 100% em produção.
 
-**Console XGIT (Fase 43.1).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é a home do usuário (Overview com heatmap/timeline, Repositórios, Packages, Stars) e o detalhe Code / Issues (46/46.1) / Pull requests (47) / Projects (46.1) / Packages (45.1–45.3) / Actions (42.1–42.2) / Settings. Lista do membro: `scope=mine`. App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess`. `member` no xadmin é redirecionado a `xgit.corp`. Discussão de MR/issue abre o XCHAT no chrome. `/admin/projects*` redireciona. Sem GitLab CE.
+**Organização (Fase 58).** Toda superfície do XGIT é `<org>/<slug>`, igual ao GitHub (`rootkit-lab/xvpn`). Modelo: `ForgeOrganization` + `OrgMember` + `OrgTeam`. Org ≠ `SocialGroup` (XGROUP) ≠ `Project` (repo). Seed obrigatório: org **`xcorp`**. Membro seed: a conta do operador (além do owner admin). Times: `exemplos` → `packages` (hello-*) e `workflows` (templates CI). Produtos `xvpn-client` e `xchat` pertencem à `xcorp`. Bare: `/opt/xvpn/data/git/<org>/<slug>.git`. Clone: `https://xgit.corp.ihuull.com/<org>/<slug>`. UI: `xgit.corp/<org>/<slug>/…`. Codespace e seed **só** falam esse path — sem redirect de `/hello-js`, sem bare plano. Sem hostname `xcorp.corp`. Sem A público.
+
+**Console XGIT (Fase 43.1 + 58).** Dois hosts: **xadmin** lista **todos** os repos (`GET /api/projects?scope=all`, viewer+) em `/admin/xgit` e configura o forge; **xgit.corp** é a home do usuário (Overview, Repositórios, Packages, Stars) e o detalhe Code / Issues / Pull requests / Projects / Packages / Actions / Wiki (61) / Security (62) / Agents (63) / Settings. Lista do membro: `scope=mine`. App no catálogo (`slug=xgit`, restricted, vpn): ACL em Marketplace. Waffle **Seus apps** se `ProjectMember` **ou** `AppAccess` **ou** `OrgMember`. `member` no xadmin é redirecionado a `xgit.corp`. Discussão de MR/issue abre o XCHAT no chrome. `/admin/projects*` redireciona. Sem GitLab CE.
 
 **Issues (Fase 46).** `Issue` first-class no Mongo (número por projeto, labels, assignees, open/closed). Aba no detalhe do repo. Thread XCHAT (`Kind=issue`). XGROUP só anuncia (link de volta). Guest lê; reporter+ cria.
 
@@ -773,7 +778,7 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **XCODESPACES — canário Flask (Fase 57).** Repo playground **`teste`** no XGIT (owner **`rootkit`**) inclui `web/flask/app.py` + `scripts/demo-flask.sh` escutando **`0.0.0.0:8080`**. Imagem bakeia `python3-flask` + `iproute2`. Terminal: spawn no PTY ao vivo. Aba **Ports** em `viewsContainers.panel` (não no Explorer); URL `demo-*` completa; Abrir via `window.open` no clique. Chat na auxiliary bar. CI: jobs Wails do cliente só com diff em `apps/xvpn-client/**`. §3.6.
 
-**Smart HTTP (Fase 40).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
+**Smart HTTP (Fase 40 + 58).** Pacote `git` no VPS (`git-http-backend`). `git clone https://xgit.corp.ihuull.com/<org>/<slug>` só com VPN (Nginx `10.66.66.1:443` + `allow 10.66.66.0/24`). Git CLI: Basic com usuário + senha da conta (ou JWE). Guest/reporter clonam; developer faz push; `main`/`master` (e outros padrões) exigem maintainer+ ou escopo `forge`. Path plano `/<slug>` **não** existe. Fora da VPN o nome não resolve (sem A público) e o Nginx recusa. Sem porta 9418/`git://`.
 
 **Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/xgit/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
 
@@ -781,7 +786,17 @@ Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida
 
 **Actions (Fase 42.1).** UI no XGIT no estilo GitHub Actions (sidebar de workflows, lista de runs, detalhe com grafo). Workflow único `ci`. Abrir MR como developer (sem `forge`) cria o run em `awaiting_approval`; maintainer+ **Approve and run** → `pending`. Runner não reclama run aguardando aprovação. Re-run cria um run novo. Sem YAML multi-job, sem caches/métricas.
 
-**New workflow (Fase 42.2).** `/:slug/actions/new?category=deployment` é a galeria do GitHub Actions (categorias + cards). `GET /api/ci/workflow-templates` e `POST /api/projects/:slug/workflows` gravam `.xvpn-ci.sh`. Continua um job `ci`. Sem YAML multi-workflow.
+**New workflow (Fase 42.2 + 59).** `/:org/:slug/actions/new?category=deployment` é a galeria do GitHub Actions (categorias + cards). `GET /api/ci/workflow-templates` e `POST /api/projects/:org/:slug/workflows` gravam `.xvpn-ci.sh`. Categoria **Publish a package**: npm / PyPI / Maven / NuGet / RubyGems contra `xgit.corp` (JWE no runner, nunca no script). Continua um job `ci`. Sem YAML multi-workflow.
+
+**Packages (Fases 45 + 59).** Registry no estilo [GitHub Packages](https://docs.github.com/en/packages): o artefacto vive **ao lado do código** no `<org>/<slug>`. Auth = JWE (o PAT do GitHub). Maven: `https://xgit.corp.ihuull.com/api/packages/<org>/<slug>/maven` (`settings.xml` + `mvn deploy`, SNAPSHOT ok). npm: `…/npm/`. PyPI Simple: `…/pypi/simple/`. NuGet: `…/nuget/index.json`. RubyGems: `…/rubygems/`. Generic: upload multipart. Containers **não** misturam neste host — Fase 60. UI da aba Packages: empty state “Get started” com um card por registry (como o GitHub).
+
+**Pages e Wiki (Fase 61).** Pages = blob estático servido na VPN (Nginx). Wiki = tree markdown first-class no XGIT (`/:org/:slug/wiki`), não FileBrowser e não um segundo social.
+
+**Security and quality (Fase 62).** Aba no repo: Findings (Dependabot, code scanning, secret scanning) + Reporting (policy, advisories). Sem SaaS GitHub; jobs no runner da malha; alertas no Mongo.
+
+**Agents (Fase 63).** Aba no repo (entre Pull requests e Actions): sessões do agente ihuull — Created by me, Needs attention, Active/Completed. Não é Copilot. A sessão vive no codespace (Fases 52–55); o XGIT só lista e abre.
+
+**Detect + Ports (Fase 64).** CLI Go `xcs-detect` (stdlib, sem rede) no clone: linguagens, manifests, receitas de start (`npm start`, `go run`, `python3 -m flask`, `cargo run`) e portas candidatas. A aba Ports e os exemplos `hello-*` usam isso — exemplos reais, não só tarball. Estende `xcs-analyze` (53); o `xvpn-server` **não** lê o workspace.
 
 **Serviços gerenciados (Fase 43).** `ServiceInstance` no xadmin (`/admin/services`, produto `managed`). Local: `xvpn-user-provision svc-apply` (JSON stdin) instala pacote/unit com bind só `10.66.66.1` ou `127.0.0.1`. Malha: `xvpn-svc-agent` (root no peer `mesh`/`runner`) polla `GET /api/svc/desired` em `10.66.66.1:8080` — `RequireVPN` + token do host. DNS `svc-<slug>.corp.ihuull.com` no apply. Mongo gerenciado usa porta ≠ 27017. Redis/Rabbit **não** reabrem o hub do XCHAT (§6.11). LB só intranet (sem porta pública nova no §5). `deploy-xvpn-server` não instala o agent.
 
@@ -1015,8 +1030,14 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **43. Serviços orquestrados** | mongo/redis/rabbit/lb no local e na malha | Bind só wg0; control-plane Mongo intocado |
 | **44. Backups externos** | restic+rclone no Settings | Destino off-site configurável |
 | **45.1–45.2 Packages** | npm + generic + PyPI no `xgit.corp` | Sem Harbor; só VPN |
-| **45.3 Exemplos** | hello-js/py/go/rs/bin no boot | git + package publicados |
-| **45+. Forge tardio** | container registry, pages, snippets, SAST | Backlog explícito |
+| **45.3 Exemplos** | hello-js/py/go/rs/bin no boot | remonta em `xcorp` na 58 |
+| **58. Organização** | `<org>/<slug>`, seed `xcorp`, times | sem path plano; codespace/seed só o novo |
+| **59. Registries + Actions publish** | Maven/NuGet/RubyGems + templates | JWE; sem Maven Central |
+| **60. Container registry** | `registry:2` / Harbor no wg0 | hostname só com §5 |
+| **61. Pages + Wiki** | Nginx + wiki markdown no XGIT | só VPN |
+| **62. Security and quality** | policy, advisories, scan | aba no repo; runner da malha |
+| **63. Agents** | sessões do agente ihuull | não é Copilot |
+| **64. xcs-detect + exemplos vivos** | langs / start / portas no clone | Ports + hello-* reais |
 | **46. Issues no XGIT** | `Issue` + aba + thread XCHAT | Tracker no forge; XGROUP só activity |
 | **46.1 Issues + Projects** | lista GitHub-like, milestones, boards | `WorkProject` ≠ repo; sem Insights |
 | **47. PRs GitHub-like** | diff, commits, checks, review | Superfície de PR; merge já existe (41) |
@@ -1031,7 +1052,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **56. Demo ports** | `demo-<nome>.corp` → VIP `.254` → DNAT `:*` no container | só VPN; não é o Ports da Microsoft |
 | **57. Canário Flask** | repo `teste` + Flask + PTY ao vivo + Ports `/proc` | smoke-test demo-*; CI client condicional |
 
-Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–57 são o ciclo xadmin + UX do forge — detalhe no `ROADMAP.md`.
+Estimativa de esforço (uma pessoa, dedicação parcial): 6–10 semanas para o conjunto completo (fases 0–8). As fases 2–4 são as mais longas. Fases 35–57 são o ciclo xadmin + UX do forge; **58–64** são org `<org>/<slug>`, registries, Pages/Wiki, Security, Agents e detect. Detalhe no `ROADMAP.md`.
 
 ---
 

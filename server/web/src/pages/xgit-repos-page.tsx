@@ -146,7 +146,7 @@ export function XgitReposPage() {
               <li key={p.slug}>
                 <button
                   type="button"
-                  onClick={() => navigate(xgitPath(p.slug))}
+                  onClick={() => navigate(xgitPath(`${p.org}/${p.slug}`))}
                   className="flex w-full items-start justify-between gap-4 px-5 py-4 text-left hover:bg-muted/30"
                 >
                   <div className="min-w-0">
@@ -184,6 +184,7 @@ function CreateRepoForm({ onCreated, useMemberApi }: { onCreated: () => void; us
     setBusy(true)
     try {
       const body = {
+        org: 'xcorp',
         slug: slug.trim().toLowerCase(),
         name: name.trim() || slug.trim().toLowerCase(),
         description: description.trim(),
@@ -243,5 +244,5 @@ function CreateRepoForm({ onCreated, useMemberApi }: { onCreated: () => void; us
 }
 
 export function repoHref(p: Project) {
-  return xgitPath(p.slug)
+  return xgitPath(`${p.org}/${p.slug}`)
 }

@@ -1,7 +1,7 @@
 # Exemplos de package (Fase 45.3)
 
 Fonte canónica no monorepo: [`server/internal/pkgexamples/fs/`](../../../internal/pkgexamples/fs/).
-O boot do `xvpn-server` cria os slugs no XGIT e publica a versão `0.1.0`.
+O boot do `xvpn-server` cria os repos `xcorp/hello-*` no XGIT e publica a versão `0.1.0`.
 
 Cópia de trabalho local (não é o bare do VPS):
 
@@ -10,10 +10,10 @@ server/deploy/xgit/sync-package-examples.sh
 # → $HOME/Projects/x/packages/{javascript,python,go,rust,generic}
 ```
 
-| Pasta | Slug XGIT | Kind | Package |
+| Pasta | Repo XGIT | Kind | Package |
 |---|---|---|---|
-| `javascript` | `hello-js` | npm | `@ihuull/hello-js` |
-| `python` | `hello-py` | pypi | `hello-ihuull` |
-| `go` (embed: `golang`) | `hello-go` | generic | `hello-go` |
-| `rust` | `hello-rs` | generic | `hello-rs` |
-| `generic` | `hello-bin` | generic | `hello-bin` |
+| `javascript` | `xcorp/hello-js` | npm | `@ihuull/hello-js` |
+| `python` | `xcorp/hello-py` | pypi | `hello-ihuull` |
+| `go` (embed: `golang`) | `xcorp/hello-go` | generic | `hello-go` |
+| `rust` | `xcorp/hello-rs` | generic | `hello-rs` |
+| `generic` | `xcorp/hello-bin` | generic | `hello-bin` |

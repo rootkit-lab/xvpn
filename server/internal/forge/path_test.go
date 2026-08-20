@@ -11,11 +11,14 @@ func TestRepoPathRejectsTraversal(t *testing.T) {
 	if _, err := RepoPath(root, "../etc"); err == nil {
 		t.Fatal("traversal deveria falhar")
 	}
-	dir, err := RepoPath(root, "xchat")
+	if _, err := RepoPath(root, "xchat"); err == nil {
+		t.Fatal("path plano deveria falhar")
+	}
+	dir, err := RepoPath(root, "xcorp/xchat")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(dir, filepath.Clean(root)) || !strings.HasSuffix(dir, "xchat.git") {
+	if !strings.HasPrefix(dir, filepath.Clean(root)) || !strings.HasSuffix(dir, filepath.Join("xcorp", "xchat.git")) {
 		t.Fatalf("path inesperado: %s", dir)
 	}
 }

@@ -44,8 +44,15 @@ func TestSeedLanguagePackageExamplesIdempotent(t *testing.T) {
 		Where("user_id = ? AND role = ?", alice.ID, store.ProjectRoleGuest).Count(&guests).Error; err != nil {
 		t.Fatal(err)
 	}
-	if guests < int64(len(pkgexamples.Specs)) {
-		t.Fatalf("alice guest em %d exemplos", guests)
+	if guests != 0 {
+		t.Fatalf("alice não deve ser guest dos exemplos: %d", guests)
+	}
+	var orgMem int64
+	if err := app.Store.DB.Model(&store.OrgMember{}).Where("user_id = ?", alice.ID).Count(&orgMem).Error; err != nil {
+		t.Fatal(err)
+	}
+	if orgMem != 0 {
+		t.Fatalf("alice não deve ser OrgMember da VPN inteira: %d", orgMem)
 	}
 }
 
@@ -54,8 +61,12 @@ func TestSeedSkipsForeignHelloSlug(t *testing.T) {
 	app.Config.GitDir = t.TempDir()
 	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
 	alice := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
-	if _, err := app.createProject(alice.ID, "hello-js", "mine", "repo da alice",
-		store.AppVisibilityRestricted, store.AppNetworkVPN, nil, false); err != nil {
+	org, ok := app.defaultOrganization()
+	if !ok {
+		t.Fatal("xcorp ausente")
+	}
+	if _, err := app.createProject(alice.ID, org, "hello-js", "mine", "repo da alice",
+		store.AppVisibilityRestricted, store.AppNetworkVPN, nil, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := app.SeedLanguagePackageExamples(); err != nil {
@@ -90,7 +101,7 @@ func TestCreateProjectRejectsExampleSlug(t *testing.T) {
 	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
 	router := NewRouter(app)
 	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "hello-js", Name: "x"}, tok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "hello-js", Name: "x"}, tok)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("create hello-js: %d %s", rec.Code, rec.Body.String())
 	}

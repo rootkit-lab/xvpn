@@ -250,7 +250,7 @@ func (a *App) applyCodespace(ctx context.Context, cs *store.CodeSpace, action st
 			return err
 		}
 		if action == "create" {
-			p, err := forge.RepoPath(a.gitDir(), proj.Slug)
+			p, err := forge.RepoPath(a.gitDir(), a.projectRepo(proj))
 			if err != nil {
 				return err
 			}
@@ -258,7 +258,7 @@ func (a *App) applyCodespace(ctx context.Context, cs *store.CodeSpace, action st
 			branch = cs.Branch
 		}
 		if cloneURL == "" {
-			cloneURL = gitCloneHost + "/" + proj.Slug
+			cloneURL = a.projectCloneURL(proj)
 		}
 	}
 	spec := provision.CsSpec{

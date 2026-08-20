@@ -16,13 +16,29 @@ var (
 	ErrGitMissing  = errors.New("git não encontrado no PATH")
 )
 
-// RepoPath devolve <root>/<slug>.git. Recusa path traversal.
-func RepoPath(root, slug string) (string, error) {
-	slug = NormalizeSlug(slug)
-	if root == "" || !store.ValidProjectSlug(slug) {
+// SplitRepo lê <org>/<slug>. Sem path plano.
+func SplitRepo(repo string) (org, slug string, err error) {
+	repo = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(repo)), ".git")
+	org, slug, ok := strings.Cut(repo, "/")
+	org, slug = NormalizeSlug(org), NormalizeSlug(slug)
+	if !ok || strings.Contains(slug, "/") || !store.ValidOrgSlug(org) || !store.ValidProjectSlug(slug) {
+		return "", "", ErrInvalidSlug
+	}
+	return org, slug, nil
+}
+
+// RepoName é o path canónico <org>/<slug>.
+func RepoName(org, slug string) string {
+	return NormalizeSlug(org) + "/" + NormalizeSlug(slug)
+}
+
+// RepoPath devolve <root>/<org>/<slug>.git. Recusa path plano e traversal.
+func RepoPath(root, repo string) (string, error) {
+	org, slug, err := SplitRepo(repo)
+	if err != nil || root == "" {
 		return "", ErrInvalidSlug
 	}
-	dir := filepath.Join(filepath.Clean(root), slug+".git")
+	dir := filepath.Join(filepath.Clean(root), org, slug+".git")
 	rel, err := filepath.Rel(filepath.Clean(root), dir)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return "", ErrInvalidSlug

@@ -30,11 +30,15 @@ func Serve(w http.ResponseWriter, r *http.Request, root, slug, username, pathInf
 	}
 	cmd := exec.Command(bin, "http-backend")
 	cmd.Dir = filepath.Clean(root)
+	org, name, err := SplitRepo(slug)
+	if err != nil {
+		return err
+	}
 	cmd.Env = []string{
 		"PATH=" + os.Getenv("PATH"),
 		"GIT_PROJECT_ROOT=" + filepath.Clean(root),
 		"GIT_HTTP_EXPORT_ALL=1",
-		"PATH_INFO=/" + slug + ".git" + pathInfo,
+		"PATH_INFO=/" + org + "/" + name + ".git" + pathInfo,
 		"REQUEST_METHOD=" + r.Method,
 		"QUERY_STRING=" + r.URL.RawQuery,
 		"CONTENT_TYPE=" + r.Header.Get("Content-Type"),
@@ -104,11 +108,14 @@ func ServiceName(query, pathInfo string) string {
 	return ""
 }
 
-func PathInfo(urlPath, slug string) string {
-	slug = NormalizeSlug(slug)
+func PathInfo(urlPath, repo string) string {
+	org, slug, err := SplitRepo(repo)
+	if err != nil {
+		return "/"
+	}
 	p := strings.TrimPrefix(urlPath, "/")
-	p = strings.TrimPrefix(p, slug+".git")
-	p = strings.TrimPrefix(p, slug)
+	p = strings.TrimPrefix(p, org+"/"+slug+".git")
+	p = strings.TrimPrefix(p, org+"/"+slug)
 	if p == "" {
 		return "/"
 	}

@@ -23,13 +23,13 @@ func setupSvcApp(t *testing.T) (*App, http.Handler, string, *fakeUserProvisioner
 
 func TestCreateLocalRedisAppliesAndHidesPasswordOnGet(t *testing.T) {
 	app, router, tok, fp := setupSvcApp(t)
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, tok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, tok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("project: %d %s", rec.Code, rec.Body.String())
 	}
 
 	rec = doJSON(t, router, http.MethodPost, "/api/services", createServiceRequest{
-		Slug: "cache", Kind: "redis", Host: "local", Bind: "wg0", ProjectSlug: "lab",
+		Slug: "cache", Kind: "redis", Host: "local", Bind: "wg0", ProjectSlug: "xcorp/lab",
 	}, tok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
@@ -43,6 +43,9 @@ func TestCreateLocalRedisAppliesAndHidesPasswordOnGet(t *testing.T) {
 	}
 	if created.Hostname != "svc-cache.corp.ihuull.com" {
 		t.Fatalf("hostname: %s", created.Hostname)
+	}
+	if created.ProjectSlug != "xcorp/lab" {
+		t.Fatalf("project_slug: %s", created.ProjectSlug)
 	}
 	if created.Listen != "10.66.66.1" || created.Port != 6379 {
 		t.Fatalf("listen: %s:%d", created.Listen, created.Port)
@@ -74,7 +77,7 @@ func TestCreateLocalRedisAppliesAndHidesPasswordOnGet(t *testing.T) {
 		t.Fatalf("endpoint: %s", got.Endpoint)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/services", nil, tok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/services", nil, tok)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"cache"`) {
 		t.Fatalf("project services: %d %s", rec.Code, rec.Body.String())
 	}

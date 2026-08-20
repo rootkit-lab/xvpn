@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { CircleDot, FolderKanban, Milestone, Tag, AtSign, UserRound, Clock, PenLine } from 'lucide-react'
-import { xgitPath } from '@/lib/xgit'
+import { xgitRepoPath } from '@/lib/xgit'
 import { cn } from '@/lib/utils'
 
 export type TrackerView = 'issues' | 'assigned' | 'created' | 'mentioned' | 'recent' | 'projects' | 'milestones' | 'labels'
@@ -19,12 +19,12 @@ const VIEWS: { id: TrackerView; label: string; icon: typeof CircleDot; to: strin
   { id: 'labels', label: 'Labels', icon: Tag, to: 'labels' },
 ]
 
-function issuesHref(slug: string, view: TrackerView) {
-  if (view === 'issues') return xgitPath(`${slug}/issues`)
-  return xgitPath(`${slug}/issues?view=${view}`)
+function issuesHref(org: string, slug: string, view: TrackerView) {
+  if (view === 'issues') return xgitRepoPath(org, slug, 'issues')
+  return xgitRepoPath(org, slug, `issues?view=${view}`)
 }
 
-export function XgitTrackerNav({ slug, active }: { slug: string; active: TrackerView }) {
+export function XgitTrackerNav({ org, slug, active }: { org: string; slug: string; active: TrackerView }) {
   return (
     <aside className="flex w-full shrink-0 flex-col gap-4 text-sm lg:w-48">
       <nav className="flex flex-col gap-0.5">
@@ -34,7 +34,7 @@ export function XgitTrackerNav({ slug, active }: { slug: string; active: Tracker
           return (
             <Link
               key={item.id}
-              to={issuesHref(slug, item.id)}
+              to={issuesHref(org, slug, item.id)}
               className={cn(
                 'inline-flex items-center gap-2 rounded-md px-2 py-1.5',
                 on ? 'bg-muted/60 text-foreground' : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',
@@ -55,7 +55,7 @@ export function XgitTrackerNav({ slug, active }: { slug: string; active: Tracker
             return (
               <Link
                 key={item.id}
-                to={xgitPath(`${slug}/${item.to}`)}
+                to={xgitRepoPath(org, slug, item.to)}
                 className={cn(
                   'inline-flex items-center gap-2 rounded-md px-2 py-1.5',
                   on ? 'bg-muted/60 text-foreground' : 'text-muted-foreground hover:bg-muted/30 hover:text-foreground',

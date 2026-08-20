@@ -125,7 +125,7 @@ async function uploadProjectPackage(
   if (fields.kind) fd.append('kind', fields.kind)
   if (fields.description) fd.append('description', fields.description)
   fd.append('file', fields.file)
-  const path = `/projects/${encodeURIComponent(slug)}/packages`
+  const path = projectAPI(slug, '/packages')
   const res = await fetch(`/api${path}`, { method: 'POST', headers, body: fd, credentials: 'include' })
   if (res.status === 401) handleUnauthorized(path)
   if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
@@ -136,7 +136,7 @@ async function downloadProjectPackage(slug: string, id: number, filename: string
   const headers = new Headers()
   const token = getToken()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const path = `/projects/${encodeURIComponent(slug)}/packages/${id}/download`
+  const path = projectAPI(slug, `/packages/${id}/download`)
   const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
   if (res.status === 401) handleUnauthorized(path)
   if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
@@ -794,8 +794,18 @@ export interface ServerGroup {
   created_at: string
 }
 
+function projectAPI(repo: string, rest = '') {
+  const parts = repo.split('/').filter(Boolean)
+  if (parts.length !== 2) {
+    throw new Error('repo deve ser org/slug')
+  }
+  return `/projects/${encodeURIComponent(parts[0])}/${encodeURIComponent(parts[1])}${rest}`
+}
+
 export interface Project {
+  org: string
   slug: string
+  full_name: string
   name: string
   description: string
   app_id?: number
@@ -988,7 +998,9 @@ export interface WorkItem {
 
 export interface Codespace {
   id: string
+  org: string
   slug: string
+  full_name: string
   branch: string
   author: string
   kind: 'quick' | 'remote' | string
@@ -1300,13 +1312,13 @@ export const api = {
   listXgitStars: () => request<{ items: Project[] }>('/xgit/stars'),
   listXgitPackages: () => request<{ items: ForgePackage[] }>('/xgit/packages'),
   listProjectPackages: (slug: string) =>
-    request<{ items: ForgePackage[]; can_publish: boolean }>(`/projects/${encodeURIComponent(slug)}/packages`),
+    request<{ items: ForgePackage[]; can_publish: boolean }>(projectAPI(slug, `/packages`)),
   uploadProjectPackage: (slug: string, fields: { name: string; version: string; kind?: ForgePackageKind; description?: string; file: File }) =>
     uploadProjectPackage(slug, fields),
   downloadProjectPackage: (slug: string, id: number, filename: string) =>
     downloadProjectPackage(slug, id, filename),
-  toggleProjectStar: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}/star`, { method: 'POST' }),
-  createXgitRepo: (body: { slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
+  toggleProjectStar: (slug: string) => request<Project>(projectAPI(slug, `/star`), { method: 'POST' }),
+  createXgitRepo: (body: { org: string; slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
     request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
   getXgitSettings: () =>
     request<{
@@ -1338,13 +1350,13 @@ export const api = {
       commit_count?: number
       tags?: string[]
       languages?: GitLangStat[]
-    }>(`/projects/${encodeURIComponent(slug)}/tree${qs ? `?${qs}` : ''}`)
+    }>(projectAPI(slug, `/tree${qs ? `?${qs}` : ''}`))
   },
   getProjectBlob: (slug: string, path: string, ref?: string) => {
     const q = new URLSearchParams({ path })
     if (ref) q.set('ref', ref)
     return request<{ path: string; ref: string; binary: boolean; content: string }>(
-      `/projects/${encodeURIComponent(slug)}/blob?${q}`,
+      projectAPI(slug, `/blob?${q}`),
     )
   },
   listProjectCommits: (slug: string, ref?: string, path?: string) => {
@@ -1352,10 +1364,11 @@ export const api = {
     if (ref) q.set('ref', ref)
     if (path) q.set('path', path)
     const qs = q.toString()
-    return request<{ items: GitCommit[] }>(`/projects/${encodeURIComponent(slug)}/commits${qs ? `?${qs}` : ''}`)
+    return request<{ items: GitCommit[] }>(projectAPI(slug, `/commits${qs ? `?${qs}` : ''}`))
   },
-  getProject: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}`),
+  getProject: (slug: string) => request<Project>(projectAPI(slug, ``)),
   createProject: (body: {
+    org: string
     slug: string
     name: string
     description?: string
@@ -1374,60 +1387,60 @@ export const api = {
       network?: MarketplaceNetwork
       runners?: string[]
     },
-  ) => request<Project>(`/projects/${encodeURIComponent(slug)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  ) => request<Project>(projectAPI(slug, ``), { method: 'PATCH', body: JSON.stringify(body) }),
   setProjectMembers: (slug: string, members: { user_id: number; role: ProjectRole }[]) =>
-    request<Project>(`/projects/${encodeURIComponent(slug)}/members`, {
+    request<Project>(projectAPI(slug, `/members`), {
       method: 'PUT',
       body: JSON.stringify({ members }),
     }),
   getProjectCodespaceEnvs: (slug: string) =>
-    request<{ items: ProjectCodespaceEnv[] }>(`/projects/${encodeURIComponent(slug)}/codespaces/envs`),
+    request<{ items: ProjectCodespaceEnv[] }>(projectAPI(slug, `/codespaces/envs`)),
   putProjectCodespaceEnvs: (slug: string, items: { name: string; value: string; secret: boolean }[]) =>
-    request<{ items: ProjectCodespaceEnv[] }>(`/projects/${encodeURIComponent(slug)}/codespaces/envs`, {
+    request<{ items: ProjectCodespaceEnv[] }>(projectAPI(slug, `/codespaces/envs`), {
       method: 'PUT',
       body: JSON.stringify({ items }),
     }),
-  getProjectGit: (slug: string) => request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`),
+  getProjectGit: (slug: string) => request<ProjectGit>(projectAPI(slug, `/git`)),
   initProjectGit: (slug: string) =>
-    request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/git`, { method: 'POST' }),
+    request<ProjectGit>(projectAPI(slug, `/git`), { method: 'POST' }),
   setProtectedBranches: (slug: string, branches: ProtectedBranch[]) =>
-    request<ProjectGit>(`/projects/${encodeURIComponent(slug)}/protected-branches`, {
+    request<ProjectGit>(projectAPI(slug, `/protected-branches`), {
       method: 'PUT',
       body: JSON.stringify({ branches }),
     }),
   listProjectBranches: (slug: string) =>
-    request<{ items: string[] }>(`/projects/${encodeURIComponent(slug)}/branches`),
+    request<{ items: string[] }>(projectAPI(slug, `/branches`)),
   listMergeRequests: (slug: string, status?: MergeRequestStatus) => {
     const q = status ? `?status=${encodeURIComponent(status)}` : ''
-    return request<{ items: MergeRequest[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests${q}`)
+    return request<{ items: MergeRequest[] }>(projectAPI(slug, `/merge-requests${q}`))
   },
   getMergeRequest: (slug: string, iid: number) =>
-    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}`),
+    request<MergeRequest>(projectAPI(slug, `/merge-requests/${iid}`)),
   createMergeRequest: (
     slug: string,
     body: { title: string; description?: string; source_branch: string; target_branch: string },
   ) =>
-    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests`, {
+    request<MergeRequest>(projectAPI(slug, `/merge-requests`), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   patchMergeRequest: (slug: string, iid: number, body: { title?: string; description?: string }) =>
-    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}`, {
+    request<MergeRequest>(projectAPI(slug, `/merge-requests/${iid}`), {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   mergeMergeRequest: (slug: string, iid: number) =>
-    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/merge`, { method: 'POST' }),
+    request<MergeRequest>(projectAPI(slug, `/merge-requests/${iid}/merge`), { method: 'POST' }),
   closeMergeRequest: (slug: string, iid: number) =>
-    request<MergeRequest>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/close`, { method: 'POST' }),
+    request<MergeRequest>(projectAPI(slug, `/merge-requests/${iid}/close`), { method: 'POST' }),
   listMRCommits: (slug: string, iid: number) =>
-    request<{ items: GitCommit[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/commits`),
+    request<{ items: GitCommit[] }>(projectAPI(slug, `/merge-requests/${iid}/commits`)),
   getMRDiff: (slug: string, iid: number) =>
-    request<{ diff: string }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/diff`),
+    request<{ diff: string }>(projectAPI(slug, `/merge-requests/${iid}/diff`)),
   listMRReviews: (slug: string, iid: number) =>
-    request<{ items: MRReview[] }>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/reviews`),
+    request<{ items: MRReview[] }>(projectAPI(slug, `/merge-requests/${iid}/reviews`)),
   createMRReview: (slug: string, iid: number, body: { state: MRReviewState; body?: string }) =>
-    request<MRReview>(`/projects/${encodeURIComponent(slug)}/merge-requests/${iid}/reviews`, {
+    request<MRReview>(projectAPI(slug, `/merge-requests/${iid}/reviews`), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -1454,15 +1467,15 @@ export const api = {
     if (opts?.milestone) q.set('milestone', String(opts.milestone))
     if (opts?.sort) q.set('sort', opts.sort)
     const qs = q.toString()
-    return request<IssueList>(`/projects/${encodeURIComponent(slug)}/issues${qs ? `?${qs}` : ''}`)
+    return request<IssueList>(projectAPI(slug, `/issues${qs ? `?${qs}` : ''}`))
   },
   getIssue: (slug: string, n: number) =>
-    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`),
+    request<Issue>(projectAPI(slug, `/issues/${n}`)),
   createIssue: (
     slug: string,
     body: { title: string; body?: string; labels?: string[]; assignees?: string[]; milestone?: number },
   ) =>
-    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues`, {
+    request<Issue>(projectAPI(slug, `/issues`), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -1471,23 +1484,23 @@ export const api = {
     n: number,
     body: { title?: string; body?: string; status?: IssueStatus; labels?: string[]; assignees?: string[]; milestone?: number },
   ) =>
-    request<Issue>(`/projects/${encodeURIComponent(slug)}/issues/${n}`, {
+    request<Issue>(projectAPI(slug, `/issues/${n}`), {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   listIssueLabels: (slug: string) =>
-    request<{ items: string[] }>(`/projects/${encodeURIComponent(slug)}/labels`),
+    request<{ items: string[] }>(projectAPI(slug, `/labels`)),
   listMilestones: (slug: string, status?: 'open' | 'closed') => {
     const q = status ? `?status=${status}` : ''
-    return request<{ items: Milestone[] }>(`/projects/${encodeURIComponent(slug)}/milestones${q}`)
+    return request<{ items: Milestone[] }>(projectAPI(slug, `/milestones${q}`))
   },
   createMilestone: (slug: string, body: { title: string; description?: string; due_on?: string }) =>
-    request<Milestone>(`/projects/${encodeURIComponent(slug)}/milestones`, {
+    request<Milestone>(projectAPI(slug, `/milestones`), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   patchMilestone: (slug: string, n: number, body: { title?: string; description?: string; status?: 'open' | 'closed'; due_on?: string }) =>
-    request<Milestone>(`/projects/${encodeURIComponent(slug)}/milestones/${n}`, {
+    request<Milestone>(projectAPI(slug, `/milestones/${n}`), {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
@@ -1496,49 +1509,56 @@ export const api = {
     if (opts?.status) q.set('status', opts.status)
     if (opts?.q) q.set('q', opts.q)
     const qs = q.toString()
-    return request<{ items: WorkProject[] }>(`/projects/${encodeURIComponent(slug)}/work-projects${qs ? `?${qs}` : ''}`)
+    return request<{ items: WorkProject[] }>(projectAPI(slug, `/work-projects${qs ? `?${qs}` : ''}`))
   },
   getWorkProject: (slug: string, n: number) =>
-    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}`),
+    request<WorkProject>(projectAPI(slug, `/work-projects/${n}`)),
   createWorkProject: (slug: string, body: { title: string; description?: string; template?: WorkProjectTemplate }) =>
-    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects`, {
+    request<WorkProject>(projectAPI(slug, `/work-projects`), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   patchWorkProject: (slug: string, n: number, body: { title?: string; description?: string; status?: 'open' | 'closed' }) =>
-    request<WorkProject>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}`, {
+    request<WorkProject>(projectAPI(slug, `/work-projects/${n}`), {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   createWorkItem: (slug: string, n: number, body: { title?: string; issue?: number; mr?: number; column?: string }) =>
-    request<WorkItem>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items`, {
+    request<WorkItem>(projectAPI(slug, `/work-projects/${n}/items`), {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   patchWorkItem: (slug: string, n: number, id: number, body: { title?: string; column?: string; position?: number }) =>
-    request<WorkItem>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items/${id}`, {
+    request<WorkItem>(projectAPI(slug, `/work-projects/${n}/items/${id}`), {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   deleteWorkItem: (slug: string, n: number, id: number) =>
-    request<void>(`/projects/${encodeURIComponent(slug)}/work-projects/${n}/items/${id}`, { method: 'DELETE' }),
+    request<void>(projectAPI(slug, `/work-projects/${n}/items/${id}`), { method: 'DELETE' }),
   putContents: (
     slug: string,
     body: { path: string; ref: string; content: string; message: string; description?: string; new_branch?: string; open_pr?: boolean },
   ) =>
     request<{ sha: string; branch: string; merge_request_number?: number }>(
-      `/projects/${encodeURIComponent(slug)}/contents`,
+      projectAPI(slug, `/contents`),
       { method: 'PUT', body: JSON.stringify(body) },
     ),
   downloadProjectArchive: (slug: string, ref?: string) => {
     const q = ref ? `?ref=${encodeURIComponent(ref)}` : ''
-    return downloadBinary(`/projects/${encodeURIComponent(slug)}/archive${q}`, `${slug}.zip`)
+    return downloadBinary(projectAPI(slug, `/archive${q}`), `${slug}.zip`)
   },
-  listCodespaces: (slug?: string) => {
-    const q = slug ? `?slug=${encodeURIComponent(slug)}` : ''
-    return request<{ items: Codespace[] }>(`/xcodespaces${q}`)
+  listCodespaces: (repo?: string) => {
+    if (!repo) return request<{ items: Codespace[] }>('/xcodespaces')
+    const [org, slug] = repo.split('/')
+    const q = new URLSearchParams()
+    if (org && slug) {
+      q.set('org', org)
+      q.set('slug', slug)
+    }
+    const qs = q.toString()
+    return request<{ items: Codespace[] }>(qs ? `/xcodespaces?${qs}` : '/xcodespaces')
   },
-  createCodespace: (body: { slug: string; branch?: string; kind?: 'quick' | 'remote' }) =>
+  createCodespace: (body: { org: string; slug: string; branch?: string; kind?: 'quick' | 'remote' }) =>
     request<Codespace>('/xcodespaces', { method: 'POST', body: JSON.stringify(body) }),
   getCodespace: (id: string) => request<Codespace>(`/xcodespaces/${encodeURIComponent(id)}`),
   startCodespace: (id: string) =>
@@ -1583,7 +1603,7 @@ export const api = {
   },
   applyWorkflowTemplate: (slug: string, templateId: string) =>
     request<{ path: string; sha?: string; branch?: string; template_id: string; unchanged?: boolean }>(
-      `/projects/${encodeURIComponent(slug)}/workflows`,
+      projectAPI(slug, `/workflows`),
       { method: 'POST', body: JSON.stringify({ template_id: templateId }) },
     ),
   listCiJobs: (slug: string, workflow?: string, mr?: number) => {
@@ -1592,22 +1612,22 @@ export const api = {
     if (mr) q.set('mr', String(mr))
     const qs = q.toString()
     return request<{ items: CiJob[]; workflows: CiWorkflow[] }>(
-      `/projects/${encodeURIComponent(slug)}/jobs${qs ? `?${qs}` : ''}`,
+      projectAPI(slug, `/jobs${qs ? `?${qs}` : ''}`),
     )
   },
   getCiJob: (slug: string, n: number) =>
-    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}`),
-  getCiJobLog: (slug: string, n: number) => requestText(`/projects/${encodeURIComponent(slug)}/jobs/${n}/log`),
+    request<CiJob>(projectAPI(slug, `/jobs/${n}`)),
+  getCiJobLog: (slug: string, n: number) => requestText(projectAPI(slug, `/jobs/${n}/log`)),
   cancelCiJob: (slug: string, n: number) =>
-    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/cancel`, { method: 'POST' }),
+    request<CiJob>(projectAPI(slug, `/jobs/${n}/cancel`), { method: 'POST' }),
   approveCiJob: (slug: string, n: number) =>
-    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/approve`, { method: 'POST' }),
+    request<CiJob>(projectAPI(slug, `/jobs/${n}/approve`), { method: 'POST' }),
   rerunCiJob: (slug: string, n: number) =>
-    request<CiJob>(`/projects/${encodeURIComponent(slug)}/jobs/${n}/rerun`, { method: 'POST' }),
+    request<CiJob>(projectAPI(slug, `/jobs/${n}/rerun`), { method: 'POST' }),
   listProjectRunners: (slug: string) =>
-    request<{ items: CiRunner[] }>(`/projects/${encodeURIComponent(slug)}/runners`),
+    request<{ items: CiRunner[] }>(projectAPI(slug, `/runners`)),
   downloadCiArtifact: (slug: string, n: number) =>
-    downloadBinary(`/projects/${encodeURIComponent(slug)}/jobs/${n}/artifact`, `job-${n}-artifact`),
+    downloadBinary(projectAPI(slug, `/jobs/${n}/artifact`), `job-${n}-artifact`),
 
   listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
   getServer: (id: number) => request<MeshServer>(`/servers/${id}`),
@@ -1664,7 +1684,7 @@ export const api = {
     request<ManagedService>(`/services/${encodeURIComponent(slug)}/rotate`, { method: 'POST' }),
   deleteService: (slug: string) => request<{ ok: boolean }>(`/services/${encodeURIComponent(slug)}`, { method: 'DELETE' }),
   listProjectServices: (slug: string) =>
-    request<{ items: ManagedService[] }>(`/projects/${encodeURIComponent(slug)}/services`),
+    request<{ items: ManagedService[] }>(projectAPI(slug, `/services`)),
   listServerGroups: () => request<{ items: ServerGroup[] }>('/server-groups'),
   createServerGroup: (name: string, description?: string) =>
     request<ServerGroup>('/server-groups', {

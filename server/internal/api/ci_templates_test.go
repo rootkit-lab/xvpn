@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/rootkit-lab/xvpn/server/internal/forge"
@@ -41,19 +42,41 @@ func TestListWorkflowTemplatesFilter(t *testing.T) {
 
 func TestApplyWorkflowTemplateOnEmptyRepo(t *testing.T) {
 	app, router, adminTok := setupGitApp(t)
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/workflows", applyWorkflowRequest{TemplateID: "go"}, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/workflows", applyWorkflowRequest{TemplateID: "go"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("apply: %d %s", rec.Code, rec.Body.String())
 	}
-	if !forge.HasCommits(app.Config.GitDir, "lab") {
+	if !forge.HasCommits(app.Config.GitDir, "xcorp/lab") {
 		t.Fatal("esperava commit")
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/workflows", applyWorkflowRequest{TemplateID: "go"}, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/workflows", applyWorkflowRequest{TemplateID: "go"}, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("reapply: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestApplyPublishTemplateBakesOrgSlug(t *testing.T) {
+	app, router, adminTok := setupGitApp(t)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/workflows", applyWorkflowRequest{TemplateID: "npm-xgit"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("apply: %d %s", rec.Code, rec.Body.String())
+	}
+	body, _, err := forge.ReadBlob(app.Config.GitDir, "xcorp/lab", "HEAD", ".xvpn-ci.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(body, "api/packages/xcorp/lab/npm/") {
+		t.Fatalf("esperava registry org/slug, veio:\n%s", body)
+	}
+	if strings.Contains(body, "{{REPO}}") || strings.Contains(body, "${PWD") {
+		t.Fatalf("placeholder no script:\n%s", body)
 	}
 }

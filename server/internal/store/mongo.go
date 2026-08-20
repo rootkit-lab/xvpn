@@ -38,6 +38,7 @@ func allModels() []any {
 		&DirectThread{}, &DirectThreadMember{}, &Message{}, &MessageReceipt{},
 		&SocialAttachment{}, &Story{}, &StoryView{},
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
+		&ForgeOrganization{}, &OrgMember{}, &OrgTeam{}, &OrgTeamMember{},
 		&Project{}, &ProjectMember{}, &ProjectStar{}, &ProtectedBranch{}, &ProjectEnv{}, &MergeRequest{}, &MergeRequestReview{}, &Issue{}, &Milestone{}, &WorkProject{}, &WorkItem{}, &CodeSpace{}, &CiJob{},
 		&ForgePackage{}, &ForgePackageVersion{},
 		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
@@ -78,6 +79,9 @@ func openSQLite(path string) (*Store, error) {
 	}
 	if err := SeedXgitApp(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando app XGIT: %w", err)
+	}
+	if err := SeedXcorp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando org xcorp: %w", err)
 	}
 	if err := SeedXcodespacesApp(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando app XCODESPACES: %w", err)
@@ -135,6 +139,9 @@ func OpenMongo(uri, sqlitePath string) (*Store, error) {
 	}
 	if err := SeedXgitApp(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando app XGIT: %w", err)
+	}
+	if err := SeedXcorp(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando org xcorp: %w", err)
 	}
 	if err := SeedXcodespacesApp(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando app XCODESPACES: %w", err)

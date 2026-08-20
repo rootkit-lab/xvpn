@@ -132,7 +132,7 @@ type Config struct {
 	DriverProjectsDir string
 
 	// GitDir é a raiz dos bare repos do forge (Fase 40 —
-	// /opt/xvpn/data/git/<slug>.git). Smart HTTP só em xgit.corp.
+	// /opt/xvpn/data/git/<org>/<slug>.git). Smart HTTP só em xgit.corp.
 	GitDir string
 
 	// CodespacesDir é a raiz dos worktrees do XCODESPACES (Fase 49 —

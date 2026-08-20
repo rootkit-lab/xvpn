@@ -38,7 +38,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'XGIT',
       title: 'Packages',
-      description: 'Registry npm/PyPI/generic em xgit.corp (Fases 45.1–45.3).',
+      description: 'Registry npm/PyPI/generic em xgit.corp no path <org>/<slug>. Maven/NuGet/RubyGems na Fase 59.',
     },
   },
   {

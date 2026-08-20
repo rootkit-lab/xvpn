@@ -38,6 +38,7 @@ test("allowTerminal allowlist", () => {
   assert.equal(allowTerminal(["rg", "foo", "server"]).ok, true);
   assert.equal(allowTerminal(["python3", "-c", "print(1)"]).ok, true);
   assert.equal(allowTerminal(["xcs-analyze", "."]).ok, true);
+  assert.equal(allowTerminal(["xcs-detect", "."]).ok, true);
   assert.equal(allowTerminal(["gofmt", "-w", "main.go"]).ok, true);
 });
 

@@ -37,22 +37,35 @@ func (r ProjectRole) Rank() int {
 // marketplace ou existir só como metadado. Issues first-class (Fase 46);
 // activity social continua no SocialGroup — sem segundo social.
 type Project struct {
-	ID            uint   `gorm:"primaryKey"`
-	Slug          string `gorm:"uniqueIndex;not null"`
-	Name          string `gorm:"not null"`
-	Description   string
-	AppID         *uint
-	SocialGroupID uint          `gorm:"not null;index"`
-	FilesEnabled  bool          `gorm:"not null;default:false"`
-	Visibility    AppVisibility `gorm:"not null;default:global"`
-	Network       AppNetwork    `gorm:"not null;default:vpn"`
-	Runners       []string      `gorm:"serializer:json"`
-	ArchivedAt    *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID             uint   `gorm:"primaryKey"`
+	OrganizationID uint   `gorm:"uniqueIndex:idx_org_project_slug;not null;index"`
+	TeamID         *uint  `gorm:"index"`
+	Slug           string `gorm:"uniqueIndex:idx_org_project_slug;not null"`
+	Name           string `gorm:"not null"`
+	Description    string
+	AppID          *uint
+	SocialGroupID  uint          `gorm:"not null;index"`
+	FilesEnabled   bool          `gorm:"not null;default:false"`
+	Visibility     AppVisibility `gorm:"not null;default:global"`
+	Network        AppNetwork    `gorm:"not null;default:vpn"`
+	Runners        []string      `gorm:"serializer:json"`
+	ArchivedAt     *time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 
-	App   *App        `gorm:"foreignKey:AppID"`
-	Group SocialGroup `gorm:"foreignKey:SocialGroupID"`
+	Organization ForgeOrganization `gorm:"foreignKey:OrganizationID"`
+	Team         *OrgTeam          `gorm:"foreignKey:TeamID"`
+	App          *App              `gorm:"foreignKey:AppID"`
+	Group        SocialGroup       `gorm:"foreignKey:SocialGroupID"`
+}
+
+// FullName é <org>/<slug>. Vazio se a org não foi pré-carregada.
+func (p Project) FullName() string {
+	org := p.Organization.Slug
+	if org == "" || p.Slug == "" {
+		return ""
+	}
+	return org + "/" + p.Slug
 }
 
 // ProjectMember liga um User a um Project com um papel do forge.
@@ -328,7 +341,9 @@ func ValidProjectSlug(s string) bool {
 // ReservedProjectSlug são rotas da home em xgit.corp (não podem ser slug).
 func ReservedProjectSlug(s string) bool {
 	switch s {
-	case "repositories", "packages", "stars", "overview", "settings", "login", "admin", "issues", "pulls", "edit", "projects", "milestones", "labels":
+	case "repositories", "packages", "stars", "overview", "settings", "login", "admin",
+		"issues", "pulls", "edit", "projects", "milestones", "labels",
+		"xcorp", "security", "wiki", "agents", "people", "teams", "orgs", "actions":
 		return true
 	default:
 		return false

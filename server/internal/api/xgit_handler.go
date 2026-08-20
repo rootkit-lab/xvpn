@@ -96,7 +96,7 @@ func (a *App) handleListTree(c *gin.Context) {
 	}
 	ref := strings.TrimSpace(c.DefaultQuery("ref", "HEAD"))
 	path := strings.TrimSpace(c.Query("path"))
-	ents, err := forge.ListTree(a.gitDir(), proj.Slug, ref, path)
+	ents, err := forge.ListTree(a.gitDir(), a.projectRepo(proj), ref, path)
 	if err != nil {
 		if errors.Is(err, forge.ErrEmptyRepo) || errors.Is(err, forge.ErrBranchMissing) {
 			c.JSON(http.StatusOK, gin.H{"items": []forge.TreeEntry{}, "ref": ref, "path": path, "commit_count": 0, "tags": []string{}, "languages": []forge.LangStat{}})
@@ -107,13 +107,13 @@ func (a *App) handleListTree(c *gin.Context) {
 	}
 	payload := gin.H{"items": ents, "ref": ref, "path": path}
 	if strings.Trim(path, "/") == "" {
-		if n, err := forge.CountCommits(a.gitDir(), proj.Slug, ref); err == nil {
+		if n, err := forge.CountCommits(a.gitDir(), a.projectRepo(proj), ref); err == nil {
 			payload["commit_count"] = n
 		}
-		if tags, err := forge.ListTags(a.gitDir(), proj.Slug); err == nil {
+		if tags, err := forge.ListTags(a.gitDir(), a.projectRepo(proj)); err == nil {
 			payload["tags"] = tags
 		}
-		if langs, err := forge.LanguageStats(a.gitDir(), proj.Slug, ref); err == nil {
+		if langs, err := forge.LanguageStats(a.gitDir(), a.projectRepo(proj), ref); err == nil {
 			payload["languages"] = langs
 		}
 	}
@@ -127,7 +127,7 @@ func (a *App) handleGetBlob(c *gin.Context) {
 	}
 	ref := strings.TrimSpace(c.DefaultQuery("ref", "HEAD"))
 	path := strings.TrimSpace(c.Query("path"))
-	body, binary, err := forge.ReadBlob(a.gitDir(), proj.Slug, ref, path)
+	body, binary, err := forge.ReadBlob(a.gitDir(), a.projectRepo(proj), ref, path)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "arquivo não encontrado"})
 		return
@@ -143,7 +143,7 @@ func (a *App) handleListCommits(c *gin.Context) {
 	ref := strings.TrimSpace(c.DefaultQuery("ref", "HEAD"))
 	path := strings.TrimSpace(c.Query("path"))
 	n, _ := strconv.Atoi(c.Query("n"))
-	items, err := forge.ListCommits(a.gitDir(), proj.Slug, ref, path, n)
+	items, err := forge.ListCommits(a.gitDir(), a.projectRepo(proj), ref, path, n)
 	if err != nil {
 		if errors.Is(err, forge.ErrEmptyRepo) || errors.Is(err, forge.ErrBranchMissing) {
 			c.JSON(http.StatusOK, gin.H{"items": []forge.CommitInfo{}})

@@ -7,13 +7,13 @@ func TestCommitFilesEmptyThenUnchanged(t *testing.T) {
 		t.Skip("git não está no PATH")
 	}
 	root := t.TempDir()
-	if err := InitBare(root, "lab"); err != nil {
+	if err := InitBare(root, "xcorp/lab"); err != nil {
 		t.Fatal(err)
 	}
-	if HasCommits(root, "lab") {
+	if HasCommits(root, "xcorp/lab") {
 		t.Fatal("bare novo não tem commits")
 	}
-	res, err := CommitFiles(root, "lab", CommitFilesOpts{
+	res, err := CommitFiles(root, "xcorp/lab", CommitFilesOpts{
 		Files: []FileContent{
 			{Path: "README.md", Content: "hello\n"},
 			{Path: ".xvpn-ci.sh", Content: "#!/bin/sh\necho ok\n"},
@@ -26,10 +26,10 @@ func TestCommitFilesEmptyThenUnchanged(t *testing.T) {
 	if res.SHA == "" || res.Branch != "main" {
 		t.Fatalf("%+v", res)
 	}
-	if !HasCommits(root, "lab") {
+	if !HasCommits(root, "xcorp/lab") {
 		t.Fatal("esperava HEAD")
 	}
-	_, err = CommitFiles(root, "lab", CommitFilesOpts{
+	_, err = CommitFiles(root, "xcorp/lab", CommitFilesOpts{
 		Files:   []FileContent{{Path: "README.md", Content: "hello\n"}},
 		Ref:     "main",
 		Message: "chore: again",

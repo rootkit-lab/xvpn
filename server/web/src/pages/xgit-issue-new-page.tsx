@@ -44,7 +44,7 @@ function insertAround(el: HTMLTextAreaElement, before: string, after = '', place
 }
 
 export function XgitIssueNewPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [title, setTitle] = useState('')
@@ -55,9 +55,9 @@ export function XgitIssueNewPage() {
   const [labelDraft, setLabelDraft] = useState('')
   const [milestone, setMilestone] = useState<number | 0>(0)
   const [busy, setBusy] = useState(false)
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const fetchLabels = useCallback(() => api.listIssueLabels(slug), [slug])
-  const fetchMilestones = useCallback(() => api.listMilestones(slug, 'open'), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
+  const fetchLabels = useCallback(() => api.listIssueLabels(`${org}/${slug}`), [slug])
+  const fetchMilestones = useCallback(() => api.listMilestones(`${org}/${slug}`, 'open'), [slug])
   const { data: project } = usePollingData(fetchProject, 30_000)
   const { data: labelData } = usePollingData(fetchLabels, 30_000)
   const { data: msData } = usePollingData(fetchMilestones, 30_000)
@@ -96,7 +96,7 @@ export function XgitIssueNewPage() {
     if (!canCreate) return
     setBusy(true)
     try {
-      const issue = await api.createIssue(slug, {
+      const issue = await api.createIssue(`${org}/${slug}`, {
         title: title.trim(),
         body: body.trim() || undefined,
         labels: labels.length ? labels : undefined,
@@ -104,7 +104,7 @@ export function XgitIssueNewPage() {
         milestone: milestone || undefined,
       })
       toast.success(`Issue #${issue.number} aberta`)
-      navigate(xgitPath(`${slug}/issues/${issue.number}`))
+      navigate(xgitPath(`${org}/${slug}/issues/${issue.number}`))
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao abrir issue')
     } finally {
@@ -116,7 +116,7 @@ export function XgitIssueNewPage() {
     return (
       <p className="text-sm text-muted-foreground">
         Sem permissão para criar issue.{' '}
-        <Link to={xgitPath(`${slug}/issues`)} className="text-primary hover:underline">
+        <Link to={xgitPath(`${org}/${slug}/issues`)} className="text-primary hover:underline">
           Voltar
         </Link>
       </p>
@@ -184,7 +184,7 @@ export function XgitIssueNewPage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => navigate(xgitPath(`${slug}/issues`))}>
+          <Button type="button" variant="ghost" onClick={() => navigate(xgitPath(`${org}/${slug}/issues`))}>
             Cancel
           </Button>
           <Button type="submit" className="btn-glow" disabled={busy || !title.trim()}>

@@ -26,9 +26,11 @@ type DraftEnv = {
 }
 
 export function CodespacesEnvCard({
+  org,
   slug,
   myRole,
 }: {
+  org: string
   slug: string
   myRole?: ProjectRole
 }) {
@@ -36,7 +38,7 @@ export function CodespacesEnvCard({
   const canWrite =
     (isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')) ||
     (myRole != null && ROLE_RANK[myRole] >= ROLE_RANK.maintainer)
-  const fetchEnvs = useCallback(() => api.getProjectCodespaceEnvs(slug), [slug])
+  const fetchEnvs = useCallback(() => api.getProjectCodespaceEnvs(`${org}/${slug}`), [org, slug])
   const { data, reload } = usePollingData(fetchEnvs, 20_000)
   const [rows, setRows] = useState<DraftEnv[]>([])
   const [busy, setBusy] = useState(false)
@@ -62,7 +64,7 @@ export function CodespacesEnvCard({
     setBusy(true)
     try {
       await api.putProjectCodespaceEnvs(
-        slug,
+        `${org}/${slug}`,
         rows
           .filter((r) => r.name.trim())
           .map((r) => ({ name: r.name.trim(), value: r.value, secret: r.secret })),

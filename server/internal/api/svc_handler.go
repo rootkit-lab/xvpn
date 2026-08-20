@@ -82,7 +82,7 @@ func (a *App) serviceJSON(row store.ServiceInstance, password string) serviceJSO
 	if row.ProjectID != nil {
 		var p store.Project
 		if err := a.Store.DB.First(&p, *row.ProjectID).Error; err == nil {
-			out.ProjectSlug = p.Slug
+			out.ProjectSlug = a.projectRepo(p)
 		}
 	}
 	if row.MeshServerID != nil {
@@ -265,8 +265,13 @@ func (a *App) handleCreateService(c *gin.Context) {
 		row.MeshServerID = req.MeshServerID
 	}
 	if projSlug := strings.ToLower(strings.TrimSpace(req.ProjectSlug)); projSlug != "" {
-		var p store.Project
-		if err := a.Store.DB.Where("slug = ?", projSlug).First(&p).Error; err != nil {
+		org, slug, ok := strings.Cut(projSlug, "/")
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "projeto deve ser org/slug"})
+			return
+		}
+		p, found := a.findProject(org, slug)
+		if !found {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "projeto não encontrado"})
 			return
 		}

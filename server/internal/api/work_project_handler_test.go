@@ -15,7 +15,7 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 	guest := createTestUserWithRole(t, app, "gst", "senha-gst-ok-1", store.RoleMember)
 	gstTok := loginAndGetToken(t, app, router, "gst", "senha-gst-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -23,7 +23,7 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: reporter.ID, Role: store.ProjectRoleReporter},
@@ -34,19 +34,19 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{Title: "Primeira"}, repTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/issues", createIssueRequest{Title: "Primeira"}, repTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("issue: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/work-projects", createWorkProjectRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/work-projects", createWorkProjectRequest{
 		Title: "Sprint", Template: "kanban",
 	}, gstTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("guest create: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/work-projects", createWorkProjectRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/work-projects", createWorkProjectRequest{
 		Title: "Sprint", Template: "kanban",
 	}, repTok)
 	if rec.Code != http.StatusCreated {
@@ -61,7 +61,7 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 	}
 
 	one := uint(1)
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/work-projects/1/items", createWorkItemRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/work-projects/1/items", createWorkItemRequest{
 		Issue: &one,
 	}, repTok)
 	if rec.Code != http.StatusCreated {
@@ -76,7 +76,7 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 	}
 
 	col := "In Progress"
-	rec = doJSON(t, router, http.MethodPatch, "/api/projects/lab/work-projects/1/items/1", patchWorkItemRequest{
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xcorp/lab/work-projects/1/items/1", patchWorkItemRequest{
 		Column: &col,
 	}, repTok)
 	if rec.Code != http.StatusOK {
@@ -89,7 +89,7 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 		t.Fatalf("moved: %+v", item)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/work-projects/1", nil, gstTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/work-projects/1", nil, gstTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("guest get: %d", rec.Code)
 	}
@@ -100,7 +100,7 @@ func TestWorkProjectKanbanLifecycle(t *testing.T) {
 		t.Fatalf("detail: %+v", wp.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/work-projects/1/items", createWorkItemRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/work-projects/1/items", createWorkItemRequest{
 		Title: "draft card",
 	}, gstTok)
 	if rec.Code != http.StatusForbidden {

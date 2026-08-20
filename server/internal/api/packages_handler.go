@@ -341,7 +341,7 @@ func (a *App) handleNpmPackument(c *gin.Context) {
 	versions := make(map[string]any, len(vers))
 	latest := vers[len(vers)-1].Version
 	for _, ver := range vers {
-		tarball := gitCloneHost + "/api/projects/" + proj.Slug + "/packages/" + strconv.FormatUint(uint64(ver.ID), 10) + "/download"
+		tarball := gitCloneHost + "/api/projects/" + a.projectRepo(proj) + "/packages/" + strconv.FormatUint(uint64(ver.ID), 10) + "/download"
 		integrity, shasum := ver.Integrity, ver.Shasum
 		if integrity == "" || shasum == "" {
 			if a.Packages != nil {
@@ -374,7 +374,7 @@ func (a *App) handleNpmPackument(c *gin.Context) {
 func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.ForgePackage, withVersions bool) forgePackageJSON {
 	out := forgePackageJSON{
 		ID:          pkg.ID,
-		ProjectSlug: proj.Slug,
+		ProjectSlug: a.projectRepo(proj),
 		Kind:        pkg.Kind,
 		Name:        pkg.Name,
 		CanPublish:  a.canAccessProjectFiles(user, proj, true),
@@ -382,9 +382,9 @@ func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.Fo
 	}
 	switch pkg.Kind {
 	case store.ForgePackageKindNPM:
-		out.RegistryURL = gitCloneHost + "/api/packages/" + proj.Slug + "/npm/"
+		out.RegistryURL = gitCloneHost + "/api/packages/" + a.projectRepo(proj) + "/npm/"
 	case store.ForgePackageKindPyPI:
-		out.RegistryURL = gitCloneHost + "/api/packages/" + proj.Slug + "/pypi/simple/"
+		out.RegistryURL = gitCloneHost + "/api/packages/" + a.projectRepo(proj) + "/pypi/simple/"
 	}
 	if !withVersions {
 		return out
@@ -734,7 +734,7 @@ func (a *App) handlePypiSimplePackage(c *gin.Context) {
 		for _, ver := range vers {
 			files = append(files, gin.H{
 				"filename": ver.Filename,
-				"url":      pypiTarballURL(proj.Slug, ver),
+				"url":      pypiTarballURL(a.projectRepo(proj), ver),
 				"hashes":   gin.H{"sha256": ver.SHA256},
 			})
 		}
@@ -745,7 +745,7 @@ func (a *App) handlePypiSimplePackage(c *gin.Context) {
 	var b strings.Builder
 	b.WriteString("<!DOCTYPE html><html><body>\n")
 	for _, ver := range vers {
-		url := html.EscapeString(pypiTarballURL(proj.Slug, ver))
+		url := html.EscapeString(pypiTarballURL(a.projectRepo(proj), ver))
 		b.WriteString(`<a href="` + url + `">` + html.EscapeString(ver.Filename) + "</a>\n")
 	}
 	b.WriteString("</body></html>\n")

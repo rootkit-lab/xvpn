@@ -30,7 +30,9 @@ const (
 
 type codespaceJSON struct {
 	ID         string    `json:"id"`
+	Org        string    `json:"org"`
 	Slug       string    `json:"slug"`
+	FullName   string    `json:"full_name"`
 	Branch     string    `json:"branch"`
 	Author     string    `json:"author"`
 	Kind       string    `json:"kind"`
@@ -46,6 +48,7 @@ type codespaceJSON struct {
 }
 
 type createCodespaceRequest struct {
+	Org      string `json:"org"`
 	Slug     string `json:"slug"`
 	Branch   string `json:"branch"`
 	Kind     string `json:"kind"`
@@ -88,7 +91,9 @@ func (a *App) codespaceJSON(user store.User, proj store.Project, cs store.CodeSp
 	}
 	out := codespaceJSON{
 		ID:        cs.PublicID,
+		Org:       a.projectOrgSlug(proj),
 		Slug:      proj.Slug,
+		FullName:  a.projectRepo(proj),
 		Branch:    cs.Branch,
 		Kind:      kind,
 		Status:    status,
@@ -152,8 +157,9 @@ func (a *App) handleListCodespaces(c *gin.Context) {
 	}
 	q := a.Store.DB.Where("user_id = ?", user.ID)
 	if slug := strings.TrimSpace(c.Query("slug")); slug != "" {
-		var proj store.Project
-		if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+		org := strings.TrimSpace(c.Query("org"))
+		proj, found := a.findProject(org, slug)
+		if !found {
 			c.JSON(http.StatusOK, gin.H{"items": []codespaceJSON{}})
 			return
 		}
@@ -187,8 +193,13 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
 		return
 	}
-	var proj store.Project
-	if err := a.Store.DB.Where("slug = ?", strings.TrimSpace(req.Slug)).First(&proj).Error; err != nil {
+	orgSlug := strings.TrimSpace(req.Org)
+	if orgSlug == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "org obrigatória"})
+		return
+	}
+	proj, found := a.findProject(orgSlug, strings.TrimSpace(req.Slug))
+	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
 		return
 	}
@@ -269,7 +280,7 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 			return
 		}
-		cloneURL := "https://xgit.corp.ihuull.com/" + proj.Slug
+		cloneURL := a.projectCloneURL(proj)
 		if err := a.applyCodespace(c.Request.Context(), &cs, "create", port, tok, cloneURL); err != nil {
 			_ = a.Store.DB.Delete(&cs)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível iniciar o codespace"})
@@ -283,12 +294,12 @@ func (a *App) handleCreateCodespace(c *gin.Context) {
 		c.JSON(http.StatusCreated, a.codespaceJSON(user, proj, cs))
 		return
 	}
-	if err := forge.AddWorktree(a.gitDir(), proj.Slug, dest, branch); err != nil {
+	if err := forge.AddWorktree(a.gitDir(), a.projectRepo(proj), dest, branch); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	if err := a.Store.DB.Create(&cs).Error; err != nil {
-		_ = forge.RemoveWorktree(a.gitDir(), proj.Slug, dest)
+		_ = forge.RemoveWorktree(a.gitDir(), a.projectRepo(proj), dest)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -342,7 +353,7 @@ func (a *App) handleStartCodespace(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	cloneURL := gitCloneHost + "/" + proj.Slug
+	cloneURL := a.projectCloneURL(proj)
 	if err := a.applyCodespace(c.Request.Context(), &cs, "start", port, tok, cloneURL); err != nil {
 		if err := a.applyCodespace(c.Request.Context(), &cs, "create", port, tok, cloneURL); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível iniciar o codespace"})
@@ -435,7 +446,7 @@ func (a *App) handleDeleteCodespace(c *gin.Context) {
 		_ = a.applyCodespace(c.Request.Context(), &cs, "rm", 0, "", "")
 		_ = os.RemoveAll(dest)
 	} else {
-		_ = forge.RemoveWorktree(a.gitDir(), proj.Slug, dest)
+		_ = forge.RemoveWorktree(a.gitDir(), a.projectRepo(proj), dest)
 	}
 	if err := a.Store.DB.Delete(&cs).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})

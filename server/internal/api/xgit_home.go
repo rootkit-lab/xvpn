@@ -74,11 +74,11 @@ func (a *App) decorateProjectCard(user store.User, proj store.Project, cards boo
 		return out
 	}
 	root := a.gitDir()
-	out.Language = forge.PrimaryLanguage(root, proj.Slug)
-	if last := forge.LastCommit(root, proj.Slug); last != nil {
+	out.Language = forge.PrimaryLanguage(root, a.projectRepo(proj))
+	if last := forge.LastCommit(root, a.projectRepo(proj)); last != nil {
 		out.LastCommitAt = forge.ParseCommitTime(last.Date)
 	}
-	out.Spark = forge.WeeklyCounts(root, proj.Slug, 12)
+	out.Spark = forge.WeeklyCounts(root, a.projectRepo(proj), 12)
 	return out
 }
 
@@ -113,11 +113,11 @@ func (a *App) handleXgitOverview(c *gin.Context) {
 	}
 	root := a.gitDir()
 	for _, p := range rows {
-		for day, n := range forge.AuthorDayCounts(root, p.Slug, user.Username, since) {
+		for day, n := range forge.AuthorDayCounts(root, a.projectRepo(p), user.Username, since) {
 			dayMap[day] += n
 		}
 		if !strings.EqualFold(author, user.Username) {
-			for day, n := range forge.AuthorDayCounts(root, p.Slug, author, since) {
+			for day, n := range forge.AuthorDayCounts(root, a.projectRepo(p), author, since) {
 				dayMap[day] += n
 			}
 		}
@@ -175,7 +175,7 @@ func (a *App) xgitActivity(user store.User, rows []store.Project, mrs []store.Me
 	sinceMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	for _, p := range rows {
 		n := 0
-		for day, c := range forge.AuthorDayCounts(root, p.Slug, user.Username, sinceMonth) {
+		for day, c := range forge.AuthorDayCounts(root, a.projectRepo(p), user.Username, sinceMonth) {
 			if strings.HasPrefix(day, month) {
 				n += c
 			}
@@ -212,7 +212,7 @@ func (a *App) xgitActivity(user store.User, rows []store.Project, mrs []store.Me
 			Kind:      "repo_created",
 			Slug:      p.Slug,
 			Title:     p.Name,
-			Language:  forge.PrimaryLanguage(root, p.Slug),
+			Language:  forge.PrimaryLanguage(root, a.projectRepo(p)),
 			CreatedAt: p.CreatedAt,
 		})
 	}

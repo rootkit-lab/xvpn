@@ -17,7 +17,7 @@ func TestPutContentsProtectedOpensPR(t *testing.T) {
 	dev := createTestUserWithRole(t, app, "dev", "senha-dev-ok-1", store.RoleMember)
 	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -25,7 +25,7 @@ func TestPutContentsProtectedOpensPR(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
@@ -34,9 +34,9 @@ func TestPutContentsProtectedOpensPR(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/contents", putContentsRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/contents", putContentsRequest{
 		Path: "README", Ref: "main", Content: "hello from web\n", Message: "edit via web",
 	}, devTok)
 	if rec.Code != http.StatusOK {
@@ -53,7 +53,7 @@ func TestPutContentsProtectedOpensPR(t *testing.T) {
 		t.Fatalf("não deveria commitar em main: %+v", put)
 	}
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/contents", putContentsRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/contents", putContentsRequest{
 		Path: "README", Ref: "main", Content: "hello from maintainer\n", Message: "maintainer edit",
 	}, adminTok)
 	if rec.Code != http.StatusOK {
@@ -67,14 +67,14 @@ func TestPutContentsProtectedOpensPR(t *testing.T) {
 		t.Fatalf("maintainer deveria commitar em main: %+v", put)
 	}
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/contents", putContentsRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/contents", putContentsRequest{
 		Path: "README", Ref: "main", Content: "hello from maintainer\n", Message: "noop",
 	}, adminTok)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("unchanged: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/archive?ref=main", nil, devTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/archive?ref=main", nil, devTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("archive: %d %s", rec.Code, rec.Body.String())
 	}

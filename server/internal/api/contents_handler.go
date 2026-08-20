@@ -59,7 +59,7 @@ func (a *App) handlePutContents(c *gin.Context) {
 		return
 	}
 
-	heads, _ := forge.ListBranches(a.gitDir(), proj.Slug)
+	heads, _ := forge.ListBranches(a.gitDir(), a.projectRepo(proj))
 	targetBranch := ref
 	if ref == "HEAD" || !forge.ValidBranchName(ref) {
 		targetBranch = defaultHead(heads)
@@ -76,7 +76,7 @@ func (a *App) handlePutContents(c *gin.Context) {
 		return
 	}
 
-	res, err := forge.CommitFile(a.gitDir(), proj.Slug, forge.CommitFileOpts{
+	res, err := forge.CommitFile(a.gitDir(), a.projectRepo(proj), forge.CommitFileOpts{
 		Path:        path,
 		Ref:         ref,
 		Content:     req.Content,
@@ -112,7 +112,7 @@ func (a *App) handlePutContents(c *gin.Context) {
 		mr, err := a.insertMergeRequest(proj, user, msg, req.Description, res.Branch, targetBranch)
 		if err == nil {
 			out.MergeRequestNumber = &mr.Number
-			if sha, err := forge.RevParse(a.gitDir(), proj.Slug, res.Branch); err == nil {
+			if sha, err := forge.RevParse(a.gitDir(), a.projectRepo(proj), res.Branch); err == nil {
 				n := mr.Number
 				st := store.CiAwaitingApproval
 				if a.canApproveCi(user, proj) {
@@ -132,7 +132,7 @@ func (a *App) handleGetArchive(c *gin.Context) {
 		return
 	}
 	ref := strings.TrimSpace(c.DefaultQuery("ref", "HEAD"))
-	body, err := forge.ArchiveZIP(a.gitDir(), proj.Slug, ref)
+	body, err := forge.ArchiveZIP(a.gitDir(), a.projectRepo(proj), ref)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "archive indisponível"})
 		return

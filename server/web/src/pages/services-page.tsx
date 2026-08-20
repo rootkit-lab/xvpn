@@ -172,7 +172,7 @@ function CreateServiceForm({ onCreated }: { onCreated: () => void }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="svc-proj">Projeto (opcional)</Label>
-            <Input id="svc-proj" className="field-glass" value={project} onChange={(e) => setProject(e.target.value)} placeholder="lab" />
+            <Input id="svc-proj" className="field-glass" value={project} onChange={(e) => setProject(e.target.value)} placeholder="xcorp/lab" />
           </div>
           {host === 'mesh' ? (
             <div className="space-y-1.5">

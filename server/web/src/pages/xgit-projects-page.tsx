@@ -47,7 +47,7 @@ function canWriteForge(user: ReturnType<typeof useAuth>['user'], role?: ProjectR
 }
 
 export function XgitProjectsPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [status, setStatus] = useState<'open' | 'closed'>('open')
@@ -56,8 +56,8 @@ export function XgitProjectsPage() {
   const [title, setTitle] = useState('')
   const [template, setTemplate] = useState<WorkProjectTemplate>('kanban')
   const [busy, setBusy] = useState(false)
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const fetchBoards = useCallback(() => api.listWorkProjects(slug, { status, q: q.trim() || undefined }), [slug, status, q])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
+  const fetchBoards = useCallback(() => api.listWorkProjects(`${org}/${slug}`, { status, q: q.trim() || undefined }), [slug, status, q])
   const { data: project } = usePollingData(fetchProject, 30_000)
   const { data, loading, error } = usePollingData(fetchBoards, 15_000)
   const myRole = project?.members?.find((m) => m.user_id === user?.id)?.role
@@ -67,11 +67,11 @@ export function XgitProjectsPage() {
     e.preventDefault()
     setBusy(true)
     try {
-      const wp = await api.createWorkProject(slug, { title: title.trim(), template })
+      const wp = await api.createWorkProject(`${org}/${slug}`, { title: title.trim(), template })
       toast.success(`Project #${wp.number} criado`)
       setOpen(false)
       setTitle('')
-      navigate(xgitPath(`${slug}/projects/${wp.number}`))
+      navigate(xgitPath(`${org}/${slug}/projects/${wp.number}`))
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao criar project')
     } finally {
@@ -81,7 +81,7 @@ export function XgitProjectsPage() {
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      <XgitTrackerNav slug={slug} active="projects" />
+      <XgitTrackerNav org={org} slug={slug} active="projects" />
       <div className="min-w-0 flex-1">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-xl font-semibold">Projects</h2>
@@ -125,7 +125,7 @@ export function XgitProjectsPage() {
               {data.items.map((wp) => (
                 <li key={wp.number}>
                   <Link
-                    to={xgitPath(`${slug}/projects/${wp.number}`)}
+                    to={xgitPath(`${org}/${slug}/projects/${wp.number}`)}
                     className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 hover:bg-muted/20"
                   >
                     <div>
@@ -192,15 +192,15 @@ export function XgitProjectsPage() {
 }
 
 export function XgitProjectBoardPage() {
-  const { slug = '', n = '' } = useParams()
+  const { org = '', slug = '', n = '' } = useParams()
   const number = Number(n)
   const { user } = useAuth()
   const [draft, setDraft] = useState('')
   const [issueN, setIssueN] = useState('')
   const [busy, setBusy] = useState(false)
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const fetchBoard = useCallback(() => api.getWorkProject(slug, number), [slug, number])
-  const fetchIssues = useCallback(() => api.listIssues(slug, { status: 'open' }), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
+  const fetchBoard = useCallback(() => api.getWorkProject(`${org}/${slug}`, number), [slug, number])
+  const fetchIssues = useCallback(() => api.listIssues(`${org}/${slug}`, { status: 'open' }), [slug])
   const { data: project } = usePollingData(fetchProject, 30_000)
   const { data, loading, error, reload } = usePollingData(fetchBoard, 10_000)
   const { data: issues } = usePollingData(fetchIssues, 20_000)
@@ -219,7 +219,7 @@ export function XgitProjectBoardPage() {
     e.preventDefault()
     setBusy(true)
     try {
-      await api.createWorkItem(slug, number, { title: draft.trim() })
+      await api.createWorkItem(`${org}/${slug}`, number, { title: draft.trim() })
       setDraft('')
       reload()
     } catch (err) {
@@ -235,7 +235,7 @@ export function XgitProjectBoardPage() {
     if (!nIssue) return
     setBusy(true)
     try {
-      await api.createWorkItem(slug, number, { issue: nIssue })
+      await api.createWorkItem(`${org}/${slug}`, number, { issue: nIssue })
       setIssueN('')
       reload()
     } catch (err) {
@@ -247,7 +247,7 @@ export function XgitProjectBoardPage() {
 
   async function move(item: WorkItem, column: string) {
     try {
-      await api.patchWorkItem(slug, number, item.id, { column })
+      await api.patchWorkItem(`${org}/${slug}`, number, item.id, { column })
       reload()
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao mover')
@@ -265,7 +265,7 @@ export function XgitProjectBoardPage() {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        <Link to={xgitPath(`${slug}/projects`)} className="hover:underline">
+        <Link to={xgitPath(`${org}/${slug}/projects`)} className="hover:underline">
           Projects
         </Link>
         <span className="px-1.5">/</span>
@@ -414,14 +414,14 @@ export function XgitProjectBoardPage() {
 function ItemTitle({ slug, item }: { slug: string; item: WorkItem }) {
   if (item.issue) {
     return (
-      <Link to={xgitPath(`${slug}/issues/${item.issue}`)} className="text-sm hover:underline">
+      <Link to={xgitPath(`${org}/${slug}/issues/${item.issue}`)} className="text-sm hover:underline">
         #{item.issue} {item.title}
       </Link>
     )
   }
   if (item.mr) {
     return (
-      <Link to={xgitPath(`${slug}/pulls/${item.mr}`)} className="text-sm hover:underline">
+      <Link to={xgitPath(`${org}/${slug}/pulls/${item.mr}`)} className="text-sm hover:underline">
         PR #{item.mr} {item.title}
       </Link>
     )

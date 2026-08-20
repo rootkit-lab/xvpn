@@ -15,7 +15,7 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 	guest := createTestUserWithRole(t, app, "gst", "senha-gst-ok-1", store.RoleMember)
 	gstTok := loginAndGetToken(t, app, router, "gst", "senha-gst-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -23,7 +23,7 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: reporter.ID, Role: store.ProjectRoleReporter},
@@ -34,14 +34,14 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/issues", createIssueRequest{
 		Title: "Primeira", Body: "detalhe", Labels: []string{"bug"},
 	}, gstTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("guest create: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/issues", createIssueRequest{
 		Title: "Primeira", Body: "detalhe", Labels: []string{"bug"}, Assignee: []string{"rep"},
 	}, repTok)
 	if rec.Code != http.StatusCreated {
@@ -66,7 +66,7 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 		t.Fatalf("thread kind: %q", th.Kind)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/issues", nil, gstTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/issues", nil, gstTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("guest list: %d", rec.Code)
 	}
@@ -80,18 +80,18 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 		t.Fatalf("list: %+v", listed.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/issues/1", nil, gstTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/issues/1", nil, gstTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("guest get: %d", rec.Code)
 	}
 
 	closed := "closed"
-	rec = doJSON(t, router, http.MethodPatch, "/api/projects/lab/issues/1", patchIssueRequest{Status: &closed}, gstTok)
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xcorp/lab/issues/1", patchIssueRequest{Status: &closed}, gstTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("guest patch: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPatch, "/api/projects/lab/issues/1", patchIssueRequest{Status: &closed}, repTok)
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xcorp/lab/issues/1", patchIssueRequest{Status: &closed}, repTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("close: %d %s", rec.Code, rec.Body.String())
 	}
@@ -103,7 +103,7 @@ func TestIssueLifecycleRBAC(t *testing.T) {
 	}
 
 	open := "open"
-	rec = doJSON(t, router, http.MethodPatch, "/api/projects/lab/issues/1", patchIssueRequest{Status: &open}, adminTok)
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xcorp/lab/issues/1", patchIssueRequest{Status: &open}, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("reopen: %d %s", rec.Code, rec.Body.String())
 	}
@@ -121,7 +121,7 @@ func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
 	reporter := createTestUserWithRole(t, app, "rep", "senha-rep-ok-1", store.RoleMember)
 	repTok := loginAndGetToken(t, app, router, "rep", "senha-rep-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -129,7 +129,7 @@ func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: reporter.ID, Role: store.ProjectRoleReporter},
@@ -139,7 +139,7 @@ func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/milestones", createMilestoneRequest{Title: "v1"}, repTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/milestones", createMilestoneRequest{Title: "v1"}, repTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("milestone: %d %s", rec.Code, rec.Body.String())
 	}
@@ -152,13 +152,13 @@ func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
 	}
 
 	one := uint(1)
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/issues", createIssueRequest{
 		Title: "Bug no login", Body: "ping @rep", Labels: []string{"bug"}, Assignee: []string{"rep"}, Milestone: &one,
 	}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("issue1: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/issues", createIssueRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/issues", createIssueRequest{
 		Title: "Docs", Body: "sem menção", Labels: []string{"docs"},
 	}, repTok)
 	if rec.Code != http.StatusCreated {
@@ -172,7 +172,7 @@ func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
 	}
 	get := func(qs string) listed {
 		t.Helper()
-		r := doJSON(t, router, http.MethodGet, "/api/projects/lab/issues"+qs, nil, repTok)
+		r := doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/issues"+qs, nil, repTok)
 		if r.Code != http.StatusOK {
 			t.Fatalf("list %s: %d %s", qs, r.Code, r.Body.String())
 		}
@@ -208,7 +208,7 @@ func TestIssueFiltersMilestoneAndLabels(t *testing.T) {
 		t.Fatalf("milestone filter: %+v", byMS.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/labels", nil, repTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/labels", nil, repTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("labels: %d %s", rec.Code, rec.Body.String())
 	}

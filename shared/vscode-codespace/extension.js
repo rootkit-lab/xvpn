@@ -87,7 +87,22 @@ class PortsViewProvider {
 
   async refresh() {
     const portList = await listListeningPorts();
-    this.post({ type: "ports", demoHost: this.demoHost(), ports: portList });
+    const recipes = await this.detectRecipes();
+    this.post({ type: "ports", demoHost: this.demoHost(), ports: portList, recipes });
+  }
+
+  async detectRecipes() {
+    const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!folder) {
+      return [];
+    }
+    try {
+      const { stdout } = await execFileAsync("xcs-detect", [folder], { timeout: 4000, maxBuffer: 32 * 1024 });
+      const report = JSON.parse(String(stdout || "{}"));
+      return Array.isArray(report.recipes) ? report.recipes : [];
+    } catch (_) {
+      return [];
+    }
   }
 
   onMessage(msg) {

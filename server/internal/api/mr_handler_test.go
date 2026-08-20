@@ -21,7 +21,7 @@ func TestMergeRequestLifecycleAndDMIsolation(t *testing.T) {
 	dev := createTestUserWithRole(t, app, "dev", "senha-dev-ok-1", store.RoleMember)
 	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -29,7 +29,7 @@ func TestMergeRequestLifecycleAndDMIsolation(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
@@ -39,9 +39,9 @@ func TestMergeRequestLifecycleAndDMIsolation(t *testing.T) {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
 
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/branches", nil, devTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/branches", nil, devTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("branches: %d %s", rec.Code, rec.Body.String())
 	}
@@ -55,7 +55,7 @@ func TestMergeRequestLifecycleAndDMIsolation(t *testing.T) {
 		t.Fatalf("branches: %v", branches.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "Add feat", SourceBranch: "feat", TargetBranch: "main",
 	}, devTok)
 	if rec.Code != http.StatusCreated {
@@ -82,12 +82,12 @@ func TestMergeRequestLifecycleAndDMIsolation(t *testing.T) {
 		t.Fatal("post XGROUP deveria existir")
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, devTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/merge", nil, devTok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("developer merge em main protegida deveria 403, veio %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/merge", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("merge: %d %s", rec.Code, rec.Body.String())
 	}
@@ -144,7 +144,7 @@ func TestMergeRequestACLAndClose(t *testing.T) {
 	dev := createTestUserWithRole(t, app, "dev", "senha-dev-ok-1", store.RoleMember)
 	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -152,7 +152,7 @@ func TestMergeRequestACLAndClose(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
@@ -161,34 +161,34 @@ func TestMergeRequestACLAndClose(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("members: %d", rec.Code)
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "x", SourceBranch: "feat", TargetBranch: "main",
 	}, outTok)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("outsider create: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "x", SourceBranch: "main", TargetBranch: "main",
 	}, devTok)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("mesmo branch: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "x", SourceBranch: "feat", TargetBranch: "main",
 	}, devTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("open: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/close", nil, outTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/close", nil, outTok)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("outsider close: %d", rec.Code)
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/close", nil, devTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/close", nil, devTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("author close: %d %s", rec.Code, rec.Body.String())
 	}
@@ -199,7 +199,7 @@ func TestMergeRequestACLAndClose(t *testing.T) {
 	if mr.Status != store.MRClosed {
 		t.Fatalf("status: %s", mr.Status)
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/merge", nil, adminTok)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("merge fechado: %d %s", rec.Code, rec.Body.String())
 	}
@@ -213,7 +213,7 @@ func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
 	dev := createTestUserWithRole(t, app, "dev", "senha-dev-ok-1", store.RoleMember)
 	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-ok-1")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -221,7 +221,7 @@ func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
@@ -230,16 +230,16 @@ func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("members: %d", rec.Code)
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests", createMRRequest{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests", createMRRequest{
 		Title: "Add feat", SourceBranch: "feat", TargetBranch: "main",
 	}, devTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("open: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/merge-requests/1/commits", nil, devTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/merge-requests/1/commits", nil, devTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("commits: %d %s", rec.Code, rec.Body.String())
 	}
@@ -253,7 +253,7 @@ func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
 		t.Fatal("esperava commits no PR")
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/merge-requests/1/diff", nil, devTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/merge-requests/1/diff", nil, devTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("diff: %d", rec.Code)
 	}
@@ -267,14 +267,14 @@ func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
 		t.Fatalf("diff: %q", diff.Diff)
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/reviews", map[string]string{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/reviews", map[string]string{
 		"state": "approve", "body": "lgtm",
 	}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("review: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/reviews", map[string]string{
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/reviews", map[string]string{
 		"state": "approve",
 	}, devTok)
 	if rec.Code != http.StatusForbidden {
@@ -290,12 +290,12 @@ func TestMergeRequestReviewDiffAndCIBlock(t *testing.T) {
 		Update("status", store.CiFailed).Error; err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/merge-requests/1/merge", nil, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/merge-requests/1/merge", nil, adminTok)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("CI failed deveria bloquear merge: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/jobs?mr=1", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/jobs?mr=1", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("jobs?mr=: %d", rec.Code)
 	}

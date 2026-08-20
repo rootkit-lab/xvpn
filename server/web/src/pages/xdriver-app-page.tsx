@@ -64,7 +64,7 @@ export function XDriverAppPage() {
   const projectRoots = (projects?.items ?? [])
     .filter((p) => p.files_enabled)
     .map((p) => ({
-      id: `project:${p.slug}` as DriverRoot,
+      id: `project:${p.org}/${p.slug}` as DriverRoot,
       label: p.name,
       hint: `projeto ${p.slug}`,
       icon: FolderKanban,

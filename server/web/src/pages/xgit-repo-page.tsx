@@ -46,12 +46,12 @@ const TABS = [
 ] as const
 
 export function XgitRepoLayout() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const location = useLocation()
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const fetchMRs = useCallback(() => api.listMergeRequests(slug, 'open'), [slug])
-  const fetchIssues = useCallback(() => api.listIssues(slug, { status: 'open' }), [slug])
-  const fetchWork = useCallback(() => api.listWorkProjects(slug, { status: 'open' }), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [org, slug])
+  const fetchMRs = useCallback(() => api.listMergeRequests(`${org}/${slug}`, 'open'), [org, slug])
+  const fetchIssues = useCallback(() => api.listIssues(`${org}/${slug}`, { status: 'open' }), [org, slug])
+  const fetchWork = useCallback(() => api.listWorkProjects(`${org}/${slug}`, { status: 'open' }), [org, slug])
   const { data, loading, error } = usePollingData(fetchProject, 20_000)
   const { data: mrs } = usePollingData(fetchMRs, 20_000)
   const { data: issues } = usePollingData(fetchIssues, 20_000)
@@ -69,7 +69,7 @@ export function XgitRepoLayout() {
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Link to={xgitReposPath()} className="text-primary hover:underline">
-            ihuull
+            {data.org || org}
           </Link>
           <span className="text-muted-foreground">/</span>
           <span className="font-semibold">{data.slug}</span>
@@ -131,19 +131,19 @@ export function XgitRepoLayout() {
 }
 
 export function XgitCodePage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
   const { user } = useAuth()
   const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
-  const fetchBranches = useCallback(() => api.listProjectBranches(slug), [slug])
+  const fetchBranches = useCallback(() => api.listProjectBranches(`${org}/${slug}`), [slug])
   const { data: branchData } = usePollingData(fetchBranches, 20_000)
   const branches = branchData?.items ?? []
   const [ref, setRef] = useState('')
   const [goTo, setGoTo] = useState('')
   const [codeTab, setCodeTab] = useState<'local' | 'cs'>('local')
   const [csBusy, setCsBusy] = useState(false)
-  const fetchSpaces = useCallback(() => api.listCodespaces(slug), [slug])
+  const fetchSpaces = useCallback(() => api.listCodespaces(`${org}/${slug}`), [org, slug])
   const { data: spaces, reload: reloadSpaces } = usePollingData(fetchSpaces, 20_000)
   const activeRef = ref || (branches.includes('main') ? 'main' : branches[0] || 'HEAD')
 
@@ -157,33 +157,33 @@ export function XgitCodePage() {
   }, [location.pathname])
 
   const fetchTree = useCallback(
-    () => api.listProjectTree(slug, activeRef, filePath ? parentPath(filePath) : dirPath),
+    () => api.listProjectTree(`${org}/${slug}`, activeRef, filePath ? parentPath(filePath) : dirPath),
     [slug, activeRef, filePath, dirPath],
   )
   const fetchBlob = useCallback(
-    () => (filePath ? api.getProjectBlob(slug, filePath, activeRef) : Promise.resolve(null)),
+    () => (filePath ? api.getProjectBlob(`${org}/${slug}`, filePath, activeRef) : Promise.resolve(null)),
     [slug, filePath, activeRef],
   )
   const fetchCommits = useCallback(
-    () => api.listProjectCommits(slug, activeRef, dirPath || filePath),
+    () => api.listProjectCommits(`${org}/${slug}`, activeRef, dirPath || filePath),
     [slug, activeRef, dirPath, filePath],
   )
   const { data: tree, loading: treeLoading } = usePollingData(fetchTree, 20_000)
   const { data: blob } = usePollingData(fetchBlob, 30_000)
   const { data: commits } = usePollingData(fetchCommits, 20_000)
-  const fetchGit = useCallback(() => api.getProjectGit(slug), [slug])
+  const fetchGit = useCallback(() => api.getProjectGit(`${org}/${slug}`), [slug])
   const { data: git } = usePollingData(fetchGit, 30_000)
 
   const readme = (tree?.items ?? []).find((e) => /^readme(\.md)?$/i.test(e.name) && e.type === 'blob')
   const fetchReadme = useCallback(
-    () => (readme && !filePath ? api.getProjectBlob(slug, readme.path, activeRef) : Promise.resolve(null)),
+    () => (readme && !filePath ? api.getProjectBlob(`${org}/${slug}`, readme.path, activeRef) : Promise.resolve(null)),
     [slug, readme?.path, activeRef, filePath],
   )
   const { data: readmeBlob } = usePollingData(fetchReadme, 30_000)
 
   const crumbs = (filePath || dirPath).split('/').filter(Boolean)
   const lastCommit = commits?.items?.[0]
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
   const { data: project } = usePollingData(fetchProject, 20_000)
   const tags = tree?.tags ?? []
   const commitCount = tree?.commit_count ?? commits?.items?.length ?? 0
@@ -193,7 +193,7 @@ export function XgitCodePage() {
     const hit = (tree?.items ?? []).find((e) => e.name === name) ?? goMatches[0]
     if (!hit) return
     setGoTo('')
-    navigate(hit.type === 'tree' ? xgitPath(`${slug}/tree/${hit.path}`) : xgitPath(`${slug}/blob/${hit.path}`))
+    navigate(hit.type === 'tree' ? xgitPath(`${org}/${slug}/tree/${hit.path}`) : xgitPath(`${org}/${slug}/blob/${hit.path}`))
   }
 
   return (
@@ -316,7 +316,7 @@ export function XgitCodePage() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => {
-                        void api.downloadProjectArchive(slug, activeRef).then(
+                        void api.downloadProjectArchive(`${org}/${slug}`, activeRef).then(
                           () => toast.success('Download iniciado'),
                           (err: unknown) => toast.error(err instanceof Error ? err.message : 'Falha no ZIP'),
                         )
@@ -367,7 +367,7 @@ export function XgitCodePage() {
                       onClick={() => {
                         setCsBusy(true)
                         void api
-                          .createCodespace({ slug, branch: activeRef === 'HEAD' ? 'main' : activeRef, kind: 'remote' })
+                          .createCodespace({ org, slug, branch: activeRef === 'HEAD' ? 'main' : activeRef, kind: 'remote' })
                           .then((cs) => {
                             toast.success('Codespace criado')
                             reloadSpaces()
@@ -387,7 +387,7 @@ export function XgitCodePage() {
         </div>
 
         <p className="flex flex-wrap items-center gap-1 text-sm">
-          <Link to={xgitPath(slug)} className="text-primary hover:underline">
+          <Link to={xgitPath(`${org}/${slug}`)} className="text-primary hover:underline">
             {slug}
           </Link>
           {crumbs.map((part, i) => {
@@ -399,7 +399,7 @@ export function XgitCodePage() {
                 {isLast ? (
                   <span>{part}</span>
                 ) : (
-                  <Link to={xgitPath(`${slug}/tree/${sub}`)} className="text-primary hover:underline">
+                  <Link to={xgitPath(`${org}/${slug}/tree/${sub}`)} className="text-primary hover:underline">
                     {part}
                   </Link>
                 )}
@@ -417,7 +417,7 @@ export function XgitCodePage() {
                 <span className="ml-2 font-mono text-muted-foreground">{lastCommit.sha.slice(0, 7)}</span>
               </p>
               <Link
-                to={xgitPath(`${slug}/commits`)}
+                to={xgitPath(`${org}/${slug}/commits`)}
                 className="inline-flex shrink-0 items-center gap-1 text-muted-foreground hover:text-foreground"
               >
                 <Clock className="size-3.5" />
@@ -436,7 +436,7 @@ export function XgitCodePage() {
                     type="button"
                     size="sm"
                     variant="ghost"
-                    onClick={() => navigate(xgitPath(`${slug}/edit/${activeRef}/${filePath}`))}
+                    onClick={() => navigate(xgitPath(`${org}/${slug}/edit/${activeRef}/${filePath}`))}
                   >
                     <Pencil className="size-3.5" />
                     Edit
@@ -450,7 +450,7 @@ export function XgitCodePage() {
                     type="button"
                     size="sm"
                     variant="ghost"
-                    onClick={() => navigate(xgitPath(`${slug}/edit/${activeRef}/${filePath}`))}
+                    onClick={() => navigate(xgitPath(`${org}/${slug}/edit/${activeRef}/${filePath}`))}
                   >
                     <Pencil className="size-3.5" />
                     Edit
@@ -482,7 +482,7 @@ export function XgitCodePage() {
                     <td className="w-[32%] px-4 py-2">
                       <span className="inline-flex items-center gap-2">
                         <Link
-                          to={e.type === 'tree' ? xgitPath(`${slug}/tree/${e.path}`) : xgitPath(`${slug}/blob/${e.path}`)}
+                          to={e.type === 'tree' ? xgitPath(`${org}/${slug}/tree/${e.path}`) : xgitPath(`${org}/${slug}/blob/${e.path}`)}
                           className="inline-flex items-center gap-2 hover:underline"
                         >
                           <GitFileIcon name={e.name} type={e.type} />
@@ -493,7 +493,7 @@ export function XgitCodePage() {
                             type="button"
                             className="text-muted-foreground hover:text-foreground"
                             title="Edit"
-                            onClick={() => navigate(xgitPath(`${slug}/edit/${activeRef}/${e.path}`))}
+                            onClick={() => navigate(xgitPath(`${org}/${slug}/edit/${activeRef}/${e.path}`))}
                           >
                             <Pencil className="size-3.5" />
                           </button>
@@ -575,19 +575,19 @@ function RepoAbout({
         <p className="text-sm leading-relaxed">{project.description || project.name}</p>
         <div className="mt-3 flex flex-col gap-1.5 text-sm">
           {readmeFile ? (
-            <Link to={xgitPath(`${slug}/blob/${readmeFile.path}`)} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
+            <Link to={xgitPath(`${org}/${slug}/blob/${readmeFile.path}`)} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
               <BookOpen className="size-3.5" />
               README
             </Link>
           ) : null}
           {licenseFile ? (
-            <Link to={xgitPath(`${slug}/blob/${licenseFile.path}`)} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
+            <Link to={xgitPath(`${org}/${slug}/blob/${licenseFile.path}`)} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
               <Scale className="size-3.5" />
               License
             </Link>
           ) : null}
           {securityFile ? (
-            <Link to={xgitPath(`${slug}/blob/${securityFile.path}`)} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
+            <Link to={xgitPath(`${org}/${slug}/blob/${securityFile.path}`)} className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground">
               <Shield className="size-3.5" />
               Security policy
             </Link>
@@ -642,13 +642,13 @@ function RepoAbout({
 }
 
 export function XgitCommitsPage() {
-  const { slug = '' } = useParams()
-  const fetchBranches = useCallback(() => api.listProjectBranches(slug), [slug])
+  const { org = '', slug = '' } = useParams()
+  const fetchBranches = useCallback(() => api.listProjectBranches(`${org}/${slug}`), [slug])
   const { data: branchData } = usePollingData(fetchBranches, 30_000)
   const branches = branchData?.items ?? []
   const [ref, setRef] = useState('')
   const activeRef = ref || (branches.includes('main') ? 'main' : branches[0] || 'HEAD')
-  const fetchCommits = useCallback(() => api.listProjectCommits(slug, activeRef), [slug, activeRef])
+  const fetchCommits = useCallback(() => api.listProjectCommits(`${org}/${slug}`, activeRef), [slug, activeRef])
   const { data, loading, error } = usePollingData(fetchCommits, 20_000)
 
   return (
@@ -702,10 +702,10 @@ export { XgitProjectsPage, XgitProjectBoardPage } from '@/pages/xgit-projects-pa
 export { XgitActionsPage } from '@/pages/xgit-actions-page'
 
 export function XgitRepoSettingsPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const { user } = useAuth()
   const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
   const { data, reload } = usePollingData(fetchProject, 20_000)
   if (!data) return <Skeleton className="h-32 w-full" />
   return (
@@ -755,6 +755,6 @@ function parentPath(path: string) {
 
 function parentHref(slug: string, dir: string) {
   const p = parentPath(dir)
-  return p ? xgitPath(`${slug}/tree/${p}`) : xgitPath(slug)
+  return p ? xgitPath(`${org}/${slug}/tree/${p}`) : xgitPath(`${org}/${slug}`)
 }
 

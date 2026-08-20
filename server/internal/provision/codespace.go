@@ -240,10 +240,11 @@ func ParseCsSpec(raw []byte, codespacesRoot, gitRoot string) (CsSpec, error) {
 		}
 		spec.BarePath = bare
 		slug := strings.TrimSuffix(filepath.Base(bare), ".git")
-		if !store.ValidProjectSlug(slug) {
+		org := filepath.Base(filepath.Dir(bare))
+		if !store.ValidOrgSlug(org) || !store.ValidProjectSlug(slug) {
 			return CsSpec{}, fmt.Errorf("slug inválido")
 		}
-		want := codespaceCloneHost + "/" + slug
+		want := codespaceCloneHost + "/" + org + "/" + slug
 		if spec.CloneURL != want {
 			return CsSpec{}, fmt.Errorf("clone_url inválida")
 		}
@@ -378,8 +379,12 @@ func ParseDevcontainerImage(raw []byte) (string, error) {
 }
 
 func validCodespaceCloneURL(u string) bool {
-	slug, ok := strings.CutPrefix(u, codespaceCloneHost+"/")
-	return ok && store.ValidProjectSlug(slug)
+	rest, ok := strings.CutPrefix(u, codespaceCloneHost+"/")
+	if !ok {
+		return false
+	}
+	org, slug, err := forge.SplitRepo(rest)
+	return err == nil && org != "" && slug != ""
 }
 
 func containerName(id string) string { return "xvpn-cs-" + id }

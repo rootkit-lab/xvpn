@@ -13,7 +13,7 @@ func TestReservedSlugRejected(t *testing.T) {
 	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
 	router := NewRouter(app)
 	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "repositories", Name: "Nope"}, tok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "repositories", Name: "Nope"}, tok)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("slug reservado deveria 400, veio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -28,7 +28,7 @@ func TestProjectStarAndOverview(t *testing.T) {
 	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -36,7 +36,7 @@ func TestProjectStarAndOverview(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: alice.ID, Role: store.ProjectRoleDeveloper},
@@ -58,7 +58,7 @@ func TestProjectStarAndOverview(t *testing.T) {
 		t.Fatalf("overview: %+v", ov)
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/star", nil, aliceTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/star", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("star: %d %s", rec.Code, rec.Body.String())
 	}
@@ -81,7 +81,7 @@ func TestProjectStarAndOverview(t *testing.T) {
 		t.Fatalf("stars: %+v", listed.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects/lab/star", nil, aliceTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects/xcorp/lab/star", nil, aliceTok)
 	if err := json.Unmarshal(rec.Body.Bytes(), &starred); err != nil {
 		t.Fatal(err)
 	}

@@ -33,17 +33,17 @@ const ROLE_RANK: Record<ProjectRole, number> = {
 const MAX_EDIT_BYTES = 2 << 20
 
 export function XgitEditPage() {
-  const { slug = '', ref = 'HEAD' } = useParams()
+  const { org = '', slug = '', ref = 'HEAD' } = useParams()
   const splat = useParams()['*'] ?? ''
   const filePath = decodeURIComponent(splat)
   const navigate = useNavigate()
   const { user } = useAuth()
   const fetchBlob = useCallback(
-    () => api.getProjectBlob(slug, filePath, ref),
+    () => api.getProjectBlob(`${org}/${slug}`, filePath, ref),
     [slug, filePath, ref],
   )
-  const fetchGit = useCallback(() => api.getProjectGit(slug), [slug])
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
+  const fetchGit = useCallback(() => api.getProjectGit(`${org}/${slug}`), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
   const { data: blob, loading, error } = usePollingData(fetchBlob, 60_000)
   const { data: git } = usePollingData(fetchGit, 30_000)
   const { data: project } = usePollingData(fetchProject, 30_000)
@@ -98,7 +98,7 @@ export function XgitEditPage() {
     }
     setBusy(true)
     try {
-      const res = await api.putContents(slug, {
+      const res = await api.putContents(`${org}/${slug}`, {
         path: filePath,
         ref,
         content: current,
@@ -108,10 +108,10 @@ export function XgitEditPage() {
       })
       if (res.merge_request_number) {
         toast.success(`PR #${res.merge_request_number} aberto em ${res.branch}`)
-        navigate(xgitPath(`${slug}/pulls/${res.merge_request_number}`))
+        navigate(xgitPath(`${org}/${slug}/pulls/${res.merge_request_number}`))
       } else {
         toast.success(`Commit ${res.sha.slice(0, 7)} em ${res.branch}`)
-        navigate(xgitPath(`${slug}/blob/${filePath}`))
+        navigate(xgitPath(`${org}/${slug}/blob/${filePath}`))
       }
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao commitar')
@@ -123,7 +123,7 @@ export function XgitEditPage() {
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        <Link to={xgitPath(`${slug}/blob/${filePath}`)} className="hover:underline">
+        <Link to={xgitPath(`${org}/${slug}/blob/${filePath}`)} className="hover:underline">
           {filePath}
         </Link>
         <span className="px-1.5">·</span>
@@ -154,7 +154,7 @@ export function XgitEditPage() {
           variant="outline"
           onClick={() => {
             setValue(original)
-            navigate(xgitPath(`${slug}/blob/${filePath}`))
+            navigate(xgitPath(`${org}/${slug}/blob/${filePath}`))
           }}
         >
           Cancelar

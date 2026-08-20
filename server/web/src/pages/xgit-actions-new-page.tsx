@@ -36,7 +36,7 @@ const ICONS: Record<string, typeof Server> = {
 }
 
 export function XgitActionsNewPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const navigate = useNavigate()
   const [search, setSearch] = useSearchParams()
   const category = search.get('category') || ''
@@ -58,9 +58,9 @@ export function XgitActionsNewPage() {
   async function apply(tpl: WorkflowTemplate) {
     setBusy(tpl.id)
     try {
-      const res = await api.applyWorkflowTemplate(slug, tpl.id)
+      const res = await api.applyWorkflowTemplate(`${org}/${slug}`, tpl.id)
       toast.success(res.unchanged ? 'Workflow já estava aplicado' : `Workflow ${tpl.name} criado`)
-      navigate(xgitPath(`${slug}/blob/main/.xvpn-ci.sh`))
+      navigate(xgitPath(`${org}/${slug}/blob/main/.xvpn-ci.sh`))
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao aplicar o template')
     } finally {
@@ -126,7 +126,7 @@ export function XgitActionsNewPage() {
             </button>
           ))}
         </div>
-        <Link to={xgitPath(`${slug}/actions`)} className="px-2 text-xs text-muted-foreground hover:text-foreground">
+        <Link to={xgitPath(`${org}/${slug}/actions`)} className="px-2 text-xs text-muted-foreground hover:text-foreground">
           ← Actions
         </Link>
       </aside>

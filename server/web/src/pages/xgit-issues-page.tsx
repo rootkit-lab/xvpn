@@ -43,7 +43,7 @@ function issueQueryHint(view: TrackerView, status: IssueStatus | '') {
 }
 
 export function XgitIssuesPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const { user } = useAuth()
   const [params, setParams] = useSearchParams()
   const viewRaw = params.get('view') ?? 'issues'
@@ -64,12 +64,12 @@ export function XgitIssuesPage() {
     setParams(next, { replace: true })
   }
 
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const fetchLabels = useCallback(() => api.listIssueLabels(slug), [slug])
-  const fetchMilestones = useCallback(() => api.listMilestones(slug, 'open'), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
+  const fetchLabels = useCallback(() => api.listIssueLabels(`${org}/${slug}`), [slug])
+  const fetchMilestones = useCallback(() => api.listMilestones(`${org}/${slug}`, 'open'), [slug])
   const fetchIssues = useCallback(
     () =>
-      api.listIssues(slug, {
+      api.listIssues(`${org}/${slug}`, {
         status: status || undefined,
         q: q.trim() || undefined,
         author: view === 'created' ? 'me' : author || undefined,
@@ -96,13 +96,13 @@ export function XgitIssuesPage() {
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      <XgitTrackerNav slug={slug} active={view} />
+      <XgitTrackerNav org={org} slug={slug} active={view} />
       <div className="min-w-0 flex-1">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-display text-xl font-semibold">All issues</h2>
           {canCreate ? (
             <Button asChild className="btn-glow">
-              <Link to={xgitPath(`${slug}/issues/new`)}>New issue</Link>
+              <Link to={xgitPath(`${org}/${slug}/issues/new`)}>New issue</Link>
             </Button>
           ) : null}
         </div>
@@ -171,7 +171,7 @@ export function XgitIssuesPage() {
               {data.items.map((it) => (
                 <li key={it.number}>
                   <Link
-                    to={xgitPath(`${slug}/issues/${it.number}`)}
+                    to={xgitPath(`${org}/${slug}/issues/${it.number}`)}
                     className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 hover:bg-muted/20"
                   >
                     <div className="min-w-0">
@@ -243,9 +243,9 @@ function FilterMenu({
 }
 
 export function XgitIssuePage() {
-  const { slug = '', n = '' } = useParams()
+  const { org = '', slug = '', n = '' } = useParams()
   const number = Number(n)
-  const fetchIssue = useCallback(() => api.getIssue(slug, number), [slug, number])
+  const fetchIssue = useCallback(() => api.getIssue(`${org}/${slug}`, number), [slug, number])
   const { data, loading, error, reload } = usePollingData(fetchIssue, 15_000)
   const [busy, setBusy] = useState(false)
 
@@ -259,7 +259,7 @@ export function XgitIssuePage() {
   async function setStatus(status: IssueStatus) {
     setBusy(true)
     try {
-      await api.patchIssue(slug, number, { status })
+      await api.patchIssue(`${org}/${slug}`, number, { status })
       toast.success(status === 'closed' ? 'Issue fechada' : 'Issue reaberta')
       reload()
     } catch (err) {
@@ -273,7 +273,7 @@ export function XgitIssuePage() {
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]">
       <div className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">
-          <Link to={xgitPath(`${slug}/issues`)} className="hover:underline">
+          <Link to={xgitPath(`${org}/${slug}/issues`)} className="hover:underline">
             Issues
           </Link>
           <span className="px-1.5">/</span>
@@ -353,7 +353,7 @@ export function XgitIssuePage() {
 }
 
 export function XgitPullsPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const { user } = useAuth()
   const [status, setStatus] = useState<'open' | 'closed' | 'merged' | ''>('open')
   const [title, setTitle] = useState('')
@@ -361,12 +361,12 @@ export function XgitPullsPage() {
   const [source, setSource] = useState('')
   const [target, setTarget] = useState('main')
   const [busy, setBusy] = useState(false)
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
   const fetchMRs = useCallback(
-    () => api.listMergeRequests(slug, status || undefined),
+    () => api.listMergeRequests(`${org}/${slug}`, status || undefined),
     [slug, status],
   )
-  const fetchBranches = useCallback(() => api.listProjectBranches(slug), [slug])
+  const fetchBranches = useCallback(() => api.listProjectBranches(`${org}/${slug}`), [slug])
   const { data: project } = usePollingData(fetchProject, 30_000)
   const { data, loading, error, reload } = usePollingData(fetchMRs, 15_000)
   const { data: branchData } = usePollingData(fetchBranches, 30_000)
@@ -387,7 +387,7 @@ export function XgitPullsPage() {
     e.preventDefault()
     setBusy(true)
     try {
-      const mr = await api.createMergeRequest(slug, {
+      const mr = await api.createMergeRequest(`${org}/${slug}`, {
         title: title.trim(),
         description: description.trim() || undefined,
         source_branch: source,
@@ -429,7 +429,7 @@ export function XgitPullsPage() {
             {data.items.map((mr) => (
               <li key={mr.number}>
                 <Link
-                  to={xgitPath(`${slug}/pulls/${mr.number}`)}
+                  to={xgitPath(`${org}/${slug}/pulls/${mr.number}`)}
                   className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 hover:bg-muted/20"
                 >
                   <div className="min-w-0">

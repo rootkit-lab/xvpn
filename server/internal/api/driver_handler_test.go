@@ -78,21 +78,24 @@ func TestDriverProjectRootRequiresMembership(t *testing.T) {
 	bobTok := loginAndGetToken(t, app, router, "bob", "senha-bob-okxx")
 
 	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{
-		Slug: "xchat", Name: "XCHAT", FilesEnabled: true,
+		Org: "xcorp", Slug: "xchat", Name: "XCHAT", FilesEnabled: true,
 	}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create project: %d %s", rec.Code, rec.Body.String())
 	}
-	if err := os.WriteFile(filepath.Join(app.Config.DriverProjectsDir, "xchat", "readme.md"), []byte("wiki"), 0o644); err != nil {
+	if err := os.MkdirAll(filepath.Join(app.Config.DriverProjectsDir, "xcorp", "xchat"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(app.Config.DriverProjectsDir, "xcorp", "xchat", "readme.md"), []byte("wiki"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xchat", nil, bobTok, "xdriver.corp.ihuull.com")
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xcorp/xchat", nil, bobTok, "xdriver.corp.ihuull.com")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("não-membro deveria 404, veio %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xchat", nil, adminTok, "xdriver.corp.ihuull.com")
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xcorp/xchat", nil, adminTok, "xdriver.corp.ihuull.com")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("owner/admin: %d %s", rec.Code, rec.Body.String())
 	}
@@ -111,7 +114,7 @@ func TestDriverProjectHidesSlugFromStrangers(t *testing.T) {
 	viewerTok := loginAndGetToken(t, app, router, "viewer", "senha-viewer-ok")
 	guestTok := loginAndGetToken(t, app, router, "guest", "senha-guest-okx")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -120,12 +123,12 @@ func TestDriverProjectHidesSlugFromStrangers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:lab", nil, viewerTok, "xdriver.corp.ihuull.com")
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xcorp/lab", nil, viewerTok, "xdriver.corp.ihuull.com")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("viewer sem membership deveria 404 (não 403), veio %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: mustUserID(t, app, "guest"), Role: store.ProjectRoleGuest},
@@ -135,17 +138,17 @@ func TestDriverProjectHidesSlugFromStrangers(t *testing.T) {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPatch, "/api/projects/lab", updateProjectRequest{FilesEnabled: boolPtr(true)}, adminTok)
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xcorp/lab", updateProjectRequest{FilesEnabled: boolPtr(true)}, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("enable files: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:lab", nil, guestTok, "xdriver.corp.ihuull.com")
+	rec = doJSONHost(t, router, http.MethodGet, "/api/driver/ls?root=project:xcorp/lab", nil, guestTok, "xdriver.corp.ihuull.com")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("guest deveria listar, veio %d %s", rec.Code, rec.Body.String())
 	}
 	rec = doJSONHost(t, router, http.MethodPost, "/api/driver/mkdir", map[string]string{
-		"root": "project:lab", "path": "", "name": "wiki",
+		"root": "project:xcorp/lab", "path": "", "name": "wiki",
 	}, guestTok, "xdriver.corp.ihuull.com")
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("guest não deveria mkdir, veio %d %s", rec.Code, rec.Body.String())

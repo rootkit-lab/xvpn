@@ -23,15 +23,15 @@ const ROLE_RANK: Record<ProjectRole, number> = {
 }
 
 export function XgitMilestonesPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const { user } = useAuth()
   const [status, setStatus] = useState<'open' | 'closed'>('open')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [dueOn, setDueOn] = useState('')
   const [busy, setBusy] = useState(false)
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
-  const fetchMs = useCallback(() => api.listMilestones(slug, status), [slug, status])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
+  const fetchMs = useCallback(() => api.listMilestones(`${org}/${slug}`, status), [slug, status])
   const { data: project } = usePollingData(fetchProject, 30_000)
   const { data, loading, error, reload } = usePollingData(fetchMs, 15_000)
   const myRole = project?.members?.find((m) => m.user_id === user?.id)?.role
@@ -43,7 +43,7 @@ export function XgitMilestonesPage() {
     e.preventDefault()
     setBusy(true)
     try {
-      await api.createMilestone(slug, {
+      await api.createMilestone(`${org}/${slug}`, {
         title: title.trim(),
         description: description.trim() || undefined,
         due_on: dueOn || undefined,
@@ -62,7 +62,7 @@ export function XgitMilestonesPage() {
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      <XgitTrackerNav slug={slug} active="milestones" />
+      <XgitTrackerNav org={org} slug={slug} active="milestones" />
       <div className="min-w-0 flex-1">
         <h2 className="mb-4 font-display text-xl font-semibold">Milestones</h2>
         <div className="mb-3 flex gap-1">
@@ -90,7 +90,7 @@ export function XgitMilestonesPage() {
                       {' · '}
                       {formatRelativeTime(m.created_at)}
                     </p>
-                    <Link to={xgitPath(`${slug}/issues?milestone=${m.number}`)} className="text-xs text-primary hover:underline">
+                    <Link to={xgitPath(`${org}/${slug}/issues?milestone=${m.number}`)} className="text-xs text-primary hover:underline">
                       Ver issues
                     </Link>
                   </div>
@@ -140,13 +140,13 @@ export function XgitMilestonesPage() {
 }
 
 export function XgitLabelsPage() {
-  const { slug = '' } = useParams()
-  const fetchLabels = useCallback(() => api.listIssueLabels(slug), [slug])
+  const { org = '', slug = '' } = useParams()
+  const fetchLabels = useCallback(() => api.listIssueLabels(`${org}/${slug}`), [slug])
   const { data, loading, error } = usePollingData(fetchLabels, 20_000)
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      <XgitTrackerNav slug={slug} active="labels" />
+      <XgitTrackerNav org={org} slug={slug} active="labels" />
       <div className="min-w-0 flex-1">
         <h2 className="mb-4 font-display text-xl font-semibold">Labels</h2>
         <div className="watch-complication overflow-hidden rounded-[18px]">
@@ -159,7 +159,7 @@ export function XgitLabelsPage() {
               {data.items.map((lb) => (
                 <li key={lb} className="flex items-center justify-between px-4 py-3">
                   <Badge variant="outline">{lb}</Badge>
-                  <Link to={xgitPath(`${slug}/issues?label=${encodeURIComponent(lb)}`)} className="text-xs text-primary hover:underline">
+                  <Link to={xgitPath(`${org}/${slug}/issues?label=${encodeURIComponent(lb)}`)} className="text-xs text-primary hover:underline">
                     Ver issues
                   </Link>
                 </li>

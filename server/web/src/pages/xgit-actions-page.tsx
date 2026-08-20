@@ -12,11 +12,11 @@ import { CiRunStatusIcon, ciEventLabel } from '@/pages/ci-job-page'
 import { ProjectServicesCard } from '@/pages/project-detail-page'
 
 export function XgitActionsPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const [search, setSearch] = useSearchParams()
   const workflow = search.get('workflow') || ''
   const section = search.get('view') || 'runs'
-  const fetchJobs = useCallback(() => api.listCiJobs(slug, workflow || undefined), [slug, workflow])
+  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`, workflow || undefined), [slug, workflow])
   const { data, loading, error } = usePollingData(fetchJobs, 8_000)
   const workflows = data?.workflows ?? [{ name: 'ci', path: '.xvpn-ci.sh' }]
   const items = data?.items ?? []
@@ -29,7 +29,7 @@ export function XgitActionsPage() {
     <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
       <aside className="flex flex-col gap-4 text-sm">
         <Button type="button" variant="outline" size="sm" className="justify-start gap-2" asChild>
-          <Link to={xgitPath(`${slug}/actions/new`)}>
+          <Link to={xgitPath(`${org}/${slug}/actions/new`)}>
             <CirclePlus className="size-3.5" />
             New workflow
           </Link>
@@ -138,7 +138,7 @@ function RunsPanel({ slug, workflow, items }: { slug: string; workflow: string; 
           {items.map((job) => (
             <li key={job.number}>
               <Link
-                to={xgitPath(`${slug}/actions/${job.number}`)}
+                to={xgitPath(`${org}/${slug}/actions/${job.number}`)}
                 className="flex items-start gap-3 px-4 py-3 hover:bg-muted/30"
               >
                 <CiRunStatusIcon status={job.status} className="mt-0.5" />
@@ -167,7 +167,7 @@ function RunsPanel({ slug, workflow, items }: { slug: string; workflow: string; 
 }
 
 function RunnersPanel({ slug }: { slug: string }) {
-  const fetchRunners = useCallback(() => api.listProjectRunners(slug), [slug])
+  const fetchRunners = useCallback(() => api.listProjectRunners(`${org}/${slug}`), [slug])
   const { data, loading, error } = usePollingData(fetchRunners, 15_000)
   const items = data?.items ?? []
   const admin = isXgitAdminHost()

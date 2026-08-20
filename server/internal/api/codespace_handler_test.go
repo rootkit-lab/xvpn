@@ -31,13 +31,13 @@ func TestCodespaceLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Slug: "lab", Branch: "main"}, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Org: "xcorp", Slug: "lab", Branch: "main"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create cs: %d %s", rec.Code, rec.Body.String())
 	}
@@ -49,7 +49,7 @@ func TestCodespaceLifecycle(t *testing.T) {
 		t.Fatalf("cs: %+v", cs)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/xcodespaces?slug=lab", nil, adminTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/xcodespaces?org=xcorp&slug=lab", nil, adminTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list: %d", rec.Code)
 	}
@@ -95,13 +95,13 @@ func TestCodespaceRejectsGitMetadataAndSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Slug: "lab", Branch: "main"}, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Org: "xcorp", Slug: "lab", Branch: "main"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create cs: %d %s", rec.Code, rec.Body.String())
 	}
@@ -163,13 +163,13 @@ func TestCodespaceRemoteCreateUsesHelper(t *testing.T) {
 	router := NewRouter(app)
 	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
-	seedProjectBranches(t, app.Config.GitDir, "lab")
+	seedProjectBranches(t, app.Config.GitDir, "xcorp/lab")
 
-	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Slug: "lab", Branch: "main", Kind: "remote"}, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/xcodespaces", createCodespaceRequest{Org: "xcorp", Slug: "lab", Branch: "main", Kind: "remote"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create remote: %d %s", rec.Code, rec.Body.String())
 	}

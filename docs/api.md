@@ -74,61 +74,65 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 
 | Método | Path | Auth | Notas |
 |---|---|---|---|
-| GET | `/:slug/info/refs?service=git-upload-pack` | Basic (usuário + JWE) ou Bearer | clone/fetch |
-| POST | `/:slug/git-upload-pack` | idem | |
-| GET | `/:slug/info/refs?service=git-receive-pack` | idem | push: developer+; branch protegida = maintainer+ |
-| POST | `/:slug/git-receive-pack` | idem | |
+| GET | `/:org/:slug/info/refs?service=git-upload-pack` | Basic (usuário + JWE) ou Bearer | clone/fetch. Path plano `/<slug>` não existe. |
+| POST | `/:org/:slug/git-upload-pack` | idem | |
+| GET | `/:org/:slug/info/refs?service=git-receive-pack` | idem | push: developer+; branch protegida = maintainer+ |
+| POST | `/:org/:slug/git-receive-pack` | idem | |
 | GET | `/api/xgit/settings` | sessão | defaults do forge + `clone_host` |
 | PATCH | `/api/xgit/settings` | admin + `forge` | visibility/network padrão, `allow_member_create` |
 | GET | `/api/projects` | sessão | `?scope=all` (viewer+) lista todos; `?scope=mine` só `ProjectMember`. `?cards=1` acrescenta language, last_commit, spark e stars. Default: all se viewer+, senão mine. Member + `scope=all` → 403 |
 | GET | `/api/xgit/overview` | sessão | perfil, populares, heatmap (1 ano) e activity (commits, repos, MRs + comentários XCHAT) |
 | GET | `/api/xgit/stars` | sessão | repositórios com estrela |
-| GET | `/api/ci/workflow-templates` | sessão | galeria New workflow (`?category=deployment&q=`). Categorias + cards |
-| POST | `/api/projects/:slug/workflows` | developer+ ou `forge` | `{template_id}` grava `.xvpn-ci.sh` |
-| GET | `/api/xgit/packages` | sessão | packages visíveis (ACL do projeto). Exemplos `hello-*` no boot (45.3) |
-| GET | `/api/projects/:slug/packages` | sessão + ACL | lista + `can_publish` |
-| POST | `/api/projects/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`/`pypi`), `file` (≤64 MiB) |
-| GET | `/api/projects/:slug/packages/:id/download` | sessão + ACL | blob da versão |
-| PUT | `/api/packages/:slug/npm/*pkg` | developer+ ou `forge` | `npm publish` (manifest + `_attachments` base64). Registry: `https://xgit.corp.ihuull.com/api/packages/:slug/npm/` |
-| GET | `/api/packages/:slug/npm/*pkg` | sessão + ACL | packument npm (`versions`, `dist-tags.latest`, `dist.tarball`) |
-| POST | `/api/packages/:slug/pypi` | developer+ ou `forge` | twine (`name`, `version`, `content`). Nome PEP 503 |
-| GET | `/api/packages/:slug/pypi/simple/` | sessão + ACL | índice PEP 503 (HTML) ou PEP 691 (`Accept: application/vnd.pypi.simple.v1+json`) |
-| GET | `/api/packages/:slug/pypi/simple/:name/` | sessão + ACL | ficheiros + `#sha256=`. Host só `xgit.corp` / `xadmin.corp` |
-| POST | `/api/projects/:slug/star` | sessão + ACL | toggle da estrela |
-| POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | mesmo create de `/api/projects` |
-| GET | `/api/projects/:slug/tree` | sessão + ACL | `?ref=&path=` |
-| GET | `/api/projects/:slug/blob` | sessão + ACL | `?path=` obrigatório, `?ref=` |
-| GET | `/api/projects/:slug/commits` | sessão + ACL | `?ref=&path=&n=` |
-| GET | `/api/projects/:slug/git` | sessão | `clone_url`, `exists`, `protected_branches` |
-| POST | `/api/projects/:slug/git` | admin + `forge` | cria o bare se faltar |
-| PUT | `/api/projects/:slug/protected-branches` | admin + `forge` | substitui a lista |
-| GET | `/api/projects/:slug/branches` | sessão + ACL do projeto | heads do bare |
-| GET | `/api/projects/:slug/issues` | sessão + ACL | `?status=&q=&author=&assignee=&label=&mentioned=&milestone=&sort=` (`me` em author/assignee/mentioned). Resposta: `items`, `open_count`, `closed_count` |
-| POST | `/api/projects/:slug/issues` | reporter+ ou `forge` | abre issue + thread XCHAT + post XGROUP. `milestone` = número |
-| GET | `/api/projects/:slug/issues/:n` | sessão + ACL | |
-| PATCH | `/api/projects/:slug/issues/:n` | autor, maintainer+ ou `forge` | título, corpo, labels, assignees, milestone, open/closed |
-| GET | `/api/projects/:slug/labels` | sessão + ACL | labels distintas das issues |
-| GET | `/api/projects/:slug/milestones` | sessão + ACL | `?status=open\|closed` |
-| POST | `/api/projects/:slug/milestones` | reporter+ ou `forge` | `title`, `description`, `due_on` (YYYY-MM-DD) |
-| PATCH | `/api/projects/:slug/milestones/:n` | autor, maintainer+ ou `forge` | título, due, open/closed |
-| GET | `/api/projects/:slug/work-projects` | sessão + ACL | boards do repo. `?status=&q=` |
-| POST | `/api/projects/:slug/work-projects` | reporter+ ou `forge` | `template`: `kanban`/`board`/`table`/`bug`/`roadmap` |
-| GET | `/api/projects/:slug/work-projects/:n` | sessão + ACL | inclui `items` |
-| PATCH | `/api/projects/:slug/work-projects/:n` | autor, maintainer+ ou `forge` | título, open/closed |
-| GET | `/api/projects/:slug/work-projects/:n/items` | sessão + ACL | |
-| POST | `/api/projects/:slug/work-projects/:n/items` | reporter+ | draft (`title`) ou `issue`/`mr` |
-| PATCH | `/api/projects/:slug/work-projects/:n/items/:id` | reporter+ | `column`, `position`, `title` |
-| DELETE | `/api/projects/:slug/work-projects/:n/items/:id` | autor do item ou maintainer+ | |
-| GET | `/api/projects/:slug/merge-requests` | sessão + ACL | `?status=open\|merged\|closed` |
-| POST | `/api/projects/:slug/merge-requests` | developer+ ou `forge` | abre MR + thread XCHAT + post XGROUP |
-| GET | `/api/projects/:slug/merge-requests/:iid` | sessão + ACL | `can_merge`, `checks_block` |
-| PATCH | `/api/projects/:slug/merge-requests/:iid` | autor ou maintainer+ | título/descrição se aberto |
-| POST | `/api/projects/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | bloqueia se CI do PR falhou |
-| POST | `/api/projects/:slug/merge-requests/:iid/close` | autor, maintainer+ ou `forge` | |
-| GET | `/api/projects/:slug/merge-requests/:iid/commits` | sessão + ACL | `base..head` |
-| GET | `/api/projects/:slug/merge-requests/:iid/diff` | sessão + ACL | unified, teto 1 MiB |
-| GET | `/api/projects/:slug/merge-requests/:iid/reviews` | sessão + ACL | |
-| POST | `/api/projects/:slug/merge-requests/:iid/reviews` | reporter+ | `approve` / `request_changes` / `comment` |
+| GET | `/api/ci/workflow-templates` | sessão | galeria New workflow (`?category=publish&q=`). Categorias + cards. Publish: npm/pypi/generic/maven/nuget/gem |
+| POST | `/api/projects/:org/:slug/workflows` | developer+ ou `forge` | `{template_id}` grava `.xvpn-ci.sh`. Placeholders `{{REPO}}` viram `<org>/<slug>`. Sem interpolar JWE |
+| GET | `/api/xgit/packages` | sessão | packages visíveis (ACL do projeto). `project_slug` = `<org>/<slug>`. Exemplos `xcorp/hello-*` no boot (45.3) |
+| GET | `/api/projects/:org/:slug/packages` | sessão + ACL | lista + `can_publish` |
+| POST | `/api/projects/:org/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`/`pypi`), `file` (≤64 MiB) |
+| GET | `/api/projects/:org/:slug/packages/:id/download` | sessão + ACL | blob da versão |
+| PUT | `/api/packages/:org/:slug/npm/*pkg` | developer+ ou `forge` | `npm publish` (manifest + `_attachments` base64). Registry: `https://xgit.corp.ihuull.com/api/packages/:org/:slug/npm/` |
+| GET | `/api/packages/:org/:slug/npm/*pkg` | sessão + ACL | packument npm (`versions`, `dist-tags.latest`, `dist.tarball`) |
+| POST | `/api/packages/:org/:slug/pypi` | developer+ ou `forge` | twine (`name`, `version`, `content`). Nome PEP 503 |
+| GET | `/api/packages/:org/:slug/pypi/simple/` | sessão + ACL | índice PEP 503 (HTML) ou PEP 691 (`Accept: application/vnd.pypi.simple.v1+json`) |
+| GET | `/api/packages/:org/:slug/pypi/simple/:name/` | sessão + ACL | ficheiros + `#sha256=`. Host só `xgit.corp` / `xadmin.corp` |
+| — | `/api/packages/:org/:slug/maven` | Fase 59 | `mvn deploy` / SNAPSHOT — kind ainda não serve |
+| — | `/api/packages/:org/:slug/nuget/index.json` | Fase 59 | `dotnet nuget push` |
+| — | `/api/packages/:org/:slug/rubygems` | Fase 59 | `gem push` |
+| POST | `/api/projects/:org/:slug/star` | sessão + ACL | toggle da estrela |
+| POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | `{org,slug,…}` — org obrigatória (`xcorp`). Sem path plano. |
+| POST | `/api/projects` | idem | `{org,slug}` obrigatórios |
+| GET | `/api/projects/:org/:slug/tree` | sessão + ACL | `?ref=&path=` |
+| GET | `/api/projects/:org/:slug/blob` | sessão + ACL | `?path=` obrigatório, `?ref=` |
+| GET | `/api/projects/:org/:slug/commits` | sessão + ACL | `?ref=&path=&n=` |
+| GET | `/api/projects/:org/:slug/git` | sessão | `clone_url`, `exists`, `protected_branches` |
+| POST | `/api/projects/:org/:slug/git` | admin + `forge` | cria o bare se faltar |
+| PUT | `/api/projects/:org/:slug/protected-branches` | admin + `forge` | substitui a lista |
+| GET | `/api/projects/:org/:slug/branches` | sessão + ACL do projeto | heads do bare |
+| GET | `/api/projects/:org/:slug/issues` | sessão + ACL | `?status=&q=&author=&assignee=&label=&mentioned=&milestone=&sort=` (`me` em author/assignee/mentioned). Resposta: `items`, `open_count`, `closed_count` |
+| POST | `/api/projects/:org/:slug/issues` | reporter+ ou `forge` | abre issue + thread XCHAT + post XGROUP. `milestone` = número |
+| GET | `/api/projects/:org/:slug/issues/:n` | sessão + ACL | |
+| PATCH | `/api/projects/:org/:slug/issues/:n` | autor, maintainer+ ou `forge` | título, corpo, labels, assignees, milestone, open/closed |
+| GET | `/api/projects/:org/:slug/labels` | sessão + ACL | labels distintas das issues |
+| GET | `/api/projects/:org/:slug/milestones` | sessão + ACL | `?status=open\|closed` |
+| POST | `/api/projects/:org/:slug/milestones` | reporter+ ou `forge` | `title`, `description`, `due_on` (YYYY-MM-DD) |
+| PATCH | `/api/projects/:org/:slug/milestones/:n` | autor, maintainer+ ou `forge` | título, due, open/closed |
+| GET | `/api/projects/:org/:slug/work-projects` | sessão + ACL | boards do repo. `?status=&q=` |
+| POST | `/api/projects/:org/:slug/work-projects` | reporter+ ou `forge` | `template`: `kanban`/`board`/`table`/`bug`/`roadmap` |
+| GET | `/api/projects/:org/:slug/work-projects/:n` | sessão + ACL | inclui `items` |
+| PATCH | `/api/projects/:org/:slug/work-projects/:n` | autor, maintainer+ ou `forge` | título, open/closed |
+| GET | `/api/projects/:org/:slug/work-projects/:n/items` | sessão + ACL | |
+| POST | `/api/projects/:org/:slug/work-projects/:n/items` | reporter+ | draft (`title`) ou `issue`/`mr` |
+| PATCH | `/api/projects/:org/:slug/work-projects/:n/items/:id` | reporter+ | `column`, `position`, `title` |
+| DELETE | `/api/projects/:org/:slug/work-projects/:n/items/:id` | autor do item ou maintainer+ | |
+| GET | `/api/projects/:org/:slug/merge-requests` | sessão + ACL | `?status=open\|merged\|closed` |
+| POST | `/api/projects/:org/:slug/merge-requests` | developer+ ou `forge` | abre MR + thread XCHAT + post XGROUP |
+| GET | `/api/projects/:org/:slug/merge-requests/:iid` | sessão + ACL | `can_merge`, `checks_block` |
+| PATCH | `/api/projects/:org/:slug/merge-requests/:iid` | autor ou maintainer+ | título/descrição se aberto |
+| POST | `/api/projects/:org/:slug/merge-requests/:iid/merge` | maintainer+ se target protegida | bloqueia se CI do PR falhou |
+| POST | `/api/projects/:org/:slug/merge-requests/:iid/close` | autor, maintainer+ ou `forge` | |
+| GET | `/api/projects/:org/:slug/merge-requests/:iid/commits` | sessão + ACL | `base..head` |
+| GET | `/api/projects/:org/:slug/merge-requests/:iid/diff` | sessão + ACL | unified, teto 1 MiB |
+| GET | `/api/projects/:org/:slug/merge-requests/:iid/reviews` | sessão + ACL | |
+| POST | `/api/projects/:org/:slug/merge-requests/:iid/reviews` | reporter+ | `approve` / `request_changes` / `comment` |
 | GET | `/api/xcodespaces` | sessão | `?slug=` lista workspaces do user |
 | POST | `/api/xcodespaces` | sessão + ACL do repo | `slug`, `branch`, `kind`=`quick`\|`remote`. Remote exige developer+ |
 | GET | `/api/xcodespaces/:id` | dono ou `forge` | `kind`, `status`, `runtime_url` |
@@ -139,16 +143,16 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/xcodespaces/:id/blob` | dono | `?path=` teto 2 MiB |
 | PUT | `/api/xcodespaces/:id/contents` | developer+ | grava arquivo no worktree |
 | POST | `/api/xcodespaces/:id/commit` | developer+ | commit no worktree; branch protegida → nova branch + PR |
-| PUT | `/api/projects/:slug/contents` | developer+ | commit no bare; branch protegida sem push → nova branch + PR |
-| GET | `/api/projects/:slug/archive` | sessão + ACL | ZIP da ref (`?ref=`) |
-| GET | `/api/projects/:slug/jobs` | sessão + ACL | lista CI. `?workflow=ci&mr=N`. Inclui `workflows` |
-| GET | `/api/projects/:slug/jobs/:n` | sessão + ACL | run enriquecido (title, event, jobs, can_*) |
-| GET | `/api/projects/:slug/jobs/:n/log` | sessão + ACL | texto |
-| GET | `/api/projects/:slug/jobs/:n/artifact` | sessão + ACL | blob |
-| POST | `/api/projects/:slug/jobs/:n/cancel` | maintainer+ ou `forge` | também em `awaiting_approval` |
-| POST | `/api/projects/:slug/jobs/:n/approve` | maintainer+ ou `forge` | `awaiting_approval` → `pending` |
-| POST | `/api/projects/:slug/jobs/:n/rerun` | maintainer+ ou `forge` | run terminal → novo `pending` |
-| GET | `/api/projects/:slug/runners` | sessão + ACL | peers `role=runner` do projeto (sem token) |
+| PUT | `/api/projects/:org/:slug/contents` | developer+ | commit no bare; branch protegida sem push → nova branch + PR |
+| GET | `/api/projects/:org/:slug/archive` | sessão + ACL | ZIP da ref (`?ref=`) |
+| GET | `/api/projects/:org/:slug/jobs` | sessão + ACL | lista CI. `?workflow=ci&mr=N`. Inclui `workflows` |
+| GET | `/api/projects/:org/:slug/jobs/:n` | sessão + ACL | run enriquecido (title, event, jobs, can_*) |
+| GET | `/api/projects/:org/:slug/jobs/:n/log` | sessão + ACL | texto |
+| GET | `/api/projects/:org/:slug/jobs/:n/artifact` | sessão + ACL | blob |
+| POST | `/api/projects/:org/:slug/jobs/:n/cancel` | maintainer+ ou `forge` | também em `awaiting_approval` |
+| POST | `/api/projects/:org/:slug/jobs/:n/approve` | maintainer+ ou `forge` | `awaiting_approval` → `pending` |
+| POST | `/api/projects/:org/:slug/jobs/:n/rerun` | maintainer+ ou `forge` | run terminal → novo `pending` |
+| GET | `/api/projects/:org/:slug/runners` | sessão + ACL | peers `role=runner` do projeto (sem token) |
 | POST | `/api/servers/:id/runner-token` | admin + `compute` | token uma vez; só `role=runner` |
 | GET | `/api/ci/jobs/next` | VPN + token do runner | 204 se vazio |
 | POST | `/api/ci/jobs/:id/log` | VPN + token | |
@@ -161,7 +165,7 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/api/services/:slug/stop` | admin + `managed` | |
 | POST | `/api/services/:slug/rotate` | admin + `managed` | senha uma vez |
 | DELETE | `/api/services/:slug` | admin + `managed` | para + apaga DNS |
-| GET | `/api/projects/:slug/services` | sessão + ACL | sem senha |
+| GET | `/api/projects/:org/:slug/services` | sessão + ACL | sem senha |
 | POST | `/api/servers/:id/agent-token` | admin + `compute` | token uma vez; `mesh` ou `runner` |
 | GET | `/api/svc/desired` | VPN + token do agent | estado a aplicar no peer |
 | POST | `/api/svc/:id/status` | VPN + token | `ready` / `error` / `stopped` |

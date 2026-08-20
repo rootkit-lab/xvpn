@@ -1127,23 +1127,30 @@ Console só em `xadmin.corp`. Código nas fases abaixo; contrato em `PLAN.md` §
 
 | Feature GitLab / GitHub | Onde | Fase |
 |---|---|---|
-| SSO / membros | xauth + IAM + `ProjectMember` | 35, 37 |
+| SSO / membros | xauth + IAM + `OrgMember` / `ProjectMember` | 35, 37, 58 |
+| Organização (`<org>/<slug>`) | `ForgeOrganization` + times; seed `xcorp` | 58 |
 | Activity social | XGROUP (grupo por slug) | 37 |
 | Issues (título, labels, estado) | XGIT (`Issue` no Mongo) + thread XCHAT | 46 |
 | Review ao vivo | XCHAT (thread por MR / issue) | 41, 46–47 |
 | Pull request GitHub-like (diff, checks, review) | XGIT (`xgit.corp` + xadmin) | 47 |
 | Editor web + commit (Monaco) | blob `/edit` no XGIT | 48 |
 | Codespaces (editor rápido) | app `xcodespaces.corp` (Monaco + worktree) | 49 |
-| Codespaces (VS Code remoto) | clone + Docker + openvscode-server | 50 |
-| Wiki / LFS / artifacts | XDRIVER `project-<slug>` | 37, 42 |
+| Codespaces (VS Code remoto) | clone `<org>/<slug>` + Docker + openvscode-server | 50, 58 |
+| Wiki | aba Wiki no XGIT (markdown) | 61 |
+| LFS / artifacts | XDRIVER `project-<org>-<slug>` | 37, 42 |
 | Releases deb/exe | Marketplace | 16 (já), 36 |
-| Git | `xgit.corp` smart HTTP | 40 |
+| Git | `xgit.corp/<org>/<slug>` smart HTTP | 40, 58 |
 | MR + protected branches | xadmin + Mongo | 40–41 |
 | CI runners | peers WG `runner` | 42 |
 | Actions (lista, run, aprovação) | XGIT aba Actions | 42.1 |
-| New workflow (galeria) | `/:slug/actions/new` | 42.2 |
-| Packages npm/PyPI/generic + exemplos | `xgit.corp` / hello-* | 45.1–45.3 |
-| Registry / pages / SAST | backlog | 45+ |
+| New workflow (galeria + publish) | `/:org/:slug/actions/new` | 42.2, 59 |
+| Packages npm/PyPI/generic + exemplos | `xcorp/hello-*` | 45.1–45.3, 58 |
+| Registries Maven/NuGet/RubyGems + Actions publish | `/api/packages/:org/:slug/…` | 59 |
+| Container registry | Harbor / `registry:2` no wg0 | 60 |
+| Pages | Nginx + blob na VPN | 61 |
+| Security and quality | policy, advisories, Dependabot, SAST, secrets | 62 |
+| Agents (sessões) | aba no repo; agente ihuull | 63 |
+| Detect langs / start / ports | `xcs-detect` no clone | 64 |
 
 ---
 
@@ -1361,15 +1368,13 @@ Cinco repos de exemplo (uma linguagem cada) nascem no boot: git + package public
 
 **Critério de saída:** após deploy, `xgit.corp` lista os cinco repos e a aba Packages mostra os artefactos. `npm`/`pip`/download autenticado na VPN. Fora da VPN a rota não resolve.
 
+A Fase 58 **remonta** estes slugs em `xcorp/hello-*` (times `exemplos/packages`). Sem manter path plano.
+
 ---
 
-## Fase 45+ — Forge tardio (backlog)
+## Fase 45+ — Forge tardio (substituído)
 
-- [ ] Container registry (`registry:2` / Harbor; bind wg0; hostname novo só com `port-domain-registry-check` + PLAN §5).
-- [ ] Pages (Nginx + blob).
-- [ ] Snippets, SAST, feature flags.
-
-Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES). Container/Pages não entram na 45.1–45.3.
+O backlog 45+ (container, Pages, SAST, snippets) passou a fases nomeadas: **58** org, **59** registries, **60** containers, **61** Pages+Wiki, **62** Security, **63** Agents, **64** detect. Não reabrir 45+ com checkboxes.
 
 ---
 
@@ -1719,6 +1724,119 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 
 ---
 
+## Fase 58 — Organização XGIT (`<org>/<slug>`)
+
+Toda a superfície passa a ser **igual ao GitHub**: `xgit.corp/xcorp/hello-js`, clone `https://xgit.corp.ihuull.com/xcorp/hello-js`. Org **obrigatória**. O stack ainda não está 100% em produção — **sem fallback, sem redirect de `/<slug>`, sem bare plano**. Contrato: `PLAN.md` §6.15.
+
+`xcorp` é a org principal (não é produto, **não** nasce `xcorp.corp`). Uma org tem membros e times. Time ≠ `SocialGroup` do XGROUP.
+
+### 58.1 Modelo + cutover
+
+- [x] `ForgeOrganization` (slug 2–20), `OrgMember` (owner/admin/member), `OrgTeam` + `Project.organization_id` / `team_id`. Unique `(org_id, slug)`.
+- [x] Bare em `/opt/xvpn/data/git/<org>/<slug>.git`. `clone_url` só `<org>/<slug>`. Smart HTTP e Nginx já no mesmo host.
+- [x] Seed no boot: org `xcorp`; owner = `firstProjectOwner`; members humanos na org. Times `exemplos`, `packages`, `workflows`.
+- [x] Anexar `hello-*` → time `packages`; `xvpn-client` e `xchat` → `xcorp` via `ensureProjectForApp`.
+- [x] Create HTTP recusa slug sem org. Slug `xcorp` reservado (não é repo).
+- [x] Codespace: `clone_url` allowlist só `https://xgit.corp.ihuull.com/<org>/<slug>`. Helper e testes sem URL plana.
+- [x] Seed 45.3: cria **dentro** da `xcorp` / `packages`. Não alarga guest a toda a VPN (o finding da #166). Membro da org vê os exemplos.
+- [x] UI: `/:org/:slug/…` (xgit.corp e xadmin).
+- [x] PLAN §6.15 / §3.6 / §5.2, `docs/api.md`.
+
+**Critério de saída:** `git clone https://xgit.corp.ihuull.com/xcorp/hello-js` na VPN; codespace clona esse origin; `/hello-js` 404. Sem hostname novo.
+
+### 58.2 Times
+
+- [ ] Times `exemplos` (pai), `packages`, `workflows`. Lista da org filtra por time.
+- [ ] Templates da 42.2 “abertos” (Publish / CI) residem no time `workflows`.
+- [ ] ACL: membro do time lê os repos do time; herança **explícita**, não “todos os users da VPN”.
+
+**Critério de saída:** em `xgit.corp/xcorp` os hello-* aparecem sob Packages; xchat/xvpn-client na raiz da org.
+
+Não misturar Harbor (60) nem Pages (61) nesta fase.
+
+---
+
+## Fase 59 — Registries de package + publish com Actions
+
+Paridade da landing [GitHub Packages](https://docs.github.com/en/packages) e de [Working with the Apache Maven registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-apache-maven-registry). O package mora no `<org>/<slug>`. Auth = JWE (PAT). Sem npmjs / Maven Central / nuget.org.
+
+npm + PyPI + generic (45.1–45.2) já vivem em `/api/packages/:org/:slug/…` (Fase 58). Sem alias do path plano. Esta fase acrescenta Maven / NuGet / RubyGems e o publish de verdade via Actions.
+
+- [ ] Kinds novos: `maven` (`mvn deploy`, SNAPSHOT, `settings.xml` / `pom.xml` `distributionManagement`), `nuget` (`index.json` + `dotnet nuget push`), `rubygems` (`gem push`).
+- [x] UI aba Packages: empty state “Get started” com cards Maven, NuGet, RubyGems, npm, PyPI, Generic (Containers aponta para a 60).
+- [x] Templates New workflow (categoria **Publish a package**): npm / pypi / generic / maven / nuget / gem. O script **não** interpola JWE; `{{REPO}}` vira `<org>/<slug>` no apply. Publish Maven/NuGet/gem de verdade espera o kind (acima).
+- [x] `GET /api/ci/workflow-templates?category=publish`. Hints na UI com placeholders `<user>` / `<JWE>`.
+- [ ] Exemplos: `xcorp/hello-js` (npm), `xcorp/hello-py` (pypi); novo `hello-mvn` no time `packages` se couber no ciclo.
+- [ ] PLAN §6.15, `docs/api.md` (Maven/NuGet/RubyGems). Sem hostname novo. Sem Harbor.
+
+**Critério de saída:** `mvn deploy` / `npm publish` / `twine` / `dotnet nuget push` contra `xgit.corp` com JWE, no path `<org>/<slug>`. Workflow da galeria publica sem gravar o token no `.xvpn-ci.sh`.
+
+---
+
+## Fase 60 — Container registry
+
+Imagens Docker no estilo GHCR — **não** no mesmo path HTTP do npm/Maven.
+
+- [ ] `registry:2` ou Harbor, bind só `wg0` / `127.0.0.1`. Hostname novo **só** depois de `port-domain-registry-check` + linha em `PLAN.md` §5.
+- [ ] Auth JWE. ACL da org/repo. Sem `docker.sock` no codespace. Sem porta pública no ufw.
+
+**Critério de saída:** `docker pull` na VPN de uma imagem do `xcorp`. Fora da VPN o nome não resolve.
+
+---
+
+## Fase 61 — Pages + Wiki
+
+Como o GitHub Team (Pages e Wikis). Só VPN.
+
+- [ ] **Pages:** blob estático (artifact da CI ou pasta `docs/` / `public/`). Nginx gerado. Hostname `*.corp` (um rótulo) ou path em `xgit.corp`. Hostname novo só com §5.
+- [ ] **Wiki:** aba no repo `/:org/:slug/wiki`. Tree markdown no bare (ou bare irmão `<slug>.wiki.git`). Preview GFM já existente. Sem FileBrowser. Sem segundo social.
+- [ ] Template New workflow **Pages** (já esboçado na 42.2) passa a publicar de verdade.
+
+**Critério de saída:** wiki `#1` editável na VPN; Pages serve `index.html` só na malha.
+
+---
+
+## Fase 62 — Security and quality
+
+Aba no repo no estilo GitHub **Security and quality**. Findings + Reporting. Jobs no runner da malha — sem SaaS.
+
+- [ ] Sidebar: Dependabot (vulnerabilities; malware se couber), Code scanning, Secret scanning.
+- [ ] Reporting: Security policy (`SECURITY.md` do repo), Advisories, Private vulnerability reporting (issue restrita ao maintainer).
+- [ ] Alertas no Mongo (`SecAlert`). Empty states “Needs setup” / Enabled / Disabled.
+- [ ] Code scanning = SAST no `.xvpn-ci.sh` (gosec / govulncheck / npm audit — templates já na 42.2).
+- [ ] Secret scanning = hook receive-pack (padrões de token; o `.githooks/pre-commit` já bloqueia o óbvio no monorepo — o forge aplica no push).
+- [ ] Sem Dependabot da Microsoft. Sem enviar o tree a terceiro.
+
+**Critério de saída:** maintainer vê a aba; um `npm audit` / `govulncheck` no CI vira alerta. Policy lê `SECURITY.md`.
+
+---
+
+## Fase 63 — Agents (sessões no XGIT)
+
+Aba **Agents** no repo (entre Pull requests e Actions), no estilo GitHub Copilot Sessions — **sem Copilot**. Lista as sessões do agente ihuull (Fases 52–55) daquele `<org>/<slug>`.
+
+- [ ] Sidebar: Created by me, Needs attention. Filtros Active / Completed. Sort Newest.
+- [ ] Empty state quando não há sessão. Configure / Customize environment apontam para Settings → Codespaces (já existe).
+- [ ] Abrir sessão = codespace do repo (50) com o chat à direita. Sem segundo runtime de agente no `xvpn-server`.
+
+**Critério de saída:** em `xgit.corp/xcorp/hello-js/agents` o dono vê as sessões do codespace. Membro sem codespace vê o empty state.
+
+---
+
+## Fase 64 — `xcs-detect` (langs, start, ports) + exemplos vivos
+
+A aba Ports do codespace (56–57) lista o que escuta `0.0.0.0`, mas **não sabe o que pode ser iniciado**. Precisamos de um binário Go no clone (stdlib, sem rede) que leia o tree e devolva receitas reais — a base dos exemplos da org.
+
+- [x] CLI `xcs-detect` (ao lado de `xcs-analyze`): JSON com `languages[]`, `manifests[]` (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `pom.xml`), `recipes[]` (`id`, `cmd`, `port`, `cwd`). Sem `go/packages`, sem npm install no detector.
+- [x] Receitas: Node (`npm test` / `node index.js` / `npm start`), Python (import / Flask `0.0.0.0:8080`), Go (`go test`), Rust (`cargo test`), Maven (`mvn package`).
+- [x] Ports no OpenVSCode: se nada escuta, mostra as receitas do `xcs-detect`.
+- [x] Exemplos `xcorp/hello-*` têm manifests reais; hello-js tem `npm start` / `npm test`.
+- [x] Bake em `/usr/local/bin/xcs-detect`. Allowlist no agente (como `xcs-analyze`). O `xvpn-server` **não** lê o workspace.
+
+**Critério de saída:** codespace em `xcorp/hello-js` → detect diz JavaScript + `npm test`; hello-py / `teste` sugerem Flask em `0.0.0.0:8080`; Ports oferece o comando. Sem rede no detector.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1734,7 +1852,8 @@ Paralelo: o agente **não** ecoa `# agent:` nem espera o `execFile` terminar par
 - **Parte XI (32):** xgroup Twitter + XDriver nativo; FileBrowser removido.
 - **Parte XII (33):** chrome/SSO/admin por produto — monólito modular, sem fatiar o binário.
 - **Parte XIII (34):** DNS intranet de verdade — `/admin/dns` + client split-horizon. O dial hardcoded do xchat é só defesa em profundidade.
-- **Parte XIV (35–57):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) → **57** (canário Flask no repo `teste` + espelho de terminal). 45+ continua backlog (registry/pages/SAST). Não misturar BitLaunch com git na mesma PR.
+- **Parte XIV (35–57):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) → **57** (canário Flask no repo `teste` + espelho de terminal).
+- **Parte XV (58–64):** org `<org>/<slug>` (sem fallback) → registries + Actions publish → containers → Pages/Wiki → Security and quality → aba Agents → `xcs-detect`. Não misturar Harbor (60) com Maven (59) nem BitLaunch com git na mesma PR.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

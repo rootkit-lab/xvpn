@@ -149,13 +149,13 @@ func (a *App) canGitPushProtected(user store.User, proj store.Project, min store
 }
 
 func (a *App) loadGitProject(c *gin.Context, user store.User) (store.Project, string, bool) {
-	slug := forge.NormalizeSlug(c.Param("slug"))
-	if !store.ValidProjectSlug(slug) {
+	orgSlug, slug, ok := parseRepoParams(c)
+	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return store.Project{}, "", false
 	}
-	var proj store.Project
-	if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+	proj, found := a.findProject(orgSlug, slug)
+	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return store.Project{}, "", false
 	}
@@ -170,7 +170,7 @@ func (a *App) loadGitProject(c *gin.Context, user store.User) (store.Project, st
 			return store.Project{}, "", false
 		}
 	}
-	return proj, slug, true
+	return proj, a.projectRepo(proj), true
 }
 
 func (a *App) handleGitSmartHTTP(c *gin.Context) {
@@ -219,13 +219,13 @@ func (a *App) handleGitSmartHTTP(c *gin.Context) {
 }
 
 func (a *App) serveGitForRunner(c *gin.Context, runner store.MeshServer) {
-	slug := forge.NormalizeSlug(c.Param("slug"))
-	if !store.ValidProjectSlug(slug) {
+	orgSlug, slug, ok := parseRepoParams(c)
+	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return
 	}
-	var proj store.Project
-	if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+	proj, found := a.findProject(orgSlug, slug)
+	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return
 	}
@@ -233,17 +233,18 @@ func (a *App) serveGitForRunner(c *gin.Context, runner store.MeshServer) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return
 	}
-	pathInfo := forge.PathInfo(c.Request.URL.Path, slug)
+	repo := a.projectRepo(proj)
+	pathInfo := forge.PathInfo(c.Request.URL.Path, repo)
 	if forge.ServiceName(c.Request.URL.RawQuery, pathInfo) == "git-receive-pack" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "runner só clona"})
 		return
 	}
 	root := a.gitDir()
-	if root == "" || !forge.Exists(root, slug) {
+	if root == "" || !forge.Exists(root, repo) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "repositório não encontrado"})
 		return
 	}
-	if err := forge.Serve(c.Writer, c.Request, root, slug, "runner", pathInfo); err != nil {
+	if err := forge.Serve(c.Writer, c.Request, root, repo, "runner", pathInfo); err != nil {
 		if !c.Writer.Written() {
 			c.JSON(http.StatusBadGateway, gin.H{"error": "git indisponível"})
 		}
@@ -303,8 +304,8 @@ func (a *App) projectGitJSON(proj store.Project) projectGitResponse {
 		out = append(out, protectedBranchJSON{Pattern: r.Pattern, MinPushRole: r.MinPushRole})
 	}
 	return projectGitResponse{
-		CloneURL:          gitCloneHost + "/" + proj.Slug,
-		Exists:            forge.Exists(a.gitDir(), proj.Slug),
+		CloneURL:          a.projectCloneURL(proj),
+		Exists:            forge.Exists(a.gitDir(), a.projectRepo(proj)),
 		ProtectedBranches: out,
 	}
 }
@@ -322,7 +323,7 @@ func (a *App) handleInitProjectGit(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := a.ensureGitRepo(proj.Slug); err != nil {
+	if err := a.ensureGitRepo(proj); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "não foi possível criar o repositório"})
 		return
 	}
@@ -378,12 +379,13 @@ func (a *App) handleSetProtectedBranches(c *gin.Context) {
 	c.JSON(http.StatusOK, a.projectGitJSON(proj))
 }
 
-func (a *App) ensureGitRepo(slug string) error {
+func (a *App) ensureGitRepo(proj store.Project) error {
 	root := a.gitDir()
-	if root == "" {
+	repo := a.projectRepo(proj)
+	if root == "" || repo == "" {
 		return nil
 	}
-	return forge.InitBare(root, slug)
+	return forge.InitBare(root, repo)
 }
 
 func (a *App) ensureDefaultProtected(projectID uint) {

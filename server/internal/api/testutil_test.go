@@ -113,6 +113,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.DirectThread{}, &store.DirectThreadMember{}, &store.Message{}, &store.MessageReceipt{},
 		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
 		&store.SocialPost{}, &store.SocialPostStar{}, &store.SocialPostComment{},
+		&store.ForgeOrganization{}, &store.OrgMember{}, &store.OrgTeam{}, &store.OrgTeamMember{},
 		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.ProjectEnv{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CodeSpace{}, &store.CiJob{},
 		&store.ForgePackage{}, &store.ForgePackageVersion{},
 		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
@@ -123,6 +124,9 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	}
 	if err := store.SeedIntranetDNS(db); err != nil {
 		t.Fatalf("erro semeando DNS: %v", err)
+	}
+	if err := store.SeedXcorp(db); err != nil {
+		t.Fatalf("erro semeando xcorp: %v", err)
 	}
 
 	fakeWG := newFakePeerManager()

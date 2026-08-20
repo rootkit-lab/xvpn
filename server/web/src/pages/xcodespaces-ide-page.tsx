@@ -95,7 +95,7 @@ export function XcodespacesIdePage() {
               onClick={() => {
                 setBusy(true)
                 void api
-                  .createCodespace({ slug: cs.slug, branch: cs.branch, kind: 'remote' })
+                  .createCodespace({ org: cs.org, slug: cs.slug, branch: cs.branch, kind: 'remote' })
                   .then((created) => {
                     window.location.href = codespaceOpenHref(created)
                   })

@@ -5,7 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 SAMPLE="${SAMPLE_DIR:-$SCRIPT_DIR/sample-teste}"
-BARE="${BARE_PATH:-/opt/xvpn/data/git/teste.git}"
+BARE="${BARE_PATH:-/opt/xvpn/data/git/xcorp/teste.git}"
 WORKDIR="${WORKDIR:-$(mktemp -d /tmp/seed-teste.XXXXXX)}"
 
 cleanup() { rm -rf "$WORKDIR"; }

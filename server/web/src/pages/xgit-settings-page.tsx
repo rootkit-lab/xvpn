@@ -133,8 +133,8 @@ export function XgitSettingsPage() {
             <ul className="divide-y divide-border/60">
               {repos?.items.map((p) => (
                 <li key={p.slug} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <Link to={xgitPath(p.slug)} className="text-primary hover:underline">
-                    {p.slug}
+                  <Link to={xgitPath(`${p.org}/${p.slug}`)} className="text-primary hover:underline">
+                    {p.full_name || `${p.org}/${p.slug}`}
                   </Link>
                   <span className="text-xs text-muted-foreground">
                     {p.visibility} · {p.network} · {p.member_count} membros

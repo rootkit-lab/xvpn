@@ -18,7 +18,7 @@ func TestProjectCodespaceEnvs_SecretWriteOnly(t *testing.T) {
 	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-okxx")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -26,7 +26,7 @@ func TestProjectCodespaceEnvs_SecretWriteOnly(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
@@ -36,7 +36,7 @@ func TestProjectCodespaceEnvs_SecretWriteOnly(t *testing.T) {
 		t.Fatalf("members: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/codespaces/envs", putProjectEnvsRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/codespaces/envs", putProjectEnvsRequest{
 		Items: []putProjectEnvItem{
 			{Name: "APP_URL", Value: "https://xgit.corp", Secret: false},
 			{Name: "XCS_LLM_KEY", Value: "sk-secret-key", Secret: true},
@@ -65,7 +65,7 @@ func TestProjectCodespaceEnvs_SecretWriteOnly(t *testing.T) {
 		}
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/codespaces/envs", nil, devTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/lab/codespaces/envs", nil, devTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get dev: %d %s", rec.Code, rec.Body.String())
 	}
@@ -81,7 +81,7 @@ func TestProjectCodespaceEnvs_SecretWriteOnly(t *testing.T) {
 		}
 	}
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/codespaces/envs", putProjectEnvsRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/codespaces/envs", putProjectEnvsRequest{
 		Items: []putProjectEnvItem{{Name: "PATH", Value: "/bin"}},
 	}, adminTok)
 	if rec.Code != http.StatusBadRequest {
@@ -122,7 +122,7 @@ func TestProjectCodespaceEnvs_MaintainerOnlyWrite(t *testing.T) {
 	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 	devTok := loginAndGetToken(t, app, router, "dev", "senha-dev-okxx")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d", rec.Code)
 	}
@@ -130,7 +130,7 @@ func TestProjectCodespaceEnvs_MaintainerOnlyWrite(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: dev.ID, Role: store.ProjectRoleDeveloper},
@@ -139,7 +139,7 @@ func TestProjectCodespaceEnvs_MaintainerOnlyWrite(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatal(rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/codespaces/envs", putProjectEnvsRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/codespaces/envs", putProjectEnvsRequest{
 		Items: []putProjectEnvItem{{Name: "APP_URL", Value: "x"}},
 	}, devTok)
 	if rec.Code != http.StatusForbidden {

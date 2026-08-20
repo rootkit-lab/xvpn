@@ -23,7 +23,7 @@ const STATUS_LABEL: Record<MergeRequestStatus, string> = {
 type Tab = 'conversation' | 'commits' | 'files'
 
 export function MergeRequestPage() {
-  const { slug = '', iid = '' } = useParams()
+  const { org = '', slug = '', iid = '' } = useParams()
   const number = Number(iid)
   const [tab, setTab] = useState<Tab>('conversation')
   const [busy, setBusy] = useState(false)
@@ -31,11 +31,11 @@ export function MergeRequestPage() {
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const fetchMR = useCallback(() => api.getMergeRequest(slug, number), [slug, number])
-  const fetchCommits = useCallback(() => api.listMRCommits(slug, number), [slug, number])
-  const fetchDiff = useCallback(() => api.getMRDiff(slug, number), [slug, number])
-  const fetchReviews = useCallback(() => api.listMRReviews(slug, number), [slug, number])
-  const fetchJobs = useCallback(() => api.listCiJobs(slug, undefined, number), [slug, number])
+  const fetchMR = useCallback(() => api.getMergeRequest(`${org}/${slug}`, number), [slug, number])
+  const fetchCommits = useCallback(() => api.listMRCommits(`${org}/${slug}`, number), [slug, number])
+  const fetchDiff = useCallback(() => api.getMRDiff(`${org}/${slug}`, number), [slug, number])
+  const fetchReviews = useCallback(() => api.listMRReviews(`${org}/${slug}`, number), [slug, number])
+  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`, undefined, number), [slug, number])
   const { data, loading, error, reload } = usePollingData(fetchMR, 15_000)
   const { data: commits } = usePollingData(fetchCommits, 20_000)
   const { data: diff } = usePollingData(fetchDiff, 20_000)
@@ -52,8 +52,8 @@ export function MergeRequestPage() {
   async function act(kind: 'merge' | 'close') {
     setBusy(true)
     try {
-      if (kind === 'merge') await api.mergeMergeRequest(slug, number)
-      else await api.closeMergeRequest(slug, number)
+      if (kind === 'merge') await api.mergeMergeRequest(`${org}/${slug}`, number)
+      else await api.closeMergeRequest(`${org}/${slug}`, number)
       toast.success(kind === 'merge' ? 'Merge concluído' : 'PR fechado')
       reload()
     } catch (err) {
@@ -66,7 +66,7 @@ export function MergeRequestPage() {
   async function saveMeta() {
     setBusy(true)
     try {
-      await api.patchMergeRequest(slug, number, { title: title.trim(), description: description.trim() })
+      await api.patchMergeRequest(`${org}/${slug}`, number, { title: title.trim(), description: description.trim() })
       toast.success('PR atualizado')
       setEditing(false)
       reload()
@@ -80,7 +80,7 @@ export function MergeRequestPage() {
   async function review(state: MRReviewState) {
     setBusy(true)
     try {
-      await api.createMRReview(slug, number, { state, body: reviewBody.trim() || undefined })
+      await api.createMRReview(`${org}/${slug}`, number, { state, body: reviewBody.trim() || undefined })
       toast.success('Review enviado')
       setReviewBody('')
       reloadReviews()
@@ -101,11 +101,11 @@ export function MergeRequestPage() {
           XGIT
         </Link>
         <span className="px-1.5">/</span>
-        <Link to={xgitPath(slug)} className="hover:underline">
+        <Link to={xgitPath(`${org}/${slug}`)} className="hover:underline">
           {slug}
         </Link>
         <span className="px-1.5">/</span>
-        <Link to={xgitPath(`${slug}/pulls`)} className="hover:underline">
+        <Link to={xgitPath(`${org}/${slug}/pulls`)} className="hover:underline">
           Pull requests
         </Link>
         <span className="px-1.5">/</span>
@@ -180,7 +180,7 @@ export function MergeRequestPage() {
           <span>
             Checks: <span className="font-medium">{latestJob.status}</span>
           </span>
-          <Link to={xgitPath(`${slug}/actions/${latestJob.number}`)} className="text-primary hover:underline">
+          <Link to={xgitPath(`${org}/${slug}/actions/${latestJob.number}`)} className="text-primary hover:underline">
             ver run
           </Link>
           {data.checks_block ? <span className="text-destructive">{data.checks_block}</span> : null}

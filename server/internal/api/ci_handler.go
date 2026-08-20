@@ -122,7 +122,7 @@ func (a *App) ciJobTitle(proj store.Project, job store.CiJob) string {
 			return mr.Title
 		}
 	}
-	if items, err := forge.ListCommits(a.gitDir(), proj.Slug, job.SHA, "", 1); err == nil && len(items) > 0 && items[0].Subject != "" {
+	if items, err := forge.ListCommits(a.gitDir(), a.projectRepo(proj), job.SHA, "", 1); err == nil && len(items) > 0 && items[0].Subject != "" {
 		return items[0].Subject
 	}
 	if job.Trigger == ciTriggerMR && job.MergeRequestNumber != nil {
@@ -244,7 +244,7 @@ func (a *App) enqueueCiJobAs(proj store.Project, trigger, ref, sha string, mrNum
 	if err := a.Store.DB.Create(&job).Error; err != nil {
 		return nil
 	}
-	_ = a.ensureProjectFilesDir(proj.Slug)
+	_ = a.ensureProjectFilesDir(a.projectRepo(proj))
 	_ = a.Store.LogAudit("system", "project.ci.enqueue", fmt.Sprintf("%s#%d %s", proj.Slug, job.Number, trigger))
 	return &job
 }
@@ -410,7 +410,7 @@ func (a *App) handleGetCiJobLog(c *gin.Context) {
 	if !ok {
 		return
 	}
-	body, err := a.readCiFile(proj.Slug, job.LogRel)
+	body, err := a.readCiFile(a.projectRepo(proj), job.LogRel)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "log indisponível"})
 		return
@@ -424,7 +424,7 @@ func (a *App) handleGetCiJobArtifact(c *gin.Context) {
 	if !ok {
 		return
 	}
-	path, err := a.ciAbs(proj.Slug, job.ArtifactRel)
+	path, err := a.ciAbs(a.projectRepo(proj), job.ArtifactRel)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "artifact indisponível"})
 		return
@@ -559,7 +559,7 @@ func (a *App) handleCiClaim(c *gin.Context) {
 			ID:        job.ID,
 			ciJobJSON: a.ciJobJSON(job),
 			Slug:      proj.Slug,
-			CloneURL:  gitCloneHost + "/" + proj.Slug,
+			CloneURL:  a.projectCloneURL(proj),
 		})
 		return
 	}
@@ -604,7 +604,7 @@ func (a *App) handleCiLog(c *gin.Context) {
 		return
 	}
 	rel := fmt.Sprintf("ci/%d/job.log", job.Number)
-	if err := a.writeCiFile(proj.Slug, rel, body); err != nil {
+	if err := a.writeCiFile(a.projectRepo(proj), rel, body); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -634,7 +634,7 @@ func (a *App) handleCiFinish(c *gin.Context) {
 	}
 	if req.Log != "" {
 		rel := fmt.Sprintf("ci/%d/job.log", job.Number)
-		if err := a.writeCiFile(proj.Slug, rel, []byte(req.Log)); err == nil {
+		if err := a.writeCiFile(a.projectRepo(proj), rel, []byte(req.Log)); err == nil {
 			job.LogRel = rel
 		}
 	}
@@ -679,7 +679,7 @@ func (a *App) handleCiArtifact(c *gin.Context) {
 		name = "artifact.bin"
 	}
 	rel := fmt.Sprintf("ci/%d/%s", job.Number, name)
-	if err := a.writeCiFile(proj.Slug, rel, body); err != nil {
+	if err := a.writeCiFile(a.projectRepo(proj), rel, body); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}

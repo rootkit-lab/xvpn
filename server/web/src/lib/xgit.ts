@@ -18,6 +18,15 @@ export function xgitReposPath(): string {
   return productKind() === 'xgit-corp' ? '/repositories' : '/admin/xgit'
 }
 
+export function xgitRepoPath(org: string, slug: string, rest = ''): string {
+  const suffix = rest.replace(/^\//, '')
+  return xgitPath(suffix ? `${org}/${slug}/${suffix}` : `${org}/${slug}`)
+}
+
+export function repoRef(org: string, slug: string): string {
+  return `${org}/${slug}`
+}
+
 const LANG_TOKEN: Record<string, string> = {
   Go: 'var(--primary)',
   TypeScript: 'var(--product-xgit)',

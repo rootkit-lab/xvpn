@@ -47,7 +47,7 @@ export function ProjectsPage() {
         rowKey={(p) => p.slug}
         loading={loading || !data}
         emptyTitle="Nenhum projeto ainda."
-        onRowClick={(p) => navigate(`/admin/projects/${p.slug}`)}
+        onRowClick={(p) => navigate(`/admin/projects/${p.org}/${p.slug}`)}
         page={1}
         perPage={50}
         total={data?.items.length ?? 0}
@@ -68,6 +68,7 @@ function CreateProjectForm({ onCreated }: { onCreated: () => void }) {
     setBusy(true)
     try {
       const created = await api.createProject({
+        org: 'xcorp',
         slug: slug.trim().toLowerCase(),
         name: name.trim() || slug.trim().toLowerCase(),
         description: description.trim(),

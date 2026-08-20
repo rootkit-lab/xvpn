@@ -19,7 +19,7 @@ func seedLabWithAlice(t *testing.T, app *App, router http.Handler, aliceRole sto
 	alice = createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
 	adminTok = loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 	aliceTok = loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -27,7 +27,7 @@ func seedLabWithAlice(t *testing.T, app *App, router http.Handler, aliceRole sto
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: alice.ID, Role: aliceRole},
@@ -77,12 +77,12 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 	createTestUserWithRole(t, app, "eve", "senha-eve-okkk", store.RoleMember)
 	eveTok := loginAndGetToken(t, app, router, "eve", "senha-eve-okkk")
 
-	rec := uploadProjectPackage(t, router, aliceTok, "lab", "sdk", "1.0.0", "generic", "sdk-1.0.0.zip", []byte("hello-pkg"))
+	rec := uploadProjectPackage(t, router, aliceTok, "xcorp/lab", "sdk", "1.0.0", "generic", "sdk-1.0.0.zip", []byte("hello-pkg"))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/lab/packages", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/xcorp/lab/packages", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
 	}
@@ -96,12 +96,15 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 	if !listed.CanPublish || len(listed.Items) != 1 || listed.Items[0].Name != "sdk" || listed.Items[0].Latest != "1.0.0" {
 		t.Fatalf("list: %+v", listed)
 	}
+	if listed.Items[0].ProjectSlug != "xcorp/lab" {
+		t.Fatalf("project_slug: %q", listed.Items[0].ProjectSlug)
+	}
 	if len(listed.Items[0].Versions) != 1 {
 		t.Fatalf("versions: %+v", listed.Items[0].Versions)
 	}
 	vid := listed.Items[0].Versions[0].ID
 
-	req := httptest.NewRequest(http.MethodGet, "/api/projects/lab/packages/"+strconv.FormatUint(uint64(vid), 10)+"/download", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/xcorp/lab/packages/"+strconv.FormatUint(uint64(vid), 10)+"/download", nil)
 	req.Host = "xgit.corp.ihuull.com"
 	req.Header.Set("Authorization", "Bearer "+aliceTok)
 	dl := httptest.NewRecorder()
@@ -113,7 +116,7 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 		t.Fatalf("download body: %q", dl.Body.String())
 	}
 
-	rec = uploadProjectPackage(t, router, aliceTok, "lab", "sdk", "1.0.0", "generic", "sdk-1.0.0.zip", []byte("other"))
+	rec = uploadProjectPackage(t, router, aliceTok, "xcorp/lab", "sdk", "1.0.0", "generic", "sdk-1.0.0.zip", []byte("other"))
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("reupload diferente deveria 409, veio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -132,12 +135,12 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 		t.Fatalf("eve não deveria ver packages do lab: %+v", home.Items)
 	}
 
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/lab/packages", nil, eveTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/xcorp/lab/packages", nil, eveTok)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("eve list projeto deveria 404, veio %d: %s", rec.Code, rec.Body.String())
 	}
 
-	rec = uploadProjectPackage(t, router, eveTok, "lab", "evil", "1.0.0", "generic", "x.bin", []byte("x"))
+	rec = uploadProjectPackage(t, router, eveTok, "xcorp/lab", "evil", "1.0.0", "generic", "x.bin", []byte("x"))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("eve upload deveria 404, veio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -147,7 +150,7 @@ func TestForgePackages_ReporterCannotPublish(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)
 	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleReporter)
-	rec := uploadProjectPackage(t, router, aliceTok, "lab", "sdk", "1.0.0", "generic", "sdk.zip", []byte("x"))
+	rec := uploadProjectPackage(t, router, aliceTok, "xcorp/lab", "sdk", "1.0.0", "generic", "sdk.zip", []byte("x"))
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("reporter deveria 403, veio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -171,12 +174,12 @@ func TestForgePackages_NpmPublishAndPackument(t *testing.T) {
 			},
 		},
 	}
-	rec := doJSONPkg(t, router, http.MethodPut, "/api/packages/lab/npm/hello", body, aliceTok)
+	rec := doJSONPkg(t, router, http.MethodPut, "/api/packages/xcorp/lab/npm/hello", body, aliceTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("npm publish: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/npm/hello", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/xcorp/lab/npm/hello", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("packument: %d %s", rec.Code, rec.Body.String())
 	}
@@ -212,11 +215,11 @@ func TestForgePackages_NpmPublishAndPackument(t *testing.T) {
 			},
 		},
 	}
-	rec = doJSONPkg(t, router, http.MethodPut, "/api/packages/lab/npm/@ihuull/hello", scoped, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodPut, "/api/packages/xcorp/lab/npm/@ihuull/hello", scoped, aliceTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("scoped publish: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/npm/@ihuull/hello", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/xcorp/lab/npm/@ihuull/hello", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("scoped packument: %d %s", rec.Code, rec.Body.String())
 	}
@@ -241,19 +244,19 @@ func TestForgePackages_SharedBlobNotDeletedOnConflict(t *testing.T) {
 	router := NewRouter(app)
 	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
 	same := []byte("shared-bytes")
-	rec := uploadProjectPackage(t, router, aliceTok, "lab", "alpha", "1.0.0", "generic", "a.bin", same)
+	rec := uploadProjectPackage(t, router, aliceTok, "xcorp/lab", "alpha", "1.0.0", "generic", "a.bin", same)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("alpha: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = uploadProjectPackage(t, router, aliceTok, "lab", "beta", "1.0.0", "generic", "b.bin", same)
+	rec = uploadProjectPackage(t, router, aliceTok, "xcorp/lab", "beta", "1.0.0", "generic", "b.bin", same)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("beta: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = uploadProjectPackage(t, router, aliceTok, "lab", "beta", "1.0.0", "generic", "b.bin", []byte("other-bytes"))
+	rec = uploadProjectPackage(t, router, aliceTok, "xcorp/lab", "beta", "1.0.0", "generic", "b.bin", []byte("other-bytes"))
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("conflict: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/lab/packages", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/xcorp/lab/packages", nil, aliceTok)
 	var listed struct {
 		Items []forgePackageJSON `json:"items"`
 	}
@@ -269,7 +272,7 @@ func TestForgePackages_SharedBlobNotDeletedOnConflict(t *testing.T) {
 	if alphaID == 0 {
 		t.Fatalf("alpha sumiu: %+v", listed.Items)
 	}
-	req := httptest.NewRequest(http.MethodGet, "/api/projects/lab/packages/"+strconv.FormatUint(uint64(alphaID), 10)+"/download", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/xcorp/lab/packages/"+strconv.FormatUint(uint64(alphaID), 10)+"/download", nil)
 	req.Host = "xgit.corp.ihuull.com"
 	req.Header.Set("Authorization", "Bearer "+aliceTok)
 	dl := httptest.NewRecorder()
@@ -296,7 +299,7 @@ func TestForgePackages_PypiSimpleAndUpload(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = w.Close()
-	req := httptest.NewRequest(http.MethodPost, "/api/packages/lab/pypi", &buf)
+	req := httptest.NewRequest(http.MethodPost, "/api/packages/xcorp/lab/pypi", &buf)
 	req.Host = "xgit.corp.ihuull.com"
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+aliceTok)
@@ -306,7 +309,7 @@ func TestForgePackages_PypiSimpleAndUpload(t *testing.T) {
 		t.Fatalf("twine upload: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/pypi/simple/", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/xcorp/lab/pypi/simple/", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("index: %d %s", rec.Code, rec.Body.String())
 	}
@@ -314,7 +317,7 @@ func TestForgePackages_PypiSimpleAndUpload(t *testing.T) {
 		t.Fatalf("PEP 503 deveria normalizar My_Package: %s", rec.Body.String())
 	}
 
-	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/pypi/simple/My.Package/", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/xcorp/lab/pypi/simple/My.Package/", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("pkg: %d %s", rec.Code, rec.Body.String())
 	}
@@ -322,7 +325,7 @@ func TestForgePackages_PypiSimpleAndUpload(t *testing.T) {
 		t.Fatalf("simple pkg: %s", rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/packages/lab/pypi/simple/my-package", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/packages/xcorp/lab/pypi/simple/my-package", nil)
 	req.Host = "xgit.corp.ihuull.com"
 	req.Header.Set("Authorization", "Bearer "+aliceTok)
 	req.Header.Set("Accept", "application/vnd.pypi.simple.v1+json")

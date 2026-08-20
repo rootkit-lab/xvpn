@@ -96,7 +96,7 @@ window.addEventListener("message", (ev) => {
     const next = String(msg.demoHost || "");
     demoHost = /^demo-[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.corp\.ihuull\.com$/i.test(next) ? next.toLowerCase() : "";
     hostEl.textContent = demoHost || "hostname demo-* ainda não chegou — Recreate o codespace";
-    render(msg.ports || []);
+    render(msg.ports || [], msg.recipes || []);
   }
 });
 
@@ -127,15 +127,25 @@ function copyUrl(url) {
   vscode.postMessage({ type: "copy", url });
 }
 
-function render(ports) {
+function render(ports, recipes) {
   list.replaceChildren();
   if (!ports.length) {
     const empty = document.createElement("div");
     empty.className = "empty";
-    empty.append("Nenhuma porta em 0.0.0.0.", document.createElement("br"), "Flask: ");
-    const code = document.createElement("code");
-    code.textContent = "python3 web/flask/app.py";
-    empty.append(code);
+    empty.append("Nenhuma porta em 0.0.0.0.");
+    const starts = (recipes || []).filter((r) => r && (r.port || r.id === "flask" || r.id === "npm-start" || r.id === "node-index"));
+    const show = starts.length ? starts : recipes || [];
+    if (show.length) {
+      empty.append(document.createElement("br"), "Pode iniciar:");
+      show.slice(0, 4).forEach((r) => {
+        empty.append(document.createElement("br"));
+        const label = document.createElement("span");
+        label.textContent = (r.label || r.lang || "app") + ": ";
+        const code = document.createElement("code");
+        code.textContent = r.cmd || "";
+        empty.append(label, code);
+      });
+    }
     list.appendChild(empty);
     return;
   }

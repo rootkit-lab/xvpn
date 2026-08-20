@@ -32,10 +32,10 @@ const ROLE_LABELS: Record<ProjectRole, string> = {
 }
 
 export function ProjectDetailPage() {
-  const { slug = '' } = useParams()
+  const { org = '', slug = '' } = useParams()
   const { user } = useAuth()
   const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
-  const fetchProject = useCallback(() => api.getProject(slug), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
   const { data, loading, error, reload } = usePollingData(fetchProject, 20_000)
 
   if (loading || !data) {
@@ -312,7 +312,7 @@ export function MembersForm({ project, onSaved }: { project: Project; onSaved: (
 }
 
 export function GitCard({ slug, username, canWrite }: { slug: string; username: string; canWrite: boolean }) {
-  const fetchGit = useCallback(() => api.getProjectGit(slug), [slug])
+  const fetchGit = useCallback(() => api.getProjectGit(`${org}/${slug}`), [slug])
   const { data, loading, error, reload } = usePollingData(fetchGit, 20_000)
   const [pattern, setPattern] = useState('main')
   const [busy, setBusy] = useState(false)
@@ -320,7 +320,7 @@ export function GitCard({ slug, username, canWrite }: { slug: string; username: 
   async function initRepo() {
     setBusy(true)
     try {
-      await api.initProjectGit(slug)
+      await api.initProjectGit(`${org}/${slug}`)
       toast.success('Repositório criado')
       reload()
     } catch (err) {
@@ -353,7 +353,7 @@ export function GitCard({ slug, username, canWrite }: { slug: string; username: 
     if (!next) return
     setBusy(true)
     try {
-      await api.setProtectedBranches(slug, [...data.protected_branches, { pattern: next, min_push_role: 'maintainer' }])
+      await api.setProtectedBranches(`${org}/${slug}`, [...data.protected_branches, { pattern: next, min_push_role: 'maintainer' }])
       setPattern('')
       toast.success('Branch protegida')
       reload()
@@ -463,8 +463,8 @@ export function MergeRequestsCard({
   userId?: number
   canWrite: boolean
 }) {
-  const fetchMRs = useCallback(() => api.listMergeRequests(slug), [slug])
-  const fetchBranches = useCallback(() => api.listProjectBranches(slug), [slug])
+  const fetchMRs = useCallback(() => api.listMergeRequests(`${org}/${slug}`), [slug])
+  const fetchBranches = useCallback(() => api.listProjectBranches(`${org}/${slug}`), [slug])
   const { data, loading, error, reload } = usePollingData(fetchMRs, 20_000)
   const { data: branchData } = usePollingData(fetchBranches, 20_000)
   const [title, setTitle] = useState('')
@@ -493,7 +493,7 @@ export function MergeRequestsCard({
     e.preventDefault()
     setBusy(true)
     try {
-      const mr = await api.createMergeRequest(slug, {
+      const mr = await api.createMergeRequest(`${org}/${slug}`, {
         title: title.trim(),
         description: description.trim() || undefined,
         source_branch: source,
@@ -531,7 +531,7 @@ export function MergeRequestsCard({
             {data.items.map((mr: MergeRequest) => (
               <Link
                 key={mr.number}
-                to={xgitPath(`${slug}/pulls/${mr.number}`)}
+                to={xgitPath(`${org}/${slug}/pulls/${mr.number}`)}
                 className="flex items-center justify-between gap-2 text-sm hover:underline"
               >
                 <span className="min-w-0 truncate">
@@ -608,7 +608,7 @@ export function MergeRequestsCard({
 }
 
 export function CiJobsCard({ slug }: { slug: string }) {
-  const fetchJobs = useCallback(() => api.listCiJobs(slug), [slug])
+  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`), [slug])
   const { data, loading, error } = usePollingData(fetchJobs, 10_000)
 
   if (loading || !data) {
@@ -631,7 +631,7 @@ export function CiJobsCard({ slug }: { slug: string }) {
           data.items.map((job) => (
             <Link
               key={job.number}
-              to={xgitPath(`${slug}/actions/${job.number}`)}
+              to={xgitPath(`${org}/${slug}/actions/${job.number}`)}
               className="flex items-center justify-between gap-2 text-sm hover:underline"
             >
               <span className="min-w-0 truncate">
@@ -648,7 +648,7 @@ export function CiJobsCard({ slug }: { slug: string }) {
 }
 
 export function ProjectServicesCard({ slug }: { slug: string }) {
-  const fetchServices = useCallback(() => api.listProjectServices(slug), [slug])
+  const fetchServices = useCallback(() => api.listProjectServices(`${org}/${slug}`), [slug])
   const { data, loading, error } = usePollingData(fetchServices, 15_000)
 
   if (loading || !data) {

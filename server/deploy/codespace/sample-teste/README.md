@@ -2,7 +2,7 @@
 
 Playground do **XCODESPACES** — repo pequeno no XGIT para validar o IDE remoto (`cs-*.corp`), não o monorepo XVPN.
 
-Abre em `https://xgit.corp.ihuull.com/teste`. O clone no container fica em `/home/workspace/project`.
+Abre em `https://xgit.corp.ihuull.com/xcorp/teste`. O clone no container fica em `/home/workspace/project`.
 
 ## Checklist
 

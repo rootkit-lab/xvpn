@@ -16,6 +16,7 @@ const ALLOW_TERM = new Set([
   "head",
   "rg",
   "xcs-analyze",
+  "xcs-detect",
 ]);
 const BLOCK_TERM = new Set(["docker", "sudo", "ssh", "scp", "curl", "wget", "nc", "nmap", "bash", "sh", "zsh"]);
 const BLOCK_ENV = new Set([

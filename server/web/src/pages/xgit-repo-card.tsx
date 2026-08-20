@@ -4,7 +4,7 @@ import { Star } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, ApiError, type Project } from '@/lib/api'
 import { formatRelativeTime } from '@/lib/format'
-import { languageColor, xgitPath } from '@/lib/xgit'
+import { languageColor, repoRef, xgitRepoPath } from '@/lib/xgit'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -47,7 +47,7 @@ export function StarButton({
     e.preventDefault()
     e.stopPropagation()
     try {
-      const next = await api.toggleProjectStar(project.slug)
+      const next = await api.toggleProjectStar(repoRef(project.org, project.slug))
       onChanged?.(next)
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Falha ao marcar estrela')
@@ -64,11 +64,11 @@ export function StarButton({
 export function PopularRepoCard({ project }: { project: Project }) {
   return (
     <Link
-      to={xgitPath(project.slug)}
+      to={xgitRepoPath(project.org, project.slug)}
       className="watch-complication flex flex-col gap-2 rounded-[18px] p-4 hover:bg-white/6"
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-medium text-primary">{project.slug}</span>
+        <span className="truncate font-medium text-primary">{project.full_name || `${project.org}/${project.slug}`}</span>
         <Badge variant="outline">{project.visibility}</Badge>
       </div>
       <p className="line-clamp-2 min-h-10 text-xs text-muted-foreground">{project.description || project.name}</p>
@@ -89,8 +89,8 @@ export function RepoListRow({
     <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/60 py-5">
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Link to={xgitPath(project.slug)} className="font-medium text-primary hover:underline">
-            {project.slug}
+          <Link to={xgitRepoPath(project.org, project.slug)} className="font-medium text-primary hover:underline">
+            {project.full_name || `${project.org}/${project.slug}`}
           </Link>
           <Badge variant="outline">{project.visibility}</Badge>
         </div>

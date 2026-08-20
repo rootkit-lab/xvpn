@@ -134,19 +134,37 @@ var workflowTemplates = []WorkflowTemplate{
 		ID: "npm-xgit", Name: "Publish npm to XGIT", Category: "publish",
 		Description: "Lembra o registry npm em xgit.corp (não interpola o JWE).",
 		Languages:   []string{"JavaScript"}, Icon: "package",
-		Script: "#!/bin/sh\nset -eu\necho \"npm publish --registry https://xgit.corp.ihuull.com/api/packages/${PWD##*/}/npm/\"\necho \"Auth: Bearer JWE — não grave o token no script.\"\n",
+		Script: "#!/bin/sh\nset -eu\necho \"npm publish --registry https://xgit.corp.ihuull.com/api/packages/{{REPO}}/npm/\"\necho \"Auth: Bearer JWE — não grave o token no script.\"\n",
 	},
 	{
 		ID: "pypi-xgit", Name: "Publish PyPI to XGIT", Category: "publish",
 		Description: "Lembra twine contra a Simple API do XGIT.",
 		Languages:   []string{"Python"}, Icon: "package",
-		Script: "#!/bin/sh\nset -eu\necho \"twine upload --repository-url https://xgit.corp.ihuull.com/api/packages/${PWD##*/}/pypi\"\necho \"Auth: Basic user + JWE — não grave o token no script.\"\n",
+		Script: "#!/bin/sh\nset -eu\necho \"twine upload --repository-url https://xgit.corp.ihuull.com/api/packages/{{REPO}}/pypi\"\necho \"Auth: Basic user + JWE — não grave o token no script.\"\n",
 	},
 	{
 		ID: "generic-xgit", Name: "Publish generic tarball", Category: "publish",
 		Description: "Empacota o clone em ci-artifacts para upload generic.",
 		Languages:   []string{"Shell"}, Icon: "package",
-		Script: "#!/bin/sh\nset -eu\nmkdir -p ci-artifacts\ntar -czf ci-artifacts/src.tar.gz --exclude=.git --exclude=ci-artifacts .\nls -la ci-artifacts\n",
+		Script: "#!/bin/sh\nset -eu\nmkdir -p ci-artifacts\ntar -czf ci-artifacts/src.tar.gz --exclude=.git --exclude=ci-artifacts .\nls -la ci-artifacts\necho \"POST multipart em /api/projects/{{REPO}}/packages — Auth Bearer JWE.\"\n",
+	},
+	{
+		ID: "maven-xgit", Name: "Publish Maven to XGIT", Category: "publish",
+		Description: "URL do registry Maven em xgit.corp (não interpola o JWE).",
+		Languages:   []string{"Java"}, Icon: "package",
+		Script: "#!/bin/sh\nset -eu\necho \"mvn deploy -DaltDeploymentRepository=xgit::default::https://xgit.corp.ihuull.com/api/packages/{{REPO}}/maven\"\necho \"Auth: Bearer JWE — não grave o token no script.\"\n",
+	},
+	{
+		ID: "nuget-xgit", Name: "Publish NuGet to XGIT", Category: "publish",
+		Description: "URL do feed NuGet em xgit.corp (não interpola o JWE).",
+		Languages:   []string{"C#"}, Icon: "package",
+		Script: "#!/bin/sh\nset -eu\necho \"dotnet nuget push *.nupkg --source https://xgit.corp.ihuull.com/api/packages/{{REPO}}/nuget/index.json\"\necho \"Auth: Bearer JWE — não grave o token no script.\"\n",
+	},
+	{
+		ID: "gem-xgit", Name: "Publish RubyGems to XGIT", Category: "publish",
+		Description: "URL do gem push em xgit.corp (não interpola o JWE).",
+		Languages:   []string{"Ruby"}, Icon: "package",
+		Script: "#!/bin/sh\nset -eu\necho \"gem push --host https://xgit.corp.ihuull.com/api/packages/{{REPO}}/rubygems\"\necho \"Auth: Bearer JWE — não grave o token no script.\"\n",
 	},
 }
 
@@ -205,25 +223,31 @@ func (a *App) handleApplyWorkflowTemplate(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "template desconhecido"})
 		return
 	}
-	if err := a.ensureGitRepo(proj.Slug); err != nil {
+	if err := a.ensureGitRepo(proj); err != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "git indisponível"})
 		return
 	}
+	repo := a.projectRepo(proj)
+	if repo == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "org em falta"})
+		return
+	}
+	script := strings.ReplaceAll(tpl.Script, "{{REPO}}", repo)
 
 	ref := "main"
-	heads, _ := forge.ListBranches(a.gitDir(), proj.Slug)
+	heads, _ := forge.ListBranches(a.gitDir(), a.projectRepo(proj))
 	if h := defaultHead(heads); h != "" {
 		ref = h
 	}
 	newBranch := ""
-	if forge.HasCommits(a.gitDir(), proj.Slug) && !a.canPushBranch(user, proj, ref) {
+	if forge.HasCommits(a.gitDir(), a.projectRepo(proj)) && !a.canPushBranch(user, proj, ref) {
 		newBranch = sanitizeBranchActor(user.Username) + "-ci"
 	}
 
-	res, err := forge.CommitFiles(a.gitDir(), proj.Slug, forge.CommitFilesOpts{
+	res, err := forge.CommitFiles(a.gitDir(), a.projectRepo(proj), forge.CommitFilesOpts{
 		Files: []forge.FileContent{{
 			Path:    ciWorkflowPath,
-			Content: tpl.Script,
+			Content: script,
 		}},
 		Ref:         ref,
 		Message:     "ci: add " + tpl.Name + " workflow",

@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/rootkit-lab/xvpn/server/internal/driver"
+	"github.com/rootkit-lab/xvpn/server/internal/forge"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -95,12 +96,13 @@ func (a *App) driverResolveSlug(c *gin.Context, user store.User, root, rel, slug
 }
 
 func (a *App) driverResolveProject(c *gin.Context, user store.User, slug, rel string, write bool) (full, base string, ok bool) {
-	if !store.ValidProjectSlug(slug) {
+	orgSlug, name, err := forge.SplitRepo(slug)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return "", "", false
 	}
-	var proj store.Project
-	if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+	proj, found := a.findProject(orgSlug, name)
+	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
 		return "", "", false
 	}
@@ -117,12 +119,13 @@ func (a *App) driverResolveProject(c *gin.Context, user store.User, slug, rel st
 		return "", "", false
 	}
 	roots := a.driverRoots()
-	full, err := roots.ResolveProject(slug, rel)
+	repo := a.projectRepo(proj)
+	full, err = roots.ResolveProject(repo, rel)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return "", "", false
 	}
-	base, err = roots.ResolveProject(slug, "")
+	base, err = roots.ResolveProject(repo, "")
 	if err != nil || driver.RejectSymlinks(base, full) != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "caminho inválido"})
 		return "", "", false

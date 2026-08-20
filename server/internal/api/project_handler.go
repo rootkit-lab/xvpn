@@ -11,11 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/rootkit-lab/xvpn/server/internal/forge"
 	"github.com/rootkit-lab/xvpn/server/internal/pkgexamples"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
 type createProjectRequest struct {
+	Org          string              `json:"org"`
 	Slug         string              `json:"slug"`
 	Name         string              `json:"name"`
 	Description  string              `json:"description"`
@@ -23,6 +25,7 @@ type createProjectRequest struct {
 	Visibility   store.AppVisibility `json:"visibility"`
 	Network      store.AppNetwork    `json:"network"`
 	Runners      []string            `json:"runners"`
+	Team         string              `json:"team"`
 }
 
 type updateProjectRequest struct {
@@ -50,7 +53,9 @@ type projectMemberResponse struct {
 }
 
 type projectResponse struct {
+	Org           string                  `json:"org"`
 	Slug          string                  `json:"slug"`
+	FullName      string                  `json:"full_name"`
 	Name          string                  `json:"name"`
 	Description   string                  `json:"description"`
 	AppID         *uint                   `json:"app_id,omitempty"`
@@ -77,7 +82,10 @@ func (a *App) canSeeProject(user store.User, proj store.Project) bool {
 	var n int64
 	_ = a.Store.DB.Model(&store.ProjectMember{}).
 		Where("project_id = ? AND user_id = ?", proj.ID, user.ID).Count(&n).Error
-	return n > 0
+	if n > 0 {
+		return true
+	}
+	return a.isOrgMember(user, proj.OrganizationID)
 }
 
 func (a *App) projectMemberRole(user store.User, proj store.Project) (store.ProjectRole, bool) {
@@ -105,14 +113,18 @@ func (a *App) canAccessProjectFiles(user store.User, proj store.Project, write b
 }
 
 func (a *App) loadProjectBySlug(c *gin.Context) (store.Project, store.User, bool) {
-	slug := strings.TrimSpace(c.Param("slug"))
+	orgSlug, slug, ok := parseRepoParams(c)
 	var user store.User
 	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
 		return store.Project{}, user, false
 	}
-	var proj store.Project
-	if err := a.Store.DB.Where("slug = ?", slug).First(&proj).Error; err != nil {
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
+		return store.Project{}, user, false
+	}
+	proj, found := a.findProject(orgSlug, slug)
+	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "projeto não encontrado"})
 		return store.Project{}, user, false
 	}
@@ -130,8 +142,11 @@ func (a *App) projectResponse(proj store.Project, withMembers bool) projectRespo
 	}
 	var count int64
 	_ = a.Store.DB.Model(&store.ProjectMember{}).Where("project_id = ?", proj.ID).Count(&count).Error
+	org := a.projectOrgSlug(proj)
 	out := projectResponse{
+		Org:           org,
 		Slug:          proj.Slug,
+		FullName:      forge.RepoName(org, proj.Slug),
 		Name:          proj.Name,
 		Description:   proj.Description,
 		AppID:         proj.AppID,
@@ -178,11 +193,19 @@ func (a *App) handleListProjects(c *gin.Context) {
 	if scope == "mine" || !wantAll {
 		var ids []uint
 		_ = a.Store.DB.Model(&store.ProjectMember{}).Where("user_id = ?", user.ID).Pluck("project_id", &ids).Error
-		if len(ids) == 0 {
+		var orgIDs []uint
+		_ = a.Store.DB.Model(&store.OrgMember{}).Where("user_id = ?", user.ID).Pluck("organization_id", &orgIDs).Error
+		switch {
+		case len(ids) == 0 && len(orgIDs) == 0:
 			c.JSON(http.StatusOK, gin.H{"items": []projectResponse{}})
 			return
+		case len(ids) == 0:
+			q = q.Where("organization_id IN ?", orgIDs)
+		case len(orgIDs) == 0:
+			q = q.Where("id IN ?", ids)
+		default:
+			q = q.Where("id IN ? OR organization_id IN ?", ids, orgIDs)
 		}
-		q = q.Where("id IN ?", ids)
 	}
 	var rows []store.Project
 	if err := q.Order("slug").Find(&rows).Error; err != nil {
@@ -201,6 +224,20 @@ func (a *App) handleCreateProject(c *gin.Context) {
 	var req createProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	orgSlug := strings.ToLower(strings.TrimSpace(req.Org))
+	if orgSlug == "" || !store.ValidOrgSlug(orgSlug) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "org obrigatória (2–20, a-z 0-9 hífen)"})
+		return
+	}
+	if store.ReservedOrgSlug(orgSlug) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "org reservada (rota da home XGIT)"})
+		return
+	}
+	org, ok := a.loadOrganization(orgSlug)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "organização não encontrada"})
 		return
 	}
 	slug := strings.ToLower(strings.TrimSpace(req.Slug))
@@ -249,14 +286,20 @@ func (a *App) handleCreateProject(c *gin.Context) {
 		return
 	}
 	var existing store.Project
-	if err := a.Store.DB.Where("slug = ?", slug).First(&existing).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "já existe um projeto com este slug"})
+	if err := a.Store.DB.Where("organization_id = ? AND slug = ?", org.ID, slug).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "já existe um projeto com este slug nesta org"})
 		return
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	proj, err := a.createProject(user.ID, slug, name, strings.TrimSpace(req.Description), vis, net, req.Runners, req.FilesEnabled)
+	var teamID *uint
+	if t := strings.TrimSpace(req.Team); t != "" {
+		if team, ok := a.orgTeam(org.ID, t); ok {
+			teamID = &team.ID
+		}
+	}
+	proj, err := a.createProject(user.ID, org, slug, name, strings.TrimSpace(req.Description), vis, net, req.Runners, req.FilesEnabled, teamID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -320,7 +363,7 @@ func (a *App) handleUpdateProject(c *gin.Context) {
 		return
 	}
 	if enableFiles {
-		_ = a.ensureProjectFilesDir(proj.Slug)
+		_ = a.ensureProjectFilesDir(a.projectRepo(proj))
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "project.update", proj.Slug)
 	c.JSON(http.StatusOK, a.projectResponse(proj, true))
@@ -380,7 +423,7 @@ func (a *App) handleSetProjectMembers(c *gin.Context) {
 	c.JSON(http.StatusOK, a.projectResponse(proj, true))
 }
 
-func (a *App) createProject(ownerID uint, slug, name, desc string, vis store.AppVisibility, net store.AppNetwork, runners []string, files bool) (store.Project, error) {
+func (a *App) createProject(ownerID uint, org store.ForgeOrganization, slug, name, desc string, vis store.AppVisibility, net store.AppNetwork, runners []string, files bool, teamID *uint) (store.Project, error) {
 	g := store.SocialGroup{
 		Name:        name,
 		Description: "Projeto " + slug,
@@ -402,16 +445,19 @@ func (a *App) createProject(ownerID uint, slug, name, desc string, vis store.App
 		runners = []string{}
 	}
 	proj := store.Project{
-		Slug:          slug,
-		Name:          name,
-		Description:   desc,
-		AppID:         appID,
-		SocialGroupID: g.ID,
-		FilesEnabled:  files,
-		Visibility:    vis,
-		Network:       net,
-		Runners:       runners,
+		OrganizationID: org.ID,
+		TeamID:         teamID,
+		Slug:           slug,
+		Name:           name,
+		Description:    desc,
+		AppID:          appID,
+		SocialGroupID:  g.ID,
+		FilesEnabled:   files,
+		Visibility:     vis,
+		Network:        net,
+		Runners:        runners,
 	}
+	proj.Organization = org
 	if err := a.Store.DB.Create(&proj).Error; err != nil {
 		return store.Project{}, err
 	}
@@ -420,11 +466,12 @@ func (a *App) createProject(ownerID uint, slug, name, desc string, vis store.App
 	}).Error; err != nil {
 		return store.Project{}, err
 	}
+	a.ensureOrgMember(org.ID, ownerID, store.OrgRoleMember)
 	if files {
-		_ = a.ensureProjectFilesDir(slug)
+		_ = a.ensureProjectFilesDir(a.projectRepo(proj))
 	}
 	a.ensureDefaultProtected(proj.ID)
-	_ = a.ensureGitRepo(slug)
+	_ = a.ensureGitRepo(proj)
 	return proj, nil
 }
 
@@ -436,8 +483,12 @@ func (a *App) ensureProjectForApp(app store.App) error {
 	if !store.ValidProjectSlug(slug) {
 		return nil
 	}
+	org, ok := a.defaultOrganization()
+	if !ok {
+		return nil
+	}
 	var existing store.Project
-	err := a.Store.DB.Where("slug = ?", slug).First(&existing).Error
+	err := a.Store.DB.Where("organization_id = ? AND slug = ?", org.ID, slug).First(&existing).Error
 	if err == nil {
 		if existing.AppID == nil {
 			existing.AppID = &app.ID
@@ -456,7 +507,7 @@ func (a *App) ensureProjectForApp(app store.App) error {
 	if name == "" {
 		name = slug
 	}
-	_, err = a.createProject(owner.ID, slug, name, strings.TrimSpace(app.Description), app.Visibility, app.Network, nil, false)
+	_, err = a.createProject(owner.ID, org, slug, name, strings.TrimSpace(app.Description), app.Visibility, app.Network, nil, false, nil)
 	return err
 }
 
@@ -504,13 +555,14 @@ func (a *App) syncProjectGroupMembers(proj store.Project) error {
 	return nil
 }
 
-func (a *App) ensureProjectFilesDir(slug string) error {
-	if !store.ValidProjectSlug(slug) {
-		return errors.New("slug inválido")
+func (a *App) ensureProjectFilesDir(repo string) error {
+	org, slug, err := forge.SplitRepo(repo)
+	if err != nil {
+		return err
 	}
 	roots := a.driverRoots()
 	if roots.ProjectsDir == "" {
 		return nil
 	}
-	return os.MkdirAll(filepath.Join(roots.ProjectsDir, slug), 0o750)
+	return os.MkdirAll(filepath.Join(roots.ProjectsDir, org, slug), 0o750)
 }

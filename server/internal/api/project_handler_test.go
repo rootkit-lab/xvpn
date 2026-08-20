@@ -20,7 +20,7 @@ func TestProjectCRUDAndMembers(t *testing.T) {
 	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
 
 	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{
-		Slug: "xchat", Name: "XCHAT", Description: "messenger", FilesEnabled: true,
+		Org: "xcorp", Slug: "xchat", Name: "XCHAT", Description: "messenger", FilesEnabled: true,
 	}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
@@ -32,7 +32,7 @@ func TestProjectCRUDAndMembers(t *testing.T) {
 	if created.Slug != "xchat" || created.SocialGroupID == 0 || created.MemberCount != 1 {
 		t.Fatalf("create resp: %+v", created)
 	}
-	if _, err := os.Stat(filepath.Join(app.Config.DriverProjectsDir, "xchat")); err != nil {
+	if _, err := os.Stat(filepath.Join(app.Config.DriverProjectsDir, "xcorp", "xchat")); err != nil {
 		t.Fatalf("dir do projeto: %v", err)
 	}
 	var group store.SocialGroup
@@ -54,12 +54,12 @@ func TestProjectCRUDAndMembers(t *testing.T) {
 		t.Fatalf("member não deveria ver projeto alheio: %+v", listed.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/xchat", nil, aliceTok)
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/xchat", nil, aliceTok)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("get alheio deveria 404, veio %d", rec.Code)
 	}
 
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/xchat/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/xchat/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: member.ID, Role: store.ProjectRoleDeveloper},
@@ -77,7 +77,7 @@ func TestProjectCRUDAndMembers(t *testing.T) {
 		t.Fatalf("member deveria ver o próprio projeto: %+v", listed.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xchat", updateProjectRequest{
+	rec = doJSON(t, router, http.MethodPatch, "/api/projects/xcorp/xchat", updateProjectRequest{
 		Network: ptrNetwork(store.AppNetworkVPN),
 	}, adminTok)
 	if rec.Code != http.StatusOK {
@@ -108,7 +108,7 @@ func TestProjectCRUDAndMembers(t *testing.T) {
 
 func TestAdminWithoutForgeScopeCannotCreateProject(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
-	rec := doJSON(t, f.router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, f.token)
+	rec := doJSON(t, f.router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, f.token)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("admin só-core não deveria criar projeto, obtido %d: %s", rec.Code, rec.Body.String())
 	}
@@ -116,7 +116,7 @@ func TestAdminWithoutForgeScopeCannotCreateProject(t *testing.T) {
 
 func TestAdminWithForgeScopeCanCreateProject(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductForge})
-	rec := doJSON(t, f.router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, f.token)
+	rec := doJSON(t, f.router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, f.token)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("admin forge deveria criar, obtido %d: %s", rec.Code, rec.Body.String())
 	}
@@ -161,7 +161,7 @@ func TestListProjectsScopeAllForbiddenForMember(t *testing.T) {
 	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
 	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
 
-	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -211,7 +211,7 @@ func TestMeXgitEnabledByMembershipOrACL(t *testing.T) {
 		t.Fatal("sem ProjectMember nem ACL o waffle não mostra XGIT")
 	}
 
-	rec = doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "lab", Name: "Lab"}, adminTok)
+	rec = doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
 	}
@@ -219,7 +219,7 @@ func TestMeXgitEnabledByMembershipOrACL(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/projects/lab/members", setProjectMembersRequest{
+	rec = doJSON(t, router, http.MethodPut, "/api/projects/xcorp/lab/members", setProjectMembersRequest{
 		Members: []projectMemberIn{
 			{UserID: created.Members[0].UserID, Role: store.ProjectRoleOwner},
 			{UserID: alice.ID, Role: store.ProjectRoleDeveloper},

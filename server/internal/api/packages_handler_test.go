@@ -278,3 +278,107 @@ func TestForgePackages_SharedBlobNotDeletedOnConflict(t *testing.T) {
 		t.Fatalf("blob partilhado não deveria ser apagado: %d %q", dl.Code, dl.Body.String())
 	}
 }
+
+func TestForgePackages_PypiSimpleAndUpload(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	_ = w.WriteField("name", "My_Package")
+	_ = w.WriteField("version", "1.0.0")
+	part, err := w.CreateFormFile("content", "my_package-1.0.0.tar.gz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write([]byte("sdist")); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/packages/lab/pypi", &buf)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("twine upload: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/pypi/simple/", nil, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("index: %d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("my-package")) {
+		t.Fatalf("PEP 503 deveria normalizar My_Package: %s", rec.Body.String())
+	}
+
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/pypi/simple/My.Package/", nil, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("pkg: %d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("sha256=")) || !bytes.Contains(rec.Body.Bytes(), []byte("my_package-1.0.0.tar.gz")) {
+		t.Fatalf("simple pkg: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/packages/lab/pypi/simple/my-package", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	req.Header.Set("Accept", "application/vnd.pypi.simple.v1+json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("json: %d %s", rec.Code, rec.Body.String())
+	}
+	var doc struct {
+		Name  string `json:"name"`
+		Files []struct {
+			Filename string `json:"filename"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Name != "my-package" || len(doc.Files) != 1 {
+		t.Fatalf("json doc: %+v", doc)
+	}
+}
+
+func TestForgePackages_PublicXFFRejected(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	req := httptest.NewRequest(http.MethodGet, "/api/xgit/packages", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("XFF público deveria 404, veio %d: %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/xgit/packages", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	req.Header.Set("X-Forwarded-For", "203.0.113.10, 10.66.66.2")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("XFF wg0 deveria passar, veio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestForgePackages_BasicJWE(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	req := httptest.NewRequest(http.MethodGet, "/api/xgit/packages", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.SetBasicAuth("alice", aliceTok)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Basic+JWE deveria autenticar, veio %d: %s", rec.Code, rec.Body.String())
+	}
+}

@@ -810,7 +810,7 @@ export interface XgitOverview {
   activity: XgitActivityItem[]
 }
 
-export type ForgePackageKind = 'generic' | 'npm'
+export type ForgePackageKind = 'generic' | 'npm' | 'pypi'
 
 export interface ForgePackageVersion {
   id: number

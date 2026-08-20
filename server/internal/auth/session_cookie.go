@@ -63,10 +63,16 @@ func cookieToken(c *gin.Context) string {
 	return strings.TrimSpace(ck.Value)
 }
 
-// TokenFromRequest lê Bearer e, se ausente, o cookie de SSO.
+// TokenFromRequest lê Bearer, senha Basic (JWE — pip/twine/npm) e, se
+// ausente, o cookie de SSO.
 func TokenFromRequest(c *gin.Context) string {
 	if t := bearerToken(c); t != "" {
 		return t
+	}
+	if _, pass, ok := c.Request.BasicAuth(); ok {
+		if t := strings.TrimSpace(pass); t != "" {
+			return t
+		}
 	}
 	return cookieToken(c)
 }

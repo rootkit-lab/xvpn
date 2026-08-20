@@ -8,10 +8,11 @@ type ForgePackageKind string
 const (
 	ForgePackageKindGeneric ForgePackageKind = "generic"
 	ForgePackageKindNPM     ForgePackageKind = "npm"
+	ForgePackageKindPyPI    ForgePackageKind = "pypi"
 )
 
 func (k ForgePackageKind) Valid() bool {
-	return k == ForgePackageKindGeneric || k == ForgePackageKindNPM
+	return k == ForgePackageKindGeneric || k == ForgePackageKindNPM || k == ForgePackageKindPyPI
 }
 
 // ForgePackage é um nome publicado num projeto (npm ou genérico).

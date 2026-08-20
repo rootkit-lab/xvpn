@@ -1322,13 +1322,26 @@ Registry no **mesmo** host `xgit.corp` — sem hostname novo, sem porta ufw, sem
 
 ---
 
+## Fase 45.2 — PyPI no XGIT
+
+Mesmo host `xgit.corp`, mesmos blobs e ACL da 45.1. Simple API (PEP 503 + PEP 691 JSON). Upload estilo twine (`content`). Auth: Bearer ou Basic (senha = JWE), como o git. Sem hostname novo. Sem Harbor.
+
+- [x] Kind `pypi`; nome normalizado PEP 503.
+- [x] `POST /api/packages/:slug/pypi` (twine) e `GET .../pypi/simple[/ :name]`.
+- [x] UI: kind pypi + comandos pip/twine.
+- [x] PLAN §6.15 / `docs/api.md`.
+
+**Critério de saída:** `pip install` / `twine upload` contra `xgit.corp` com JWE. Host público → 404. Sem container registry.
+
+---
+
 ## Fase 45+ — Forge tardio (backlog)
 
-- [ ] Container registry (`registry:2` / Harbor) e PyPI (bind wg0; hostname novo só com `port-domain-registry-check` + PLAN §5).
+- [ ] Container registry (`registry:2` / Harbor; bind wg0; hostname novo só com `port-domain-registry-check` + PLAN §5).
 - [ ] Pages (Nginx + blob).
 - [ ] Snippets, SAST, feature flags.
 
-Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES). Container/Pages não entram na 45.1.
+Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES). Container/Pages não entram na 45.1/45.2.
 
 ---
 

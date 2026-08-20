@@ -336,7 +336,7 @@ export function XgitProjectBoardPage() {
               {items.map((it) => (
                 <tr key={it.id} className="border-b border-border/40">
                   <td className="px-4 py-2">
-                    <ItemTitle slug={slug} item={it} />
+                    <ItemTitle org={org} slug={slug} item={it} />
                   </td>
                   <td className="px-4 py-2">
                     {canCreate ? (
@@ -382,7 +382,7 @@ export function XgitProjectBoardPage() {
                       onDragStart={(e) => e.dataTransfer.setData('text/plain', String(it.id))}
                       className="rounded-xl border border-border/60 bg-background/40 px-3 py-2"
                     >
-                      <ItemTitle slug={slug} item={it} />
+                      <ItemTitle org={org} slug={slug} item={it} />
                       {canCreate ? (
                         <div className="mt-2 flex flex-wrap gap-1">
                           {data.columns
@@ -411,7 +411,7 @@ export function XgitProjectBoardPage() {
   )
 }
 
-function ItemTitle({ slug, item }: { slug: string; item: WorkItem }) {
+function ItemTitle({ org, slug, item }: { org: string; slug: string; item: WorkItem }) {
   if (item.issue) {
     return (
       <Link to={xgitPath(`${org}/${slug}/issues/${item.issue}`)} className="text-sm hover:underline">

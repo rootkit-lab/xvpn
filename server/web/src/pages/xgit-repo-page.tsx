@@ -471,7 +471,7 @@ export function XgitCodePage() {
                 {dirPath ? (
                   <tr className="border-b border-border/40">
                     <td className="px-4 py-2" colSpan={3}>
-                      <Link to={parentHref(slug, dirPath)} className="text-muted-foreground hover:underline">
+                      <Link to={parentHref(org, slug, dirPath)} className="text-muted-foreground hover:underline">
                         ..
                       </Link>
                     </td>
@@ -523,7 +523,7 @@ export function XgitCodePage() {
           </div>
         ) : null}
 
-        {canWrite && git && !git.exists ? <GitCard slug={slug} username={user?.username ?? ''} canWrite={canWrite} /> : null}
+        {canWrite && git && !git.exists ? <GitCard org={org} slug={slug} username={user?.username ?? ''} canWrite={canWrite} /> : null}
       </div>
       <RepoAbout
         project={project ?? undefined}
@@ -531,6 +531,7 @@ export function XgitCodePage() {
         files={tree?.items ?? []}
         languages={tree?.languages ?? []}
         slug={slug}
+        org={org}
       />
     </div>
   )
@@ -557,12 +558,14 @@ function RepoAbout({
   files,
   languages,
   slug,
+  org,
 }: {
   project?: Project
   cloneUrl?: string
   files: GitTreeEntry[]
   languages: GitLangStat[]
   slug: string
+  org: string
 }) {
   if (!project) return null
   const readmeFile = files.find((e) => /^readme(\.md)?$/i.test(e.name))
@@ -731,10 +734,10 @@ export function XgitRepoSettingsPage() {
           {canWrite ? <MembersForm project={data} onSaved={reload} /> : <MembersRead project={data} />}
         </section>
         <section id="branches">
-          <GitCard slug={slug} username={user?.username ?? ''} canWrite={canWrite} />
+          <GitCard org={org} slug={slug} username={user?.username ?? ''} canWrite={canWrite} />
         </section>
         <section id="codespaces">
-          <CodespacesEnvCard slug={slug} myRole={data.members?.find((m) => m.user_id === user?.id)?.role} />
+          <CodespacesEnvCard org={org} slug={slug} myRole={data.members?.find((m) => m.user_id === user?.id)?.role} />
         </section>
       </div>
     </div>
@@ -753,7 +756,7 @@ function parentPath(path: string) {
   return i < 0 ? '' : path.slice(0, i)
 }
 
-function parentHref(slug: string, dir: string) {
+function parentHref(org: string, slug: string, dir: string) {
   const p = parentPath(dir)
   return p ? xgitPath(`${org}/${slug}/tree/${p}`) : xgitPath(`${org}/${slug}`)
 }

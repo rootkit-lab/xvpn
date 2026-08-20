@@ -35,7 +35,7 @@ export function ProjectDetailPage() {
   const { org = '', slug = '' } = useParams()
   const { user } = useAuth()
   const canWrite = isAdminRole(user?.role) && canWriteAdminProduct(user?.role, user?.products, 'forge')
-  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [slug])
+  const fetchProject = useCallback(() => api.getProject(`${org}/${slug}`), [org, slug])
   const { data, loading, error, reload } = usePollingData(fetchProject, 20_000)
 
   if (loading || !data) {
@@ -53,15 +53,16 @@ export function ProjectDetailPage() {
       </p>
 
       {canWrite ? <RulesForm project={data} onSaved={reload} /> : <RulesRead project={data} />}
-      <GitCard slug={data.slug} username={user?.username ?? ''} canWrite={canWrite} />
+      <GitCard org={data.org || org} slug={data.slug} username={user?.username ?? ''} canWrite={canWrite} />
       <MergeRequestsCard
+        org={data.org || org}
         slug={data.slug}
         members={data.members ?? []}
         userId={user?.id}
         canWrite={canWrite}
       />
-      <CiJobsCard slug={data.slug} />
-      <ProjectServicesCard slug={data.slug} />
+      <CiJobsCard org={data.org || org} slug={data.slug} />
+      <ProjectServicesCard org={data.org || org} slug={data.slug} />
       {canWrite ? <MembersForm project={data} onSaved={reload} /> : <MembersRead project={data} />}
     </div>
   )
@@ -311,8 +312,8 @@ export function MembersForm({ project, onSaved }: { project: Project; onSaved: (
   )
 }
 
-export function GitCard({ slug, username, canWrite }: { slug: string; username: string; canWrite: boolean }) {
-  const fetchGit = useCallback(() => api.getProjectGit(`${org}/${slug}`), [slug])
+export function GitCard({ org, slug, username, canWrite }: { org: string; slug: string; username: string; canWrite: boolean }) {
+  const fetchGit = useCallback(() => api.getProjectGit(`${org}/${slug}`), [org, slug])
   const { data, loading, error, reload } = usePollingData(fetchGit, 20_000)
   const [pattern, setPattern] = useState('main')
   const [busy, setBusy] = useState(false)
@@ -453,18 +454,20 @@ const PROJECT_ROLE_RANK: Record<ProjectRole, number> = {
 }
 
 export function MergeRequestsCard({
+  org,
   slug,
   members,
   userId,
   canWrite,
 }: {
+  org: string
   slug: string
   members: { user_id: number; role: ProjectRole }[]
   userId?: number
   canWrite: boolean
 }) {
-  const fetchMRs = useCallback(() => api.listMergeRequests(`${org}/${slug}`), [slug])
-  const fetchBranches = useCallback(() => api.listProjectBranches(`${org}/${slug}`), [slug])
+  const fetchMRs = useCallback(() => api.listMergeRequests(`${org}/${slug}`), [org, slug])
+  const fetchBranches = useCallback(() => api.listProjectBranches(`${org}/${slug}`), [org, slug])
   const { data, loading, error, reload } = usePollingData(fetchMRs, 20_000)
   const { data: branchData } = usePollingData(fetchBranches, 20_000)
   const [title, setTitle] = useState('')
@@ -607,8 +610,8 @@ export function MergeRequestsCard({
   )
 }
 
-export function CiJobsCard({ slug }: { slug: string }) {
-  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`), [slug])
+export function CiJobsCard({ org, slug }: { org: string; slug: string }) {
+  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`), [org, slug])
   const { data, loading, error } = usePollingData(fetchJobs, 10_000)
 
   if (loading || !data) {
@@ -647,8 +650,8 @@ export function CiJobsCard({ slug }: { slug: string }) {
   )
 }
 
-export function ProjectServicesCard({ slug }: { slug: string }) {
-  const fetchServices = useCallback(() => api.listProjectServices(`${org}/${slug}`), [slug])
+export function ProjectServicesCard({ org, slug }: { org: string; slug: string }) {
+  const fetchServices = useCallback(() => api.listProjectServices(`${org}/${slug}`), [org, slug])
   const { data, loading, error } = usePollingData(fetchServices, 15_000)
 
   if (loading || !data) {

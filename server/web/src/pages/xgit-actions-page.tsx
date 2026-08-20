@@ -16,7 +16,7 @@ export function XgitActionsPage() {
   const [search, setSearch] = useSearchParams()
   const workflow = search.get('workflow') || ''
   const section = search.get('view') || 'runs'
-  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`, workflow || undefined), [slug, workflow])
+  const fetchJobs = useCallback(() => api.listCiJobs(`${org}/${slug}`, workflow || undefined), [org, slug, workflow])
   const { data, loading, error } = usePollingData(fetchJobs, 8_000)
   const workflows = data?.workflows ?? [{ name: 'ci', path: '.xvpn-ci.sh' }]
   const items = data?.items ?? []
@@ -82,11 +82,11 @@ export function XgitActionsPage() {
 
       <div className="min-w-0">
         {section === 'runners' ? (
-          <RunnersPanel slug={slug} />
+          <RunnersPanel org={org} slug={slug} />
         ) : section === 'services' ? (
-          <ProjectServicesCard slug={slug} />
+          <ProjectServicesCard org={org} slug={slug} />
         ) : (
-          <RunsPanel slug={slug} workflow={workflow} items={items} />
+          <RunsPanel org={org} slug={slug} workflow={workflow} items={items} />
         )}
       </div>
     </div>
@@ -116,7 +116,7 @@ function WorkflowLink({
   )
 }
 
-function RunsPanel({ slug, workflow, items }: { slug: string; workflow: string; items: CiJob[] }) {
+function RunsPanel({ org, slug, workflow, items }: { org: string; slug: string; workflow: string; items: CiJob[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -166,8 +166,8 @@ function RunsPanel({ slug, workflow, items }: { slug: string; workflow: string; 
   )
 }
 
-function RunnersPanel({ slug }: { slug: string }) {
-  const fetchRunners = useCallback(() => api.listProjectRunners(`${org}/${slug}`), [slug])
+function RunnersPanel({ org, slug }: { org: string; slug: string }) {
+  const fetchRunners = useCallback(() => api.listProjectRunners(`${org}/${slug}`), [org, slug])
   const { data, loading, error } = usePollingData(fetchRunners, 15_000)
   const items = data?.items ?? []
   const admin = isXgitAdminHost()

@@ -237,7 +237,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 |---|---|---|---|
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice da intranet. `/admin` → `xadmin.corp` |
 | xadmin (console) | `xadmin.corp.ihuull.com` | `127.0.0.1:8080` (`/admin/*`) | Gerenciador geral. **Só VPN.** JWE `aud=xadmin`. Sem A público. §6.14 |
-| xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos do forge. Packages npm/generic em `/api/packages/:slug/npm` e `/api/projects/:slug/packages` (Fase 45.1). Blobs em `/opt/xvpn/data/packages`. **Só VPN.** Sem A público. Sem hostname extra. Fase 40 |
+| xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos do forge. Packages npm/generic/PyPI em `/api/packages/:slug/npm`, `/api/packages/:slug/pypi/simple` e `/api/projects/:slug/packages` (Fases 45.1–45.2). Blobs em `/opt/xvpn/data/packages`. **Só VPN** (`RequirePackagesHost`). Sem A público. Sem hostname extra. Fase 40 |
 | xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | Catálogo + editor rápido (Monaco, Fase 49). **Só VPN.** Sem A público. Sem landing pública |
 | codespace VS Code | `cs-<id>.corp.ihuull.com` | `127.0.0.1:19000–19007` (openvscode-server no container) | Um host por codespace em execução. Catch-all `*.corp` + cert `*.corp.ihuull.com`. **Só VPN.** Sem A público. Fase 50 |
 | codespace demo / ports | `demo-<nome>.corp.ihuull.com` | VIP `10.66.66.254` no `wg0` → DNAT para o IP docker0 do container (`:*` TCP/UDP) | Um rótulo (cert `*.corp`). **Não** `demo.cs-<id>.corp` (dois rótulos). Só origem `10.66.66.0/24`. Sem A público. Sem ufw. O botão Ports da Microsoft **não** entra (túnel internet). Fase 56 |
@@ -733,7 +733,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Discussão ao vivo / review | XCHAT (thread por MR e por issue; skill `chat-chrome`) |
 | Wiki, LFS, artifacts, job logs | XDRIVER share `project-<slug>` (só VPN) |
 | Releases / deb-exe-apk | Marketplace (`AppVersion` / `AppAsset`) |
-| Packages npm / generic | XGIT no mesmo host (`/api/packages/:slug/npm`, blobs em `/opt/xvpn/data/packages`). Fase 45.1. Auth = JWE Bearer (igual git). Sem Harbor nesta fatia |
+| Packages npm / generic / PyPI | XGIT no mesmo host (`/api/packages/:slug/npm`, `/api/packages/:slug/pypi/simple`, blobs em `/opt/xvpn/data/packages`). Fases 45.1–45.2. Auth = JWE Bearer ou Basic (senha = JWE). Sem Harbor |
 | Audit | IAM `/admin/audit` |
 | Git | `internal/forge`: bare em `/opt/xvpn/data/git/<slug>.git`; smart HTTP só em `xgit.corp` (`git-http-backend`). Auth: Basic (usuário + JWE) ou Bearer. Sem `git://` público. Sem shell SSH (Fase 13 rejeitou bash na 22). Push por SSH, se um dia, só `git-shell` + `Match User git` |
 | Protected branches | Modelo `ProtectedBranch` no projeto (`main`/`master` no create). Developer faz push; maintainer+ em branch protegida. MR (Fase 41) é o caminho de merge |
@@ -741,7 +741,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Pages | Nginx gerado + blob; hostname `*.corp` ou A público via §6.17 |
 | Editor web (arquivo único) | Monaco no blob `/edit` do XGIT; salvar = commit (ou branch + PR se a ref for protegida). Fase 48 |
 | Codespaces / IDE | App `xcodespaces.corp`: editor rápido Monaco (Fase 49) + codespace Docker / openvscode-server / clone (Fase 50, §3.6). Sem shell no host |
-| Container registry, PyPI, snippets, SAST, feature flags | Fases 45.2+ |
+| Container registry, snippets, SAST, feature flags | Fases 45.3+ |
 
 Um projeto = um `App.Slug` (ou metadado sem manifesto). Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 37 → 45), não um checkbox. Arquivos do projeto (wiki/artifacts) ficam em `/opt/xvpn/data/projects/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`.
 

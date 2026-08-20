@@ -85,10 +85,13 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/xgit/stars` | sessão | repositórios com estrela |
 | GET | `/api/xgit/packages` | sessão | packages visíveis (ACL do projeto) |
 | GET | `/api/projects/:slug/packages` | sessão + ACL | lista + `can_publish` |
-| POST | `/api/projects/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`), `file` (≤64 MiB) |
+| POST | `/api/projects/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`/`pypi`), `file` (≤64 MiB) |
 | GET | `/api/projects/:slug/packages/:id/download` | sessão + ACL | blob da versão |
 | PUT | `/api/packages/:slug/npm/*pkg` | developer+ ou `forge` | `npm publish` (manifest + `_attachments` base64). Registry: `https://xgit.corp.ihuull.com/api/packages/:slug/npm/` |
 | GET | `/api/packages/:slug/npm/*pkg` | sessão + ACL | packument npm (`versions`, `dist-tags.latest`, `dist.tarball`) |
+| POST | `/api/packages/:slug/pypi` | developer+ ou `forge` | twine (`name`, `version`, `content`). Nome PEP 503 |
+| GET | `/api/packages/:slug/pypi/simple/` | sessão + ACL | índice PEP 503 (HTML) ou PEP 691 (`Accept: application/vnd.pypi.simple.v1+json`) |
+| GET | `/api/packages/:slug/pypi/simple/:name/` | sessão + ACL | ficheiros + `#sha256=`. Host só `xgit.corp` / `xadmin.corp` |
 | POST | `/api/projects/:slug/star` | sessão + ACL | toggle da estrela |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | mesmo create de `/api/projects` |
 | GET | `/api/projects/:slug/tree` | sessão + ACL | `?ref=&path=` |

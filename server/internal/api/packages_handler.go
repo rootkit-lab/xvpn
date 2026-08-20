@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"html"
 	"io"
 	"log/slog"
 	"net"
@@ -34,6 +35,7 @@ var (
 	genericPackageName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,213}$`)
 	npmPackageName     = regexp.MustCompile(`^(?:@[a-z0-9-~][a-z0-9-._~]{0,213}/)?[a-z0-9-~][a-z0-9-._~]{0,213}$`)
 	packageVersion     = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9._-]+)?$`)
+	pep503Sep          = regexp.MustCompile(`[-_.]+`)
 )
 
 type forgePackageVersionJSON struct {
@@ -354,8 +356,11 @@ func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.Fo
 		CanPublish:  a.canAccessProjectFiles(user, proj, true),
 		Versions:    []forgePackageVersionJSON{},
 	}
-	if pkg.Kind == store.ForgePackageKindNPM {
+	switch pkg.Kind {
+	case store.ForgePackageKindNPM:
 		out.RegistryURL = gitCloneHost + "/api/packages/" + proj.Slug + "/npm/"
+	case store.ForgePackageKindPyPI:
+		out.RegistryURL = gitCloneHost + "/api/packages/" + proj.Slug + "/pypi/simple/"
 	}
 	if !withVersions {
 		return out
@@ -462,7 +467,7 @@ const (
 	errPackageExists   = packageError("versão já publicada")
 	errPackageTooLarge = packageError("arquivo excede 64 MiB")
 	errPackageName     = packageError("nome de package inválido")
-	errPackageKind     = packageError("kind deve ser generic ou npm")
+	errPackageKind     = packageError("kind deve ser generic, npm ou pypi")
 	errNpmManifest     = packageError("manifest npm sem versão ou anexo")
 )
 
@@ -494,10 +499,17 @@ func normalizePackageName(kind store.ForgePackageKind, raw string) (string, erro
 		}
 		return name, nil
 	}
+	if kind == store.ForgePackageKindPyPI {
+		name = pep503Name(name)
+	}
 	if !genericPackageName.MatchString(name) {
 		return "", errPackageName
 	}
 	return name, nil
+}
+
+func pep503Name(s string) string {
+	return pep503Sep.ReplaceAllString(strings.ToLower(strings.TrimSpace(s)), "-")
 }
 
 func sanitizePackageFilename(name string) string {
@@ -581,4 +593,145 @@ func (d npmPublishDocument) pickVersion() (version string, meta npmVersionMeta, 
 		return version, meta, name, a, nil
 	}
 	return "", npmVersionMeta{}, "", npmAttachment{}, errNpmManifest
+}
+
+func (a *App) handlePypiUpload(c *gin.Context) {
+	if a.Packages == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "registry indisponível"})
+		return
+	}
+	proj, user, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	if !a.canAccessProjectFiles(user, proj, true) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "só developer+ publica packages"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPackageBytes+1<<20)
+	fh, err := c.FormFile("content")
+	if err != nil {
+		fh, err = c.FormFile("file")
+	}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "arquivo obrigatório (content)"})
+		return
+	}
+	if fh.Size > maxPackageBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede 64 MiB"})
+		return
+	}
+	name, err := normalizePackageName(store.ForgePackageKindPyPI, firstNonEmpty(c.PostForm("name"), fh.Filename))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	version := strings.TrimSpace(c.PostForm("version"))
+	if !packageVersion.MatchString(version) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "versão inválida (semver)"})
+		return
+	}
+	src, err := fh.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "arquivo inválido"})
+		return
+	}
+	defer src.Close()
+	data, err := io.ReadAll(io.LimitReader(src, maxPackageBytes+1))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "falha lendo arquivo"})
+		return
+	}
+	if int64(len(data)) > maxPackageBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede 64 MiB"})
+		return
+	}
+	filename := sanitizePackageFilename(fh.Filename)
+	out, err := a.publishPackageBytes(user, proj, store.ForgePackageKindPyPI, name, version, filename, strings.TrimSpace(c.PostForm("summary")), data)
+	if err != nil {
+		writePackageError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, out)
+}
+
+func (a *App) handlePypiSimpleIndex(c *gin.Context) {
+	proj, _, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	var rows []store.ForgePackage
+	if err := a.Store.DB.Where("project_id = ? AND kind = ?", proj.ID, store.ForgePackageKindPyPI).
+		Order("name asc").Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if wantsPypiJSON(c) {
+		projects := make([]gin.H, 0, len(rows))
+		for _, pkg := range rows {
+			projects = append(projects, gin.H{"name": pkg.Name})
+		}
+		c.Header("Content-Type", "application/vnd.pypi.simple.v1+json")
+		c.JSON(http.StatusOK, gin.H{"meta": gin.H{"api-version": "1.0"}, "projects": projects})
+		return
+	}
+	var b strings.Builder
+	b.WriteString("<!DOCTYPE html><html><body>\n")
+	for _, pkg := range rows {
+		b.WriteString(`<a href="` + html.EscapeString(pkg.Name) + `/">` + html.EscapeString(pkg.Name) + "</a>\n")
+	}
+	b.WriteString("</body></html>\n")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(b.String()))
+}
+
+func (a *App) handlePypiSimplePackage(c *gin.Context) {
+	proj, _, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	name, err := normalizePackageName(store.ForgePackageKindPyPI, c.Param("name"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var pkg store.ForgePackage
+	if err := a.Store.DB.Where("project_id = ? AND kind = ? AND name = ?", proj.ID, store.ForgePackageKindPyPI, name).
+		First(&pkg).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "package não encontrado"})
+		return
+	}
+	var vers []store.ForgePackageVersion
+	if err := a.Store.DB.Where("package_id = ?", pkg.ID).Order("created_at asc").Find(&vers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if wantsPypiJSON(c) {
+		files := make([]gin.H, 0, len(vers))
+		for _, ver := range vers {
+			files = append(files, gin.H{
+				"filename": ver.Filename,
+				"url":      pypiTarballURL(proj.Slug, ver),
+				"hashes":   gin.H{"sha256": ver.SHA256},
+			})
+		}
+		c.Header("Content-Type", "application/vnd.pypi.simple.v1+json")
+		c.JSON(http.StatusOK, gin.H{"meta": gin.H{"api-version": "1.0"}, "name": pkg.Name, "files": files})
+		return
+	}
+	var b strings.Builder
+	b.WriteString("<!DOCTYPE html><html><body>\n")
+	for _, ver := range vers {
+		url := html.EscapeString(pypiTarballURL(proj.Slug, ver))
+		b.WriteString(`<a href="` + url + `">` + html.EscapeString(ver.Filename) + "</a>\n")
+	}
+	b.WriteString("</body></html>\n")
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(b.String()))
+}
+
+func pypiTarballURL(slug string, ver store.ForgePackageVersion) string {
+	return gitCloneHost + "/api/projects/" + slug + "/packages/" + strconv.FormatUint(uint64(ver.ID), 10) + "/download#sha256=" + ver.SHA256
+}
+
+func wantsPypiJSON(c *gin.Context) bool {
+	return strings.Contains(strings.ToLower(c.GetHeader("Accept")), "application/vnd.pypi.simple.v1+json")
 }

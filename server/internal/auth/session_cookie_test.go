@@ -70,6 +70,17 @@ func TestSetSessionCookieOnHost_Panel(t *testing.T) {
 	}
 }
 
+func TestTokenFromRequest_BasicPasswordAsToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/xgit/packages", nil)
+	c.Request.SetBasicAuth("alice", "jwe-from-pip")
+	if got := TokenFromRequest(c); got != "jwe-from-pip" {
+		t.Fatalf("Basic deveria devolver a senha (JWE), got %q", got)
+	}
+}
+
 func TestTokenFromRequest_BearerWinsOverCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

@@ -369,6 +369,11 @@ func NewRouter(app *App) *gin.Engine {
 				packages.GET("/projects/:slug/packages/:id/download", app.handleDownloadPackageVersion)
 				packages.PUT("/packages/:slug/npm/*pkg", app.handleNpmPublish)
 				packages.GET("/packages/:slug/npm/*pkg", app.handleNpmPackument)
+				packages.POST("/packages/:slug/pypi", app.handlePypiUpload)
+				packages.GET("/packages/:slug/pypi/simple", app.handlePypiSimpleIndex)
+				packages.GET("/packages/:slug/pypi/simple/", app.handlePypiSimpleIndex)
+				packages.GET("/packages/:slug/pypi/simple/:name", app.handlePypiSimplePackage)
+				packages.GET("/packages/:slug/pypi/simple/:name/", app.handlePypiSimplePackage)
 			}
 			authed.POST("/projects/:slug/star", app.handleToggleProjectStar)
 			authed.GET("/xcodespaces", app.handleListCodespaces)

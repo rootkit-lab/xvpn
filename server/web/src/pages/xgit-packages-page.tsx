@@ -32,8 +32,8 @@ export function XgitPackagesPage() {
       <div>
         <h2 className="font-display mb-1 text-base font-semibold">Packages</h2>
         <p className="text-sm text-muted-foreground">
-          Registry na malha em <code className="text-xs">xgit.corp</code> — npm ou arquivo genérico. Sem hostname
-          novo. Container/PyPI entram depois.
+          Registry na malha em <code className="text-xs">xgit.corp</code> — npm, PyPI ou arquivo genérico. Sem
+          hostname novo. Container registry entra depois.
         </p>
       </div>
       {canPublish ? <PublishForm slug={slug} onPublished={() => void reload()} /> : null}
@@ -80,9 +80,13 @@ function PublishForm({ slug, onPublished }: { slug: string; onPublished: () => v
   }
 
   const token = getToken() ?? ''
-  const registry = `https://xgit.corp.ihuull.com/api/packages/${slug}/npm/`
-  const npmHint = `npm publish --registry ${registry}`
-  const authHint = `npm config set //xgit.corp.ihuull.com/api/packages/${slug}/npm/:_authToken ${token || '<JWE>'}`
+  const npmRegistry = `https://xgit.corp.ihuull.com/api/packages/${slug}/npm/`
+  const pypiSimple = `https://xgit.corp.ihuull.com/api/packages/${slug}/pypi/simple/`
+  const npmHint = `npm publish --registry ${npmRegistry}`
+  const pipHint = `pip install <pkg> --index-url https://alice:${token || '<JWE>'}@xgit.corp.ihuull.com/api/packages/${slug}/pypi/simple/`
+  const twineHint = `twine upload --repository-url https://xgit.corp.ihuull.com/api/packages/${slug}/pypi -u alice -p ${token || '<JWE>'} dist/*`
+  const cliHint = kind === 'pypi' ? pipHint : npmHint
+  const copyText = kind === 'pypi' ? `${twineHint}\n${pipHint}` : `${npmHint}`
 
   return (
     <form onSubmit={onSubmit} className="watch-complication flex flex-col gap-3 rounded-[18px] p-4">
@@ -97,6 +101,7 @@ function PublishForm({ slug, onPublished }: { slug: string; onPublished: () => v
           <SelectContent>
             <SelectItem value="generic">generic</SelectItem>
             <SelectItem value="npm">npm</SelectItem>
+            <SelectItem value="pypi">pypi</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -110,16 +115,22 @@ function PublishForm({ slug, onPublished }: { slug: string; onPublished: () => v
           size="sm"
           variant="outline"
           onClick={() => {
-            void navigator.clipboard.writeText(`${authHint}\n${npmHint}`)
-            toast.success('Comando npm copiado')
+            void navigator.clipboard.writeText(copyText)
+            toast.success(kind === 'pypi' ? 'Comando pip/twine copiado' : 'Comando npm copiado')
           }}
         >
           <Copy className="mr-1.5 size-3.5" />
-          npm publish
+          {kind === 'pypi' ? 'pip / twine' : 'npm publish'}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
-        CLI: <code className="break-all">{npmHint}</code>
+        CLI: <code className="break-all">{cliHint}</code>
+        {kind === 'pypi' ? (
+          <>
+            {' '}
+            índice <code className="break-all">{pypiSimple}</code>
+          </>
+        ) : null}
       </p>
     </form>
   )
@@ -139,7 +150,7 @@ function PackageCard({ pkg, showProject }: { pkg: ForgePackage; showProject: boo
           </Link>
         ) : null}
       </div>
-      {pkg.kind === 'npm' && pkg.registry_url ? (
+      {pkg.registry_url ? (
         <p className="mt-1 text-xs text-muted-foreground">
           registry <code>{pkg.registry_url}</code>
         </p>

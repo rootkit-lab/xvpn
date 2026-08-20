@@ -2,6 +2,7 @@ package api
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"errors"
@@ -138,6 +139,9 @@ func (a *App) isOwnedSeedExample(proj store.Project, owner store.User, spec pkge
 // toda a VPN. Quem vê o exemplo é OrgMember da xcorp / time packages.
 
 func packageTarball(spec pkgexamples.Spec, files map[string]string) ([]byte, error) {
+	if spec.Kind == "maven" {
+		return mavenExampleJar(files)
+	}
 	prefix := spec.Slug + "-" + spec.Version
 	switch spec.Kind {
 	case "npm":
@@ -174,6 +178,36 @@ func packageTarball(spec pkgexamples.Spec, files map[string]string) ([]byte, err
 		return nil, err
 	}
 	if err := gz.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func mavenExampleJar(files map[string]string) ([]byte, error) {
+	keys := make([]string, 0, len(files))
+	for k := range files {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	mf, err := zw.Create("META-INF/MANIFEST.MF")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.WriteString(mf, "Manifest-Version: 1.0\nCreated-By: xgit-seed\n"); err != nil {
+		return nil, err
+	}
+	for _, rel := range keys {
+		w, err := zw.Create(rel)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := io.WriteString(w, files[rel]); err != nil {
+			return nil, err
+		}
+	}
+	if err := zw.Close(); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

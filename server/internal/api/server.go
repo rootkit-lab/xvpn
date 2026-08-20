@@ -296,7 +296,7 @@ func NewRouter(app *App) *gin.Engine {
 		// tabela de papéis: "member: sem telas de admin, portal
 		// mínimo").
 		authed := apiGroup.Group("")
-		authed.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB())
+		authed.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RejectPackagesScopedToken())
 		{
 			authed.GET("/auth/me", app.handleMe)
 
@@ -378,6 +378,16 @@ func NewRouter(app *App) *gin.Engine {
 				packages.GET("/packages/:org/:slug/pypi/simple/", app.handlePypiSimpleIndex)
 				packages.GET("/packages/:org/:slug/pypi/simple/:name", app.handlePypiSimplePackage)
 				packages.GET("/packages/:org/:slug/pypi/simple/:name/", app.handlePypiSimplePackage)
+				packages.PUT("/packages/:org/:slug/maven/*filepath", app.handleMavenPut)
+				packages.GET("/packages/:org/:slug/maven/*filepath", app.handleMavenGet)
+				packages.GET("/packages/:org/:slug/nuget/index.json", app.handleNugetIndex)
+				packages.PUT("/packages/:org/:slug/nuget", app.handleNugetPush)
+				packages.POST("/packages/:org/:slug/nuget", app.handleNugetPush)
+				packages.GET("/packages/:org/:slug/nuget/flat/:name/index.json", app.handleNugetVersions)
+				packages.GET("/packages/:org/:slug/nuget/flat/:name/:version/:file", app.handleNugetDownload)
+				packages.POST("/packages/:org/:slug/rubygems", app.handleRubygemsPush)
+				packages.POST("/packages/:org/:slug/rubygems/api/v1/gems", app.handleRubygemsPush)
+				packages.GET("/packages/:org/:slug/rubygems/gems/:filename", app.handleRubygemsDownload)
 			}
 			authed.POST("/projects/:org/:slug/star", app.handleToggleProjectStar)
 			authed.GET("/xcodespaces", app.handleListCodespaces)
@@ -448,7 +458,7 @@ func NewRouter(app *App) *gin.Engine {
 		// viewerUp: leitura das telas de admin (dashboard, listas,
 		// audit) — inclui viewer, admin e super_admin.
 		viewerUp := apiGroup.Group("")
-		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.ViewerUpRoles...))
+		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RejectPackagesScopedToken(), auth.RequireRole(store.ViewerUpRoles...))
 		{
 			viewerUp.GET("/users", app.handleListUsers)
 			viewerUp.GET("/users/:id", app.handleGetUser)
@@ -486,7 +496,7 @@ func NewRouter(app *App) *gin.Engine {
 		// aplicada dentro de cada handler via store.Role.CanManage, não
 		// aqui no roteamento.
 		adminOnly := apiGroup.Group("")
-		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.AdminRoles...))
+		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RejectPackagesScopedToken(), auth.RequireRole(store.AdminRoles...))
 		{
 			// IAM: create/invite/patch/reset — não é produto. Todo admin+
 			// continua gerenciando contas (CanManage + CoversAccount).

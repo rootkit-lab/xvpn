@@ -91,16 +91,21 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | POST | `/api/projects/:org/:slug/workflows` | developer+ ou `forge` | `{template_id}` grava `.xvpn-ci.sh`. Placeholders `{{REPO}}` viram `<org>/<slug>`. Sem interpolar JWE |
 | GET | `/api/xgit/packages` | sessão | packages visíveis (ACL do projeto). `project_slug` = `<org>/<slug>`. Exemplos `xcorp/hello-*` no boot (45.3) |
 | GET | `/api/projects/:org/:slug/packages` | sessão + ACL | lista + `can_publish` |
-| POST | `/api/projects/:org/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`/`pypi`), `file` (≤64 MiB) |
+| POST | `/api/projects/:org/:slug/packages` | developer+ ou `forge` | multipart `name`, `version`, `kind` (`generic`/`npm`/`pypi`/`maven`/`nuget`/`rubygems`), `file` (≤64 MiB) |
 | GET | `/api/projects/:org/:slug/packages/:id/download` | sessão + ACL | blob da versão |
 | PUT | `/api/packages/:org/:slug/npm/*pkg` | developer+ ou `forge` | `npm publish` (manifest + `_attachments` base64). Registry: `https://xgit.corp.ihuull.com/api/packages/:org/:slug/npm/` |
 | GET | `/api/packages/:org/:slug/npm/*pkg` | sessão + ACL | packument npm (`versions`, `dist-tags.latest`, `dist.tarball`) |
 | POST | `/api/packages/:org/:slug/pypi` | developer+ ou `forge` | twine (`name`, `version`, `content`). Nome PEP 503 |
 | GET | `/api/packages/:org/:slug/pypi/simple/` | sessão + ACL | índice PEP 503 (HTML) ou PEP 691 (`Accept: application/vnd.pypi.simple.v1+json`) |
 | GET | `/api/packages/:org/:slug/pypi/simple/:name/` | sessão + ACL | ficheiros + `#sha256=`. Host só `xgit.corp` / `xadmin.corp` |
-| — | `/api/packages/:org/:slug/maven` | Fase 59 | `mvn deploy` / SNAPSHOT — kind ainda não serve |
-| — | `/api/packages/:org/:slug/nuget/index.json` | Fase 59 | `dotnet nuget push` |
-| — | `/api/packages/:org/:slug/rubygems` | Fase 59 | `gem push` |
+| PUT | `/api/packages/:org/:slug/maven/*` | developer+ ou `forge` | `mvn deploy` (layout Maven2). SNAPSHOT ok. Checksums `.md5`/`.sha1` gerados no GET |
+| GET | `/api/packages/:org/:slug/maven/*` | sessão + ACL | artefacto, `maven-metadata.xml` e hashes |
+| GET | `/api/packages/:org/:slug/nuget/index.json` | sessão + ACL | service index NuGet v3 |
+| PUT/POST | `/api/packages/:org/:slug/nuget` | developer+ ou `forge` | `dotnet nuget push` (multipart `package`/`file` ou body raw) |
+| GET | `/api/packages/:org/:slug/nuget/flat/:name/index.json` | sessão + ACL | `{versions}` |
+| GET | `/api/packages/:org/:slug/nuget/flat/:name/:version/:file` | sessão + ACL | download `.nupkg` |
+| POST | `/api/packages/:org/:slug/rubygems` | developer+ ou `forge` | `gem push` (também `/rubygems/api/v1/gems`) |
+| GET | `/api/packages/:org/:slug/rubygems/gems/:filename` | sessão + ACL | download `.gem` |
 | POST | `/api/projects/:org/:slug/star` | sessão + ACL | toggle da estrela |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | `{org,slug,…}` — org obrigatória (`xcorp`). Sem path plano. |
 | POST | `/api/projects` | idem | `{org,slug}` obrigatórios |
@@ -213,6 +218,31 @@ Body: `{ "body": "texto", "group": "Sistema" }`. Cria/usa o grupo, adiciona todo
 ## Waitlist
 
 `POST /api/waitlist` — único write público além de login/enroll. Rate limit por IP.
+
+## Packages Maven / NuGet / RubyGems (Fase 59)
+
+Host só `xgit.corp` / `xadmin.corp` (`RequirePackagesHost`). Auth = Bearer JWE ou Basic (usuário + senha = JWE). O runner recebe `packages_token` no claim e exporta `XVPN_PACKAGES_TOKEN` — o `.xvpn-ci.sh` **não** interpola o token.
+
+Maven (`settings.xml` + `pom.xml`):
+
+```xml
+<server><id>xgit</id><username>xgit</username><password>${env.XVPN_PACKAGES_TOKEN}</password></server>
+```
+
+```xml
+<distributionManagement>
+  <repository>
+    <id>xgit</id>
+    <url>https://xgit.corp.ihuull.com/api/packages/xcorp/hello-mvn/maven</url>
+  </repository>
+</distributionManagement>
+```
+
+`mvn deploy` faz PUT no layout Maven2 (`…/com/ihuull/hello-mvn/0.1.0/hello-mvn-0.1.0.jar`). SNAPSHOT (`0.1.0-SNAPSHOT`) é aceite. `maven-metadata.xml` e `.sha1`/`.md5` são gerados no GET.
+
+NuGet: `dotnet nuget push *.nupkg --source https://xgit.corp.ihuull.com/api/packages/<org>/<slug>/nuget/index.json --api-key "$XVPN_PACKAGES_TOKEN"`.
+
+RubyGems: `GEM_HOST_API_KEY="$XVPN_PACKAGES_TOKEN" gem push --host https://xgit.corp.ihuull.com/api/packages/<org>/<slug>/rubygems *.gem`.
 
 ## Superfícies que **não** são esta API
 

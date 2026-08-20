@@ -21,6 +21,7 @@ const (
 	Go         Lang = "golang"
 	Rust       Lang = "rust"
 	Generic    Lang = "generic"
+	Maven      Lang = "maven"
 )
 
 // Spec descreve o projeto XGIT e o artefacto publicado.
@@ -30,16 +31,16 @@ type Spec struct {
 	Name        string
 	Title       string
 	Description string
-	Kind        string // generic | npm | pypi
+	Kind        string // generic | npm | pypi | maven | nuget | rubygems
 	PkgName     string
 	Version     string
 	Filename    string
 }
 
 // All é a ordem de seed (uma pasta por linguagem).
-var All = []Lang{JavaScript, Python, Go, Rust, Generic}
+var All = []Lang{JavaScript, Python, Go, Rust, Generic, Maven}
 
-// Specs são os cinco exemplos (slug 2–20 chars).
+// Specs são os exemplos hello-* (slug 2–20 chars).
 var Specs = []Spec{
 	{
 		Lang: JavaScript, Slug: "hello-js", Name: "hello-js", Title: "hello-js",
@@ -70,6 +71,12 @@ var Specs = []Spec{
 		Description: "Exemplo generic (ficheiro solto) no registry XGIT.",
 		Kind:        "generic", PkgName: "hello-bin", Version: "0.1.0",
 		Filename: "hello-bin-0.1.0.tar.gz",
+	},
+	{
+		Lang: Maven, Slug: "hello-mvn", Name: "hello-mvn", Title: "hello-mvn",
+		Description: "Exemplo Maven (com.ihuull:hello-mvn) no registry XGIT.",
+		Kind:        "maven", PkgName: "com.ihuull:hello-mvn", Version: "0.1.0",
+		Filename: "hello-mvn-0.1.0.jar",
 	},
 }
 

@@ -120,3 +120,24 @@ func TestPackageTarballNpmPrefix(t *testing.T) {
 		t.Fatalf("tarball: %v len=%d", err, len(blob))
 	}
 }
+
+func TestPackageTarballMavenIsZip(t *testing.T) {
+	var spec pkgexamples.Spec
+	for _, s := range pkgexamples.Specs {
+		if s.Kind == "maven" {
+			spec = s
+			break
+		}
+	}
+	if spec.Slug == "" {
+		t.Fatal("hello-mvn ausente")
+	}
+	files, err := pkgexamples.Files(spec.Lang)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blob, err := packageTarball(spec, files)
+	if err != nil || len(blob) < 4 || string(blob[:2]) != "PK" {
+		t.Fatalf("jar deveria ser ZIP: %v len=%d", err, len(blob))
+	}
+}

@@ -58,6 +58,10 @@ func (a *App) authenticateGit(c *gin.Context) (store.User, bool) {
 		return a.gitUnauthorized(c)
 	}
 	if claims, err := a.Tokens.Parse(token); err == nil {
+		if auth.IsPackagesScoped(claims) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token só vale no registry de packages"})
+			return store.User{}, false
+		}
 		if basicUser != "" && !strings.EqualFold(basicUser, claims.Username) {
 			return a.gitUnauthorized(c)
 		}

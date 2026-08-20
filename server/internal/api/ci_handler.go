@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,20 @@ const (
 	maxCiLogBytes  = 2 << 20
 	ciURLHint      = "http://10.66.66.1:8080"
 )
+
+var (
+	ciSecretEnv = regexp.MustCompile(`(?i)(XVPN_PACKAGES_TOKEN|NPM_TOKEN|TWINE_PASSWORD|GEM_HOST_API_KEY)=[^\s]+`)
+	ciBearerHdr = regexp.MustCompile(`(?i)(Authorization:\s*Bearer\s+)\S+`)
+	ciJWEShape  = regexp.MustCompile(`\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b`)
+	ciAuthToken = regexp.MustCompile(`(?i)(_authToken=|--api-key\s+)\S+`)
+)
+
+func redactCiSecrets(s string) string {
+	s = ciSecretEnv.ReplaceAllString(s, "${1}=[redacted]")
+	s = ciBearerHdr.ReplaceAllString(s, "${1}[redacted]")
+	s = ciAuthToken.ReplaceAllString(s, "${1}[redacted]")
+	return ciJWEShape.ReplaceAllString(s, "[redacted]")
+}
 
 type ciJobStepJSON struct {
 	Name   string            `json:"name"`
@@ -75,8 +90,9 @@ type ciRunnerJSON struct {
 type ciClaimJSON struct {
 	ID uint `json:"id"`
 	ciJobJSON
-	Slug     string `json:"slug"`
-	CloneURL string `json:"clone_url"`
+	Slug          string `json:"slug"`
+	CloneURL      string `json:"clone_url"`
+	PackagesToken string `json:"packages_token,omitempty"`
 }
 
 type ciFinishRequest struct {
@@ -555,15 +571,56 @@ func (a *App) handleCiClaim(c *gin.Context) {
 		if err := a.Store.DB.Save(&job).Error; err != nil {
 			continue
 		}
+		token := ""
+		if a.ciScriptWantsPackagesToken(proj, job.SHA) {
+			token = a.issuePackagesTokenForJob(job, proj)
+		}
 		c.JSON(http.StatusOK, ciClaimJSON{
-			ID:        job.ID,
-			ciJobJSON: a.ciJobJSON(job),
-			Slug:      proj.Slug,
-			CloneURL:  a.projectCloneURL(proj),
+			ID:            job.ID,
+			ciJobJSON:     a.ciJobJSON(job),
+			Slug:          a.projectRepo(proj),
+			CloneURL:      a.projectCloneURL(proj),
+			PackagesToken: token,
 		})
 		return
 	}
 	c.JSON(http.StatusNoContent, nil)
+}
+
+// issuePackagesTokenForJob emite um JWE curto amarrado ao <org>/<slug>
+// do job, só se o actor existir. Sem fallback para owner.
+func (a *App) issuePackagesTokenForJob(job store.CiJob, proj store.Project) string {
+	if a == nil || a.Tokens == nil {
+		return ""
+	}
+	var u store.User
+	name := strings.TrimSpace(job.Actor)
+	if name == "" {
+		return ""
+	}
+	if err := a.Store.DB.Where("username = ?", name).First(&u).Error; err != nil {
+		return ""
+	}
+	repo := a.projectRepo(proj)
+	if repo == "" {
+		return ""
+	}
+	tok, err := a.Tokens.IssuePackages(u.ID, u.Username, u.Role, repo)
+	if err != nil {
+		return ""
+	}
+	return tok
+}
+
+func (a *App) ciScriptWantsPackagesToken(proj store.Project, sha string) bool {
+	if a.gitDir() == "" || strings.TrimSpace(sha) == "" {
+		return false
+	}
+	body, _, err := forge.ReadBlob(a.gitDir(), a.projectRepo(proj), sha, ciWorkflowPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(body), "XVPN_PACKAGES_TOKEN")
 }
 
 func (a *App) loadRunnerJob(c *gin.Context, srv store.MeshServer) (store.Project, store.CiJob, bool) {
@@ -604,6 +661,7 @@ func (a *App) handleCiLog(c *gin.Context) {
 		return
 	}
 	rel := fmt.Sprintf("ci/%d/job.log", job.Number)
+	body = []byte(redactCiSecrets(string(body)))
 	if err := a.writeCiFile(a.projectRepo(proj), rel, body); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -634,14 +692,14 @@ func (a *App) handleCiFinish(c *gin.Context) {
 	}
 	if req.Log != "" {
 		rel := fmt.Sprintf("ci/%d/job.log", job.Number)
-		if err := a.writeCiFile(a.projectRepo(proj), rel, []byte(req.Log)); err == nil {
+		if err := a.writeCiFile(a.projectRepo(proj), rel, []byte(redactCiSecrets(req.Log))); err == nil {
 			job.LogRel = rel
 		}
 	}
 	now := time.Now()
 	job.Status = st
 	job.FinishedAt = &now
-	job.Error = strings.TrimSpace(req.Error)
+	job.Error = redactCiSecrets(strings.TrimSpace(req.Error))
 	if err := a.Store.DB.Save(&job).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return

@@ -851,7 +851,7 @@ export interface XgitOverview {
   activity: XgitActivityItem[]
 }
 
-export type ForgePackageKind = 'generic' | 'npm' | 'pypi'
+export type ForgePackageKind = 'generic' | 'npm' | 'pypi' | 'maven' | 'nuget' | 'rubygems'
 
 export interface ForgePackageVersion {
   id: number

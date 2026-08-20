@@ -178,6 +178,32 @@ func TestForgePackages_RubygemsPushAndAuth(t *testing.T) {
 	}
 }
 
+func TestPackagesToken_ScopedAudience(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, _, _ = seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	var proj store.Project
+	if err := app.Store.DB.Where("slug = ?", "lab").First(&proj).Error; err != nil {
+		t.Fatal(err)
+	}
+	tok := app.issuePackagesTokenForJob(store.CiJob{Actor: "admin"}, proj)
+	if tok == "" {
+		t.Fatal("token vazio")
+	}
+	rec := doJSONPkg(t, router, http.MethodGet, "/api/projects/xcorp/lab/packages", nil, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("registry deveria aceitar aud=packages: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/projects", nil, tok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("fora do registry deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/users", nil, tok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin list deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestWorkflowPublishTemplatesOmitToken(t *testing.T) {
 	for _, tpl := range workflowTemplates {
 		if tpl.Category != "publish" {
@@ -191,6 +217,9 @@ func TestWorkflowPublishTemplatesOmitToken(t *testing.T) {
 		}
 		if !strings.Contains(tpl.Script, "XVPN_PACKAGES_TOKEN") {
 			t.Fatalf("%s deveria usar XVPN_PACKAGES_TOKEN", tpl.ID)
+		}
+		if tpl.ID == "generic-xgit" && strings.Contains(tpl.Script, `basename "$PWD"`) {
+			t.Fatal("generic-xgit não deve usar PWD (o runner clona em src/)")
 		}
 	}
 }

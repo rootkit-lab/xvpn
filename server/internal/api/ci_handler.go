@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,12 @@ const (
 	maxCiLogBytes  = 2 << 20
 	ciURLHint      = "http://10.66.66.1:8080"
 )
+
+var ciSecretEnv = regexp.MustCompile(`(?i)(XVPN_PACKAGES_TOKEN|NPM_TOKEN)=[^\s]+`)
+
+func redactCiSecrets(s string) string {
+	return ciSecretEnv.ReplaceAllString(s, "${1}=[redacted]")
+}
 
 type ciJobStepJSON struct {
 	Name   string            `json:"name"`
@@ -556,12 +563,16 @@ func (a *App) handleCiClaim(c *gin.Context) {
 		if err := a.Store.DB.Save(&job).Error; err != nil {
 			continue
 		}
+		token := ""
+		if a.ciScriptWantsPackagesToken(proj, job.SHA) {
+			token = a.issuePackagesTokenForJob(job, proj)
+		}
 		c.JSON(http.StatusOK, ciClaimJSON{
 			ID:            job.ID,
 			ciJobJSON:     a.ciJobJSON(job),
 			Slug:          a.projectRepo(proj),
 			CloneURL:      a.projectCloneURL(proj),
-			PackagesToken: a.issuePackagesTokenForJob(job, proj),
+			PackagesToken: token,
 		})
 		return
 	}
@@ -591,11 +602,22 @@ func (a *App) issuePackagesTokenForJob(job store.CiJob, proj store.Project) stri
 			return ""
 		}
 	}
-	tok, err := a.Tokens.Issue(u.ID, u.Username, u.Role)
+	tok, err := a.Tokens.IssueForTTL(u.ID, u.Username, u.Role, auth.AudPackages, 2*time.Hour)
 	if err != nil {
 		return ""
 	}
 	return tok
+}
+
+func (a *App) ciScriptWantsPackagesToken(proj store.Project, sha string) bool {
+	if a.gitDir() == "" || strings.TrimSpace(sha) == "" {
+		return false
+	}
+	body, _, err := forge.ReadBlob(a.gitDir(), a.projectRepo(proj), sha, ciWorkflowPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(body), "XVPN_PACKAGES_TOKEN")
 }
 
 func (a *App) loadRunnerJob(c *gin.Context, srv store.MeshServer) (store.Project, store.CiJob, bool) {
@@ -636,6 +658,7 @@ func (a *App) handleCiLog(c *gin.Context) {
 		return
 	}
 	rel := fmt.Sprintf("ci/%d/job.log", job.Number)
+	body = []byte(redactCiSecrets(string(body)))
 	if err := a.writeCiFile(a.projectRepo(proj), rel, body); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -666,7 +689,7 @@ func (a *App) handleCiFinish(c *gin.Context) {
 	}
 	if req.Log != "" {
 		rel := fmt.Sprintf("ci/%d/job.log", job.Number)
-		if err := a.writeCiFile(a.projectRepo(proj), rel, []byte(req.Log)); err == nil {
+		if err := a.writeCiFile(a.projectRepo(proj), rel, []byte(redactCiSecrets(req.Log))); err == nil {
 			job.LogRel = rel
 		}
 	}

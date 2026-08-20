@@ -84,8 +84,8 @@ func TestCiJobEnqueueClaimAndArtifact(t *testing.T) {
 	if claim.ID == 0 || claim.Slug != "xcorp/lab" || claim.Status != store.CiRunning {
 		t.Fatalf("claim: %+v", claim)
 	}
-	if claim.PackagesToken == "" {
-		t.Fatal("claim deveria trazer packages_token para o runner")
+	if claim.PackagesToken != "" {
+		t.Fatal("job sem XVPN_PACKAGES_TOKEN no script não deveria receber JWE")
 	}
 
 	rec = doRunner(t, router, http.MethodPost, "/api/ci/jobs/"+itoa(claim.ID)+"/log", nil, token, "10.66.66.9:9")

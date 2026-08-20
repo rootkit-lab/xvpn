@@ -296,7 +296,7 @@ func NewRouter(app *App) *gin.Engine {
 		// tabela de papéis: "member: sem telas de admin, portal
 		// mínimo").
 		authed := apiGroup.Group("")
-		authed.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB())
+		authed.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RejectPackagesScopedToken())
 		{
 			authed.GET("/auth/me", app.handleMe)
 
@@ -458,7 +458,7 @@ func NewRouter(app *App) *gin.Engine {
 		// viewerUp: leitura das telas de admin (dashboard, listas,
 		// audit) — inclui viewer, admin e super_admin.
 		viewerUp := apiGroup.Group("")
-		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.ViewerUpRoles...))
+		viewerUp.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RejectPackagesScopedToken(), auth.RequireRole(store.ViewerUpRoles...))
 		{
 			viewerUp.GET("/users", app.handleListUsers)
 			viewerUp.GET("/users/:id", app.handleGetUser)
@@ -496,7 +496,7 @@ func NewRouter(app *App) *gin.Engine {
 		// aplicada dentro de cada handler via store.Role.CanManage, não
 		// aqui no roteamento.
 		adminOnly := apiGroup.Group("")
-		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RequireRole(store.AdminRoles...))
+		adminOnly.Use(auth.RequireAuth(app.Tokens), app.refreshCallerFromDB(), auth.RejectPackagesScopedToken(), auth.RequireRole(store.AdminRoles...))
 		{
 			// IAM: create/invite/patch/reset — não é produto. Todo admin+
 			// continua gerenciando contas (CanManage + CoversAccount).

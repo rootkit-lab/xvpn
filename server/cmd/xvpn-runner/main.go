@@ -204,10 +204,7 @@ func runCmd(w io.Writer, dir, packagesToken string, name string, args ...string)
 	cmd.Stderr = w
 	env := append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
 	if tok := strings.TrimSpace(packagesToken); tok != "" {
-		env = append(env,
-			"XVPN_PACKAGES_TOKEN="+tok,
-			"NPM_TOKEN="+tok,
-		)
+		env = append(env, "XVPN_PACKAGES_TOKEN="+tok)
 	}
 	cmd.Env = env
 	return cmd.Run()

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
@@ -15,6 +16,7 @@ const (
 	ContextUsernameKey = "xvpn_username"
 	ContextRoleKey     = "xvpn_role"
 	ContextProductsKey = "xvpn_products"
+	ContextAudienceKey = "xvpn_audience"
 )
 
 // RequireAuth é o middleware Gin que valida Authorization: Bearer ou o
@@ -47,8 +49,39 @@ func RequireAuth(tm *TokenManager) gin.HandlerFunc {
 		c.Set(ContextUserIDKey, claims.UserID)
 		c.Set(ContextUsernameKey, claims.Username)
 		c.Set(ContextRoleKey, claims.Role)
+		if len(claims.Audience) > 0 {
+			c.Set(ContextAudienceKey, string(claims.Audience[0]))
+		}
 		c.Next()
 	}
+}
+
+// AudienceFromContext é o aud do JWE (vazio = sessão antiga sem claim).
+func AudienceFromContext(c *gin.Context) string {
+	v, _ := c.Get(ContextAudienceKey)
+	s, _ := v.(string)
+	return s
+}
+
+// RejectPackagesScopedToken impede que o JWE curto do runner (aud=packages)
+// chame APIs fora do registry.
+func RejectPackagesScopedToken() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if AudienceFromContext(c) != AudPackages {
+			c.Next()
+			return
+		}
+		if packagesAPIPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token só vale no registry de packages"})
+	}
+}
+
+func packagesAPIPath(p string) bool {
+	p = strings.TrimPrefix(p, "/api")
+	return p == "/xgit/packages" || strings.HasSuffix(p, "/packages") || strings.Contains(p, "/packages/")
 }
 
 // RequireRole é o middleware Gin de autorização (Fase 10 — ver PLAN.md

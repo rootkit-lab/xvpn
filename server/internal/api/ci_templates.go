@@ -146,7 +146,7 @@ var workflowTemplates = []WorkflowTemplate{
 		ID: "generic-xgit", Name: "Publish generic tarball", Category: "publish",
 		Description: "Empacota o clone e faz POST multipart. Token só no env do runner.",
 		Languages:   []string{"Shell"}, Icon: "package",
-		Script: "#!/bin/sh\nset -eu\n: \"${XVPN_PACKAGES_TOKEN:?XVPN_PACKAGES_TOKEN ausente no runner}\"\nmkdir -p ci-artifacts\ntar -czf ci-artifacts/src.tar.gz --exclude=.git --exclude=ci-artifacts .\nNAME=$(basename \"$PWD\")\ncurl -fsS -X POST -H \"Authorization: Bearer ${XVPN_PACKAGES_TOKEN}\" -F \"kind=generic\" -F \"name=${NAME}\" -F \"version=0.1.0\" -F \"file=@ci-artifacts/src.tar.gz\" \"https://xgit.corp.ihuull.com/api/projects/{{REPO}}/packages\"\n",
+		Script: "#!/bin/sh\nset -eu\n: \"${XVPN_PACKAGES_TOKEN:?XVPN_PACKAGES_TOKEN ausente no runner}\"\nmkdir -p ci-artifacts\ntar -czf ci-artifacts/src.tar.gz --exclude=.git --exclude=ci-artifacts .\nNAME=$(basename \"{{REPO}}\")\ncurl -fsS -X POST -H \"Authorization: Bearer ${XVPN_PACKAGES_TOKEN}\" -F \"kind=generic\" -F \"name=${NAME}\" -F \"version=0.1.0\" -F \"file=@ci-artifacts/src.tar.gz\" \"https://xgit.corp.ihuull.com/api/projects/{{REPO}}/packages\"\n",
 	},
 	{
 		ID: "maven-xgit", Name: "Publish Maven to XGIT", Category: "publish",

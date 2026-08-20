@@ -237,7 +237,8 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 |---|---|---|---|
 | Apex corp | `corp.ihuull.com` | `10.66.66.1:443` | Índice da intranet. `/admin` → `xadmin.corp` |
 | xadmin (console) | `xadmin.corp.ihuull.com` | `127.0.0.1:8080` (`/admin/*`) | Gerenciador geral. **Só VPN.** JWE `aud=xadmin`. Sem A público. §6.14 |
-| xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos `<org>/<slug>` (Fase 58). Packages em `/api/packages/:org/:slug/{npm,pypi,maven,nuget,rubygems,generic}` (45.1–45.3 + 59). Container registry = hostname novo só com `port-domain-registry-check` (60). Blobs em `/opt/xvpn/data/packages`. **Só VPN** (`RequirePackagesHost`). Sem A público. Sem URL plana `/<slug>`. Fase 40 + 58 |
+| xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos `<org>/<slug>` (Fase 58). Packages em `/api/packages/:org/:slug/{npm,pypi,maven,nuget,rubygems,generic}` (45.1–45.3 + 59). Container registry = `registry.corp` (60). Blobs em `/opt/xvpn/data/packages`. **Só VPN** (`RequirePackagesHost`). Sem A público. Sem URL plana `/<slug>`. Fase 40 + 58 |
+| registry (containers) | `registry.corp.ihuull.com` | `127.0.0.1:5000` (`registry:2`) via Nginx `10.66.66.1:443` | Hostname de protocolo (sem app desktop, sem `aud` marketplace). Auth JWE → `/api/registry/token`. Scope `repository:<org>/<slug>:pull\|push`. **Só VPN.** Sem A público. Sem ufw. Sem `docker.sock` no codespace. Fase 60 |
 | xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | Catálogo + editor rápido (Monaco, Fase 49). **Só VPN.** Sem A público. Sem landing pública |
 | codespace VS Code | `cs-<id>.corp.ihuull.com` | `127.0.0.1:19000–19007` (openvscode-server no container) | Um host por codespace em execução. Catch-all `*.corp` + cert `*.corp.ihuull.com`. **Só VPN.** Sem A público. Fase 50 |
 | codespace demo / ports | `demo-<nome>.corp.ihuull.com` | VIP `10.66.66.254` no `wg0` → DNAT para o IP docker0 do container (`:*` TCP/UDP) | Um rótulo (cert `*.corp`). **Não** `demo.cs-<id>.corp` (dois rótulos). Só origem `10.66.66.0/24`. Sem A público. Sem ufw. O botão Ports da Microsoft **não** entra (túnel internet). Fase 56 |
@@ -259,6 +260,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | Samba (SMB) | `10.66.66.1:445` | Bind **somente** `wg0`. `nmbd`/139 desabilitado |
 | ~~FileBrowser / :8081~~ | **retirado** | XDriver nativo no `xvpn-server`. Porta 8081 livre — não reusar sem linha nova |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via `127.0.0.1:8080` em `marketplace.ihuull.com` (e xadmin) | Sem porta nova. JWE. Nunca anônimo na internet |
+| Container registry | Disco `/opt/xvpn/data/registry` · `registry:2` em `127.0.0.1:5000` · `registry.corp` | Sem porta no ufw. Sem `0.0.0.0`. Fase 60 |
 | Forge (git bare) | Disco `/opt/xvpn/data/git/` · smart HTTP em `xgit.corp` | Só VPN. Sem `git://` público. Fase 40 |
 | XCODESPACES (editor rápido) | Disco `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` | Worktree do forge. Só VPN. Fora do bare. Sem shell no host. Fase 49 |
 | XCODESPACES (runtime) | Docker + volume `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` → `/home/workspace/project` · openvscode-server `127.0.0.1:19000–19007` | Clone ≠ HOME do IDE. Shell **só** no container. Sem `docker.sock` no container. Sem `--network=host`. Sem porta no ufw. Egress git/LLM: `--add-host` `*.corp`→`10.66.66.1`; Nginx `xgit`/`xcodespaces`/`cs-*` também `allow 172.17.0.0/16` (docker0). Sem allow em xadmin/xchat. Fases 50–51 |
@@ -744,7 +746,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Pages | Nginx + blob em `https://<org>.pages.corp.ihuull.com/<slug>` ou path no `xgit.corp` (Fase 61). Hostname novo só com `port-domain-registry-check` + §5 |
 | Editor web (arquivo único) | Monaco no blob `/edit` do XGIT; salvar = commit (ou branch + PR se a ref for protegida). Fase 48 |
 | Codespaces / IDE | App `xcodespaces.corp`: editor rápido Monaco (Fase 49) + codespace Docker / openvscode-server / clone de `<org>/<slug>` (Fase 50 + 58, §3.6). `xcs-detect` (64) lê o clone e sugere langs/comandos/portas. Sem shell no host |
-| Container registry | Fase 60 (`registry:2` / Harbor, bind wg0). Sem misturar com 59 |
+| Container registry | `registry.corp` + `registry:2` em `127.0.0.1:5000`. Sem Harbor |
 
 Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do marketplace. Regras (branch protegida, quem mergeia, `network`, `visibility`, runners) vivem no projeto. Paridade “todas as features” é meta de ciclo (ROADMAP 58 → 64), não um checkbox. Arquivos do projeto (artifacts) ficam em `/opt/xvpn/data/projects/<org>/<slug>` (`XVPN_DRIVER_PROJECTS_DIR`), expostos no XDRIVER — não no FileBrowser e, nesta fase, sem share Samba `[project-*]`. Sem fallback para slug plano: o stack ainda não está 100% em produção.
 
@@ -788,7 +790,7 @@ Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do mar
 
 **New workflow (Fase 42.2 + 59).** `/:org/:slug/actions/new?category=deployment` é a galeria do GitHub Actions (categorias + cards). `GET /api/ci/workflow-templates` e `POST /api/projects/:org/:slug/workflows` gravam `.xvpn-ci.sh`. Categoria **Publish a package**: npm / PyPI / Maven / NuGet / RubyGems contra `xgit.corp` (JWE no runner, nunca no script). Continua um job `ci`. Sem YAML multi-workflow.
 
-**Packages (Fases 45 + 59).** Registry no estilo [GitHub Packages](https://docs.github.com/en/packages): o artefacto vive **ao lado do código** no `<org>/<slug>`. Auth = JWE (o PAT do GitHub). Maven: `https://xgit.corp.ihuull.com/api/packages/<org>/<slug>/maven` (`settings.xml` + `mvn deploy`, SNAPSHOT ok). npm: `…/npm/`. PyPI Simple: `…/pypi/simple/`. NuGet: `…/nuget/index.json`. RubyGems: `…/rubygems/`. Generic: upload multipart. Containers **não** misturam neste host — Fase 60. UI da aba Packages: empty state “Get started” com um card por registry (como o GitHub).
+**Packages (Fases 45 + 59).** Registry no estilo [GitHub Packages](https://docs.github.com/en/packages): o artefacto vive **ao lado do código** no `<org>/<slug>`. Auth = JWE (o PAT do GitHub). Maven: `https://xgit.corp.ihuull.com/api/packages/<org>/<slug>/maven` (`settings.xml` + `mvn deploy`, SNAPSHOT ok). npm: `…/npm/`. PyPI Simple: `…/pypi/simple/`. NuGet: `…/nuget/index.json`. RubyGems: `…/rubygems/`. Generic: upload multipart. Containers em `registry.corp.ihuull.com` (`registry:2`, Fase 60). UI da aba Packages: empty state “Get started” com um card por registry (como o GitHub).
 
 **Pages e Wiki (Fase 61).** Pages = blob estático servido na VPN (Nginx). Wiki = tree markdown first-class no XGIT (`/:org/:slug/wiki`), não FileBrowser e não um segundo social.
 
@@ -1033,7 +1035,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **45.3 Exemplos** | hello-js/py/go/rs/bin/mvn no boot | remonta em `xcorp` na 58 |
 | **58. Organização** | `<org>/<slug>`, seed `xcorp`, times | sem path plano; codespace/seed só o novo |
 | **59. Registries + Actions publish** | Maven/NuGet/RubyGems + templates | JWE; sem Maven Central |
-| **60. Container registry** | `registry:2` / Harbor no wg0 | hostname só com §5 |
+| **60. Container registry** | `registry:2` em `registry.corp` | §5; sem Harbor |
 | **61. Pages + Wiki** | Nginx + wiki markdown no XGIT | só VPN |
 | **62. Security and quality** | policy, advisories, scan | aba no repo; runner da malha |
 | **63. Agents** | sessões do agente ihuull | não é Copilot |

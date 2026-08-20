@@ -69,8 +69,9 @@ function registryCards(org: string, slug: string): RegistryCard[] {
     {
       id: 'containers',
       title: 'Containers',
-      blurb: 'Imagens Docker não misturam neste host — Fase 60 (Harbor / registry:2 no wg0).',
-      ready: false,
+      blurb: 'registry:2 em registry.corp (só VPN). Auth = JWE.',
+      ready: true,
+      hint: `docker login registry.corp.ihuull.com\ndocker tag local:tag registry.corp.ihuull.com/${repo}:tag\ndocker push registry.corp.ihuull.com/${repo}:tag`,
     },
   ]
 }

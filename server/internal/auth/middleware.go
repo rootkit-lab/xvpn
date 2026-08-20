@@ -75,6 +75,10 @@ func RejectPackagesScopedToken() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if registryAPIPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
 		if !packagesAPIPath(c.Request.URL.Path) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token só vale no registry de packages"})
 			return
@@ -88,6 +92,11 @@ func RejectPackagesScopedToken() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func registryAPIPath(p string) bool {
+	p = strings.TrimPrefix(p, "/api")
+	return p == "/registry/token" || p == "/registry/auth" || strings.HasPrefix(p, "/registry/")
 }
 
 func packagesAPIPath(p string) bool {

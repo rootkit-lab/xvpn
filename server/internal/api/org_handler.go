@@ -95,12 +95,12 @@ func (a *App) handleGetOrg(c *gin.Context) {
 }
 
 func (a *App) handleListTeamMembers(c *gin.Context) {
-	org, _, ok := a.loadOrgParam(c)
+	org, user, ok := a.loadOrgParam(c)
 	if !ok {
 		return
 	}
 	team, found := a.orgTeam(org.ID, c.Param("team"))
-	if !found {
+	if !found || !a.canSeeTeam(user, org, team) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "time não encontrado"})
 		return
 	}

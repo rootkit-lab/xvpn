@@ -126,4 +126,13 @@ func TestAddTeamMemberRequiresManager(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("admin adiciona: %d %s", rec.Code, rec.Body.String())
 	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/orgs/xcorp/teams/packages/members", nil, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("membro do time lê roster: %d", rec.Code)
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/orgs/xcorp/teams/workflows/members", nil, aliceTok)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("time irmão deveria 404: %d", rec.Code)
+	}
 }

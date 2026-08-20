@@ -113,14 +113,30 @@ func (a *App) orgRole(user store.User, orgID uint) (store.OrgRole, bool) {
 }
 
 func (a *App) canManageOrg(user store.User, orgID uint) bool {
-	if user.Role.Rank() >= store.RoleViewer.Rank() {
-		return true
-	}
-	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
+	if user.Role.Rank() >= store.RoleAdmin.Rank() {
 		return true
 	}
 	role, ok := a.orgRole(user, orgID)
 	return ok && (role == store.OrgRoleOwner || role == store.OrgRoleAdmin)
+}
+
+func (a *App) canSeeTeam(user store.User, org store.ForgeOrganization, team store.OrgTeam) bool {
+	if user.Role.Rank() >= store.RoleViewer.Rank() {
+		return true
+	}
+	if a.isOrgMember(user, org.ID) {
+		return true
+	}
+	want := map[uint]struct{}{team.ID: {}}
+	if team.ParentID != nil {
+		want[*team.ParentID] = struct{}{}
+	}
+	for _, id := range a.readableTeamIDs(user.ID) {
+		if _, ok := want[id]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) ensureTeamMember(teamID, userID uint) {

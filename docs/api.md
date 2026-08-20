@@ -81,8 +81,8 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/xgit/settings` | sessão | defaults do forge + `clone_host` |
 | PATCH | `/api/xgit/settings` | admin + `forge` | visibility/network padrão, `allow_member_create` |
 | GET | `/api/orgs/:org` | sessão | home da org: times, repos visíveis (ACL), templates abertos no time `workflows` |
-| GET | `/api/orgs/:org/teams/:team/members` | sessão | membros do time |
-| POST | `/api/orgs/:org/teams/:team/members` | owner/admin da org ou staff | `{user_id}` |
+| GET | `/api/orgs/:org/teams/:team/members` | viewer+, OrgMember ou membro do time/pai | 404 se o caller não vê o time |
+| POST | `/api/orgs/:org/teams/:team/members` | owner/admin da org ou admin+ | `{user_id}` — `viewer` é só leitura |
 | DELETE | `/api/orgs/:org/teams/:team/members/:userID` | idem | remove do time |
 | GET | `/api/projects` | sessão | `?scope=all` (viewer+) lista todos; `?scope=mine` = ProjectMember ∪ OrgMember ∪ OrgTeamMember. `?org=&team=` filtra (`team=root` = sem time). `?cards=1` acrescenta language, last_commit, spark e stars. Member + `scope=all` → 403 |
 | GET | `/api/xgit/overview` | sessão | perfil, populares, heatmap (1 ano) e activity (commits, repos, MRs + comentários XCHAT) |

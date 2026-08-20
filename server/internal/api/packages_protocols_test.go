@@ -236,6 +236,22 @@ func TestPackagesToken_ScopedAudience(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("registry deveria aceitar aud=packages: %d %s", rec.Code, rec.Body.String())
 	}
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/xgit/packages", nil, tok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("listagem global deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec = doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "other", Name: "Other"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("other: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/xcorp/other/packages", nil, tok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("outro repo deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+	if tok := app.issuePackagesTokenForJob(store.CiJob{}, proj); tok != "" {
+		t.Fatal("actor vazio não deveria emitir token")
+	}
 	rec = doJSON(t, router, http.MethodGet, "/api/projects", nil, tok)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("fora do registry deveria 403, veio %d: %s", rec.Code, rec.Body.String())

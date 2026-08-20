@@ -34,6 +34,7 @@ type Claims struct {
 	UserID   uint       `json:"uid"`
 	Username string     `json:"username"`
 	Role     store.Role `json:"role"`
+	Repo     string     `json:"repo,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -101,11 +102,27 @@ func (t *TokenManager) IssueForTTL(userID uint, username string, role store.Role
 	if ttl == 0 {
 		ttl = time.Hour
 	}
+	return t.issue(userID, username, role, aud, ttl, "")
+}
+
+// IssuePackages emite JWE curto só para um `<org>/<slug>` (CI publish).
+func (t *TokenManager) IssuePackages(userID uint, username string, role store.Role, repo string) (string, error) {
+	return t.issue(userID, username, role, AudPackages, 2*time.Hour, repo)
+}
+
+func (t *TokenManager) issue(userID uint, username string, role store.Role, aud string, ttl time.Duration, repo string) (string, error) {
+	if aud == "" {
+		aud = AudXvpn
+	}
+	if ttl == 0 {
+		ttl = time.Hour
+	}
 	now := time.Now()
 	claims := Claims{
 		UserID:   userID,
 		Username: username,
 		Role:     role,
+		Repo:     strings.TrimSpace(repo),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    t.issuer,
 			Subject:   username,

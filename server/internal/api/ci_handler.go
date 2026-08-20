@@ -587,30 +587,25 @@ func (a *App) handleCiClaim(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-// issuePackagesTokenForJob emite um JWE curto para o actor (ou owner)
-// do job. O runner exporta XVPN_PACKAGES_TOKEN — o .xvpn-ci.sh nunca
-// recebe o token interpolado.
+// issuePackagesTokenForJob emite um JWE curto amarrado ao <org>/<slug>
+// do job, só se o actor existir. Sem fallback para owner.
 func (a *App) issuePackagesTokenForJob(job store.CiJob, proj store.Project) string {
 	if a == nil || a.Tokens == nil {
 		return ""
 	}
 	var u store.User
-	if name := strings.TrimSpace(job.Actor); name != "" {
-		if err := a.Store.DB.Where("username = ?", name).First(&u).Error; err != nil {
-			u = store.User{}
-		}
+	name := strings.TrimSpace(job.Actor)
+	if name == "" {
+		return ""
 	}
-	if u.ID == 0 {
-		var mem store.ProjectMember
-		if err := a.Store.DB.Where("project_id = ? AND role = ?", proj.ID, store.ProjectRoleOwner).
-			First(&mem).Error; err != nil {
-			return ""
-		}
-		if err := a.Store.DB.First(&u, mem.UserID).Error; err != nil {
-			return ""
-		}
+	if err := a.Store.DB.Where("username = ?", name).First(&u).Error; err != nil {
+		return ""
 	}
-	tok, err := a.Tokens.IssueForTTL(u.ID, u.Username, u.Role, auth.AudPackages, 2*time.Hour)
+	repo := a.projectRepo(proj)
+	if repo == "" {
+		return ""
+	}
+	tok, err := a.Tokens.IssuePackages(u.ID, u.Username, u.Role, repo)
 	if err != nil {
 		return ""
 	}

@@ -57,11 +57,17 @@ func uploadProjectPackage(t *testing.T, router http.Handler, token, slug, name, 
 	}
 	_ = w.Close()
 	req := httptest.NewRequest(http.MethodPost, "/api/projects/"+slug+"/packages", &buf)
+	req.Host = "xgit.corp.ihuull.com"
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	return rec
+}
+
+func doJSONPkg(t *testing.T, router http.Handler, method, path string, body any, token string) *httptest.ResponseRecorder {
+	t.Helper()
+	return doJSONHost(t, router, method, path, body, token, "xgit.corp.ihuull.com")
 }
 
 func TestForgePackages_UploadListDownloadACL(t *testing.T) {
@@ -76,7 +82,7 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 		t.Fatalf("upload: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/packages", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/lab/packages", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
 	}
@@ -96,6 +102,7 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 	vid := listed.Items[0].Versions[0].ID
 
 	req := httptest.NewRequest(http.MethodGet, "/api/projects/lab/packages/"+strconv.FormatUint(uint64(vid), 10)+"/download", nil)
+	req.Host = "xgit.corp.ihuull.com"
 	req.Header.Set("Authorization", "Bearer "+aliceTok)
 	dl := httptest.NewRecorder()
 	router.ServeHTTP(dl, req)
@@ -111,7 +118,7 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 		t.Fatalf("reupload diferente deveria 409, veio %d: %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/xgit/packages", nil, eveTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/xgit/packages", nil, eveTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("home eve: %d %s", rec.Code, rec.Body.String())
 	}
@@ -125,7 +132,7 @@ func TestForgePackages_UploadListDownloadACL(t *testing.T) {
 		t.Fatalf("eve não deveria ver packages do lab: %+v", home.Items)
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/projects/lab/packages", nil, eveTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/lab/packages", nil, eveTok)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("eve list projeto deveria 404, veio %d: %s", rec.Code, rec.Body.String())
 	}
@@ -164,12 +171,12 @@ func TestForgePackages_NpmPublishAndPackument(t *testing.T) {
 			},
 		},
 	}
-	rec := doJSON(t, router, http.MethodPut, "/api/packages/lab/npm/hello", body, aliceTok)
+	rec := doJSONPkg(t, router, http.MethodPut, "/api/packages/lab/npm/hello", body, aliceTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("npm publish: %d %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, router, http.MethodGet, "/api/packages/lab/npm/hello", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/npm/hello", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("packument: %d %s", rec.Code, rec.Body.String())
 	}
@@ -205,12 +212,69 @@ func TestForgePackages_NpmPublishAndPackument(t *testing.T) {
 			},
 		},
 	}
-	rec = doJSON(t, router, http.MethodPut, "/api/packages/lab/npm/@ihuull/hello", scoped, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodPut, "/api/packages/lab/npm/@ihuull/hello", scoped, aliceTok)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("scoped publish: %d %s", rec.Code, rec.Body.String())
 	}
-	rec = doJSON(t, router, http.MethodGet, "/api/packages/lab/npm/@ihuull/hello", nil, aliceTok)
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/packages/lab/npm/@ihuull/hello", nil, aliceTok)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("scoped packument: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestForgePackages_PublicHostRejected(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	rec := doJSONHost(t, router, http.MethodGet, "/api/xgit/packages", nil, aliceTok, "xvpn.ihuull.com")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("host público deveria 404, veio %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSONHost(t, router, http.MethodGet, "/api/xgit/packages", nil, aliceTok, "xadmin.corp.ihuull.com")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("xadmin deveria listar, veio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestForgePackages_SharedBlobNotDeletedOnConflict(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	same := []byte("shared-bytes")
+	rec := uploadProjectPackage(t, router, aliceTok, "lab", "alpha", "1.0.0", "generic", "a.bin", same)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("alpha: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = uploadProjectPackage(t, router, aliceTok, "lab", "beta", "1.0.0", "generic", "b.bin", same)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("beta: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = uploadProjectPackage(t, router, aliceTok, "lab", "beta", "1.0.0", "generic", "b.bin", []byte("other-bytes"))
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("conflict: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSONPkg(t, router, http.MethodGet, "/api/projects/lab/packages", nil, aliceTok)
+	var listed struct {
+		Items []forgePackageJSON `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	var alphaID uint
+	for _, pkg := range listed.Items {
+		if pkg.Name == "alpha" && len(pkg.Versions) > 0 {
+			alphaID = pkg.Versions[0].ID
+		}
+	}
+	if alphaID == 0 {
+		t.Fatalf("alpha sumiu: %+v", listed.Items)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/projects/lab/packages/"+strconv.FormatUint(uint64(alphaID), 10)+"/download", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	dl := httptest.NewRecorder()
+	router.ServeHTTP(dl, req)
+	if dl.Code != http.StatusOK || dl.Body.String() != "shared-bytes" {
+		t.Fatalf("blob partilhado não deveria ser apagado: %d %q", dl.Code, dl.Body.String())
 	}
 }

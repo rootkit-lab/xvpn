@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -56,6 +57,33 @@ type forgePackageJSON struct {
 	Versions    []forgePackageVersionJSON `json:"versions"`
 	RegistryURL string                    `json:"registry_url,omitempty"`
 	CanPublish  bool                      `json:"can_publish"`
+}
+
+func packagesHostOK(host string) bool {
+	h, _, err := net.SplitHostPort(host)
+	if err != nil {
+		h = host
+	}
+	h = strings.ToLower(h)
+	switch h {
+	case "xgit.corp.ihuull.com", "xgit.corp.localhost",
+		"xadmin.corp.ihuull.com", "xadmin.corp.localhost":
+		return true
+	default:
+		return false
+	}
+}
+
+// RequirePackagesHost impede que o registry (PLAN §5: só VPN) responda em
+// hosts públicos (xvpn.ihuull.com etc.) mesmo com JWE válido. UI: xgit + xadmin.
+func (a *App) RequirePackagesHost() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !packagesHostOK(c.Request.Host) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "não encontrado"})
+			return
+		}
+		c.Next()
+	}
 }
 
 func (a *App) handleListForgePackages(c *gin.Context) {
@@ -372,14 +400,14 @@ func (a *App) publishPackageBytes(user store.User, proj store.Project, kind stor
 	if err != nil {
 		pkg = store.ForgePackage{ProjectID: proj.ID, Kind: kind, Name: name}
 		if err := a.Store.DB.Create(&pkg).Error; err != nil {
-			_ = a.Packages.Remove(result.RelPath)
+			a.removeOrphanPackageBlob(result.RelPath)
 			return forgePackageJSON{}, err
 		}
 	}
 	var existing store.ForgePackageVersion
 	if err := a.Store.DB.Where("package_id = ? AND version = ?", pkg.ID, version).First(&existing).Error; err == nil {
 		if existing.SHA256 != result.SHA256 {
-			_ = a.Packages.Remove(result.RelPath)
+			a.removeOrphanPackageBlob(result.RelPath)
 			return forgePackageJSON{}, errPackageExists
 		}
 		return a.forgePackageJSON(user, proj, pkg, true), nil
@@ -397,13 +425,33 @@ func (a *App) publishPackageBytes(user store.User, proj store.Project, kind stor
 		PublishedByID: user.ID,
 	}
 	if err := a.Store.DB.Create(&ver).Error; err != nil {
-		_ = a.Packages.Remove(result.RelPath)
+		a.removeOrphanPackageBlob(result.RelPath)
 		return forgePackageJSON{}, err
 	}
 	_ = a.Store.DB.Model(&pkg).Update("updated_at", time.Now()).Error
 	_ = a.Store.LogAudit(user.Username, "forge.package_publish",
 		"slug="+proj.Slug+" kind="+string(kind)+" name="+name+" version="+version)
 	return a.forgePackageJSON(user, proj, pkg, true), nil
+}
+
+// removeOrphanPackageBlob só apaga o ficheiro se nenhuma versão ainda
+// aponta para o RelPath — o store é content-addressed e dois packages
+// podem partilhar o mesmo blob.
+func (a *App) removeOrphanPackageBlob(relPath string) {
+	if a.Packages == nil || relPath == "" {
+		return
+	}
+	var count int64
+	if err := a.Store.DB.Model(&store.ForgePackageVersion{}).Where("storage_path = ?", relPath).Count(&count).Error; err != nil {
+		slog.Error("falha ao checar referências de package blob", "err", err)
+		return
+	}
+	if count > 0 {
+		return
+	}
+	if err := a.Packages.Remove(relPath); err != nil {
+		slog.Error("falha ao remover package blob órfão", "path", relPath, "err", err)
+	}
 }
 
 type packageError string

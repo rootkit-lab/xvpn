@@ -1350,7 +1350,7 @@ export const api = {
       commit_count?: number
       tags?: string[]
       languages?: GitLangStat[]
-    }>(projectAPI(slug, `/tree${qs ? `?${qs}` : ''}`)
+    }>(projectAPI(slug, `/tree${qs ? `?${qs}` : ''}`))
   },
   getProjectBlob: (slug: string, path: string, ref?: string) => {
     const q = new URLSearchParams({ path })
@@ -1364,7 +1364,7 @@ export const api = {
     if (ref) q.set('ref', ref)
     if (path) q.set('path', path)
     const qs = q.toString()
-    return request<{ items: GitCommit[] }>(projectAPI(slug, `/commits${qs ? `?${qs}` : ''}`)
+    return request<{ items: GitCommit[] }>(projectAPI(slug, `/commits${qs ? `?${qs}` : ''}`))
   },
   getProject: (slug: string) => request<Project>(projectAPI(slug, ``)),
   createProject: (body: {
@@ -1467,7 +1467,7 @@ export const api = {
     if (opts?.milestone) q.set('milestone', String(opts.milestone))
     if (opts?.sort) q.set('sort', opts.sort)
     const qs = q.toString()
-    return request<IssueList>(projectAPI(slug, `/issues${qs ? `?${qs}` : ''}`)
+    return request<IssueList>(projectAPI(slug, `/issues${qs ? `?${qs}` : ''}`))
   },
   getIssue: (slug: string, n: number) =>
     request<Issue>(projectAPI(slug, `/issues/${n}`)),
@@ -1509,7 +1509,7 @@ export const api = {
     if (opts?.status) q.set('status', opts.status)
     if (opts?.q) q.set('q', opts.q)
     const qs = q.toString()
-    return request<{ items: WorkProject[] }>(projectAPI(slug, `/work-projects${qs ? `?${qs}` : ''}`)
+    return request<{ items: WorkProject[] }>(projectAPI(slug, `/work-projects${qs ? `?${qs}` : ''}`))
   },
   getWorkProject: (slug: string, n: number) =>
     request<WorkProject>(projectAPI(slug, `/work-projects/${n}`)),
@@ -1612,7 +1612,7 @@ export const api = {
     if (mr) q.set('mr', String(mr))
     const qs = q.toString()
     return request<{ items: CiJob[]; workflows: CiWorkflow[] }>(
-      projectAPI(slug, `/jobs${qs ? `?${qs}` : ''}`,
+      projectAPI(slug, `/jobs${qs ? `?${qs}` : ''}`),
     )
   },
   getCiJob: (slug: string, n: number) =>

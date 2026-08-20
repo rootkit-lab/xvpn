@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,9 +17,12 @@ import (
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
+var errForeignExampleSlug = errors.New("slug já pertence a outro projeto")
+
 // SeedLanguagePackageExamples cria os repos hello-* no XGIT e publica
-// o artefacto de cada linguagem (Fase 45.3). Idempotente: se o slug ou
-// a versão já existem, só garante membros guest e o git vazio.
+// o artefacto de cada linguagem (Fase 45.3). Idempotente. Se o slug já
+// existir e não for o exemplo do seed (descrição + owner), o boot
+// não toca no repo nem alarga guests.
 func (a *App) SeedLanguagePackageExamples() error {
 	if a == nil || a.Store == nil || a.Packages == nil {
 		return nil
@@ -43,6 +47,10 @@ func (a *App) seedOneLanguageExample(owner store.User, spec pkgexamples.Spec) er
 		return fmt.Errorf("embed %s: %w", spec.Lang, err)
 	}
 	proj, err := a.ensureExampleProject(owner, spec)
+	if errors.Is(err, errForeignExampleSlug) {
+		slog.Warn("seed pulou slug ocupado por outro projeto", "slug", spec.Slug)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -83,10 +91,24 @@ func (a *App) ensureExampleProject(owner store.User, spec pkgexamples.Spec) (sto
 	var existing store.Project
 	err := a.Store.DB.Where("slug = ?", spec.Slug).First(&existing).Error
 	if err == nil {
+		if !a.isOwnedSeedExample(existing, owner, spec) {
+			return store.Project{}, errForeignExampleSlug
+		}
 		return existing, nil
 	}
 	return a.createProject(owner.ID, spec.Slug, spec.Title, spec.Description,
 		store.AppVisibilityGlobal, store.AppNetworkVPN, nil, false)
+}
+
+func (a *App) isOwnedSeedExample(proj store.Project, owner store.User, spec pkgexamples.Spec) bool {
+	if proj.Description != spec.Description {
+		return false
+	}
+	var n int64
+	_ = a.Store.DB.Model(&store.ProjectMember{}).
+		Where("project_id = ? AND user_id = ? AND role = ?", proj.ID, owner.ID, store.ProjectRoleOwner).
+		Count(&n).Error
+	return n > 0
 }
 
 func (a *App) ensureExampleGuests(proj store.Project) {

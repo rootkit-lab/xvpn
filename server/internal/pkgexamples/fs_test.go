@@ -2,6 +2,12 @@ package pkgexamples
 
 import "testing"
 
+func TestIsExampleSlug(t *testing.T) {
+	if !IsExampleSlug("hello-js") || IsExampleSlug("xvpn") {
+		t.Fatal("IsExampleSlug")
+	}
+}
+
 func TestFilesStripSrcAndIncludeCI(t *testing.T) {
 	files, err := Files(Go)
 	if err != nil {

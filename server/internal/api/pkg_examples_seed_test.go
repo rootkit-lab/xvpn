@@ -1,6 +1,7 @@
 package api
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/rootkit-lab/xvpn/server/internal/pkgexamples"
@@ -45,6 +46,53 @@ func TestSeedLanguagePackageExamplesIdempotent(t *testing.T) {
 	}
 	if guests < int64(len(pkgexamples.Specs)) {
 		t.Fatalf("alice guest em %d exemplos", guests)
+	}
+}
+
+func TestSeedSkipsForeignHelloSlug(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.Config.GitDir = t.TempDir()
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	alice := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	if _, err := app.createProject(alice.ID, "hello-js", "mine", "repo da alice",
+		store.AppVisibilityRestricted, store.AppNetworkVPN, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.SeedLanguagePackageExamples(); err != nil {
+		t.Fatal(err)
+	}
+	var proj store.Project
+	if err := app.Store.DB.Where("slug = ?", "hello-js").First(&proj).Error; err != nil {
+		t.Fatal(err)
+	}
+	if proj.Description != "repo da alice" {
+		t.Fatalf("seed sobrescreveu: %q", proj.Description)
+	}
+	var guests int64
+	if err := app.Store.DB.Model(&store.ProjectMember{}).
+		Where("project_id = ? AND role = ?", proj.ID, store.ProjectRoleGuest).Count(&guests).Error; err != nil {
+		t.Fatal(err)
+	}
+	if guests != 0 {
+		t.Fatalf("não deveria alargar guests: %d", guests)
+	}
+	var pkgs int64
+	if err := app.Store.DB.Model(&store.ForgePackage{}).Where("name = ?", "@ihuull/hello-js").Count(&pkgs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if pkgs != 0 {
+		t.Fatal("não deveria publicar no repo alheio")
+	}
+}
+
+func TestCreateProjectRejectsExampleSlug(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Slug: "hello-js", Name: "x"}, tok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("create hello-js: %d %s", rec.Code, rec.Body.String())
 	}
 }
 

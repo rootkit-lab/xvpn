@@ -73,6 +73,17 @@ var Specs = []Spec{
 	},
 }
 
+// IsExampleSlug é true para os slugs do seed (hello-js, …). O create
+// HTTP recusa-os para um membro não ocupar o exemplo antes do boot.
+func IsExampleSlug(s string) bool {
+	for _, spec := range Specs {
+		if spec.Slug == s {
+			return true
+		}
+	}
+	return false
+}
+
 // Files devolve path → conteúdo de texto da pasta do exemplo.
 func Files(lang Lang) (map[string]string, error) {
 	root := "fs/" + string(lang)

@@ -345,6 +345,30 @@ func TestForgePackages_PypiSimpleAndUpload(t *testing.T) {
 	}
 }
 
+func TestForgePackages_PublicXFFRejected(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, aliceTok, _ := seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	req := httptest.NewRequest(http.MethodGet, "/api/xgit/packages", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	req.Header.Set("X-Forwarded-For", "8.8.8.8")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("XFF público deveria 404, veio %d: %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/xgit/packages", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.Header.Set("Authorization", "Bearer "+aliceTok)
+	req.Header.Set("X-Forwarded-For", "203.0.113.10, 10.66.66.2")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("XFF wg0 deveria passar, veio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestForgePackages_BasicJWE(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

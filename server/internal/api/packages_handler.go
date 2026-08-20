@@ -80,12 +80,36 @@ func packagesHostOK(host string) bool {
 // hosts públicos (xvpn.ihuull.com etc.) mesmo com JWE válido. UI: xgit + xadmin.
 func (a *App) RequirePackagesHost() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !packagesHostOK(c.Request.Host) {
+		if !packagesHostOK(c.Request.Host) || !packagesForwardedFromMesh(c) {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "não encontrado"})
 			return
 		}
 		c.Next()
 	}
+}
+
+// packagesForwardedFromMesh: se o Nginx mandou X-Forwarded-For, o último
+// hop tem de ser wg0 ou loopback. Impede Host: xgit.corp num vhost público
+// (proxy_set_header Host $host) de abrir o registry na internet.
+func packagesForwardedFromMesh(c *gin.Context) bool {
+	xff := strings.TrimSpace(c.GetHeader("X-Forwarded-For"))
+	if xff == "" {
+		return true
+	}
+	parts := strings.Split(xff, ",")
+	last := strings.TrimSpace(parts[len(parts)-1])
+	ip := net.ParseIP(last)
+	if ip == nil {
+		return false
+	}
+	if ip.IsLoopback() {
+		return true
+	}
+	_, wg, err := net.ParseCIDR("10.66.66.0/24")
+	if err != nil {
+		return false
+	}
+	return wg.Contains(ip)
 }
 
 func (a *App) handleListForgePackages(c *gin.Context) {

@@ -2,7 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Copy, Download, Package } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, ApiError, getToken, type ForgePackage, type ForgePackageKind } from '@/lib/api'
+import { api, ApiError, type ForgePackage, type ForgePackageKind } from '@/lib/api'
 import { formatBytes, formatRelativeTime } from '@/lib/format'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { xgitPath } from '@/lib/xgit'
@@ -79,12 +79,11 @@ function PublishForm({ slug, onPublished }: { slug: string; onPublished: () => v
     }
   }
 
-  const token = getToken() ?? ''
   const npmRegistry = `https://xgit.corp.ihuull.com/api/packages/${slug}/npm/`
   const pypiSimple = `https://xgit.corp.ihuull.com/api/packages/${slug}/pypi/simple/`
   const npmHint = `npm publish --registry ${npmRegistry}`
-  const pipHint = `pip install <pkg> --index-url https://alice:${token || '<JWE>'}@xgit.corp.ihuull.com/api/packages/${slug}/pypi/simple/`
-  const twineHint = `twine upload --repository-url https://xgit.corp.ihuull.com/api/packages/${slug}/pypi -u alice -p ${token || '<JWE>'} dist/*`
+  const pipHint = `pip install <pkg> --index-url https://<user>:<JWE>@xgit.corp.ihuull.com/api/packages/${slug}/pypi/simple/`
+  const twineHint = `twine upload --repository-url https://xgit.corp.ihuull.com/api/packages/${slug}/pypi -u <user> -p <JWE> dist/*`
   const cliHint = kind === 'pypi' ? pipHint : npmHint
   const copyText = kind === 'pypi' ? `${twineHint}\n${pipHint}` : `${npmHint}`
 

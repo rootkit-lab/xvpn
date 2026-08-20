@@ -647,6 +647,9 @@ func (a *App) bindJWELLM(c *gin.Context) bool {
 	if err != nil {
 		return false
 	}
+	if auth.IsPackagesScoped(claims) {
+		return false
+	}
 	c.Set(auth.ContextUserIDKey, claims.UserID)
 	c.Set(auth.ContextUsernameKey, claims.Username)
 	c.Set(auth.ContextRoleKey, claims.Role)

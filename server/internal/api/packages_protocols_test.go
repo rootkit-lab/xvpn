@@ -178,6 +178,48 @@ func TestForgePackages_RubygemsPushAndAuth(t *testing.T) {
 	}
 }
 
+func TestParseTrailingSemver_PlatformGem(t *testing.T) {
+	name, ver, ok := parseTrailingSemver("hello-0.1.0-x86_64-linux")
+	if !ok || name != "hello" || ver != "0.1.0" {
+		t.Fatalf("platform gem: %q %q %v", name, ver, ok)
+	}
+	name, ver, ok = parseTrailingSemver("hello-ihuull-0.1.0")
+	if !ok || name != "hello-ihuull" || ver != "0.1.0" {
+		t.Fatalf("plain gem: %q %q %v", name, ver, ok)
+	}
+	name, ver, ok = parseTrailingSemver("hello.1.2.3")
+	if !ok || name != "hello" || ver != "1.2.3" {
+		t.Fatalf("nuget: %q %q %v", name, ver, ok)
+	}
+}
+
+func TestRedactCiSecrets(t *testing.T) {
+	in := "XVPN_PACKAGES_TOKEN=abc\nAuthorization: Bearer eyJ.a.b.c.d\necho eyJhbGciOi.aaa.bbb.ccc.ddd\n"
+	out := redactCiSecrets(in)
+	if strings.Contains(out, "abc") || strings.Contains(out, "eyJ") {
+		t.Fatalf("não redigiu: %q", out)
+	}
+}
+
+func TestPackagesToken_RejectedOnGit(t *testing.T) {
+	app, _ := newTestApp(t)
+	router := NewRouter(app)
+	_, _, _ = seedLabWithAlice(t, app, router, store.ProjectRoleDeveloper)
+	var proj store.Project
+	if err := app.Store.DB.Where("slug = ?", "lab").First(&proj).Error; err != nil {
+		t.Fatal(err)
+	}
+	tok := app.issuePackagesTokenForJob(store.CiJob{Actor: "admin"}, proj)
+	req := httptest.NewRequest(http.MethodGet, "/xcorp/lab/info/refs?service=git-upload-pack", nil)
+	req.Host = "xgit.corp.ihuull.com"
+	req.SetBasicAuth("admin", tok)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("git com aud=packages deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPackagesToken_ScopedAudience(t *testing.T) {
 	app, _ := newTestApp(t)
 	router := NewRouter(app)

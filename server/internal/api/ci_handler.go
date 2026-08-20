@@ -29,10 +29,18 @@ const (
 	ciURLHint      = "http://10.66.66.1:8080"
 )
 
-var ciSecretEnv = regexp.MustCompile(`(?i)(XVPN_PACKAGES_TOKEN|NPM_TOKEN)=[^\s]+`)
+var (
+	ciSecretEnv = regexp.MustCompile(`(?i)(XVPN_PACKAGES_TOKEN|NPM_TOKEN|TWINE_PASSWORD|GEM_HOST_API_KEY)=[^\s]+`)
+	ciBearerHdr = regexp.MustCompile(`(?i)(Authorization:\s*Bearer\s+)\S+`)
+	ciJWEShape  = regexp.MustCompile(`\b[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b`)
+	ciAuthToken = regexp.MustCompile(`(?i)(_authToken=|--api-key\s+)\S+`)
+)
 
 func redactCiSecrets(s string) string {
-	return ciSecretEnv.ReplaceAllString(s, "${1}=[redacted]")
+	s = ciSecretEnv.ReplaceAllString(s, "${1}=[redacted]")
+	s = ciBearerHdr.ReplaceAllString(s, "${1}[redacted]")
+	s = ciAuthToken.ReplaceAllString(s, "${1}[redacted]")
+	return ciJWEShape.ReplaceAllString(s, "[redacted]")
 }
 
 type ciJobStepJSON struct {
@@ -696,7 +704,7 @@ func (a *App) handleCiFinish(c *gin.Context) {
 	now := time.Now()
 	job.Status = st
 	job.FinishedAt = &now
-	job.Error = strings.TrimSpace(req.Error)
+	job.Error = redactCiSecrets(strings.TrimSpace(req.Error))
 	if err := a.Store.DB.Save(&job).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return

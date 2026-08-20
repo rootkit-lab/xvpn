@@ -8,6 +8,7 @@ import (
 	"encoding/xml"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -588,18 +589,34 @@ func parseTrailingSemver(base string) (name, version string, ok bool) {
 	if base == "" {
 		return "", "", false
 	}
-	for i := 0; i < len(base); i++ {
-		if base[i] != '-' && base[i] != '.' {
-			continue
-		}
-		cand := strings.TrimLeft(base[i+1:], "")
-		if packageVersion.MatchString(cand) {
-			n := strings.Trim(base[:i], "-.")
-			if n == "" {
-				continue
-			}
-			return n, cand, true
+	loc := trailingSemverCore.FindStringIndex(base)
+	if loc == nil {
+		return "", "", false
+	}
+	version = base[loc[0]:loc[1]]
+	rest := base[loc[1]:]
+	if strings.HasPrefix(rest, "-") || strings.HasPrefix(rest, "+") {
+		pre := rest[1:]
+		seg, _, _ := strings.Cut(pre, "-")
+		if seg != "" && !looksPlatformQualifier(seg) && packageVersion.MatchString(version+rest[:1]+seg) {
+			version += rest[:1] + seg
 		}
 	}
-	return "", "", false
+	name = strings.Trim(base[:loc[0]], "-.")
+	if name == "" {
+		return "", "", false
+	}
+	return name, version, true
+}
+
+var trailingSemverCore = regexp.MustCompile(`v?[0-9]+\.[0-9]+\.[0-9]+`)
+
+func looksPlatformQualifier(s string) bool {
+	s = strings.ToLower(s)
+	for _, p := range []string{"linux", "darwin", "windows", "mingw", "musl", "gnu", "java", "x86", "x64", "arm", "aarch", "osx", "macos"} {
+		if strings.Contains(s, p) {
+			return true
+		}
+	}
+	return false
 }

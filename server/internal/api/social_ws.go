@@ -53,6 +53,10 @@ func (a *App) handleSocialWS(c *gin.Context) {
 		_ = conn.WriteJSON(gin.H{"type": "error", "payload": "token inválido"})
 		return
 	}
+	if auth.IsPackagesScoped(claims) {
+		_ = conn.WriteJSON(gin.H{"type": "error", "payload": "token só vale no registry de packages"})
+		return
+	}
 	_ = conn.SetReadDeadline(time.Time{})
 
 	if a.Hub == nil {

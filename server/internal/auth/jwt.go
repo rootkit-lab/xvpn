@@ -155,6 +155,10 @@ func (t *TokenManager) Parse(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
+func IsPackagesScoped(c *Claims) bool {
+	return c != nil && len(c.Audience) > 0 && c.Audience[0] == AudPackages
+}
+
 func NormalizeAudience(aud string) string {
 	switch strings.ToLower(strings.TrimSpace(aud)) {
 	case AudXchat:

@@ -97,6 +97,10 @@ func (a *App) serveCodespaceRuntime(c *gin.Context, id string) {
 		c.Redirect(http.StatusFound, codespaceLoginURL(codespaceRuntimeURL(id)))
 		return
 	}
+	if auth.IsPackagesScoped(claims) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token só vale no registry de packages"})
+		return
+	}
 	var user store.User
 	if err := a.Store.DB.First(&user, claims.UserID).Error; err != nil {
 		c.AbortWithStatus(http.StatusUnauthorized)

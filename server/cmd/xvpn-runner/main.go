@@ -50,12 +50,13 @@ func main() {
 }
 
 type claimJob struct {
-	ID       uint   `json:"id"`
-	Number   uint   `json:"number"`
-	Slug     string `json:"slug"`
-	SHA      string `json:"sha"`
-	Ref      string `json:"ref"`
-	CloneURL string `json:"clone_url"`
+	ID            uint   `json:"id"`
+	Number        uint   `json:"number"`
+	Slug          string `json:"slug"`
+	SHA           string `json:"sha"`
+	Ref           string `json:"ref"`
+	CloneURL      string `json:"clone_url"`
+	PackagesToken string `json:"packages_token"`
 }
 
 func claim(c *http.Client, base, token string) (*claimJob, error) {
@@ -101,12 +102,12 @@ func runJob(job *claimJob, token, gitHost string) (status, logText, artifact str
 		clone = "https://runner:" + token + "@" + u
 	}
 	var buf bytes.Buffer
-	if err := runCmd(&buf, work, "git", "clone", "--depth", "50", clone, src); err != nil {
+	if err := runCmd(&buf, work, "", "git", "clone", "--depth", "50", clone, src); err != nil {
 		return "failed", buf.String() + "\n" + err.Error(), ""
 	}
 	if job.SHA != "" {
-		_ = runCmd(&buf, src, "git", "fetch", "--depth", "50", "origin", job.SHA)
-		if err := runCmd(&buf, src, "git", "checkout", job.SHA); err != nil {
+		_ = runCmd(&buf, src, "", "git", "fetch", "--depth", "50", "origin", job.SHA)
+		if err := runCmd(&buf, src, "", "git", "checkout", job.SHA); err != nil {
 			return "failed", buf.String() + "\n" + err.Error(), ""
 		}
 	}
@@ -114,7 +115,7 @@ func runJob(job *claimJob, token, gitHost string) (status, logText, artifact str
 	if _, err := os.Stat(script); err != nil {
 		_ = os.WriteFile(script, []byte("#!/bin/sh\necho ok\n"), 0o755)
 	}
-	if err := runCmd(&buf, src, "sh", script); err != nil {
+	if err := runCmd(&buf, src, job.PackagesToken, "sh", script); err != nil {
 		return "failed", buf.String(), packArtifacts(src)
 	}
 	return "success", buf.String(), packArtifacts(src)
@@ -126,7 +127,7 @@ func packArtifacts(src string) string {
 		return ""
 	}
 	out := filepath.Join(os.TempDir(), fmt.Sprintf("xvpn-art-%d.tar", time.Now().UnixNano()))
-	if err := runCmd(io.Discard, src, "tar", "-cf", out, "ci-artifacts"); err != nil {
+	if err := runCmd(io.Discard, src, "", "tar", "-cf", out, "ci-artifacts"); err != nil {
 		return ""
 	}
 	return out
@@ -196,12 +197,19 @@ func putArtifact(c *http.Client, base, token string, id uint, path string) error
 	return nil
 }
 
-func runCmd(w io.Writer, dir string, name string, args ...string) error {
+func runCmd(w io.Writer, dir, packagesToken string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = w
 	cmd.Stderr = w
-	cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
+	env := append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1")
+	if tok := strings.TrimSpace(packagesToken); tok != "" {
+		env = append(env,
+			"XVPN_PACKAGES_TOKEN="+tok,
+			"NPM_TOKEN="+tok,
+		)
+	}
+	cmd.Env = env
 	return cmd.Run()
 }
 

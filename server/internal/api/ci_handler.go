@@ -75,8 +75,9 @@ type ciRunnerJSON struct {
 type ciClaimJSON struct {
 	ID uint `json:"id"`
 	ciJobJSON
-	Slug     string `json:"slug"`
-	CloneURL string `json:"clone_url"`
+	Slug          string `json:"slug"`
+	CloneURL      string `json:"clone_url"`
+	PackagesToken string `json:"packages_token,omitempty"`
 }
 
 type ciFinishRequest struct {
@@ -556,14 +557,45 @@ func (a *App) handleCiClaim(c *gin.Context) {
 			continue
 		}
 		c.JSON(http.StatusOK, ciClaimJSON{
-			ID:        job.ID,
-			ciJobJSON: a.ciJobJSON(job),
-			Slug:      proj.Slug,
-			CloneURL:  a.projectCloneURL(proj),
+			ID:            job.ID,
+			ciJobJSON:     a.ciJobJSON(job),
+			Slug:          a.projectRepo(proj),
+			CloneURL:      a.projectCloneURL(proj),
+			PackagesToken: a.issuePackagesTokenForJob(job, proj),
 		})
 		return
 	}
 	c.JSON(http.StatusNoContent, nil)
+}
+
+// issuePackagesTokenForJob emite um JWE curto para o actor (ou owner)
+// do job. O runner exporta XVPN_PACKAGES_TOKEN — o .xvpn-ci.sh nunca
+// recebe o token interpolado.
+func (a *App) issuePackagesTokenForJob(job store.CiJob, proj store.Project) string {
+	if a == nil || a.Tokens == nil {
+		return ""
+	}
+	var u store.User
+	if name := strings.TrimSpace(job.Actor); name != "" {
+		if err := a.Store.DB.Where("username = ?", name).First(&u).Error; err != nil {
+			u = store.User{}
+		}
+	}
+	if u.ID == 0 {
+		var mem store.ProjectMember
+		if err := a.Store.DB.Where("project_id = ? AND role = ?", proj.ID, store.ProjectRoleOwner).
+			First(&mem).Error; err != nil {
+			return ""
+		}
+		if err := a.Store.DB.First(&u, mem.UserID).Error; err != nil {
+			return ""
+		}
+	}
+	tok, err := a.Tokens.Issue(u.ID, u.Username, u.Role)
+	if err != nil {
+		return ""
+	}
+	return tok
 }
 
 func (a *App) loadRunnerJob(c *gin.Context, srv store.MeshServer) (store.Project, store.CiJob, bool) {

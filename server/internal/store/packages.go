@@ -6,13 +6,22 @@ import "time"
 type ForgePackageKind string
 
 const (
-	ForgePackageKindGeneric ForgePackageKind = "generic"
-	ForgePackageKindNPM     ForgePackageKind = "npm"
-	ForgePackageKindPyPI    ForgePackageKind = "pypi"
+	ForgePackageKindGeneric  ForgePackageKind = "generic"
+	ForgePackageKindNPM      ForgePackageKind = "npm"
+	ForgePackageKindPyPI     ForgePackageKind = "pypi"
+	ForgePackageKindMaven    ForgePackageKind = "maven"
+	ForgePackageKindNuGet    ForgePackageKind = "nuget"
+	ForgePackageKindRubyGems ForgePackageKind = "rubygems"
 )
 
 func (k ForgePackageKind) Valid() bool {
-	return k == ForgePackageKindGeneric || k == ForgePackageKindNPM || k == ForgePackageKindPyPI
+	switch k {
+	case ForgePackageKindGeneric, ForgePackageKindNPM, ForgePackageKindPyPI,
+		ForgePackageKindMaven, ForgePackageKindNuGet, ForgePackageKindRubyGems:
+		return true
+	default:
+		return false
+	}
 }
 
 // ForgePackage é um nome publicado num projeto (npm ou genérico).

@@ -17,3 +17,4 @@ server/deploy/xgit/sync-package-examples.sh
 | `go` (embed: `golang`) | `xcorp/hello-go` | generic | `hello-go` |
 | `rust` | `xcorp/hello-rs` | generic | `hello-rs` |
 | `generic` | `xcorp/hello-bin` | generic | `hello-bin` |
+| `maven` | `xcorp/hello-mvn` | maven | `com.ihuull:hello-mvn` |

@@ -1,0 +1,15 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.ihuull</groupId>
+  <artifactId>hello-mvn</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+  <name>hello-mvn</name>
+  <description>Exemplo Maven no registry XGIT (xgit.corp).</description>
+  <distributionManagement>
+    <repository>
+      <id>xgit</id>
+      <url>https://xgit.corp.ihuull.com/api/packages/xcorp/hello-mvn/maven</url>
+    </repository>
+  </distributionManagement>
+</project>

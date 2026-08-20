@@ -33,6 +33,7 @@ const maxPackageBytes = 64 << 20
 
 var (
 	genericPackageName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,213}$`)
+	mavenPackageName   = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]{0,213}$`)
 	npmPackageName     = regexp.MustCompile(`^(?:@[a-z0-9-~][a-z0-9-._~]{0,213}/)?[a-z0-9-~][a-z0-9-._~]{0,213}$`)
 	packageVersion     = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9._-]+)?$`)
 	pep503Sep          = regexp.MustCompile(`[-_.]+`)
@@ -380,11 +381,18 @@ func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.Fo
 		CanPublish:  a.canAccessProjectFiles(user, proj, true),
 		Versions:    []forgePackageVersionJSON{},
 	}
+	repo := a.projectRepo(proj)
 	switch pkg.Kind {
 	case store.ForgePackageKindNPM:
-		out.RegistryURL = gitCloneHost + "/api/packages/" + a.projectRepo(proj) + "/npm/"
+		out.RegistryURL = gitCloneHost + "/api/packages/" + repo + "/npm/"
 	case store.ForgePackageKindPyPI:
-		out.RegistryURL = gitCloneHost + "/api/packages/" + a.projectRepo(proj) + "/pypi/simple/"
+		out.RegistryURL = gitCloneHost + "/api/packages/" + repo + "/pypi/simple/"
+	case store.ForgePackageKindMaven:
+		out.RegistryURL = gitCloneHost + "/api/packages/" + repo + "/maven"
+	case store.ForgePackageKindNuGet:
+		out.RegistryURL = gitCloneHost + "/api/packages/" + repo + "/nuget/index.json"
+	case store.ForgePackageKindRubyGems:
+		out.RegistryURL = gitCloneHost + "/api/packages/" + repo + "/rubygems"
 	}
 	if !withVersions {
 		return out
@@ -397,9 +405,10 @@ func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.Fo
 		if ver.PublishedByID != 0 && a.Store.DB.First(&publisher, ver.PublishedByID).Error == nil {
 			who = publisher.Username
 		}
+		display := packageDisplayVersion(pkg.Kind, ver.Version)
 		out.Versions = append(out.Versions, forgePackageVersionJSON{
 			ID:            ver.ID,
-			Version:       ver.Version,
+			Version:       display,
 			Filename:      ver.Filename,
 			SHA256:        ver.SHA256,
 			Size:          ver.Size,
@@ -409,7 +418,7 @@ func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.Fo
 			CreatedAt:     ver.CreatedAt,
 		})
 		if i == 0 {
-			out.Latest = ver.Version
+			out.Latest = display
 		}
 	}
 	return out
@@ -433,8 +442,9 @@ func (a *App) publishPackageBytes(user store.User, proj store.Project, kind stor
 			return forgePackageJSON{}, err
 		}
 	}
+	storedVersion := packageStoredVersion(kind, version, filename)
 	var existing store.ForgePackageVersion
-	if err := a.Store.DB.Where("package_id = ? AND version = ?", pkg.ID, version).First(&existing).Error; err == nil {
+	if err := a.Store.DB.Where("package_id = ? AND version = ?", pkg.ID, storedVersion).First(&existing).Error; err == nil {
 		if existing.SHA256 != result.SHA256 {
 			a.removeOrphanPackageBlob(result.RelPath)
 			return forgePackageJSON{}, errPackageExists
@@ -443,7 +453,7 @@ func (a *App) publishPackageBytes(user store.User, proj store.Project, kind stor
 	}
 	ver := store.ForgePackageVersion{
 		PackageID:     pkg.ID,
-		Version:       version,
+		Version:       storedVersion,
 		Filename:      filename,
 		SHA256:        result.SHA256,
 		Integrity:     integrity,
@@ -491,7 +501,7 @@ const (
 	errPackageExists   = packageError("versão já publicada")
 	errPackageTooLarge = packageError("arquivo excede 64 MiB")
 	errPackageName     = packageError("nome de package inválido")
-	errPackageKind     = packageError("kind deve ser generic, npm ou pypi")
+	errPackageKind     = packageError("kind deve ser generic, npm, pypi, maven, nuget ou rubygems")
 	errNpmManifest     = packageError("manifest npm sem versão ou anexo")
 )
 
@@ -525,6 +535,12 @@ func normalizePackageName(kind store.ForgePackageKind, raw string) (string, erro
 	}
 	if kind == store.ForgePackageKindPyPI {
 		name = pep503Name(name)
+	}
+	if kind == store.ForgePackageKindMaven {
+		if !mavenPackageName.MatchString(name) {
+			return "", errPackageName
+		}
+		return name, nil
 	}
 	if !genericPackageName.MatchString(name) {
 		return "", errPackageName

@@ -3,7 +3,7 @@ package pkgexamples
 import "testing"
 
 func TestIsExampleSlug(t *testing.T) {
-	if !IsExampleSlug("hello-js") || IsExampleSlug("xvpn") {
+	if !IsExampleSlug("hello-js") || !IsExampleSlug("hello-mvn") || IsExampleSlug("xvpn") {
 		t.Fatal("IsExampleSlug")
 	}
 }

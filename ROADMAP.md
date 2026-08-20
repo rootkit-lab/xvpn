@@ -1762,12 +1762,12 @@ Paridade da landing [GitHub Packages](https://docs.github.com/en/packages) e de 
 
 npm + PyPI + generic (45.1–45.2) já vivem em `/api/packages/:org/:slug/…` (Fase 58). Sem alias do path plano. Esta fase acrescenta Maven / NuGet / RubyGems e o publish de verdade via Actions.
 
-- [ ] Kinds novos: `maven` (`mvn deploy`, SNAPSHOT, `settings.xml` / `pom.xml` `distributionManagement`), `nuget` (`index.json` + `dotnet nuget push`), `rubygems` (`gem push`).
+- [x] Kinds novos: `maven` (`mvn deploy`, SNAPSHOT, `settings.xml` / `pom.xml` `distributionManagement`), `nuget` (`index.json` + `dotnet nuget push`), `rubygems` (`gem push`).
 - [x] UI aba Packages: empty state “Get started” com cards Maven, NuGet, RubyGems, npm, PyPI, Generic (Containers aponta para a 60).
-- [x] Templates New workflow (categoria **Publish a package**): npm / pypi / generic / maven / nuget / gem. O script **não** interpola JWE; `{{REPO}}` vira `<org>/<slug>` no apply. Publish Maven/NuGet/gem de verdade espera o kind (acima).
+- [x] Templates New workflow (categoria **Publish a package**): npm / pypi / generic / maven / nuget / gem. O script **não** interpola JWE; `{{REPO}}` vira `<org>/<slug>` no apply. Token só em `XVPN_PACKAGES_TOKEN` no runner.
 - [x] `GET /api/ci/workflow-templates?category=publish`. Hints na UI com placeholders `<user>` / `<JWE>`.
-- [ ] Exemplos: `xcorp/hello-js` (npm), `xcorp/hello-py` (pypi); novo `hello-mvn` no time `packages` se couber no ciclo.
-- [ ] PLAN §6.15, `docs/api.md` (Maven/NuGet/RubyGems). Sem hostname novo. Sem Harbor.
+- [x] Exemplos: `xcorp/hello-js` (npm), `xcorp/hello-py` (pypi), `xcorp/hello-mvn` no time `packages`.
+- [x] PLAN §6.15, `docs/api.md` (Maven/NuGet/RubyGems). Sem hostname novo. Sem Harbor.
 
 **Critério de saída:** `mvn deploy` / `npm publish` / `twine` / `dotnet nuget push` contra `xgit.corp` com JWE, no path `<org>/<slug>`. Workflow da galeria publica sem gravar o token no `.xvpn-ci.sh`.
 

@@ -29,21 +29,21 @@ function registryCards(org: string, slug: string): RegistryCard[] {
       id: 'maven',
       title: 'Apache Maven',
       blurb: 'Registry Maven 2 (mvn deploy, SNAPSHOT). Auth = JWE.',
-      ready: false,
+      ready: true,
       hint: `mvn deploy -DaltDeploymentRepository=xgit::default::${base}/maven`,
     },
     {
       id: 'nuget',
       title: 'NuGet',
       blurb: 'Feed NuGet na malha (dotnet nuget push). Auth = JWE.',
-      ready: false,
+      ready: true,
       hint: `dotnet nuget push *.nupkg --source ${base}/nuget/index.json`,
     },
     {
       id: 'rubygems',
       title: 'RubyGems',
       blurb: 'gem push contra xgit.corp. Auth = JWE.',
-      ready: false,
+      ready: true,
       hint: `gem push --host ${base}/rubygems`,
     },
     {
@@ -228,6 +228,9 @@ function PublishForm({ org, slug, onPublished }: { org: string; slug: string; on
             <SelectItem value="generic">generic</SelectItem>
             <SelectItem value="npm">npm</SelectItem>
             <SelectItem value="pypi">pypi</SelectItem>
+            <SelectItem value="maven">maven</SelectItem>
+            <SelectItem value="nuget">nuget</SelectItem>
+            <SelectItem value="rubygems">rubygems</SelectItem>
           </SelectContent>
         </Select>
       </div>

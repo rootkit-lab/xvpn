@@ -782,7 +782,7 @@ Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do mar
 
 **Merge requests (Fase 41).** MR no Mongo; UI no xadmin (`/admin/xgit/:slug/mrs/:iid`). Abrir cria uma thread XCHAT (`DirectThread.Kind=mr`, sem colidir com DM 1:1) e um post no XGROUP do projeto (comentários = issue). Merge no servidor (`git worktree` + `--no-ff`) respeita protected branch: developer abre; maintainer+ (ou `forge`) mergeia em `main`/`master`. Sem GitLab. Chat no chrome (status bar + rail + popouts), sem FAB/modal.
 
-**CI (Fase 42).** Push (receive-pack) e merge de MR enfileiram um `CiJob`. O agent `xvpn-runner` (binário separado, systemd no peer `role=runner`) reclama o job em `http://10.66.66.1:8080/api/ci/*` — só VPN (`RequireVPN`); Nginx público (127.0.0.1) cai. Token do runner gerado no detalhe do MeshServer, uma vez. Clone no agent com Basic `runner:<token>` (só fetch). Script: `.xvpn-ci.sh` no repo (senão `echo ok`). Log/artifact em `/opt/xvpn/data/projects/<slug>/ci/<n>/` (XDRIVER). Sem porta nova. Sem job no PID do `xvpn-server`.
+**CI (Fase 42).** Push (receive-pack) e merge de MR enfileiram um `CiJob`. O agent `xvpn-runner` (binário separado, systemd no peer `role=runner`) reclama o job em `http://10.66.66.1:8080/api/ci/*` — só VPN (`RequireVPN`); Nginx público (127.0.0.1) cai. Token do runner gerado no detalhe do MeshServer, uma vez. Clone no agent com Basic `runner:<token>` (só fetch). O claim inclui `packages_token` (JWE do actor/owner) e o runner exporta `XVPN_PACKAGES_TOKEN` — o `.xvpn-ci.sh` nunca interpola o token (Fase 59). Script: `.xvpn-ci.sh` no repo (senão `echo ok`). Log/artifact em `/opt/xvpn/data/projects/<slug>/ci/<n>/` (XDRIVER). Sem porta nova. Sem job no PID do `xvpn-server`.
 
 **Actions (Fase 42.1).** UI no XGIT no estilo GitHub Actions (sidebar de workflows, lista de runs, detalhe com grafo). Workflow único `ci`. Abrir MR como developer (sem `forge`) cria o run em `awaiting_approval`; maintainer+ **Approve and run** → `pending`. Runner não reclama run aguardando aprovação. Re-run cria um run novo. Sem YAML multi-job, sem caches/métricas.
 
@@ -1030,7 +1030,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **43. Serviços orquestrados** | mongo/redis/rabbit/lb no local e na malha | Bind só wg0; control-plane Mongo intocado |
 | **44. Backups externos** | restic+rclone no Settings | Destino off-site configurável |
 | **45.1–45.2 Packages** | npm + generic + PyPI no `xgit.corp` | Sem Harbor; só VPN |
-| **45.3 Exemplos** | hello-js/py/go/rs/bin no boot | remonta em `xcorp` na 58 |
+| **45.3 Exemplos** | hello-js/py/go/rs/bin/mvn no boot | remonta em `xcorp` na 58 |
 | **58. Organização** | `<org>/<slug>`, seed `xcorp`, times | sem path plano; codespace/seed só o novo |
 | **59. Registries + Actions publish** | Maven/NuGet/RubyGems + templates | JWE; sem Maven Central |
 | **60. Container registry** | `registry:2` / Harbor no wg0 | hostname só com §5 |

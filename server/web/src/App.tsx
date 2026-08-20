@@ -57,6 +57,9 @@ const XgitOverviewPage = lazy(() =>
 const XgitPackagesPage = lazy(() =>
   import('@/pages/xgit-packages-page').then((m) => ({ default: m.XgitPackagesPage })),
 )
+const XgitRepoPackagesPage = lazy(() =>
+  import('@/pages/xgit-packages-page').then((m) => ({ default: m.XgitRepoPackagesPage })),
+)
 const XgitStarsPage = lazy(() => import('@/pages/xgit-stars-page').then((m) => ({ default: m.XgitStarsPage })))
 const XgitSettingsPage = lazy(() =>
   import('@/pages/xgit-settings-page').then((m) => ({ default: m.XgitSettingsPage })),
@@ -304,6 +307,7 @@ function XGitCorpApp() {
               <Route path="pulls/:iid" element={<MergeRequestPage />} />
               <Route path="mrs" element={<XgitMrsPage />} />
               <Route path="mrs/:iid" element={<MergeRequestPage />} />
+              <Route path="packages" element={<XgitRepoPackagesPage />} />
               <Route path="actions" element={<XgitActionsPage />} />
               <Route path="actions/:n" element={<CiJobPage />} />
               <Route path="settings" element={<XgitRepoSettingsPage />} />
@@ -440,6 +444,7 @@ function XAdminCorpApp() {
                 <Route path="pulls/:iid" element={<MergeRequestPage />} />
                 <Route path="mrs" element={<XgitMrsPage />} />
                 <Route path="mrs/:iid" element={<MergeRequestPage />} />
+                <Route path="packages" element={<XgitRepoPackagesPage />} />
                 <Route path="actions" element={<XgitActionsPage />} />
                 <Route path="actions/:n" element={<CiJobPage />} />
                 <Route path="settings" element={<XgitRepoSettingsPage />} />

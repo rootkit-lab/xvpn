@@ -112,6 +112,45 @@ async function downloadBinary(path: string, filename: string): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
+async function uploadProjectPackage(
+  slug: string,
+  fields: { name: string; version: string; kind?: ForgePackageKind; description?: string; file: File },
+): Promise<ForgePackage> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const fd = new FormData()
+  fd.append('name', fields.name)
+  fd.append('version', fields.version)
+  if (fields.kind) fd.append('kind', fields.kind)
+  if (fields.description) fd.append('description', fields.description)
+  fd.append('file', fields.file)
+  const path = `/projects/${encodeURIComponent(slug)}/packages`
+  const res = await fetch(`/api${path}`, { method: 'POST', headers, body: fd, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  return (await res.json()) as ForgePackage
+}
+
+async function downloadProjectPackage(slug: string, id: number, filename: string): Promise<void> {
+  const headers = new Headers()
+  const token = getToken()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const path = `/projects/${encodeURIComponent(slug)}/packages/${id}/download`
+  const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
+  if (res.status === 401) handleUnauthorized(path)
+  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 // downloadMarketplaceAsset também não passa por request(): a resposta é o
 // binário do asset, não JSON, e um <a href> simples não anexaria o header
 // Authorization (o token vive em localStorage, não em cookie) — o
@@ -771,6 +810,31 @@ export interface XgitOverview {
   activity: XgitActivityItem[]
 }
 
+export type ForgePackageKind = 'generic' | 'npm'
+
+export interface ForgePackageVersion {
+  id: number
+  version: string
+  filename: string
+  sha256: string
+  size: number
+  description?: string
+  published_by?: string
+  download_count: number
+  created_at: string
+}
+
+export interface ForgePackage {
+  id: number
+  project_slug: string
+  kind: ForgePackageKind
+  name: string
+  latest?: string
+  versions: ForgePackageVersion[]
+  registry_url?: string
+  can_publish: boolean
+}
+
 export interface XgitActivityItem {
   kind: 'commits' | 'repos_created' | 'repo_created' | 'merge_request' | string
   month?: string
@@ -1220,6 +1284,13 @@ export const api = {
   },
   getXgitOverview: () => request<XgitOverview>('/xgit/overview'),
   listXgitStars: () => request<{ items: Project[] }>('/xgit/stars'),
+  listXgitPackages: () => request<{ items: ForgePackage[] }>('/xgit/packages'),
+  listProjectPackages: (slug: string) =>
+    request<{ items: ForgePackage[]; can_publish: boolean }>(`/projects/${encodeURIComponent(slug)}/packages`),
+  uploadProjectPackage: (slug: string, fields: { name: string; version: string; kind?: ForgePackageKind; description?: string; file: File }) =>
+    uploadProjectPackage(slug, fields),
+  downloadProjectPackage: (slug: string, id: number, filename: string) =>
+    downloadProjectPackage(slug, id, filename),
   toggleProjectStar: (slug: string) => request<Project>(`/projects/${encodeURIComponent(slug)}/star`, { method: 'POST' }),
   createXgitRepo: (body: { slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
     request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),

@@ -1,0 +1,536 @@
+package api
+
+import (
+	"bytes"
+	"crypto/sha1"
+	"crypto/sha512"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"github.com/rootkit-lab/xvpn/server/internal/auth"
+	"github.com/rootkit-lab/xvpn/server/internal/marketplace"
+	"github.com/rootkit-lab/xvpn/server/internal/store"
+)
+
+// maxPackageBytes limita um artefato do registry (Fase 45.1). npm.com
+// aceita ~100 MiB; 64 MiB cabe no VPS sem um publish só encher o disco.
+const maxPackageBytes = 64 << 20
+
+var (
+	genericPackageName = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,213}$`)
+	npmPackageName     = regexp.MustCompile(`^(?:@[a-z0-9-~][a-z0-9-._~]{0,213}/)?[a-z0-9-~][a-z0-9-._~]{0,213}$`)
+	packageVersion     = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9._-]+)?$`)
+)
+
+type forgePackageVersionJSON struct {
+	ID            uint      `json:"id"`
+	Version       string    `json:"version"`
+	Filename      string    `json:"filename"`
+	SHA256        string    `json:"sha256"`
+	Size          int64     `json:"size"`
+	Description   string    `json:"description,omitempty"`
+	PublishedBy   string    `json:"published_by,omitempty"`
+	DownloadCount int64     `json:"download_count"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type forgePackageJSON struct {
+	ID          uint                      `json:"id"`
+	ProjectSlug string                    `json:"project_slug"`
+	Kind        store.ForgePackageKind    `json:"kind"`
+	Name        string                    `json:"name"`
+	Latest      string                    `json:"latest,omitempty"`
+	Versions    []forgePackageVersionJSON `json:"versions"`
+	RegistryURL string                    `json:"registry_url,omitempty"`
+	CanPublish  bool                      `json:"can_publish"`
+}
+
+func (a *App) handleListForgePackages(c *gin.Context) {
+	var user store.User
+	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	var rows []store.ForgePackage
+	if err := a.Store.DB.Order("updated_at desc").Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	items := make([]forgePackageJSON, 0, len(rows))
+	for _, pkg := range rows {
+		var proj store.Project
+		if err := a.Store.DB.First(&proj, pkg.ProjectID).Error; err != nil || proj.ArchivedAt != nil {
+			continue
+		}
+		if !a.canSeeProject(user, proj) {
+			continue
+		}
+		items = append(items, a.forgePackageJSON(user, proj, pkg, true))
+	}
+	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+func (a *App) handleListProjectPackages(c *gin.Context) {
+	proj, user, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	var rows []store.ForgePackage
+	if err := a.Store.DB.Where("project_id = ?", proj.ID).Order("updated_at desc").Find(&rows).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	items := make([]forgePackageJSON, 0, len(rows))
+	for _, pkg := range rows {
+		items = append(items, a.forgePackageJSON(user, proj, pkg, true))
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items":       items,
+		"can_publish": a.canAccessProjectFiles(user, proj, true),
+	})
+}
+
+func (a *App) handleUploadProjectPackage(c *gin.Context) {
+	if a.Packages == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "registry indisponível"})
+		return
+	}
+	proj, user, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	if !a.canAccessProjectFiles(user, proj, true) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "só developer+ publica packages"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPackageBytes+1<<20)
+	fh, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "arquivo obrigatório"})
+		return
+	}
+	if fh.Size > maxPackageBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede 64 MiB"})
+		return
+	}
+	kind := store.ForgePackageKind(strings.TrimSpace(c.PostForm("kind")))
+	if kind == "" {
+		kind = store.ForgePackageKindGeneric
+	}
+	name, err := normalizePackageName(kind, c.PostForm("name"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	version := strings.TrimSpace(c.PostForm("version"))
+	if !packageVersion.MatchString(version) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "versão inválida (semver)"})
+		return
+	}
+	src, err := fh.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "arquivo inválido"})
+		return
+	}
+	defer src.Close()
+	data, err := io.ReadAll(io.LimitReader(src, maxPackageBytes+1))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "falha lendo arquivo"})
+		return
+	}
+	if int64(len(data)) > maxPackageBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede 64 MiB"})
+		return
+	}
+	filename := sanitizePackageFilename(fh.Filename)
+	out, err := a.publishPackageBytes(user, proj, kind, name, version, filename, strings.TrimSpace(c.PostForm("description")), data)
+	if err != nil {
+		writePackageError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, out)
+}
+
+func (a *App) handleDownloadPackageVersion(c *gin.Context) {
+	if a.Packages == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "registry indisponível"})
+		return
+	}
+	proj, user, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	var ver store.ForgePackageVersion
+	if err := a.Store.DB.First(&ver, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "versão não encontrada"})
+		return
+	}
+	var pkg store.ForgePackage
+	if err := a.Store.DB.First(&pkg, ver.PackageID).Error; err != nil || pkg.ProjectID != proj.ID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "versão não encontrada"})
+		return
+	}
+	if !a.canSeeProject(user, proj) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "versão não encontrada"})
+		return
+	}
+	abs, err := a.Packages.AbsPath(ver.StoragePath)
+	if err != nil {
+		slog.Error("caminho de package inválido", "id", ver.ID, "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if err := a.Store.DB.Model(&store.ForgePackageVersion{}).Where("id = ?", ver.ID).
+		UpdateColumn("download_count", gorm.Expr("download_count + 1")).Error; err != nil {
+		slog.Error("falha ao incrementar download de package", "id", ver.ID, "err", err)
+	}
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	_ = a.Store.LogAudit(actorString(actor), "forge.package_download",
+		"slug="+proj.Slug+" name="+pkg.Name+" version="+ver.Version)
+	c.FileAttachment(abs, ver.Filename)
+}
+
+func (a *App) handleNpmPublish(c *gin.Context) {
+	if a.Packages == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "registry indisponível"})
+		return
+	}
+	proj, user, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	if !a.canAccessProjectFiles(user, proj, true) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "só developer+ publica packages"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPackageBytes*2)
+	var doc npmPublishDocument
+	if err := json.NewDecoder(c.Request.Body).Decode(&doc); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "manifest npm inválido"})
+		return
+	}
+	name, err := normalizePackageName(store.ForgePackageKindNPM, firstNonEmpty(npmPackageNameParam(c), doc.Name))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	version, meta, attName, att, err := doc.pickVersion()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimSpace(att.Data))
+	if err != nil || len(raw) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "anexo npm inválido"})
+		return
+	}
+	if int64(len(raw)) > maxPackageBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "arquivo excede 64 MiB"})
+		return
+	}
+	filename := sanitizePackageFilename(attName)
+	if filename == "package.bin" {
+		filename = strings.ReplaceAll(name, "/", "-") + "-" + version + ".tgz"
+	}
+	out, err := a.publishPackageBytes(user, proj, store.ForgePackageKindNPM, name, version, filename, meta.Description, raw)
+	if err != nil {
+		writePackageError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, out)
+}
+
+func (a *App) handleNpmPackument(c *gin.Context) {
+	proj, user, ok := a.loadProjectBySlug(c)
+	if !ok {
+		return
+	}
+	name, err := normalizePackageName(store.ForgePackageKindNPM, npmPackageNameParam(c))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	var pkg store.ForgePackage
+	if err := a.Store.DB.Where("project_id = ? AND kind = ? AND name = ?", proj.ID, store.ForgePackageKindNPM, name).
+		First(&pkg).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "package não encontrado"})
+		return
+	}
+	_ = user
+	var vers []store.ForgePackageVersion
+	if err := a.Store.DB.Where("package_id = ?", pkg.ID).Order("created_at asc").Find(&vers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if len(vers) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "package não encontrado"})
+		return
+	}
+	versions := make(map[string]any, len(vers))
+	latest := vers[len(vers)-1].Version
+	for _, ver := range vers {
+		tarball := gitCloneHost + "/api/projects/" + proj.Slug + "/packages/" + strconv.FormatUint(uint64(ver.ID), 10) + "/download"
+		integrity, shasum := ver.Integrity, ver.Shasum
+		if integrity == "" || shasum == "" {
+			if a.Packages != nil {
+				if abs, err := a.Packages.AbsPath(ver.StoragePath); err == nil {
+					if raw, err := readFileCap(abs, maxPackageBytes); err == nil {
+						integrity, shasum = npmDigest(raw)
+					}
+				}
+			}
+		}
+		versions[ver.Version] = gin.H{
+			"name":        pkg.Name,
+			"version":     ver.Version,
+			"description": ver.Description,
+			"dist": gin.H{
+				"tarball":   tarball,
+				"integrity": integrity,
+				"shasum":    shasum,
+			},
+		}
+		latest = ver.Version
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"name":      pkg.Name,
+		"versions":  versions,
+		"dist-tags": gin.H{"latest": latest},
+	})
+}
+
+func (a *App) forgePackageJSON(user store.User, proj store.Project, pkg store.ForgePackage, withVersions bool) forgePackageJSON {
+	out := forgePackageJSON{
+		ID:          pkg.ID,
+		ProjectSlug: proj.Slug,
+		Kind:        pkg.Kind,
+		Name:        pkg.Name,
+		CanPublish:  a.canAccessProjectFiles(user, proj, true),
+		Versions:    []forgePackageVersionJSON{},
+	}
+	if pkg.Kind == store.ForgePackageKindNPM {
+		out.RegistryURL = gitCloneHost + "/api/packages/" + proj.Slug + "/npm/"
+	}
+	if !withVersions {
+		return out
+	}
+	var vers []store.ForgePackageVersion
+	_ = a.Store.DB.Where("package_id = ?", pkg.ID).Order("created_at desc").Find(&vers).Error
+	for i, ver := range vers {
+		var publisher store.User
+		who := ""
+		if ver.PublishedByID != 0 && a.Store.DB.First(&publisher, ver.PublishedByID).Error == nil {
+			who = publisher.Username
+		}
+		out.Versions = append(out.Versions, forgePackageVersionJSON{
+			ID:            ver.ID,
+			Version:       ver.Version,
+			Filename:      ver.Filename,
+			SHA256:        ver.SHA256,
+			Size:          ver.Size,
+			Description:   ver.Description,
+			PublishedBy:   who,
+			DownloadCount: ver.DownloadCount,
+			CreatedAt:     ver.CreatedAt,
+		})
+		if i == 0 {
+			out.Latest = ver.Version
+		}
+	}
+	return out
+}
+
+func (a *App) publishPackageBytes(user store.User, proj store.Project, kind store.ForgePackageKind, name, version, filename, description string, data []byte) (forgePackageJSON, error) {
+	result, err := a.Packages.Put(bytes.NewReader(data))
+	if err != nil {
+		if err == marketplace.ErrAssetTooLarge {
+			return forgePackageJSON{}, errPackageTooLarge
+		}
+		return forgePackageJSON{}, err
+	}
+	integrity, shasum := npmDigest(data)
+	var pkg store.ForgePackage
+	err = a.Store.DB.Where("project_id = ? AND kind = ? AND name = ?", proj.ID, kind, name).First(&pkg).Error
+	if err != nil {
+		pkg = store.ForgePackage{ProjectID: proj.ID, Kind: kind, Name: name}
+		if err := a.Store.DB.Create(&pkg).Error; err != nil {
+			_ = a.Packages.Remove(result.RelPath)
+			return forgePackageJSON{}, err
+		}
+	}
+	var existing store.ForgePackageVersion
+	if err := a.Store.DB.Where("package_id = ? AND version = ?", pkg.ID, version).First(&existing).Error; err == nil {
+		if existing.SHA256 != result.SHA256 {
+			_ = a.Packages.Remove(result.RelPath)
+			return forgePackageJSON{}, errPackageExists
+		}
+		return a.forgePackageJSON(user, proj, pkg, true), nil
+	}
+	ver := store.ForgePackageVersion{
+		PackageID:     pkg.ID,
+		Version:       version,
+		Filename:      filename,
+		SHA256:        result.SHA256,
+		Integrity:     integrity,
+		Shasum:        shasum,
+		Size:          result.Size,
+		StoragePath:   result.RelPath,
+		Description:   description,
+		PublishedByID: user.ID,
+	}
+	if err := a.Store.DB.Create(&ver).Error; err != nil {
+		_ = a.Packages.Remove(result.RelPath)
+		return forgePackageJSON{}, err
+	}
+	_ = a.Store.DB.Model(&pkg).Update("updated_at", time.Now()).Error
+	_ = a.Store.LogAudit(user.Username, "forge.package_publish",
+		"slug="+proj.Slug+" kind="+string(kind)+" name="+name+" version="+version)
+	return a.forgePackageJSON(user, proj, pkg, true), nil
+}
+
+type packageError string
+
+func (e packageError) Error() string { return string(e) }
+
+const (
+	errPackageExists   = packageError("versão já publicada")
+	errPackageTooLarge = packageError("arquivo excede 64 MiB")
+	errPackageName     = packageError("nome de package inválido")
+	errPackageKind     = packageError("kind deve ser generic ou npm")
+	errNpmManifest     = packageError("manifest npm sem versão ou anexo")
+)
+
+func writePackageError(c *gin.Context, err error) {
+	switch err {
+	case errPackageExists:
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errPackageTooLarge, marketplace.ErrAssetTooLarge:
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": errPackageTooLarge.Error()})
+	case errPackageName, errPackageKind, errNpmManifest:
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	default:
+		slog.Error("falha no registry XGIT", "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+	}
+}
+
+func normalizePackageName(kind store.ForgePackageKind, raw string) (string, error) {
+	if !kind.Valid() {
+		return "", errPackageKind
+	}
+	name := strings.ToLower(strings.TrimSpace(raw))
+	if name == "" {
+		return "", errPackageName
+	}
+	if kind == store.ForgePackageKindNPM {
+		if !npmPackageName.MatchString(name) {
+			return "", errPackageName
+		}
+		return name, nil
+	}
+	if !genericPackageName.MatchString(name) {
+		return "", errPackageName
+	}
+	return name, nil
+}
+
+func sanitizePackageFilename(name string) string {
+	name = filepath.Base(strings.ReplaceAll(strings.TrimSpace(name), "\\", "/"))
+	if name == "" || name == "." || name == ".." {
+		return "package.bin"
+	}
+	return name
+}
+
+func npmPackageNameParam(c *gin.Context) string {
+	s := strings.TrimPrefix(c.Param("pkg"), "/")
+	s = strings.TrimSpace(s)
+	if i := strings.Index(s, "/-/"); i >= 0 {
+		s = s[:i]
+	}
+	return s
+}
+
+func npmDigest(data []byte) (integrity, shasum string) {
+	sum512 := sha512.Sum512(data)
+	sum1 := sha1.Sum(data)
+	return "sha512-" + base64.StdEncoding.EncodeToString(sum512[:]), hex.EncodeToString(sum1[:])
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func readFileCap(path string, max int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, max+1))
+}
+
+type npmPublishDocument struct {
+	Name        string                    `json:"name"`
+	Versions    map[string]npmVersionMeta `json:"versions"`
+	Attachments map[string]npmAttachment  `json:"_attachments"`
+	DistTags    map[string]string         `json:"dist-tags"`
+}
+
+type npmVersionMeta struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Description string `json:"description"`
+}
+
+type npmAttachment struct {
+	ContentType string `json:"content_type"`
+	Data        string `json:"data"`
+}
+
+func (d npmPublishDocument) pickVersion() (version string, meta npmVersionMeta, attName string, att npmAttachment, err error) {
+	if len(d.Versions) == 0 || len(d.Attachments) == 0 {
+		return "", npmVersionMeta{}, "", npmAttachment{}, errNpmManifest
+	}
+	version = strings.TrimSpace(d.DistTags["latest"])
+	if version == "" {
+		for v := range d.Versions {
+			version = v
+			break
+		}
+	}
+	meta = d.Versions[version]
+	if meta.Version == "" {
+		meta.Version = version
+	}
+	if !packageVersion.MatchString(version) {
+		return "", npmVersionMeta{}, "", npmAttachment{}, errNpmManifest
+	}
+	for name, a := range d.Attachments {
+		return version, meta, name, a, nil
+	}
+	return "", npmVersionMeta{}, "", npmAttachment{}, errNpmManifest
+}

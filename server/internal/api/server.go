@@ -88,6 +88,10 @@ type App struct {
 	// store content-addressed do marketplace, raiz distinta.
 	SocialMedia *marketplace.Store
 
+	// Packages guarda tarballs/artefatos do registry XGIT (Fase 45.1).
+	// Mesmo store SHA-256 do marketplace, raiz XVPN_PACKAGES_DIR.
+	Packages *marketplace.Store
+
 	// BitLaunch (Fase 38). Só os testes injetam o fake. Em produção o
 	// cliente sai de BitLaunchAccount (Compute → Configurações).
 	BitLaunch BitLaunchAPI
@@ -356,6 +360,12 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/xgit/settings", app.handleGetForgeSettings)
 			authed.GET("/xgit/overview", app.handleXgitOverview)
 			authed.GET("/xgit/stars", app.handleXgitStars)
+			authed.GET("/xgit/packages", app.handleListForgePackages)
+			authed.GET("/projects/:slug/packages", app.handleListProjectPackages)
+			authed.POST("/projects/:slug/packages", app.handleUploadProjectPackage)
+			authed.GET("/projects/:slug/packages/:id/download", app.handleDownloadPackageVersion)
+			authed.PUT("/packages/:slug/npm/*pkg", app.handleNpmPublish)
+			authed.GET("/packages/:slug/npm/*pkg", app.handleNpmPackument)
 			authed.POST("/projects/:slug/star", app.handleToggleProjectStar)
 			authed.GET("/xcodespaces", app.handleListCodespaces)
 			authed.POST("/xcodespaces", app.handleCreateCodespace)

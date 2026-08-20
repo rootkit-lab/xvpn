@@ -114,6 +114,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.SocialAttachment{}, &store.Story{}, &store.StoryView{},
 		&store.SocialPost{}, &store.SocialPostStar{}, &store.SocialPostComment{},
 		&store.Project{}, &store.ProjectMember{}, &store.ProjectStar{}, &store.ProtectedBranch{}, &store.ProjectEnv{}, &store.MergeRequest{}, &store.MergeRequestReview{}, &store.Issue{}, &store.Milestone{}, &store.WorkProject{}, &store.WorkItem{}, &store.CodeSpace{}, &store.CiJob{},
+		&store.ForgePackage{}, &store.ForgePackageVersion{},
 		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
 		&store.ServiceInstance{},
 		&store.BackupSettings{}, &store.BackupDestination{}, &store.BackupJob{},
@@ -141,6 +142,11 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		t.Fatalf("erro criando social media store de teste: %v", err)
 	}
 
+	packagesStore, err := marketplace.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("erro criando packages store de teste: %v", err)
+	}
+
 	app := &App{
 		Store:           &store.Store{DB: db},
 		WG:              fakeWG,
@@ -148,6 +154,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		Config:          cfg,
 		Marketplace:     marketplaceStore,
 		SocialMedia:     socialStore,
+		Packages:        packagesStore,
 		ServerPublicKey: "test-server-public-key=",
 	}
 	return app, fakeWG

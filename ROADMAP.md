@@ -1308,13 +1308,27 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 
 ---
 
+## Fase 45.1 — Packages no XGIT (npm + generic)
+
+Registry no **mesmo** host `xgit.corp` — sem hostname novo, sem porta ufw, sem Harbor. Blobs SHA-256 em `/opt/xvpn/data/packages` (`XVPN_PACKAGES_DIR`), mesmo store do marketplace. ACL: `canSeeProject` lê; developer+ ou product `forge` publica. Auth npm = Bearer JWE (igual git smart HTTP).
+
+- [x] Modelos `ForgePackage` / `ForgePackageVersion` (Mongo + GORM).
+- [x] API: `GET /api/xgit/packages`, `GET/POST /api/projects/:slug/packages`, download por id.
+- [x] npm: `PUT/GET /api/packages/:slug/npm/*pkg` (packument + `npm publish`). Tarball ≤64 MiB.
+- [x] UI: home `/packages` e aba Packages no repo (upload + `npm publish` copiado).
+- [x] PLAN §6.15 / §5.2, `docs/api.md`, backup local do diretório.
+
+**Critério de saída:** developer publica um tarball no repo; `npm view` / download autenticado funciona em `xgit.corp`. Fora da VPN a rota não resolve. Sem container registry nesta fatia.
+
+---
+
 ## Fase 45+ — Forge tardio (backlog)
 
-- [ ] Container / npm / pypi registry (bind wg0).
+- [ ] Container registry (`registry:2` / Harbor) e PyPI (bind wg0; hostname novo só com `port-domain-registry-check` + PLAN §5).
 - [ ] Pages (Nginx + blob).
 - [ ] Snippets, SAST, feature flags.
 
-Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES).
+Não misturar com 35–44 nem com 46–51 (Issues / PRs / editor / XCODESPACES). Container/Pages não entram na 45.1.
 
 ---
 

@@ -416,6 +416,8 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/projects/:slug/merge-requests/:iid/reviews", app.handleCreateMRReview)
 			authed.PUT("/projects/:slug/contents", app.handlePutContents)
 			authed.GET("/projects/:slug/archive", app.handleGetArchive)
+			authed.GET("/ci/workflow-templates", app.handleListWorkflowTemplates)
+			authed.POST("/projects/:slug/workflows", app.handleApplyWorkflowTemplate)
 			authed.GET("/projects/:slug/jobs", app.handleListCiJobs)
 			authed.GET("/projects/:slug/jobs/:n", app.handleGetCiJob)
 			authed.GET("/projects/:slug/jobs/:n/log", app.handleGetCiJobLog)

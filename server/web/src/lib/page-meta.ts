@@ -38,7 +38,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'XGIT',
       title: 'Packages',
-      description: 'Registry npm/PyPI/generic em xgit.corp (Fases 45.1–45.2).',
+      description: 'Registry npm/PyPI/generic em xgit.corp (Fases 45.1–45.3).',
     },
   },
   {
@@ -355,6 +355,20 @@ function matchMeta(pathname: string, table: { prefix: string; exact?: boolean; m
 }
 
 export function pageMetaForPath(pathname: string, hostname?: string): PageMeta {
+  if (pathname.includes('/actions/new')) {
+    return {
+      kicker: 'XGIT',
+      title: 'New workflow',
+      description: 'Galeria de templates de CI no estilo GitHub Actions (Fase 42.2).',
+    }
+  }
+  if (/\/actions(\/|$)/.test(pathname) && !pathname.startsWith('/admin/audit')) {
+    return {
+      kicker: 'XGIT',
+      title: 'Actions',
+      description: 'Runs e workflows do repositório no XGIT.',
+    }
+  }
   const profile = profileUsernameFromPath(pathname, hostname)
   if (profile) {
     return { kicker: 'XGROUP', title: profile, description: 'Página do membro no XGROUP.' }

@@ -227,6 +227,8 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-mr-reviews", http.MethodGet, "/api/projects/missing/merge-requests/1/reviews", nil, "any"},
 	{"create-mr-review", http.MethodPost, "/api/projects/missing/merge-requests/1/reviews", nil, "any"},
 	{"put-contents", http.MethodPut, "/api/projects/missing/contents", putContentsRequest{Path: "README", Content: "x", Message: "m"}, "any"},
+	{"list-workflow-templates", http.MethodGet, "/api/ci/workflow-templates", nil, "any"},
+	{"apply-workflow-template", http.MethodPost, "/api/projects/missing/workflows", applyWorkflowRequest{TemplateID: "go"}, "any"},
 	{"get-archive", http.MethodGet, "/api/projects/missing/archive", nil, "any"},
 	{"list-ci-jobs", http.MethodGet, "/api/projects/missing/jobs", nil, "any"},
 	{"get-ci-job", http.MethodGet, "/api/projects/missing/jobs/1", nil, "any"},

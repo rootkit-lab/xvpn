@@ -717,6 +717,20 @@ export interface CiWorkflow {
   path: string
 }
 
+export interface WorkflowTemplateCategory {
+  id: string
+  label: string
+}
+
+export interface WorkflowTemplate {
+  id: string
+  name: string
+  description: string
+  category: string
+  languages: string[]
+  icon: string
+}
+
 export interface CiJob {
   number: number
   workflow: string
@@ -1557,6 +1571,20 @@ export const api = {
     request<{ sha: string; branch: string; merge_request_number?: number }>(
       `/xcodespaces/${encodeURIComponent(id)}/commit`,
       { method: 'POST', body: JSON.stringify(body) },
+    ),
+  listWorkflowTemplates: (category?: string, q?: string) => {
+    const params = new URLSearchParams()
+    if (category) params.set('category', category)
+    if (q) params.set('q', q)
+    const qs = params.toString()
+    return request<{ categories: WorkflowTemplateCategory[]; items: WorkflowTemplate[] }>(
+      `/ci/workflow-templates${qs ? `?${qs}` : ''}`,
+    )
+  },
+  applyWorkflowTemplate: (slug: string, templateId: string) =>
+    request<{ path: string; sha?: string; branch?: string; template_id: string; unchanged?: boolean }>(
+      `/projects/${encodeURIComponent(slug)}/workflows`,
+      { method: 'POST', body: JSON.stringify({ template_id: templateId }) },
     ),
   listCiJobs: (slug: string, workflow?: string, mr?: number) => {
     const q = new URLSearchParams()

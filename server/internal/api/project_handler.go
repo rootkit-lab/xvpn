@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
+	"github.com/rootkit-lab/xvpn/server/internal/pkgexamples"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -209,6 +210,10 @@ func (a *App) handleCreateProject(c *gin.Context) {
 	}
 	if store.ReservedProjectSlug(slug) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "slug reservado (rota da home XGIT)"})
+		return
+	}
+	if pkgexamples.IsExampleSlug(slug) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "slug reservado para exemplos do XGIT"})
 		return
 	}
 	name := strings.TrimSpace(req.Name)

@@ -93,7 +93,27 @@ func ReservedOrgSlug(s string) bool {
 	}
 }
 
-// SeedXcorp cria a org principal, times e o owner (primeiro super_admin
+// migrateLegacyProjectOrgColumns adiciona organization_id com DEFAULT 0
+// antes do AutoMigrate. SQLite recusa ADD COLUMN NOT NULL sem default em
+// tabela já populada — o crash do deploy pós-#167.
+func migrateLegacyProjectOrgColumns(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&Project{}) {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&Project{}, "organization_id") {
+		if err := db.Exec("ALTER TABLE projects ADD COLUMN organization_id integer NOT NULL DEFAULT 0").Error; err != nil {
+			return err
+		}
+	}
+	if !db.Migrator().HasColumn(&Project{}, "team_id") {
+		if err := db.Exec("ALTER TABLE projects ADD COLUMN team_id integer").Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// SeedXcorp cria a org principal, times e o owner (primeiro super_admin)
 // ou admin). Não inscreve o resto da VPN — herança de repo é
 // ProjectMember / time (Fase 58.2), não OrgMember em massa.
 func SeedXcorp(db *gorm.DB) error {

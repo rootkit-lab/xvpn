@@ -1,11 +1,120 @@
 import { type ReactNode } from 'react'
+import Markdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+
+const sanitize = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), 'img'],
+  attributes: {
+    ...defaultSchema.attributes,
+    img: ['src', 'alt', 'title', 'width', 'height', 'align'],
+    p: [...(defaultSchema.attributes?.p ?? []), ['align']],
+    div: [...(defaultSchema.attributes?.div ?? []), ['align']],
+  },
+}
+
+function safeUrl(url: string): string {
+  const u = url.trim()
+  if (!u) {
+    return ''
+  }
+  if (/^(https?:|mailto:|#|\/|\.)/i.test(u)) {
+    return u
+  }
+  return ''
+}
+
+function stripNode<T extends object>(props: T & { node?: unknown }): Omit<T, 'node'> {
+  const { node: _node, ...rest } = props
+  return rest
+}
+
+function withClass<T extends { className?: string; node?: unknown }>(props: T, extra: string) {
+  const rest = stripNode(props)
+  return { ...rest, className: cn(extra, rest.className) }
+}
+
+const mdComponents: Components = {
+  h1: (props) => (
+    <h1 {...withClass(props, 'mt-2 mb-4 border-b border-border/50 pb-2 font-display text-2xl font-semibold first:mt-0')} />
+  ),
+  h2: (props) => (
+    <h2 {...withClass(props, 'mt-8 mb-3 border-b border-border/40 pb-1.5 font-display text-xl font-semibold first:mt-0')} />
+  ),
+  h3: (props) => <h3 {...withClass(props, 'mt-6 mb-2 font-display text-base font-semibold')} />,
+  h4: (props) => <h4 {...withClass(props, 'mt-4 mb-2 font-semibold')} />,
+  p: (props) => <p {...withClass(props, 'my-3 leading-relaxed [&[align=center]]:text-center')} />,
+  a: (props) => {
+    const href = props.href
+    return (
+      <a
+        {...withClass(props, 'text-primary underline-offset-2 hover:underline')}
+        target={href?.startsWith('http') ? '_blank' : undefined}
+        rel={href?.startsWith('http') ? 'noopener noreferrer' : undefined}
+      />
+    )
+  },
+  ul: (props) => <ul {...withClass(props, 'my-3 list-disc space-y-1 pl-6')} />,
+  ol: (props) => <ol {...withClass(props, 'my-3 list-decimal space-y-1 pl-6')} />,
+  li: (props) => <li {...withClass(props, 'leading-relaxed')} />,
+  blockquote: (props) => (
+    <blockquote {...withClass(props, 'my-3 border-l-2 border-primary/40 pl-3 text-muted-foreground')} />
+  ),
+  hr: (props) => <hr {...withClass(props, 'my-6 border-border/60')} />,
+  strong: (props) => <strong {...withClass(props, 'font-semibold text-foreground')} />,
+  code: (props) => (
+    <code
+      {...withClass(
+        props,
+        cn(
+          'rounded-md bg-muted/60 px-1.5 py-0.5 font-mono text-[0.85em]',
+          props.className?.includes('language-') && 'block bg-transparent p-0',
+        ),
+      )}
+    />
+  ),
+  pre: (props) => (
+    <pre {...withClass(props, 'my-4 overflow-x-auto rounded-xl bg-muted/40 p-4 font-mono text-xs leading-relaxed')} />
+  ),
+  table: (props) => (
+    <div className="my-4 overflow-x-auto rounded-xl border border-border/50">
+      <table {...withClass(props, 'w-full border-collapse text-sm')} />
+    </div>
+  ),
+  thead: (props) => <thead {...withClass(props, 'bg-muted/30')} />,
+  th: (props) => <th {...withClass(props, 'border-b border-border/50 px-3 py-2 text-left font-medium')} />,
+  td: (props) => <td {...withClass(props, 'border-b border-border/30 px-3 py-2 align-top')} />,
+  img: (props) => (
+    <img
+      {...withClass(props, 'mx-auto my-4 max-h-48 max-w-[min(100%,16rem)] object-contain')}
+      alt={props.alt ?? ''}
+      onError={(ev) => {
+        ev.currentTarget.style.display = 'none'
+      }}
+    />
+  ),
+}
 
 export function MarkdownPreview({ text }: { text: string }) {
   if (!text.trim()) {
     return <p className="text-sm text-muted-foreground">Nada para pré-visualizar.</p>
   }
-  return <div className="space-y-2 text-sm leading-relaxed">{renderBlocks(text)}</div>
+  return (
+    <div className="xgit-md max-w-none text-sm text-foreground/90">
+      <Markdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitize]]}
+        urlTransform={safeUrl}
+        components={mdComponents}
+      >
+        {text}
+      </Markdown>
+    </div>
+  )
 }
 
 export function MarkdownDoc({
@@ -31,7 +140,7 @@ export function MarkdownDoc({
           {trailing}
         </div>
       </div>
-      <TabsContent value="md" className="p-5">
+      <TabsContent value="md" className="p-6">
         <MarkdownPreview text={text} />
       </TabsContent>
       <TabsContent value="txt">
@@ -39,95 +148,4 @@ export function MarkdownDoc({
       </TabsContent>
     </Tabs>
   )
-}
-
-function renderBlocks(text: string): ReactNode[] {
-  const lines = text.replace(/\r\n/g, '\n').split('\n')
-  const out: ReactNode[] = []
-  let i = 0
-  let key = 0
-  while (i < lines.length) {
-    const line = lines[i]
-    if (line.startsWith('```')) {
-      const buf: string[] = []
-      i += 1
-      while (i < lines.length && !lines[i].startsWith('```')) {
-        buf.push(lines[i])
-        i += 1
-      }
-      if (i < lines.length) {
-        i += 1
-      }
-      out.push(
-        <pre key={key++} className="overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-xs leading-relaxed">
-          <code>{buf.join('\n')}</code>
-        </pre>,
-      )
-      continue
-    }
-    if (line.startsWith('### ')) {
-      out.push(
-        <h4 key={key++} className="font-semibold">
-          {inlineMd(line.slice(4))}
-        </h4>,
-      )
-    } else if (line.startsWith('## ')) {
-      out.push(
-        <h3 key={key++} className="text-base font-semibold">
-          {inlineMd(line.slice(3))}
-        </h3>,
-      )
-    } else if (line.startsWith('# ')) {
-      out.push(
-        <h2 key={key++} className="text-lg font-semibold">
-          {inlineMd(line.slice(2))}
-        </h2>,
-      )
-    } else if (line.startsWith('- [ ] ')) {
-      out.push(
-        <p key={key++}>
-          ☐ {inlineMd(line.slice(6))}
-        </p>,
-      )
-    } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
-      out.push(
-        <p key={key++}>
-          ☑ {inlineMd(line.slice(6))}
-        </p>,
-      )
-    } else if (line.startsWith('- ')) {
-      out.push(
-        <p key={key++}>
-          • {inlineMd(line.slice(2))}
-        </p>,
-      )
-    } else if (line.startsWith('> ')) {
-      out.push(
-        <p key={key++} className="border-l-2 border-border pl-2 text-muted-foreground">
-          {inlineMd(line.slice(2))}
-        </p>,
-      )
-    } else {
-      out.push(<p key={key++}>{line ? inlineMd(line) : '\u00a0'}</p>)
-    }
-    i += 1
-  }
-  return out
-}
-
-function inlineMd(raw: string): ReactNode[] {
-  const parts = raw.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
-      return (
-        <code key={i} className="rounded bg-muted/50 px-1 font-mono text-[0.85em]">
-          {part.slice(1, -1)}
-        </code>
-      )
-    }
-    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>
-    }
-    return <span key={i}>{part}</span>
-  })
 }

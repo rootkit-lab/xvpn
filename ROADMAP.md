@@ -1291,7 +1291,7 @@ O forge deixa de se chamar **Projetos**. A UI no `xadmin.corp` é o **XGIT** —
 - [x] Home em `xgit.corp` estilo GitHub: Overview (heatmap + timeline), Repositórios, Packages (futuro), Stars. Chat no chrome (XCHAT nas threads de MR).
 - [x] Seed `xvpn-client` e `xchat` a partir de `apps/` (`server/deploy/xgit/seed-from-monorepo.sh`) — bares deixam de estar vazios antes do registry (Fase 45).
 - [x] Tree/Code: ícones por tipo de ficheiro (Go, TS, MD, YAML, pasta, …), não um `File` genérico.
-- [x] Blob e README `.md`: tabs **Markdown** / **Texto** (preview vs fonte).
+- [x] Blob e README `.md`: tabs **Markdown** / **Texto**. Preview GFM (`react-markdown`: títulos, links, tabelas, code fence; HTML sanitizado).
 
 **Critério de saída:** xadmin vê todos os repos; o membro abre XGIT no waffle só se participa de um projeto (ou tem ACL do app) e lista os seus em `xgit.corp`; admin com `forge` cria e configura; `git clone https://xgit.corp.ihuull.com/<slug>` continua o único caminho de git. Sem GitLab CE.
 

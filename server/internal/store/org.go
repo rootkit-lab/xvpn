@@ -94,8 +94,8 @@ func ReservedOrgSlug(s string) bool {
 }
 
 // SeedXcorp cria a org principal, times e o owner (primeiro super_admin
-// ou admin). Membros humanos extra entram como member — sem promover
-// toda a VPN a guest de cada repo.
+// ou admin). Não inscreve o resto da VPN — herança de repo é
+// ProjectMember / time (Fase 58.2), não OrgMember em massa.
 func SeedXcorp(db *gorm.DB) error {
 	if db == nil {
 		return nil
@@ -126,31 +126,9 @@ func SeedXcorp(db *gorm.DB) error {
 	if err != nil {
 		err = db.Where("role = ?", RoleAdmin).Order("id").First(&owner).Error
 	}
-	if err == nil {
-		row := OrgMember{OrganizationID: org.ID, UserID: owner.ID, Role: OrgRoleOwner}
-		if err := db.Where("organization_id = ? AND user_id = ?", org.ID, owner.ID).FirstOrCreate(&row).Error; err != nil {
-			return err
-		}
+	if err != nil {
+		return nil
 	}
-
-	var extras []User
-	q := db.Where("role NOT IN ?", []Role{RoleBot})
-	if owner.ID != 0 {
-		q = q.Where("id != ?", owner.ID)
-	}
-	if err := q.Find(&extras).Error; err != nil {
-		return err
-	}
-	for _, u := range extras {
-		if u.Username == "xbot" {
-			continue
-		}
-		role := OrgRoleMember
-		if u.Role.Rank() >= RoleAdmin.Rank() {
-			role = OrgRoleAdmin
-		}
-		row := OrgMember{OrganizationID: org.ID, UserID: u.ID, Role: role}
-		_ = db.Where("organization_id = ? AND user_id = ?", org.ID, u.ID).FirstOrCreate(&row).Error
-	}
-	return nil
+	row := OrgMember{OrganizationID: org.ID, UserID: owner.ID, Role: OrgRoleOwner}
+	return db.Where("organization_id = ? AND user_id = ?", org.ID, owner.ID).FirstOrCreate(&row).Error
 }

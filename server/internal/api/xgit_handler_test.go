@@ -36,8 +36,23 @@ func TestXgitSettingsAndMemberCreate(t *testing.T) {
 	}
 
 	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, aliceTok)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("member fora da org deveria 403, veio %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var alice store.User
+	if err := app.Store.DB.Where("username = ?", "alice").First(&alice).Error; err != nil {
+		t.Fatal(err)
+	}
+	org, ok := app.defaultOrganization()
+	if !ok {
+		t.Fatal("xcorp")
+	}
+	app.ensureOrgMember(org.ID, alice.ID, store.OrgRoleMember)
+
+	rec = doJSON(t, router, http.MethodPost, "/api/xgit/repos", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, aliceTok)
 	if rec.Code != http.StatusCreated {
-		t.Fatalf("member com flag deveria criar, veio %d: %s", rec.Code, rec.Body.String())
+		t.Fatalf("member da org com flag deveria criar, veio %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

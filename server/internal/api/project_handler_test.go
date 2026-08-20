@@ -253,4 +253,52 @@ func TestMeXgitEnabledByMembershipOrACL(t *testing.T) {
 	}
 }
 
+func TestOrgMemberSeesGlobalNotRestricted(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "admin", "senha-admin-ok", store.RoleSuperAdmin)
+	alice := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	router := NewRouter(app)
+	adminTok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	aliceTok := loginAndGetToken(t, app, router, "alice", "senha-alice-ok")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{
+		Org: "xcorp", Slug: "open", Name: "Open", Visibility: store.AppVisibilityGlobal,
+	}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("open: %d %s", rec.Code, rec.Body.String())
+	}
+	rec = doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{
+		Org: "xcorp", Slug: "secret", Name: "Secret", Visibility: store.AppVisibilityRestricted,
+	}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("secret: %d %s", rec.Code, rec.Body.String())
+	}
+
+	org, ok := app.defaultOrganization()
+	if !ok {
+		t.Fatal("xcorp")
+	}
+	app.ensureOrgMember(org.ID, alice.ID, store.OrgRoleMember)
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/open", nil, aliceTok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("global deveria 200, veio %d", rec.Code)
+	}
+	rec = doJSON(t, router, http.MethodGet, "/api/projects/xcorp/secret", nil, aliceTok)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("restricted deveria 404, veio %d", rec.Code)
+	}
+
+	rec = doJSON(t, router, http.MethodGet, "/api/projects", nil, aliceTok)
+	var listed struct {
+		Items []projectResponse `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatal(err)
+	}
+	if len(listed.Items) != 1 || listed.Items[0].Slug != "open" {
+		t.Fatalf("lista deveria só o global: %+v", listed.Items)
+	}
+}
+
 func ptrNetwork(n store.AppNetwork) *store.AppNetwork { return &n }

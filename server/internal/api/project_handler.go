@@ -85,7 +85,20 @@ func (a *App) canSeeProject(user store.User, proj store.Project) bool {
 	if n > 0 {
 		return true
 	}
+	if proj.Visibility == store.AppVisibilityRestricted {
+		return false
+	}
 	return a.isOrgMember(user, proj.OrganizationID)
+}
+
+func (a *App) canCreateInOrg(user store.User, orgID uint) bool {
+	if user.Role.Rank() >= store.RoleViewer.Rank() {
+		return true
+	}
+	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
+		return true
+	}
+	return a.isOrgMember(user, orgID)
 }
 
 func (a *App) projectMemberRole(user store.User, proj store.Project) (store.ProjectRole, bool) {
@@ -200,11 +213,11 @@ func (a *App) handleListProjects(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"items": []projectResponse{}})
 			return
 		case len(ids) == 0:
-			q = q.Where("organization_id IN ?", orgIDs)
+			q = q.Where("organization_id IN ? AND visibility <> ?", orgIDs, store.AppVisibilityRestricted)
 		case len(orgIDs) == 0:
 			q = q.Where("id IN ?", ids)
 		default:
-			q = q.Where("id IN ? OR organization_id IN ?", ids, orgIDs)
+			q = q.Where("id IN ? OR (organization_id IN ? AND visibility <> ?)", ids, orgIDs, store.AppVisibilityRestricted)
 		}
 	}
 	var rows []store.Project
@@ -283,6 +296,10 @@ func (a *App) handleCreateProject(c *gin.Context) {
 	var user store.User
 	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado"})
+		return
+	}
+	if !a.canCreateInOrg(user, org.ID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "não é membro desta organização"})
 		return
 	}
 	var existing store.Project

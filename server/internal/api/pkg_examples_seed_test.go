@@ -51,8 +51,8 @@ func TestSeedLanguagePackageExamplesIdempotent(t *testing.T) {
 	if err := app.Store.DB.Model(&store.OrgMember{}).Where("user_id = ?", alice.ID).Count(&orgMem).Error; err != nil {
 		t.Fatal(err)
 	}
-	if orgMem != 1 {
-		t.Fatalf("alice deveria ser OrgMember: %d", orgMem)
+	if orgMem != 0 {
+		t.Fatalf("alice não deve ser OrgMember da VPN inteira: %d", orgMem)
 	}
 }
 

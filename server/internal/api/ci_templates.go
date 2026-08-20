@@ -168,6 +168,20 @@ var workflowTemplates = []WorkflowTemplate{
 	},
 }
 
+func openWorkflowTemplates() []workflowTemplateJSON {
+	items := make([]workflowTemplateJSON, 0)
+	for _, t := range workflowTemplates {
+		if t.Category != "continuous-integration" && t.Category != "publish" {
+			continue
+		}
+		items = append(items, workflowTemplateJSON{
+			ID: t.ID, Name: t.Name, Description: t.Description,
+			Category: t.Category, Languages: t.Languages, Icon: t.Icon,
+		})
+	}
+	return items
+}
+
 func workflowTemplateByID(id string) (WorkflowTemplate, bool) {
 	id = strings.TrimSpace(id)
 	for _, t := range workflowTemplates {

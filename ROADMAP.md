@@ -1746,9 +1746,9 @@ Toda a superfície passa a ser **igual ao GitHub**: `xgit.corp/xcorp/hello-js`, 
 
 ### 58.2 Times
 
-- [ ] Times `exemplos` (pai), `packages`, `workflows`. Lista da org filtra por time.
-- [ ] Templates da 42.2 “abertos” (Publish / CI) residem no time `workflows`.
-- [ ] ACL: membro do time lê os repos do time; herança **explícita**, não “todos os users da VPN”.
+- [x] Times `exemplos` (pai), `packages`, `workflows`. Lista da org filtra por time.
+- [x] Templates da 42.2 “abertos” (Publish / CI) residem no time `workflows`.
+- [x] ACL: membro do time lê os repos do time; herança **explícita**, não “todos os users da VPN”.
 
 **Critério de saída:** em `xgit.corp/xcorp` os hello-* aparecem sob Packages; xchat/xvpn-client na raiz da org.
 

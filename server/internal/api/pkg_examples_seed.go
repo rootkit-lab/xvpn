@@ -103,6 +103,13 @@ func (a *App) ensureExampleProject(owner store.User, spec pkgexamples.Spec) (sto
 		}
 		if existing.OrganizationID == 0 {
 			existing.OrganizationID = org.ID
+		}
+		if existing.TeamID == nil || *existing.TeamID == 0 {
+			if team, ok := a.orgTeam(org.ID, "packages"); ok {
+				existing.TeamID = &team.ID
+			}
+		}
+		if existing.OrganizationID == org.ID {
 			_ = a.Store.DB.Save(&existing).Error
 		}
 		existing.Organization = org

@@ -348,6 +348,10 @@ func NewRouter(app *App) *gin.Engine {
 
 			// Forge (Fase 37): listagem e detalhe para o picker do feed
 			// e o XDRIVER. Member só vê projetos em que participa.
+			authed.GET("/orgs/:org", app.handleGetOrg)
+			authed.GET("/orgs/:org/teams/:team/members", app.handleListTeamMembers)
+			authed.POST("/orgs/:org/teams/:team/members", app.handleAddTeamMember)
+			authed.DELETE("/orgs/:org/teams/:team/members/:userID", app.handleRemoveTeamMember)
 			authed.GET("/projects", app.handleListProjects)
 			authed.POST("/xgit/repos", app.handleCreateProjectAuthed)
 			authed.GET("/projects/:org/:slug", app.handleGetProject)

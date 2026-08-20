@@ -88,6 +88,11 @@ type Config struct {
 	// Em produção: /opt/xvpn/data/social (dentro de ReadWritePaths).
 	SocialMediaDir string
 
+	// PackagesDir guarda blobs do registry do XGIT (Fase 45.1 — npm/generic).
+	// Em produção: /opt/xvpn/data/packages (dentro de ReadWritePaths).
+	// Sem hostname novo: a API vive em xgit.corp.
+	PackagesDir string
+
 	// MongoURI, se definido, torna o Mongo a fonte da verdade (Fase 28).
 	// Bind só 127.0.0.1:27017 em produção. Vazio = SQLite (testes/CI).
 	MongoURI string
@@ -187,6 +192,7 @@ func Load() (*Config, error) {
 		AdminBootstrapPassword:  os.Getenv("XVPN_ADMIN_PASSWORD"),
 		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
 		SocialMediaDir:          getEnv("XVPN_SOCIAL_MEDIA_DIR", "social-media-data"),
+		PackagesDir:             getEnv("XVPN_PACKAGES_DIR", "/opt/xvpn/data/packages"),
 		PublishToken:            os.Getenv("XVPN_PUBLISH_TOKEN"),
 		MongoURI:                os.Getenv("XVPN_MONGO_URI"),
 		XbotToken:               os.Getenv("XVPN_XBOT_TOKEN"),

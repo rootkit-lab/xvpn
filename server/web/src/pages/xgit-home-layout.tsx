@@ -98,10 +98,10 @@ export function XgitHomeLayout() {
                 Mensagens
               </a>
             )}
-            <span className="inline-flex items-center gap-2">
+            <NavLink to="/packages" className="inline-flex items-center gap-2 hover:text-foreground">
               <Package className="size-3.5" />
-              Packages em breve
-            </span>
+              Packages
+            </NavLink>
             <span className="inline-flex items-center gap-2">
               <Star className="size-3.5" />
               {overview?.star_count ?? 0} stars

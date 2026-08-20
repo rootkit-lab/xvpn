@@ -11,6 +11,7 @@ BACKUP_DIR="${XVPN_BACKUP_DIR:-/opt/xvpn/backups}"
 RETENTION_DAYS="${XVPN_BACKUP_RETENTION_DAYS:-7}"
 MARKETPLACE_DIR="${XVPN_MARKETPLACE_DIR:-/opt/xvpn/data/marketplace}"
 SOCIAL_MEDIA_DIR="${XVPN_SOCIAL_MEDIA_DIR:-/opt/xvpn/data/social}"
+PACKAGES_DIR="${XVPN_PACKAGES_DIR:-/opt/xvpn/data/packages}"
 MONGO_URI="${XVPN_MONGO_URI:-}"
 
 if [ -n "$MONGO_URI" ] && command -v mongodump >/dev/null 2>&1; then
@@ -61,5 +62,13 @@ if [ -d "$SOCIAL_MEDIA_DIR" ]; then
     mkdir -p "$BACKUP_DIR/social"
     rsync -a --delete "$SOCIAL_MEDIA_DIR/" "$BACKUP_DIR/social/"
     echo "xvpn-backup: social media espelhado em $BACKUP_DIR/social/"
+  fi
+fi
+
+if [ -d "$PACKAGES_DIR" ]; then
+  if command -v rsync >/dev/null 2>&1; then
+    mkdir -p "$BACKUP_DIR/packages"
+    rsync -a --delete "$PACKAGES_DIR/" "$BACKUP_DIR/packages/"
+    echo "xvpn-backup: packages XGIT espelhado em $BACKUP_DIR/packages/"
   fi
 fi

@@ -84,6 +84,11 @@ func run() error {
 		return err
 	}
 
+	packagesStore, err := marketplace.NewStore(cfg.PackagesDir)
+	if err != nil {
+		return err
+	}
+
 	// UserProvisioner (Fase 13, PLAN.md §6.9): cliente do binário
 	// privilegiado xvpn-user-provision. Se o binário não existe no
 	// caminho configurado (XVPN_USER_PROVISION_BIN), o client ainda é
@@ -101,6 +106,7 @@ func run() error {
 		Config:          cfg,
 		Marketplace:     marketplaceStore,
 		SocialMedia:     socialMediaStore,
+		Packages:        packagesStore,
 		UserProvisioner: userProvisioner,
 		ServerPublicKey: privateKey.PublicKey().String(),
 	}

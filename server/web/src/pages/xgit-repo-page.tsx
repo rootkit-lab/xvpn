@@ -40,6 +40,7 @@ const TABS = [
   { to: 'issues', label: 'Issues', end: false },
   { to: 'pulls', label: 'Pull requests', end: false },
   { to: 'projects', label: 'Projects', end: false },
+  { to: 'packages', label: 'Packages', end: false },
   { to: 'actions', label: 'Actions', end: false },
   { to: 'settings', label: 'Settings', end: false },
 ] as const

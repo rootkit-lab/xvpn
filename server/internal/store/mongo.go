@@ -39,6 +39,7 @@ func allModels() []any {
 		&SocialAttachment{}, &Story{}, &StoryView{},
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
 		&Project{}, &ProjectMember{}, &ProjectStar{}, &ProtectedBranch{}, &ProjectEnv{}, &MergeRequest{}, &MergeRequestReview{}, &Issue{}, &Milestone{}, &WorkProject{}, &WorkItem{}, &CodeSpace{}, &CiJob{},
+		&ForgePackage{}, &ForgePackageVersion{},
 		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
 		&ServiceInstance{},
 		&BackupSettings{}, &BackupDestination{}, &BackupJob{},

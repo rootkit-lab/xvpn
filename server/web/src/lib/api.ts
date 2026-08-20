@@ -823,6 +823,23 @@ export interface Project {
   starred?: boolean
   star_count?: number
   spark?: number[]
+  team?: string
+}
+
+export interface ForgeOrgTeam {
+  slug: string
+  name: string
+  parent?: string
+  repos: Project[]
+  templates?: { id: string; name: string; description: string; category: string; languages: string[]; icon: string }[]
+}
+
+export interface ForgeOrg {
+  slug: string
+  name: string
+  description: string
+  teams: ForgeOrgTeam[]
+  root: Project[]
 }
 
 export interface XgitOverview {
@@ -1301,13 +1318,30 @@ export const api = {
   downloadMarketplaceAsset,
   marketplaceStats: () => request<MarketplaceStats>('/marketplace/stats'),
 
-  listProjects: (scope?: 'all' | 'mine', cards?: boolean) => {
+  listProjects: (scope?: 'all' | 'mine', cards?: boolean, opts?: { org?: string; team?: string }) => {
     const q = new URLSearchParams()
     if (scope) q.set('scope', scope)
     if (cards) q.set('cards', '1')
+    if (opts?.org) q.set('org', opts.org)
+    if (opts?.team) q.set('team', opts.team)
     const qs = q.toString()
     return request<{ items: Project[] }>(qs ? `/projects?${qs}` : '/projects')
   },
+  getForgeOrg: (org: string) => request<ForgeOrg>(`/orgs/${encodeURIComponent(org)}`),
+  listOrgTeamMembers: (org: string, team: string) =>
+    request<{ items: { user_id: number; username: string }[] }>(
+      `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(team)}/members`,
+    ),
+  addOrgTeamMember: (org: string, team: string, userID: number) =>
+    request<{ user_id: number; username: string }>(
+      `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(team)}/members`,
+      { method: 'POST', body: JSON.stringify({ user_id: userID }) },
+    ),
+  removeOrgTeamMember: (org: string, team: string, userID: number) =>
+    request<{ ok: boolean }>(
+      `/orgs/${encodeURIComponent(org)}/teams/${encodeURIComponent(team)}/members/${userID}`,
+      { method: 'DELETE' },
+    ),
   getXgitOverview: () => request<XgitOverview>('/xgit/overview'),
   listXgitStars: () => request<{ items: Project[] }>('/xgit/stars'),
   listXgitPackages: () => request<{ items: ForgePackage[] }>('/xgit/packages'),
@@ -1318,8 +1352,14 @@ export const api = {
   downloadProjectPackage: (slug: string, id: number, filename: string) =>
     downloadProjectPackage(slug, id, filename),
   toggleProjectStar: (slug: string) => request<Project>(projectAPI(slug, `/star`), { method: 'POST' }),
-  createXgitRepo: (body: { org: string; slug: string; name: string; description?: string; network?: MarketplaceNetwork }) =>
-    request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
+  createXgitRepo: (body: {
+    org: string
+    slug: string
+    name: string
+    description?: string
+    network?: MarketplaceNetwork
+    team?: string
+  }) => request<Project>('/xgit/repos', { method: 'POST', body: JSON.stringify(body) }),
   getXgitSettings: () =>
     request<{
       default_visibility: MarketplaceVisibility
@@ -1376,6 +1416,7 @@ export const api = {
     visibility?: MarketplaceVisibility
     network?: MarketplaceNetwork
     runners?: string[]
+    team?: string
   }) => request<Project>('/projects', { method: 'POST', body: JSON.stringify(body) }),
   updateProject: (
     slug: string,

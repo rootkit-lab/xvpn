@@ -73,6 +73,7 @@ type projectResponse struct {
 	Starred       bool                    `json:"starred"`
 	StarCount     int64                   `json:"star_count"`
 	Spark         []int                   `json:"spark,omitempty"`
+	Team          string                  `json:"team,omitempty"`
 }
 
 func (a *App) canSeeProject(user store.User, proj store.Project) bool {
@@ -88,7 +89,10 @@ func (a *App) canSeeProject(user store.User, proj store.Project) bool {
 	if proj.Visibility == store.AppVisibilityRestricted {
 		return false
 	}
-	return a.isOrgMember(user, proj.OrganizationID)
+	if a.isOrgMember(user, proj.OrganizationID) {
+		return true
+	}
+	return a.canSeeViaTeam(user, proj)
 }
 
 func (a *App) canCreateInOrg(user store.User, orgID uint) bool {
@@ -171,6 +175,7 @@ func (a *App) projectResponse(proj store.Project, withMembers bool) projectRespo
 		MemberCount:   int(count),
 		CreatedAt:     proj.CreatedAt,
 		UpdatedAt:     proj.UpdatedAt,
+		Team:          a.teamSlug(proj.TeamID),
 	}
 	if !withMembers {
 		return out
@@ -190,6 +195,32 @@ func (a *App) projectResponse(proj store.Project, withMembers bool) projectRespo
 	return out
 }
 
+func (a *App) applyMemberProjectScope(q *gorm.DB, user store.User) (*gorm.DB, bool) {
+	var ids []uint
+	_ = a.Store.DB.Model(&store.ProjectMember{}).Where("user_id = ?", user.ID).Pluck("project_id", &ids).Error
+	var orgIDs []uint
+	_ = a.Store.DB.Model(&store.OrgMember{}).Where("user_id = ?", user.ID).Pluck("organization_id", &orgIDs).Error
+	teamIDs := a.readableTeamIDs(user.ID)
+	switch {
+	case len(ids) == 0 && len(orgIDs) == 0 && len(teamIDs) == 0:
+		return q, true
+	case len(orgIDs) == 0 && len(teamIDs) == 0:
+		return q.Where("id IN ?", ids), false
+	case len(ids) == 0 && len(teamIDs) == 0:
+		return q.Where("organization_id IN ? AND visibility <> ?", orgIDs, store.AppVisibilityRestricted), false
+	case len(ids) == 0 && len(orgIDs) == 0:
+		return q.Where("team_id IN ? AND visibility <> ?", teamIDs, store.AppVisibilityRestricted), false
+	case len(teamIDs) == 0:
+		return q.Where("id IN ? OR (organization_id IN ? AND visibility <> ?)", ids, orgIDs, store.AppVisibilityRestricted), false
+	case len(orgIDs) == 0:
+		return q.Where("id IN ? OR (team_id IN ? AND visibility <> ?)", ids, teamIDs, store.AppVisibilityRestricted), false
+	case len(ids) == 0:
+		return q.Where("(organization_id IN ? OR team_id IN ?) AND visibility <> ?", orgIDs, teamIDs, store.AppVisibilityRestricted), false
+	default:
+		return q.Where("id IN ? OR ((organization_id IN ? OR team_id IN ?) AND visibility <> ?)", ids, orgIDs, teamIDs, store.AppVisibilityRestricted), false
+	}
+}
+
 func (a *App) handleListProjects(c *gin.Context) {
 	var user store.User
 	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
@@ -204,20 +235,23 @@ func (a *App) handleListProjects(c *gin.Context) {
 		return
 	}
 	if scope == "mine" || !wantAll {
-		var ids []uint
-		_ = a.Store.DB.Model(&store.ProjectMember{}).Where("user_id = ?", user.ID).Pluck("project_id", &ids).Error
-		var orgIDs []uint
-		_ = a.Store.DB.Model(&store.OrgMember{}).Where("user_id = ?", user.ID).Pluck("organization_id", &orgIDs).Error
-		switch {
-		case len(ids) == 0 && len(orgIDs) == 0:
+		scoped, empty := a.applyMemberProjectScope(q, user)
+		if empty {
 			c.JSON(http.StatusOK, gin.H{"items": []projectResponse{}})
 			return
-		case len(ids) == 0:
-			q = q.Where("organization_id IN ? AND visibility <> ?", orgIDs, store.AppVisibilityRestricted)
-		case len(orgIDs) == 0:
-			q = q.Where("id IN ?", ids)
-		default:
-			q = q.Where("id IN ? OR (organization_id IN ? AND visibility <> ?)", ids, orgIDs, store.AppVisibilityRestricted)
+		}
+		q = scoped
+	}
+	if orgSlug := forge.NormalizeSlug(c.Query("org")); store.ValidOrgSlug(orgSlug) {
+		if org, ok := a.loadOrganization(orgSlug); ok {
+			q = q.Where("organization_id = ?", org.ID)
+			if team := strings.TrimSpace(c.Query("team")); team == "root" {
+				q = q.Where("team_id IS NULL OR team_id = 0")
+			} else if team != "" {
+				if t, ok := a.orgTeam(org.ID, team); ok {
+					q = q.Where("team_id = ?", t.ID)
+				}
+			}
 		}
 	}
 	var rows []store.Project

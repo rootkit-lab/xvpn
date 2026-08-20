@@ -63,6 +63,14 @@ func (a *App) userHasXgit(user store.User) bool {
 	if n > 0 {
 		return true
 	}
+	_ = a.Store.DB.Model(&store.OrgMember{}).Where("user_id = ?", user.ID).Count(&n).Error
+	if n > 0 {
+		return true
+	}
+	_ = a.Store.DB.Model(&store.OrgTeamMember{}).Where("user_id = ?", user.ID).Count(&n).Error
+	if n > 0 {
+		return true
+	}
 	var app store.App
 	if err := a.Store.DB.Where("slug = ? AND archived_at IS NULL", "xgit").First(&app).Error; err != nil {
 		return false

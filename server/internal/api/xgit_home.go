@@ -50,12 +50,11 @@ type xgitActivityItem struct {
 func (a *App) visibleProjects(user store.User) []store.Project {
 	q := a.Store.DB.Where("archived_at IS NULL")
 	if user.Role.Rank() < store.RoleViewer.Rank() {
-		var ids []uint
-		_ = a.Store.DB.Model(&store.ProjectMember{}).Where("user_id = ?", user.ID).Pluck("project_id", &ids).Error
-		if len(ids) == 0 {
+		scoped, empty := a.applyMemberProjectScope(q, user)
+		if empty {
 			return nil
 		}
-		q = q.Where("id IN ?", ids)
+		q = scoped
 	}
 	var rows []store.Project
 	_ = q.Order("updated_at desc").Find(&rows).Error

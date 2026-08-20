@@ -61,6 +61,7 @@ const XgitRepoPackagesPage = lazy(() =>
   import('@/pages/xgit-packages-page').then((m) => ({ default: m.XgitRepoPackagesPage })),
 )
 const XgitStarsPage = lazy(() => import('@/pages/xgit-stars-page').then((m) => ({ default: m.XgitStarsPage })))
+const XgitOrgPage = lazy(() => import('@/pages/xgit-org-page').then((m) => ({ default: m.XgitOrgPage })))
 const XgitSettingsPage = lazy(() =>
   import('@/pages/xgit-settings-page').then((m) => ({ default: m.XgitSettingsPage })),
 )
@@ -293,6 +294,7 @@ function XGitCorpApp() {
               <Route path="packages" element={<XgitPackagesPage />} />
               <Route path="stars" element={<XgitStarsPage />} />
             </Route>
+            <Route path=":org" element={<XgitOrgPage />} />
             <Route path=":org/:slug" element={<XgitRepoLayout />}>
               <Route index element={<XgitCodePage />} />
               <Route path="tree/*" element={<XgitCodePage />} />
@@ -432,6 +434,7 @@ function XAdminCorpApp() {
             <Route element={<MemberLeaveXadminXgit />}>
               <Route path="xgit" element={<XgitReposPage />} />
               <Route path="xgit/settings" element={<XgitSettingsPage />} />
+              <Route path="xgit/:org" element={<XgitOrgPage />} />
               <Route path="xgit/:org/:slug" element={<XgitRepoLayout />}>
                 <Route index element={<XgitCodePage />} />
                 <Route path="tree/*" element={<XgitCodePage />} />

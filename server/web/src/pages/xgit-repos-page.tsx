@@ -177,6 +177,7 @@ function CreateRepoForm({ onCreated, useMemberApi }: { onCreated: () => void; us
   const [slug, setSlug] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [team, setTeam] = useState('root')
   const [busy, setBusy] = useState(false)
 
   async function submit(e: FormEvent) {
@@ -189,6 +190,7 @@ function CreateRepoForm({ onCreated, useMemberApi }: { onCreated: () => void; us
         name: name.trim() || slug.trim().toLowerCase(),
         description: description.trim(),
         network: 'vpn' as const,
+        team: team === 'root' ? '' : team,
       }
       const created = useMemberApi ? await api.createXgitRepo(body) : await api.createProject(body)
       setSlug('')
@@ -230,6 +232,19 @@ function CreateRepoForm({ onCreated, useMemberApi }: { onCreated: () => void; us
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="repo-desc">Descrição</Label>
             <Input id="repo-desc" className="field-glass" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="repo-team">Time</Label>
+            <Select value={team} onValueChange={setTeam}>
+              <SelectTrigger id="repo-team" className="field-glass">
+                <SelectValue placeholder="Raiz da org" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="root">Raiz (xchat / produtos)</SelectItem>
+                <SelectItem value="packages">packages</SelectItem>
+                <SelectItem value="workflows">workflows</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="sm:col-span-2 lg:col-span-4">
             <Button type="submit" disabled={busy || slug.trim().length < 2}>

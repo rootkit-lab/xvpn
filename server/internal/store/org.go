@@ -150,5 +150,9 @@ func SeedXcorp(db *gorm.DB) error {
 		return nil
 	}
 	row := OrgMember{OrganizationID: org.ID, UserID: owner.ID, Role: OrgRoleOwner}
-	return db.Where("organization_id = ? AND user_id = ?", org.ID, owner.ID).FirstOrCreate(&row).Error
+	if err := db.Where("organization_id = ? AND user_id = ?", org.ID, owner.ID).FirstOrCreate(&row).Error; err != nil {
+		return err
+	}
+	tm := OrgTeamMember{TeamID: exemplos.ID, UserID: owner.ID}
+	return db.Where("team_id = ? AND user_id = ?", exemplos.ID, owner.ID).FirstOrCreate(&tm).Error
 }

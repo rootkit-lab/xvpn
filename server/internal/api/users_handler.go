@@ -109,7 +109,7 @@ func callerProducts(c *gin.Context) []store.Product {
 
 func writeProductAssignError(c *gin.Context, err error) {
 	if errors.Is(err, store.ErrInvalidProduct) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "produto inválido (use core, marketplace, xgroup ou xdriver)"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "produto inválido (use core, marketplace, xgroup, xdriver, forge, compute, dns ou managed)"})
 		return
 	}
 	c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})

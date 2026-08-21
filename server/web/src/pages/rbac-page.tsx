@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Shield } from 'lucide-react'
 import { api } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
@@ -6,6 +7,7 @@ import { useAuth } from '@/lib/auth-context'
 import {
   ALL_ROLES,
   canManageRole,
+  IAM_LAYERS,
   ROLE_BADGE_VARIANT,
   ROLE_CAPABILITIES,
   ROLE_DESCRIPTIONS,
@@ -35,6 +37,43 @@ export function RbacPage() {
   return (
     <div className="flex flex-col gap-6">
       {error && <p className="text-sm text-destructive">{error}</p>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Quatro camadas — não misturar</CardTitle>
+          <CardDescription>
+            XADMIN escreve política; os apps só consomem. ACL da loja não concede clone; membro de repo não
+            instala um <code className="font-mono text-xs">.deb</code> restricted. Ver PLAN.md §6.7.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Camada</TableHead>
+                <TableHead>Pergunta</TableHead>
+                <TableHead>Onde</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {IAM_LAYERS.map((layer) => (
+                <TableRow key={layer.id}>
+                  <TableCell className="font-medium">
+                    {layer.title}
+                    <div className="font-mono text-xs text-muted-foreground">{layer.mechanism}</div>
+                  </TableCell>
+                  <TableCell className="text-sm">{layer.question}</TableCell>
+                  <TableCell>
+                    <Link to={layer.href} className="text-sm text-primary underline-offset-4 hover:underline">
+                      {layer.screen}
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {ranked.map((role) => (

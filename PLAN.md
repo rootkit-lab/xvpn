@@ -365,6 +365,18 @@ Nenhuma porta/domínio novo: tudo dentro do mesmo binário/processo `xvpn-server
 - “Aprovar waitlist e provisionar” orquestra `POST /users` + invite — não inventa segundo caminho de credencial.
 - **Escopo de produto (Fase 33 + 35):** `User.Products` (`core` / `marketplace` / `xgroup` / `xdriver` / `forge` / `compute` / `dns` / `managed`). `super_admin` ignora a lista. `admin` com lista vazia permanece irrestrito (matriz da Fase 10). Com lista explícita, `RequireProduct` bloqueia a escrita da seção ausente — um admin da loja não revoga peers. IAM (criar/convidar/listar) não é produto; `DELETE /users` exige `core` (chama `RemovePeer`); reset/edição de conta com escopo maior que o do ator é 403 (`CoversAccount`). Fonte única do console: **`xadmin.corp.ihuull.com`** (Fase 35). Sem `admin.marketplace` público.
 
+**Camadas (IAM ≠ ACL) — não misturar:**
+
+| Camada | Pergunta | Mecanismo | Onde no xadmin |
+|---|---|---|---|
+| IAM | Esta pessoa existe e qual o poder de plataforma? | `User.Role` (`super_admin` / `admin` / `viewer` / `member`) | `/admin/users`, `/admin/rbac`, `/admin/audit` |
+| Escopo de produto | Este operador escreve *esta seção* do console? | `User.Products` + `RequireProduct` / `HasProduct` | sidebar filtrada; 403 na escrita |
+| ACL do catálogo | Esta pessoa vê/baixa o app X? | `App.visibility` + `AppAccess` | Marketplace → **ACL da loja** |
+| ACL org / time / repo | Esta pessoa lê/escreve `org/slug`? | `OrgMember` / `OrgTeamMember` / `ProjectMember` + `visibility` | XGIT → membros do repo/org |
+| Rede / JWE | Esta sessão vale neste host? | `aud` + VPN (`*.corp`) | nenhum (infra) |
+
+XADMIN é o plano de controle: cria identidade e escreve política. XGIT, loja, XDRIVER, XGROUP e codespace **consomem** a política — nenhum inventa `super_admin`. `AppAccess` do slug `xgit` **não** concede clone; `ProjectMember` **não** concede download de um `.deb` `restricted`. `viewer+` no console vê todos os repos (operação); o waffle **Seus apps** só libera XGIT com membership ou ACL do app. `HasProduct(forge)` é o override do operador no xadmin — admin com `products: []` é forge-admin de todos os repos. `member` nunca usa o console.
+
 **Três produtos de UI (SPA único, chrome de sistema compartilhado) — Fase 19 (layout) + Fase 30 (visual ihuull):**
 
 Sidebar, header e status bar são **do sistema** (fixos no viewport). O `main` só tem conteúdo da página. O header carrega o **menu da conta logada** (avatar → perfil social, conta, sair) e o seletor de produto (waffle).
@@ -1120,7 +1132,7 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 
 **Ciclos v0.2–v0.6 concluídos** (`ROADMAP.md` Fases 14–21): arquivos por IP do túnel, marketplace via `apps/`, split `/my`×`/admin`, social + messenger, mídia/chamadas. Detalhe histórico nas fases do ROADMAP.
 
-**Ciclo v0.7+ (`ROADMAP.md` Fases 22–29) — estado atual da plataforma ihuull:**
+**Ciclo v0.7+ (`ROADMAP.md` Fases 22–29) e Partes XIV–XV (35–64) — estado atual da plataforma ihuull:**
 
 | Item | Valor canônico |
 |---|---|
@@ -1131,10 +1143,12 @@ O `CHANGELOG.md` na raiz do monorepo **não** é substituído pelos changelogs p
 | Landing | `www.ihuull.com` / `ihuull.com` / `ihuu.com` |
 | Marketing messenger | `xchat.ihuull.com` (sem API/WS) |
 | Marketing xgroup | `xgroup.ihuull.com` (landing + perfil `/:user` com JWE; sem WS) |
-| Intranet | `xadmin.corp` / `xchat.corp` / `xgroup.corp` / `xdriver.corp` / `xgit.corp` / `xcodespaces.corp` → `10.66.66.1` (só VPN) |
+| Intranet | `xadmin.corp` / `xchat.corp` / `xgroup.corp` / `xdriver.corp` / `xgit.corp` / `xcodespaces.corp` / `registry.corp` / `pages.corp` → `10.66.66.1` (só VPN) |
 | Auth | **só JWE** (`dir` + `A256GCM`); issuer `xauth.ihuull.com` (lê também o issuer legado `xvpn.ihuull.com`); `aud` inclui `xadmin` |
 | Crescimento | Monólito modular (§6.13). Sem fatiar o binário. Console só no xadmin |
 | Persistência | Mongo control-plane `127.0.0.1:27017` se `XVPN_MONGO_URI`; senão SQLite (testes/CI). Serviços gerenciados são outras instâncias (§6.18) |
+| Forge (58–64) | Path `<org>/<slug>` (org seed `xcorp`). Packages (npm/PyPI/Maven/NuGet/gem) em `xgit.corp`; containers em `registry.corp` (`127.0.0.1:5000`); Pages via Go em `pages.corp/<org>/<slug>/`; Wiki / Security / Agents no repo. Deployado no VPS |
+| IAM / ACL | Quatro camadas em §6.7. XADMIN gerencia identidade e política; apps consomem |
 | landpages-ops | `ldpops.appapisip.com` — não muda |
 
 **Fase 30 — design system:** `shared/ui` (SASS) é a fonte de tokens; painel web, xvpn e xchat importam o mesmo color system. Catálogo em `shared/ui/COMPONENTS.md`.

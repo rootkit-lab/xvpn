@@ -111,7 +111,7 @@ export function MarketplacePage({
           setQ(next)
           setPage(1)
         }}
-        placeholder={isACL ? 'Buscar na ACL' : 'Buscar no catálogo'}
+        placeholder={isACL ? 'Buscar na ACL da loja' : 'Buscar no catálogo'}
       />
 
       {loading || !apps ? (
@@ -388,8 +388,8 @@ function ManageAccessDialog({ app, onChanged }: { app: MarketplaceApp; onChanged
             <DialogTitle>Acesso a "{app.name}"</DialogTitle>
             <DialogDescription>
               {app.visibility === 'global'
-                ? 'Este app é global — todo mundo já enxerga e baixa. A lista abaixo só passa a valer se o manifesto trocar a visibilidade para restrita.'
-                : 'Só os usuários marcados abaixo enxergam e baixam este app (além de admin/super_admin).'}
+                ? 'Este app é global — todo mundo já enxerga e baixa. A lista abaixo só passa a valer se o manifesto trocar a visibilidade para restrita. Não concede acesso a repositório.'
+                : 'Só os usuários marcados abaixo enxergam e baixam este app (além de admin/super_admin). Não concede clone nem papel IAM.'}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

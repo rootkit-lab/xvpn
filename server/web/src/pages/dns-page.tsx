@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export function DNSPage() {
   const { user: caller } = useAuth()
-  const canEdit = isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'core')
+  const canEdit = isAdminRole(caller?.role) && canWriteAdminProduct(caller?.role, caller?.products, 'dns')
   const fetchDNS = useCallback(() => api.getDNS(), [])
   const { data, loading, error, reload } = usePollingData(fetchDNS, 20_000)
 

@@ -145,12 +145,16 @@ func (a *App) publishPagesFromTree(proj store.Project, dest, source string) erro
 	if err != nil || len(entries) == 0 {
 		return errors.New("pasta " + source + " vazia ou ausente")
 	}
-	if err := os.RemoveAll(dest); err != nil {
+	stage, err := pagesStageDir(dest)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dest, 0o750); err != nil {
-		return err
-	}
+	keep := false
+	defer func() {
+		if !keep {
+			_ = os.RemoveAll(stage)
+		}
+	}()
 	wrote := 0
 	for _, rel := range entries {
 		body, binary, err := forge.ReadBlob(a.gitDir(), repo, "HEAD", source+"/"+rel)
@@ -163,13 +167,37 @@ func (a *App) publishPagesFromTree(proj store.Project, dest, source string) erro
 		if binary && !pagesExtOK[strings.ToLower(filepath.Ext(rel))] {
 			continue
 		}
-		if err := writePagesFile(dest, rel, []byte(body)); err != nil {
+		if err := writePagesFile(stage, rel, []byte(body)); err != nil {
 			return err
 		}
 		wrote++
 	}
 	if wrote == 0 {
 		return errors.New("nenhum arquivo estático em " + source)
+	}
+	if err := replacePagesDir(dest, stage); err != nil {
+		return err
+	}
+	keep = true
+	return nil
+}
+
+func pagesStageDir(dest string) (string, error) {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
+		return "", err
+	}
+	return os.MkdirTemp(filepath.Dir(dest), "pages-stage-")
+}
+
+func replacePagesDir(dest, stage string) error {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(dest); err != nil {
+		return err
+	}
+	if err := os.Rename(stage, dest); err != nil {
+		return err
 	}
 	return nil
 }
@@ -205,12 +233,16 @@ func extractPagesTar(dest string, body []byte, gz bool) error {
 		r = gr
 	}
 	tr := tar.NewReader(r)
-	if err := os.RemoveAll(dest); err != nil {
+	stage, err := pagesStageDir(dest)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dest, 0o750); err != nil {
-		return err
-	}
+	keep := false
+	defer func() {
+		if !keep {
+			_ = os.RemoveAll(stage)
+		}
+	}()
 	wrote := 0
 	for {
 		hdr, err := tr.Next()
@@ -231,7 +263,7 @@ func extractPagesTar(dest string, body []byte, gz bool) error {
 		if err != nil || len(data) > 2<<20 {
 			return errors.New("ficheiro grande demais")
 		}
-		if err := writePagesFile(dest, rel, data); err != nil {
+		if err := writePagesFile(stage, rel, data); err != nil {
 			return err
 		}
 		wrote++
@@ -239,6 +271,10 @@ func extractPagesTar(dest string, body []byte, gz bool) error {
 	if wrote == 0 {
 		return errors.New("arquivo sem páginas estáticas")
 	}
+	if err := replacePagesDir(dest, stage); err != nil {
+		return err
+	}
+	keep = true
 	return nil
 }
 
@@ -247,12 +283,16 @@ func extractPagesZip(dest string, body []byte) error {
 	if err != nil {
 		return err
 	}
-	if err := os.RemoveAll(dest); err != nil {
+	stage, err := pagesStageDir(dest)
+	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dest, 0o750); err != nil {
-		return err
-	}
+	keep := false
+	defer func() {
+		if !keep {
+			_ = os.RemoveAll(stage)
+		}
+	}()
 	wrote := 0
 	for _, f := range zr.File {
 		if f.FileInfo().IsDir() {
@@ -271,7 +311,7 @@ func extractPagesZip(dest string, body []byte) error {
 		if err != nil || len(data) > 2<<20 {
 			return errors.New("ficheiro grande demais")
 		}
-		if err := writePagesFile(dest, rel, data); err != nil {
+		if err := writePagesFile(stage, rel, data); err != nil {
 			return err
 		}
 		wrote++
@@ -279,6 +319,10 @@ func extractPagesZip(dest string, body []byte) error {
 	if wrote == 0 {
 		return errors.New("arquivo sem páginas estáticas")
 	}
+	if err := replacePagesDir(dest, stage); err != nil {
+		return err
+	}
+	keep = true
 	return nil
 }
 

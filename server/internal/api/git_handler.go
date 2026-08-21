@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"crypto/subtle"
 	"io"
 	"net"
@@ -217,6 +216,9 @@ func (a *App) handleGitSmartHTTP(c *gin.Context) {
 	if push && c.Request.Method == http.MethodPost && c.Writer.Status() < 400 {
 		if raw, ok := c.Get(contextPushUpdates); ok {
 			if updates, ok := raw.([]forge.RefUpdate); ok {
+				if a.rejectSecretPush(proj, updates) {
+					return
+				}
 				a.enqueuePushJobs(proj, updates, user.Username)
 			}
 		}
@@ -264,15 +266,7 @@ func (a *App) enforceProtectedPush(c *gin.Context, user store.User, proj store.P
 		c.JSON(http.StatusBadRequest, gin.H{"error": "pack inválido"})
 		return false
 	}
-	pack, _ := io.ReadAll(io.LimitReader(rest, 32<<20))
-	if reject, titles := scanPackSecrets(pack); len(titles) > 0 {
-		a.recordSecretAlerts(proj, titles)
-		if reject {
-			c.JSON(http.StatusForbidden, gin.H{"error": "push rejeitado: chave privada"})
-			return false
-		}
-	}
-	c.Request.Body = io.NopCloser(bytes.NewReader(pack))
+	c.Request.Body = io.NopCloser(rest)
 	c.Set(contextPushUpdates, updates)
 	rules := a.protectedBranchRules(proj.ID)
 	for _, u := range updates {

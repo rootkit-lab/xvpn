@@ -361,6 +361,10 @@ func (a *App) handleCreateWorkItem(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "issue não encontrada"})
 			return
 		}
+		if !a.canSeeRestrictedIssue(user, proj, issue) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "issue não encontrada"})
+			return
+		}
 		var dup int64
 		_ = a.Store.DB.Model(&store.WorkItem{}).Where("work_project_id = ? AND issue_number = ?", wp.ID, issue.Number).Count(&dup).Error
 		if dup > 0 {

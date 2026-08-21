@@ -116,8 +116,37 @@ func (a *App) recordSecAlerts(proj store.Project, job *store.CiJob, log string) 
 			n := job.Number
 			alerts[i].JobNumber = &n
 		}
+		var n int64
+		_ = a.Store.DB.Model(&store.SecAlert{}).Where(
+			"project_id = ? AND tool = ? AND title = ? AND status = ?",
+			proj.ID, alerts[i].Tool, alerts[i].Title, store.SecStatusOpen,
+		).Count(&n).Error
+		if n > 0 {
+			continue
+		}
 		_ = a.Store.DB.Create(&alerts[i]).Error
 	}
+}
+
+func (a *App) rejectSecretPush(proj store.Project, updates []forge.RefUpdate) bool {
+	repo := a.projectRepo(proj)
+	var titles []string
+	reject := false
+	for _, u := range updates {
+		if forge.IsZeroOID(u.NewHex) {
+			continue
+		}
+		if !forge.RevHasPrivateKey(a.gitDir(), repo, u.NewHex) {
+			continue
+		}
+		titles = append(titles, "chave privada no push")
+		reject = true
+		_ = forge.ResetRef(a.gitDir(), repo, u.Ref, u.OldHex)
+	}
+	if len(titles) > 0 {
+		a.recordSecretAlerts(proj, titles)
+	}
+	return reject
 }
 
 func (a *App) recordSecretAlerts(proj store.Project, titles []string) {

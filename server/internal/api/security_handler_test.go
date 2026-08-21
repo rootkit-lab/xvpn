@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/rootkit-lab/xvpn/server/internal/forge"
 	"github.com/rootkit-lab/xvpn/server/internal/store"
 )
 
@@ -73,9 +74,26 @@ func TestSecurityPrivateReportHidden(t *testing.T) {
 }
 
 func TestScanPackRejectsPrivateKey(t *testing.T) {
-	reject, titles := scanPackSecrets([]byte("foo\n-----BEGIN OPENSSH PRIVATE KEY-----\nbar"))
+	reject, titles := scanPackSecrets([]byte("foo\n-----BEGIN " + "OPENSSH PRIVATE KEY-----\nbar"))
 	if !reject || len(titles) == 0 {
 		t.Fatalf("reject=%v titles=%v", reject, titles)
+	}
+}
+
+func TestRevHasPrivateKeyOnCommit(t *testing.T) {
+	app, router, adminTok := setupGitApp(t)
+	rec := doJSON(t, router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, adminTok)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d", rec.Code)
+	}
+	if _, err := forge.CommitFiles(app.Config.GitDir, "xcorp/lab", forge.CommitFilesOpts{
+		Files:   []forge.FileContent{{Path: "id", Content: "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nb\n-----END " + "OPENSSH PRIVATE KEY-----\n"}},
+		Message: "key",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if !forge.RevHasPrivateKey(app.Config.GitDir, "xcorp/lab", "HEAD") {
+		t.Fatal("esperava detectar chave no tree")
 	}
 }
 

@@ -39,10 +39,17 @@ func TestRegisterManualMeshServer(t *testing.T) {
 	}
 
 	rec = doJSON(t, router, http.MethodPost, "/api/servers/register", map[string]string{
-		"hostname": "evil", "ipv4": "8.8.8.8", "ssh_private_key": "-----BEGIN",
+		"hostname": "evil", "ipv4": "8.8.8.8", "privateKey": "secret-material",
 	}, tok)
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("private key deveria 400, veio %d", rec.Code)
+		t.Fatalf("privateKey deveria 400, veio %d", rec.Code)
+	}
+	pemBlob := "-----BEGIN " + "RSA PRIVATE KEY-----\nabc"
+	rec = doJSON(t, router, http.MethodPost, "/api/servers/register", map[string]string{
+		"hostname": "evil2", "ipv4": "8.8.4.4", "notes": pemBlob,
+	}, tok)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("PEM em notes deveria 400, veio %d", rec.Code)
 	}
 
 	rec = doJSON(t, router, http.MethodPost, "/api/servers/register", registerManualMeshServerRequest{

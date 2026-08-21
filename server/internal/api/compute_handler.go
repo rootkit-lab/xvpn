@@ -293,11 +293,9 @@ func (a *App) handleRegisterManualMeshServer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
 		return
 	}
-	for _, k := range []string{"ssh_private_key", "private_key", "identity_file", "pem"} {
-		if _, ok := raw[k]; ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "chave privada SSH não é aceita — fica no laptop do operador"})
-			return
-		}
+	if rejectsSSHPrivateMaterial(raw) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "chave privada SSH não é aceita — fica no laptop do operador"})
+		return
 	}
 	body, err := json.Marshal(raw)
 	if err != nil {
@@ -557,6 +555,14 @@ func (a *App) handleIssueEnrollToken(c *gin.Context) {
 			oldPub = dev.PublicKey
 		}
 	}
+	// Revoga no kernel antes de persistir pending-enroll — falha aqui aborta
+	// sem mudar o DB (retry seguro). RemovePeer de peer já ausente é ok.
+	if oldPub != "" && a.WG != nil {
+		if err := a.WG.RemovePeer(oldPub); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao revogar peer WireGuard"})
+			return
+		}
+	}
 	exp := time.Now().Add(24 * time.Hour)
 	s.EnrollToken = token
 	s.EnrollExpiresAt = &exp
@@ -567,14 +573,34 @@ func (a *App) handleIssueEnrollToken(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	if oldPub != "" {
-		_ = a.WG.RemovePeer(oldPub)
-	}
 	if oldDevID != nil {
 		_ = a.Store.DB.Delete(&store.Device{}, *oldDevID).Error
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "compute.enroll_token", s.Hostname)
 	c.JSON(http.StatusOK, a.meshServerJSON(s, true))
+}
+
+func rejectsSSHPrivateMaterial(raw map[string]any) bool {
+	for k, v := range raw {
+		lk := strings.ToLower(strings.TrimSpace(k))
+		if strings.Contains(lk, "private") ||
+			strings.Contains(lk, "identity") ||
+			strings.Contains(lk, "pem") ||
+			strings.Contains(lk, "ssh_key") ||
+			strings.Contains(lk, "sshkey") ||
+			lk == "key" {
+			return true
+		}
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		u := strings.ToUpper(s)
+		if strings.Contains(u, "PRIVATE KEY") || strings.Contains(u, "BEGIN OPENSSH") {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) handleSetServerAccess(c *gin.Context) {

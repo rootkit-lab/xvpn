@@ -543,11 +543,19 @@ func (a *App) handleIssueEnrollToken(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "este host não usa enroll da malha"})
 		return
 	}
-	a.revokeMeshPeer(&s)
 	token, err := generateInviteToken()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
+	}
+	var oldPub string
+	var oldDevID *uint
+	if s.DeviceID != nil {
+		oldDevID = s.DeviceID
+		var dev store.Device
+		if err := a.Store.DB.First(&dev, *s.DeviceID).Error; err == nil {
+			oldPub = dev.PublicKey
+		}
 	}
 	exp := time.Now().Add(24 * time.Hour)
 	s.EnrollToken = token
@@ -558,6 +566,12 @@ func (a *App) handleIssueEnrollToken(c *gin.Context) {
 	if err := a.Store.DB.Save(&s).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
+	}
+	if oldPub != "" {
+		_ = a.WG.RemovePeer(oldPub)
+	}
+	if oldDevID != nil {
+		_ = a.Store.DB.Delete(&store.Device{}, *oldDevID).Error
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "compute.enroll_token", s.Hostname)
 	c.JSON(http.StatusOK, a.meshServerJSON(s, true))

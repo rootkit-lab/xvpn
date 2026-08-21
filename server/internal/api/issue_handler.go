@@ -36,6 +36,7 @@ type issueJSON struct {
 	ThreadID       uint              `json:"thread_id"`
 	ClosedAt       *time.Time        `json:"closed_at,omitempty"`
 	ClosedBy       string            `json:"closed_by,omitempty"`
+	Restricted     bool              `json:"restricted,omitempty"`
 	CreatedAt      time.Time         `json:"created_at"`
 	UpdatedAt      time.Time         `json:"updated_at"`
 	CanClose       bool              `json:"can_close,omitempty"`
@@ -69,16 +70,17 @@ func (a *App) canManageIssue(user store.User, proj store.Project, issue store.Is
 
 func (a *App) issueJSON(proj store.Project, user store.User, issue store.Issue) issueJSON {
 	out := issueJSON{
-		Number:    issue.Number,
-		Title:     issue.Title,
-		Body:      issue.Body,
-		Status:    issue.Status,
-		Labels:    issue.Labels,
-		AuthorID:  issue.AuthorID,
-		ThreadID:  issue.ThreadID,
-		ClosedAt:  issue.ClosedAt,
-		CreatedAt: issue.CreatedAt,
-		UpdatedAt: issue.UpdatedAt,
+		Number:     issue.Number,
+		Title:      issue.Title,
+		Body:       issue.Body,
+		Status:     issue.Status,
+		Labels:     issue.Labels,
+		AuthorID:   issue.AuthorID,
+		ThreadID:   issue.ThreadID,
+		ClosedAt:   issue.ClosedAt,
+		Restricted: issue.Restricted,
+		CreatedAt:  issue.CreatedAt,
+		UpdatedAt:  issue.UpdatedAt,
 	}
 	if out.Labels == nil {
 		out.Labels = []string{}
@@ -184,6 +186,10 @@ func (a *App) loadIssue(c *gin.Context) (store.Project, store.User, store.Issue,
 		c.JSON(http.StatusNotFound, gin.H{"error": "issue não encontrada"})
 		return proj, user, store.Issue{}, false
 	}
+	if !a.canSeeRestrictedIssue(user, proj, issue) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "issue não encontrada"})
+		return proj, user, store.Issue{}, false
+	}
 	return proj, user, issue, true
 }
 
@@ -265,6 +271,9 @@ func (a *App) handleListIssues(c *gin.Context) {
 	label := strings.TrimSpace(c.Query("label"))
 	filtered := make([]store.Issue, 0, len(rows))
 	for _, it := range rows {
+		if !a.canSeeRestrictedIssue(user, proj, it) {
+			continue
+		}
 		if assignee != nil && !containsUint(it.AssigneeIDs, assignee.ID) {
 			continue
 		}
@@ -332,6 +341,54 @@ func (a *App) handleGetIssue(c *gin.Context) {
 	c.JSON(http.StatusOK, a.issueJSON(proj, user, issue))
 }
 
+func (a *App) insertIssue(proj store.Project, user store.User, title, body string, labels []string, assignees []uint, milestoneID *uint, restricted bool) (store.Issue, error) {
+	var issue store.Issue
+	err := a.Store.DB.Transaction(func(tx *gorm.DB) error {
+		var last store.Issue
+		number := uint(1)
+		if err := tx.Where("project_id = ?", proj.ID).Order("number desc").First(&last).Error; err == nil {
+			number = last.Number + 1
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		var thID uint
+		var postID *uint
+		if restricted {
+			id, err := a.createRestrictedIssueThread(tx, proj, user, fmt.Sprintf("#%d %s", number, title), fmt.Sprintf("Issue #%d aberta", number))
+			if err != nil {
+				return err
+			}
+			thID = id
+		} else {
+			tid, pid, err := a.createProjectThread(tx, proj, user, store.ThreadKindIssue,
+				fmt.Sprintf("#%d %s", number, title),
+				fmt.Sprintf("Issue #%d aberta", number),
+				fmt.Sprintf("Issue #%d: %s", number, title))
+			if err != nil {
+				return err
+			}
+			thID = tid
+			postID = &pid
+		}
+		issue = store.Issue{
+			ProjectID:    proj.ID,
+			Number:       number,
+			Title:        title,
+			Body:         body,
+			Status:       store.IssueOpen,
+			Labels:       labels,
+			AssigneeIDs:  assignees,
+			MilestoneID:  milestoneID,
+			AuthorID:     user.ID,
+			ThreadID:     thID,
+			SocialPostID: postID,
+			Restricted:   restricted,
+		}
+		return tx.Create(&issue).Error
+	})
+	return issue, err
+}
+
 func (a *App) handleCreateIssue(c *gin.Context) {
 	proj, user, ok := a.loadProjectBySlug(c)
 	if !ok {
@@ -375,37 +432,7 @@ func (a *App) handleCreateIssue(c *gin.Context) {
 		}
 	}
 
-	var issue store.Issue
-	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
-		var last store.Issue
-		number := uint(1)
-		if err := tx.Where("project_id = ?", proj.ID).Order("number desc").First(&last).Error; err == nil {
-			number = last.Number + 1
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-		thID, postID, err := a.createProjectThread(tx, proj, user, store.ThreadKindIssue,
-			fmt.Sprintf("#%d %s", number, title),
-			fmt.Sprintf("Issue #%d aberta", number),
-			fmt.Sprintf("Issue #%d: %s", number, title))
-		if err != nil {
-			return err
-		}
-		issue = store.Issue{
-			ProjectID:    proj.ID,
-			Number:       number,
-			Title:        title,
-			Body:         body,
-			Status:       store.IssueOpen,
-			Labels:       labels,
-			AssigneeIDs:  assignees,
-			MilestoneID:  milestoneID,
-			AuthorID:     user.ID,
-			ThreadID:     thID,
-			SocialPostID: &postID,
-		}
-		return tx.Create(&issue).Error
-	})
+	issue, err := a.insertIssue(proj, user, title, body, labels, assignees, milestoneID, false)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return

@@ -796,7 +796,7 @@ Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do mar
 
 **Pages e Wiki (Fase 61).** Pages = blob estático em `pages.corp.ihuull.com/<org>/<slug>/` (disco `/opt/xvpn/data/pages`, Nginx só wg0). Fonte: `docs/`/`public/` do default branch ou artifact CI (`POST /api/projects/:org/:slug/pages`). Wiki = `refs/xgit/wiki` no bare (`GET/PUT /api/projects/:org/:slug/wiki/:page`, Home.md = `#1`). Sem FileBrowser, sem segundo social, sem `<org>.pages.corp`.
 
-**Security and quality (Fase 62).** Aba no repo: Findings (Dependabot, code scanning, secret scanning) + Reporting (policy, advisories). Sem SaaS GitHub; jobs no runner da malha; alertas no Mongo.
+**Security and quality (Fase 62).** Aba `/:org/:slug/security`: Findings (deps / code / secret) + Reporting. Policy = `SECURITY.md`. Private report = issue `restricted` ao maintainer. `SecAlert` no Mongo. CI parse (`npm audit`, `govulncheck`, `gosec`). Secret scan no receive-pack (rejeita chave privada). Sem SaaS.
 
 **Agents (Fase 63).** Aba no repo (entre Pull requests e Actions): sessões do agente ihuull — Created by me, Needs attention, Active/Completed. Não é Copilot. A sessão vive no codespace (Fases 52–55); o XGIT só lista e abre.
 

@@ -704,6 +704,9 @@ func (a *App) handleCiFinish(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
+	if req.Log != "" {
+		a.recordSecAlerts(proj, &job, req.Log)
+	}
 	c.JSON(http.StatusOK, a.ciJobJSON(job))
 }
 

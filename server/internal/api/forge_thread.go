@@ -40,6 +40,38 @@ func (a *App) createProjectThread(tx *gorm.DB, proj store.Project, user store.Us
 	return th.ID, post.ID, nil
 }
 
+func (a *App) createRestrictedIssueThread(tx *gorm.DB, proj store.Project, user store.User, title, firstMsg string) (uint, error) {
+	th := store.DirectThread{Kind: store.ThreadKindIssue, Title: title}
+	if err := tx.Create(&th).Error; err != nil {
+		return 0, err
+	}
+	seen := map[uint]struct{}{user.ID: {}}
+	if err := tx.Create(&store.DirectThreadMember{ThreadID: th.ID, UserID: user.ID}).Error; err != nil {
+		return 0, err
+	}
+	var members []store.ProjectMember
+	if err := tx.Where("project_id = ?", proj.ID).Find(&members).Error; err != nil {
+		return 0, err
+	}
+	for _, m := range members {
+		if _, ok := seen[m.UserID]; ok {
+			continue
+		}
+		if m.Role.Rank() < store.ProjectRoleMaintainer.Rank() {
+			continue
+		}
+		seen[m.UserID] = struct{}{}
+		if err := tx.Create(&store.DirectThreadMember{ThreadID: th.ID, UserID: m.UserID}).Error; err != nil {
+			return 0, err
+		}
+	}
+	msg := store.Message{ThreadKind: store.ThreadKindDM, ThreadID: th.ID, AuthorID: user.ID, Kind: "text", Body: firstMsg}
+	if err := tx.Create(&msg).Error; err != nil {
+		return 0, err
+	}
+	return th.ID, nil
+}
+
 func (a *App) canReporterWrite(user store.User, proj store.Project) bool {
 	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
 		return true

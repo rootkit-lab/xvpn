@@ -453,6 +453,8 @@ func NewRouter(app *App) *gin.Engine {
 			authed.PUT("/projects/:org/:slug/wiki/:page", app.handlePutWikiPage)
 			authed.GET("/projects/:org/:slug/pages", app.handleGetPagesStatus)
 			authed.POST("/projects/:org/:slug/pages", app.handlePublishPages)
+			authed.GET("/projects/:org/:slug/security", app.handleGetProjectSecurity)
+			authed.POST("/projects/:org/:slug/security/report", app.handleCreateSecurityReport)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())

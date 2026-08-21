@@ -3,6 +3,7 @@ package api
 import (
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -62,6 +63,49 @@ func parseRegistryV2Repo(uri string) string {
 	return parts[1] + "/" + parts[2]
 }
 
+func parseRegistryMountFrom(uri string) string {
+	raw := uri
+	if i := strings.Index(uri, "?"); i >= 0 {
+		raw = uri[i+1:]
+	} else {
+		return ""
+	}
+	q, err := url.ParseQuery(raw)
+	if err != nil {
+		return ""
+	}
+	from := strings.TrimSpace(q.Get("from"))
+	if from == "" || strings.Count(from, "/") != 1 {
+		return ""
+	}
+	return from
+}
+
+func registryScopedRepo(c *gin.Context) string {
+	v, _ := c.Get(auth.ContextRepoKey)
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
+}
+
+func (a *App) registryAllowRepo(c *gin.Context, user store.User, repo string, write bool) bool {
+	repo = strings.TrimSpace(repo)
+	if repo == "" || strings.Count(repo, "/") != 1 {
+		return false
+	}
+	if scoped := registryScopedRepo(c); scoped != "" && scoped != repo {
+		return false
+	}
+	org, slug, ok := strings.Cut(repo, "/")
+	if !ok {
+		return false
+	}
+	proj, found := a.findProject(org, slug)
+	if !found || !a.canSeeProject(user, proj) {
+		return false
+	}
+	return !write || a.canAccessProjectFiles(user, proj, true)
+}
+
 func (a *App) handleRegistryToken(c *gin.Context) {
 	var user store.User
 	if err := a.Store.DB.First(&user, callerUserID(c)).Error; err != nil {
@@ -70,17 +114,16 @@ func (a *App) handleRegistryToken(c *gin.Context) {
 	}
 	scope := firstNonEmpty(c.Query("scope"), c.Query("scopes"))
 	repo, _ := parseRegistryScope(scope)
+	scoped := registryScopedRepo(c)
 	if repo == "" {
 		c.JSON(http.StatusOK, gin.H{"token": auth.TokenFromRequest(c), "expires_in": 7200})
 		return
 	}
-	org, slug, ok := strings.Cut(repo, "/")
-	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "scope inválido"})
+	if scoped != "" && scoped != repo {
+		c.JSON(http.StatusForbidden, gin.H{"error": "token só vale neste repositório"})
 		return
 	}
-	proj, found := a.findProject(org, slug)
-	if !found || !a.canSeeProject(user, proj) {
+	if !a.registryAllowRepo(c, user, repo, false) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "sem acesso a este repositório"})
 		return
 	}
@@ -105,30 +148,16 @@ func (a *App) handleRegistryAuth(c *gin.Context) {
 		return
 	}
 	repo := parseRegistryV2Repo(uri)
-	if repo == "" {
+	write := method != http.MethodGet && method != http.MethodHead
+	if !a.registryAllowRepo(c, user, repo, write) {
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
-	if audRepo, _ := c.Get(auth.ContextRepoKey); audRepo != nil {
-		if s, ok := audRepo.(string); ok && s != "" && s != repo {
+	if from := parseRegistryMountFrom(uri); from != "" {
+		if !a.registryAllowRepo(c, user, from, false) {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
-	}
-	org, slug, ok := strings.Cut(repo, "/")
-	if !ok {
-		c.AbortWithStatus(http.StatusForbidden)
-		return
-	}
-	proj, found := a.findProject(org, slug)
-	if !found || !a.canSeeProject(user, proj) {
-		c.AbortWithStatus(http.StatusForbidden)
-		return
-	}
-	write := method != http.MethodGet && method != http.MethodHead
-	if write && !a.canAccessProjectFiles(user, proj, true) {
-		c.AbortWithStatus(http.StatusForbidden)
-		return
 	}
 	c.Status(http.StatusOK)
 }

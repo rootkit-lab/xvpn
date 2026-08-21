@@ -41,6 +41,11 @@ export function ServersPage() {
         </Badge>
       ),
     },
+    {
+      key: 'provider',
+      header: 'Origem',
+      cell: (s) => <span className="text-muted-foreground">{s.provider ?? '—'}</span>,
+    },
     { key: 'wg', header: 'wg0', cell: (s) => <span className="text-muted-foreground">{s.wg_ip || '—'}</span> },
     { key: 'status', header: 'Status', cell: (s) => <span className="text-muted-foreground">{s.status}</span> },
     {
@@ -81,11 +86,12 @@ export function ServersPage() {
           Cadastre uma API em{' '}
           <Link to="/admin/compute/settings" className="underline underline-offset-4">
             Compute → Configurações
-          </Link>
-          . Importar o node local funciona sem token.
+          </Link>{' '}
+          para criar VPS BitLaunch. VPS já existentes (nó data) usam o formulário manual abaixo — sem token.
         </p>
       ) : null}
 
+      {canWrite ? <RegisterManualForm onCreated={reload} /> : null}
       {canWrite && data?.bitlaunch ? (
         <CreateServerForm accounts={data.accounts ?? []} onCreated={reload} />
       ) : null}
@@ -110,6 +116,95 @@ export function ServersPage() {
         onPageChange={() => undefined}
       />
     </div>
+  )
+}
+
+function RegisterManualForm({ onCreated }: { onCreated: () => void }) {
+  const [hostname, setHostname] = useState('data')
+  const [name, setName] = useState('data')
+  const [ipv4, setIpv4] = useState('66.29.147.100')
+  const [notes, setNotes] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [enrollToken, setEnrollToken] = useState('')
+  const [bootstrap, setBootstrap] = useState('')
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setEnrollToken('')
+    setBootstrap('')
+    try {
+      const created = await api.registerServer({
+        hostname: hostname.trim().toLowerCase(),
+        name: name.trim() || hostname.trim().toLowerCase(),
+        ipv4: ipv4.trim(),
+        role: 'mesh',
+        notes: notes.trim() || undefined,
+        labels: ['data'],
+      })
+      setEnrollToken(created.enroll_token ?? '')
+      setBootstrap(created.bootstrap ?? '')
+      toast.success(`Servidor ${created.hostname} cadastrado — rode o bootstrap no host (SSH do laptop)`)
+      onCreated()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao cadastrar servidor')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Cadastrar VPS existente</CardTitle>
+        <CardDescription>
+          Sem BitLaunch. Entra na malha WireGuard após enroll. A chave SSH privada fica no laptop — o
+          control-plane não faz SSH. Use para o nó de dados (<code className="text-xs">66.29.147.100</code>
+          ): Mongo, git e containers. Não é inventário do XGIT.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="man-host">Hostname</Label>
+            <Input
+              id="man-host"
+              value={hostname}
+              onChange={(e) => setHostname(e.target.value.toLowerCase())}
+              required
+              pattern="[a-z0-9][a-z0-9-]{0,18}[a-z0-9]"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="man-name">Nome</Label>
+            <Input id="man-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="man-ip">IPv4 público</Label>
+            <Input id="man-ip" value={ipv4} onChange={(e) => setIpv4(e.target.value)} required />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="man-notes">Notas</Label>
+            <Input id="man-notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <div className="flex items-end">
+            <Button type="submit" disabled={busy}>
+              {busy ? 'Cadastrando…' : 'Cadastrar + enroll'}
+            </Button>
+          </div>
+        </form>
+        {enrollToken ? (
+          <p className="rounded-md border border-border/60 bg-muted/30 p-3 font-mono text-xs break-all">
+            enroll_token (uma vez): {enrollToken}
+          </p>
+        ) : null}
+        {bootstrap ? (
+          <pre className="max-h-48 overflow-auto rounded-md border border-border/60 bg-muted/30 p-3 text-xs">
+            {bootstrap}
+          </pre>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }
 

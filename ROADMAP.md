@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–64** na `main` e no VPS (org/slug, registries, Pages, Security, Agents, `xcs-detect`). **Fase 65** = camadas IAM ≠ ACL no xadmin. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–65** na `main` e no VPS. **Fase 66** = nó data (`66.29.147.100`) na malha + repo `xcorp/xvpn`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1851,6 +1851,20 @@ O console já tinha papéis, `products`, `AppAccess` e membros de org/repo — m
 
 ---
 
+## Fase 66 — Nó data (malha) + repo plataforma no XGIT
+
+O VPS `66.29.147.100` alivia o control-plane: Mongo, bare git e containers. Entra como **Compute mesh** (cadastro manual + enroll WG), não como inventário no forge. O código da plataforma mora em **`xcorp/xvpn`**.
+
+- [x] `POST /api/servers/register` — VPS existente sem BitLaunch; rejeita chave privada SSH; devolve enroll + bootstrap.
+- [x] Seed `data` (`66.29.147.100`) + seed projeto `xcorp/xvpn` (restricted/vpn).
+- [x] UI Compute: formulário “Cadastrar VPS existente”; `provider` na listagem.
+- [x] Docs: `PLAN.md` §6.16, `docs/areas/compute.md` + `xgit.md`, skill `tasks` + `TASKS.md`.
+- [ ] Cutover operacional (Mongo/git/Docker no peer) — fases seguintes; bind só `wg0`.
+
+**Critério de saída:** xadmin lista `data` pending-enroll; bootstrap no host cria peer `10.66.66.0/24`; `xcorp/xvpn` existe no XGIT. Sem chave SSH no Git/API.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.
@@ -1869,6 +1883,7 @@ O console já tinha papéis, `products`, `AppAccess` e membros de org/repo — m
 - **Parte XIV (35–57):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) → **57** (canário Flask no repo `teste` + espelho de terminal).
 - **Parte XV (58–64):** org `<org>/<slug>` (sem fallback) → registries + Actions publish → containers → Pages/Wiki → Security and quality → aba Agents → `xcs-detect`. Não misturar Harbor (60) com Maven (59) nem BitLaunch com git na mesma PR.
 - **Parte XVI (65):** camadas IAM ≠ ACL no xadmin. Sem reescrever `HasProduct(forge)` nos handlers de git/CI nesta fase.
+- **Parte XVII (66):** nó `data` na malha + `xcorp/xvpn` no forge. Cutover Mongo/git/containers fica depois.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

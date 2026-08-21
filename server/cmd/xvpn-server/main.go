@@ -135,6 +135,14 @@ func run() error {
 		slog.Error("seed dos exemplos de package falhou (servidor continua subindo; ver log)",
 			"err", err.Error())
 	}
+	if err := app.SeedPlatformRepo(); err != nil {
+		slog.Error("seed do repo xcorp/xvpn falhou (servidor continua subindo; ver log)",
+			"err", err.Error())
+	}
+	if err := app.SeedDataNode(); err != nil {
+		slog.Error("seed do nó data falhou (servidor continua subindo; ver log)",
+			"err", err.Error())
+	}
 
 	// Dois listeners, um router só (Fase 14 — ver PLAN.md §5 e §6.9):
 	// - cfg.HTTPAddr (127.0.0.1:8080): o painel/API atrás do Nginx.

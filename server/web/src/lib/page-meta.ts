@@ -204,7 +204,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'Compute',
       title: 'Servidores',
-      description: 'Malha BitLaunch. Console xterm e observações no detalhe. Hosts externos só inventário.',
+      description: 'Malha: BitLaunch + cadastro manual (nó data). Console xterm e observações no detalhe. Hosts externos só inventário.',
     },
   },
   {

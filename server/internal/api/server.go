@@ -591,6 +591,7 @@ func NewRouter(app *App) *gin.Engine {
 			computeWrite.Use(auth.RequireProduct(store.ProductCompute))
 			{
 				computeWrite.POST("/servers/import", app.handleImportMeshServers)
+				computeWrite.POST("/servers/register", app.handleRegisterManualMeshServer)
 				computeWrite.POST("/servers", app.handleCreateMeshServer)
 				computeWrite.PATCH("/servers/:id", app.handleUpdateMeshServer)
 				computeWrite.DELETE("/servers/:id", app.handleDestroyMeshServer)

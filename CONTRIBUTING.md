@@ -45,8 +45,8 @@ Passo a passo:
    - `security/<descrição-curta>` — mudanças relacionadas a hardening/segurança
    - `docs/<descrição-curta>` — documentação pura (sem mudança de código/infra)
 4. Faça commits pequenos e coerentes nessa branch (ver convenção de commits abaixo).
-5. Atualize o [`ROADMAP.md`](./ROADMAP.md) marcando os checkboxes concluídos **na mesma branch/PR**, não depois.
-6. Se a mudança alterar uma decisão de arquitetura documentada no [`PLAN.md`](./PLAN.md), atualize o `PLAN.md` também, na mesma branch.
+5. Atualize o [`ROADMAP.md`](./ROADMAP.md) marcando os checkboxes concluídos **na mesma branch/PR**, não depois. Mantenha o [`TASKS.md`](./TASKS.md) da branch alinhado (skill `tasks`).
+6. Se a mudança alterar uma decisão de arquitetura documentada no [`PLAN.md`](./PLAN.md), atualize o `PLAN.md` também, na mesma branch (e `docs/areas/` se for área específica).
 7. Envie a branch (`git push -u origin <branch>`) e abra um Pull Request (`gh pr create` ou pela interface do GitHub) — mesmo trabalhando sozinho. O PR é onde você revisa o próprio diff completo antes de consolidar; é isso, não a aprovação de terceiros, que dá o valor em uso solo.
 8. Faça o merge do PR via **squash merge** (`gh pr merge --squash --delete-branch`, ou o botão equivalente no GitHub) — mantém a `main` com histórico linear, um commit por PR.
 9. Sincronize sua `main` local (`git checkout main && git pull --ff-only`) e remova a branch local (`git branch -d <branch>`).
@@ -91,6 +91,7 @@ O que isso muda no seu dia a dia:
 Este projeto tem [Agent Skills](https://docs.cursor.com/) (`.cursor/skills/`) que automatizam os passos acima — prefira usá-las a repetir os comandos manualmente:
 
 - **`start-task`** — cria uma branch a partir de `main` atualizada, seguindo a convenção de nome acima.
+- **`tasks`** — cria/atualiza `TASKS.md` amarrado à branch/PR (checklist da tarefa atual).
 - **`ship-pr`** — dá push, mostra o checklist abaixo como lembrete, e abre o PR (validando que o título segue Conventional Commits).
 - **`release-status`** — mostra as PRs de release pendentes do `release-please` e o changelog de cada uma.
 

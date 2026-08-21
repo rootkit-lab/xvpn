@@ -18,12 +18,33 @@ const (
 	ExternalIPv4Cripto     = "65.38.120.203"
 )
 
+// Nó de dados (Fase 66): Mongo, git bare e containers. Não é BitLaunch
+// e não é inventário XGIT. Enroll WG; chave SSH fica no laptop.
+const (
+	DataNodeIPv4     = "66.29.147.100"
+	DataHostname     = "data"
+	ManualIDPrefix   = "manual-"
+	PlatformRepoSlug = "xvpn"
+)
+
 func IsExternalHost(name, hostname, ipv4 string) bool {
 	if strings.TrimSpace(ipv4) == ExternalIPv4Cripto {
 		return true
 	}
 	blob := strings.ToLower(name + " " + hostname)
 	return strings.Contains(blob, ExternalHostCriptoProd)
+}
+
+func IsDataNode(name, hostname, ipv4 string) bool {
+	if strings.TrimSpace(ipv4) == DataNodeIPv4 {
+		return true
+	}
+	h := strings.ToLower(strings.TrimSpace(hostname))
+	return h == DataHostname || strings.ToLower(strings.TrimSpace(name)) == DataHostname
+}
+
+func ManualBitLaunchID(hostname string) string {
+	return ManualIDPrefix + strings.ToLower(strings.TrimSpace(hostname))
 }
 
 // MeshServer é um VPS da malha (Fase 38 — PLAN.md §6.16).

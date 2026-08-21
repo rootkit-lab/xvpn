@@ -671,8 +671,10 @@ export interface MeshServer {
   protected?: boolean
   has_runner_token?: boolean
   has_agent_token?: boolean
+  provider?: 'local' | 'manual' | 'bitlaunch' | string
   created_at: string
   enroll_token?: string
+  bootstrap?: string
 }
 
 export type ServiceKind = 'mongo' | 'redis' | 'rabbitmq' | 'lb'
@@ -1703,6 +1705,14 @@ export const api = {
   listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
   getServer: (id: number) => request<MeshServer>(`/servers/${id}`),
   importServers: () => request<{ items: MeshServer[]; bitlaunch: boolean }>('/servers/import', { method: 'POST' }),
+  registerServer: (body: {
+    name?: string
+    hostname: string
+    ipv4: string
+    role?: MeshServerRole
+    labels?: string[]
+    notes?: string
+  }) => request<MeshServer>('/servers/register', { method: 'POST', body: JSON.stringify(body) }),
   createServer: (body: {
     name?: string
     hostname: string

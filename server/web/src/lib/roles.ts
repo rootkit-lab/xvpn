@@ -83,6 +83,42 @@ export const ROLE_CAPABILITIES: RoleCapability[] = [
   { id: 'super', label: 'Promover ou rebaixar super admin', roles: ['super_admin'] },
 ]
 
+/** Quatro camadas — espelha PLAN.md §6.7. Não misturar as listas. */
+export const IAM_LAYERS = [
+  {
+    id: 'iam',
+    title: 'IAM',
+    question: 'Quem é a pessoa e qual o poder de plataforma?',
+    mechanism: 'User.Role',
+    screen: 'Usuários e Papéis',
+    href: '/admin/users',
+  },
+  {
+    id: 'products',
+    title: 'Escopo de produto',
+    question: 'Este operador escreve esta seção do console?',
+    mechanism: 'User.Products',
+    screen: 'Ficha do admin (products: […])',
+    href: '/admin/users',
+  },
+  {
+    id: 'store-acl',
+    title: 'ACL da loja',
+    question: 'Esta pessoa vê ou baixa o app X?',
+    mechanism: 'AppAccess',
+    screen: 'Marketplace → ACL da loja',
+    href: '/admin/marketplace/acl',
+  },
+  {
+    id: 'forge-acl',
+    title: 'ACL org / time / repo',
+    question: 'Esta pessoa lê ou escreve org/slug?',
+    mechanism: 'OrgMember / ProjectMember',
+    screen: 'XGIT → membros do repo',
+    href: '/admin/xgit',
+  },
+] as const
+
 export const ROLE_BADGE_VARIANT: Record<Role, 'default' | 'secondary' | 'outline'> = {
   super_admin: 'default',
   admin: 'secondary',

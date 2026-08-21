@@ -132,7 +132,7 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'IAM',
       title: 'Papéis',
-      description: 'Hierarquia RBAC e escopo de produto. Um ator só gerencia contas no próprio nível ou abaixo.',
+      description: 'Identidade de plataforma. ACL da loja e membros de repo são listas outras — ver as quatro camadas.',
     },
   },
   {
@@ -211,8 +211,8 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     prefix: '/admin/marketplace/acl',
     meta: {
       kicker: 'Marketplace',
-      title: 'ACL',
-      description: 'Quem acessa apps restricted. Não mistura com versões nem assets.',
+      title: 'ACL da loja',
+      description: 'Quem vê/baixa um app restricted (AppAccess). Não concede clone nem papel de plataforma.',
     },
   },
   {

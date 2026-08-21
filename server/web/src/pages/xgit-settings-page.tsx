@@ -108,7 +108,7 @@ export function XgitSettingsPage() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">ACL do app</CardTitle>
+          <CardTitle className="text-base">ACL da loja (waffle)</CardTitle>
           <CardDescription>
             Quem vê o tile XGIT no waffle: membros de um projeto (<code className="font-mono text-xs">ProjectMember</code>)
             ou ACL do app <code className="font-mono text-xs">xgit</code> no Marketplace. Papel viewer+ não libera o app —
@@ -117,7 +117,7 @@ export function XgitSettingsPage() {
         </CardHeader>
         <CardContent>
           <Link to="/admin/marketplace/acl" className="text-sm text-primary hover:underline">
-            Liberar usuários no Marketplace → ACL
+            Liberar usuários no Marketplace → ACL da loja
           </Link>
         </CardContent>
       </Card>

@@ -84,7 +84,7 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     product: 'marketplace',
     items: [
       { to: '/admin/marketplace/catalog', label: 'Catálogo', icon: Store, roles: VIEWER_UP_ROLES, product: 'marketplace' },
-      { to: '/admin/marketplace/acl', label: 'ACL', icon: Shield, roles: VIEWER_UP_ROLES, product: 'marketplace' },
+      { to: '/admin/marketplace/acl', label: 'ACL da loja', icon: Shield, roles: VIEWER_UP_ROLES, product: 'marketplace' },
     ],
   },
   {

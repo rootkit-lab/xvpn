@@ -113,7 +113,7 @@ func (a *App) orgRole(user store.User, orgID uint) (store.OrgRole, bool) {
 }
 
 func (a *App) canManageOrg(user store.User, orgID uint) bool {
-	if user.Role.Rank() >= store.RoleAdmin.Rank() {
+	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
 		return true
 	}
 	role, ok := a.orgRole(user, orgID)

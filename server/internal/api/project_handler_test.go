@@ -106,6 +106,33 @@ func TestProjectCRUDAndMembers(t *testing.T) {
 	}
 }
 
+func TestCanCreateInOrgRequiresForgeOrMembership(t *testing.T) {
+	app, _ := newTestApp(t)
+	org, ok := app.defaultOrganization()
+	if !ok {
+		t.Fatal("xcorp")
+	}
+	viewer := createTestUserWithRole(t, app, "view", "senha-viewer-ok", store.RoleViewer)
+	if app.canCreateInOrg(viewer, org.ID) {
+		t.Fatal("viewer sem forge e sem OrgMember não cria repo")
+	}
+	app.ensureOrgMember(org.ID, viewer.ID, store.OrgRoleMember)
+	if !app.canCreateInOrg(viewer, org.ID) {
+		t.Fatal("OrgMember pode criar; o gate de papel fica em canCreateProject")
+	}
+
+	coreAdmin := createTestUserWithRole(t, app, "coreadm", "senha-admin-okxx", store.RoleAdmin)
+	if err := app.Store.DB.Model(&store.User{}).Where("id = ?", coreAdmin.ID).Select("Products").Updates(store.User{Products: []store.Product{store.ProductCore}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.DB.First(&coreAdmin, coreAdmin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if app.canCreateInOrg(coreAdmin, org.ID) {
+		t.Fatal("admin só-core não cria repo em org alheia")
+	}
+}
+
 func TestAdminWithoutForgeScopeCannotCreateProject(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
 	rec := doJSON(t, f.router, http.MethodPost, "/api/projects", createProjectRequest{Org: "xcorp", Slug: "lab", Name: "Lab"}, f.token)

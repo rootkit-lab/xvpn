@@ -108,6 +108,15 @@ func TestAdminWithDNSScopeCanWriteDNS(t *testing.T) {
 	}
 }
 
+func TestAdminWithoutForgeScopeCannotAddTeamMember(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
+	rec := doJSON(t, f.router, http.MethodPost, "/api/orgs/xcorp/teams/packages/members",
+		map[string]uint{"user_id": f.targetUserID}, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-core não deveria gerir time XGIT, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAdminWithoutComputeScopeCannotCreateServerGroup(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductCore})
 	rec := doJSON(t, f.router, http.MethodPost, "/api/server-groups", createServerGroupRequest{Name: "edge"}, f.token)

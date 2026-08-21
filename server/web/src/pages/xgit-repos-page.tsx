@@ -120,7 +120,7 @@ export function XgitReposPage() {
           <p className="hud-label text-muted-foreground/70">XGIT</p>
           <h2 className="font-display text-2xl font-semibold tracking-tight">Repositórios</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Todos os repositórios. ACL do app no Marketplace; membros de cada repo em Settings.
+            Todos os repositórios. ACL da loja (waffle/download) no Marketplace; membros do repo em Settings.
           </p>
         </div>
       </div>

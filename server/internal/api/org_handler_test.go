@@ -136,3 +136,26 @@ func TestAddTeamMemberRequiresManager(t *testing.T) {
 		t.Fatalf("time irmão deveria 404: %d", rec.Code)
 	}
 }
+
+func TestCanManageOrgRequiresForgeOrOrgAdmin(t *testing.T) {
+	app, _ := newTestApp(t)
+	org, ok := app.defaultOrganization()
+	if !ok {
+		t.Fatal("xcorp")
+	}
+	coreAdmin := createTestUserWithRole(t, app, "coreadm", "senha-admin-okxx", store.RoleAdmin)
+	if err := app.Store.DB.Model(&store.User{}).Where("id = ?", coreAdmin.ID).Select("Products").Updates(store.User{Products: []store.Product{store.ProductCore}}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := app.Store.DB.First(&coreAdmin, coreAdmin.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if app.canManageOrg(coreAdmin, org.ID) {
+		t.Fatal("admin só-core não gere time de org alheia")
+	}
+	alice := createTestUserWithRole(t, app, "alice", "senha-alice-ok", store.RoleMember)
+	app.ensureOrgMember(org.ID, alice.ID, store.OrgRoleAdmin)
+	if !app.canManageOrg(alice, org.ID) {
+		t.Fatal("OrgRoleAdmin deve gerir o time")
+	}
+}

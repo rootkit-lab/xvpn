@@ -96,9 +96,6 @@ func (a *App) canSeeProject(user store.User, proj store.Project) bool {
 }
 
 func (a *App) canCreateInOrg(user store.User, orgID uint) bool {
-	if user.Role.Rank() >= store.RoleViewer.Rank() {
-		return true
-	}
 	if store.HasProduct(user.Role, user.Products, store.ProductForge) {
 		return true
 	}

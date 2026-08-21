@@ -1713,6 +1713,8 @@ export const api = {
     labels?: string[]
     notes?: string
   }) => request<MeshServer>('/servers/register', { method: 'POST', body: JSON.stringify(body) }),
+  issueEnrollToken: (id: number) =>
+    request<MeshServer>(`/servers/${id}/enroll-token`, { method: 'POST' }),
   createServer: (body: {
     name?: string
     hostname: string

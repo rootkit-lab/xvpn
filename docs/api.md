@@ -212,6 +212,7 @@ ACL admin: `PUT /api/marketplace/apps/:id/access` no xadmin (tela **ACL**, não 
 | GET | `/api/servers` | lista + contas BitLaunch (token hint) |
 | POST | `/api/servers/import` | upsert control-plane + sync BitLaunch |
 | POST | `/api/servers/register` | VPS já existente (manual). Body: `hostname`, `ipv4`, `role?`, `notes?`. **Rejeita** `ssh_private_key` / `private_key`. Resposta inclui `enroll_token` + `bootstrap` uma vez. Seed: nó `data` (`66.29.147.100`) |
+| POST | `/api/servers/:id/enroll-token` | admin + `compute` | regenera enroll + bootstrap (uma vez); list/get não vazam token |
 | POST | `/api/servers` | cria no BitLaunch + cloud-init |
 | POST | `/api/servers/enroll` | público + rate limit; só pubkey WG |
 | GET/PATCH/DELETE | `/api/servers/:id` | destroy não chama BitLaunch se `bitlaunch_id` for `manual-*` / `local-*`; nó `data` é protegido |

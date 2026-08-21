@@ -532,6 +532,37 @@ func (a *App) handleRebuildMeshServer(c *gin.Context) {
 	c.JSON(http.StatusOK, a.meshServerJSON(s, true))
 }
 
+// handleIssueEnrollToken regenera enroll + bootstrap (uma vez). Serve o seed do
+// nó data e qualquer mesh/runner pending — list/get nunca devolvem o token.
+func (a *App) handleIssueEnrollToken(c *gin.Context) {
+	s, ok := a.loadMeshServer(c)
+	if !ok {
+		return
+	}
+	if s.Role == store.ServerRoleControl || s.Role == store.ServerRoleExternal {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host não usa enroll da malha"})
+		return
+	}
+	a.revokeMeshPeer(&s)
+	token, err := generateInviteToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	exp := time.Now().Add(24 * time.Hour)
+	s.EnrollToken = token
+	s.EnrollExpiresAt = &exp
+	s.Status = "pending-enroll"
+	s.WgIP = ""
+	s.DeviceID = nil
+	if err := a.Store.DB.Save(&s).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "compute.enroll_token", s.Hostname)
+	c.JSON(http.StatusOK, a.meshServerJSON(s, true))
+}
+
 func (a *App) handleSetServerAccess(c *gin.Context) {
 	s, ok := a.loadMeshServer(c)
 	if !ok {

@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -86,6 +87,27 @@ func TestSeedDataNodeAndPlatformRepo(t *testing.T) {
 	}
 	if s.Role != store.ServerRoleMesh || !strings.HasPrefix(s.BitLaunchID, store.ManualIDPrefix) {
 		t.Fatalf("server: %+v", s)
+	}
+
+	router := NewRouter(app)
+	tok := loginAndGetToken(t, app, router, "admin", "senha-admin-ok")
+	rec := doJSON(t, router, http.MethodPost, "/api/servers/"+strconv.FormatUint(uint64(s.ID), 10)+"/enroll-token", nil, tok)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("enroll-token: %d %s", rec.Code, rec.Body.String())
+	}
+	var revealed meshServerResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &revealed); err != nil {
+		t.Fatal(err)
+	}
+	if revealed.EnrollToken == "" || revealed.Bootstrap == "" {
+		t.Fatalf("token/bootstrap deveriam vir na resposta: %+v", revealed)
+	}
+	listRec := doJSON(t, router, http.MethodGet, "/api/servers", nil, tok)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("list: %d", listRec.Code)
+	}
+	if strings.Contains(listRec.Body.String(), revealed.EnrollToken) {
+		t.Fatal("list não deve vazar enroll_token")
 	}
 }
 

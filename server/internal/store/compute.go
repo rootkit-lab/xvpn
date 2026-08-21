@@ -39,8 +39,7 @@ func IsDataNode(name, hostname, ipv4 string) bool {
 	if strings.TrimSpace(ipv4) == DataNodeIPv4 {
 		return true
 	}
-	h := strings.ToLower(strings.TrimSpace(hostname))
-	return h == DataHostname || strings.ToLower(strings.TrimSpace(name)) == DataHostname
+	return strings.ToLower(strings.TrimSpace(hostname)) == DataHostname
 }
 
 func ManualBitLaunchID(hostname string) string {

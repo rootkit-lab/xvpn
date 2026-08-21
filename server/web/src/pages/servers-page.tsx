@@ -140,7 +140,6 @@ function RegisterManualForm({ onCreated }: { onCreated: () => void }) {
         ipv4: ipv4.trim(),
         role: 'mesh',
         notes: notes.trim() || undefined,
-        labels: ['data'],
       })
       setEnrollToken(created.enroll_token ?? '')
       setBootstrap(created.bootstrap ?? '')

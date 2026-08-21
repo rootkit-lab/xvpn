@@ -40,6 +40,7 @@ func allModels() []any {
 		&SocialPost{}, &SocialPostStar{}, &SocialPostComment{},
 		&ForgeOrganization{}, &OrgMember{}, &OrgTeam{}, &OrgTeamMember{},
 		&Project{}, &ProjectMember{}, &ProjectStar{}, &ProtectedBranch{}, &ProjectEnv{}, &MergeRequest{}, &MergeRequestReview{}, &Issue{}, &Milestone{}, &WorkProject{}, &WorkItem{}, &CodeSpace{}, &CiJob{},
+		&SecAlert{},
 		&ForgePackage{}, &ForgePackageVersion{},
 		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
 		&ServiceInstance{},

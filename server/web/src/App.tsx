@@ -82,6 +82,7 @@ const XgitPullsPage = lazy(() => import('@/pages/xgit-repo-page').then((m) => ({
 const XgitEditPage = lazy(() => import('@/pages/xgit-edit-page').then((m) => ({ default: m.XgitEditPage })))
 const XgitActionsPage = lazy(() => import('@/pages/xgit-actions-page').then((m) => ({ default: m.XgitActionsPage })))
 const XgitWikiPage = lazy(() => import('@/pages/xgit-wiki-page').then((m) => ({ default: m.XgitWikiPage })))
+const XgitSecurityPage = lazy(() => import('@/pages/xgit-security-page').then((m) => ({ default: m.XgitSecurityPage })))
 const XgitActionsNewPage = lazy(() =>
   import('@/pages/xgit-actions-new-page').then((m) => ({ default: m.XgitActionsNewPage })),
 )
@@ -316,6 +317,7 @@ function XGitCorpApp() {
               <Route path="packages" element={<XgitRepoPackagesPage />} />
               <Route path="wiki" element={<XgitWikiPage />} />
               <Route path="wiki/:page" element={<XgitWikiPage />} />
+              <Route path="security" element={<XgitSecurityPage />} />
               <Route path="actions" element={<XgitActionsPage />} />
               <Route path="actions/new" element={<XgitActionsNewPage />} />
               <Route path="actions/:n" element={<CiJobPage />} />
@@ -458,6 +460,7 @@ function XAdminCorpApp() {
                 <Route path="packages" element={<XgitRepoPackagesPage />} />
                 <Route path="wiki" element={<XgitWikiPage />} />
                 <Route path="wiki/:page" element={<XgitWikiPage />} />
+                <Route path="security" element={<XgitSecurityPage />} />
                 <Route path="actions" element={<XgitActionsPage />} />
                 <Route path="actions/new" element={<XgitActionsNewPage />} />
                 <Route path="actions/:n" element={<CiJobPage />} />

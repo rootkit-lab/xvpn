@@ -1800,12 +1800,12 @@ Como o GitHub Team (Pages e Wikis). Só VPN.
 
 Aba no repo no estilo GitHub **Security and quality**. Findings + Reporting. Jobs no runner da malha — sem SaaS.
 
-- [ ] Sidebar: Dependabot (vulnerabilities; malware se couber), Code scanning, Secret scanning.
-- [ ] Reporting: Security policy (`SECURITY.md` do repo), Advisories, Private vulnerability reporting (issue restrita ao maintainer).
-- [ ] Alertas no Mongo (`SecAlert`). Empty states “Needs setup” / Enabled / Disabled.
-- [ ] Code scanning = SAST no `.xvpn-ci.sh` (gosec / govulncheck / npm audit — templates já na 42.2).
-- [ ] Secret scanning = hook receive-pack (padrões de token; o `.githooks/pre-commit` já bloqueia o óbvio no monorepo — o forge aplica no push).
-- [ ] Sem Dependabot da Microsoft. Sem enviar o tree a terceiro.
+- [x] Sidebar: Dependabot (vulnerabilities; malware se couber), Code scanning, Secret scanning.
+- [x] Reporting: Security policy (`SECURITY.md` do repo), Advisories, Private vulnerability reporting (issue restrita ao maintainer).
+- [x] Alertas no Mongo (`SecAlert`). Empty states “Needs setup” / Enabled / Disabled.
+- [x] Code scanning = SAST no `.xvpn-ci.sh` (gosec / govulncheck / npm audit — templates já na 42.2).
+- [x] Secret scanning = hook receive-pack (padrões de token; o `.githooks/pre-commit` já bloqueia o óbvio no monorepo — o forge aplica no push).
+- [x] Sem Dependabot da Microsoft. Sem enviar o tree a terceiro.
 
 **Critério de saída:** maintainer vê a aba; um `npm audit` / `govulncheck` no CI vira alerta. Policy lê `SECURITY.md`.
 

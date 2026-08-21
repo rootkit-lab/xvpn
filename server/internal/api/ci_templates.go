@@ -101,6 +101,12 @@ var workflowTemplates = []WorkflowTemplate{
 		Script: "#!/bin/sh\nset -eu\ngo test ./...\nif command -v govulncheck >/dev/null 2>&1; then govulncheck ./...; else echo \"govulncheck ausente — skip\"; fi\n",
 	},
 	{
+		ID: "gosec", Name: "gosec", Category: "security",
+		Description: "SAST Go no runner da malha (skip se gosec ausente).",
+		Languages:   []string{"Go"}, Icon: "shield",
+		Script: "#!/bin/sh\nset -eu\nif command -v gosec >/dev/null 2>&1; then gosec ./...; else echo \"gosec ausente — skip\"; fi\n",
+	},
+	{
 		ID: "npm-audit", Name: "npm audit", Category: "security",
 		Description: "npm audit --omit=dev (não falha o job se não houver lock).",
 		Languages:   []string{"JavaScript"}, Icon: "shield",

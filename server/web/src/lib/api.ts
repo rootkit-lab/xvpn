@@ -1417,6 +1417,18 @@ export const api = {
     }),
   getProjectPages: (slug: string) =>
     request<{ url: string; published: boolean }>(projectAPI(slug, `/pages`)),
+  getProjectSecurity: (slug: string) =>
+    request<{
+      alerts: { id: number; kind: string; severity: string; title: string; tool: string; status: string }[]
+      policy: string
+      setup: Record<string, string>
+      can_report: boolean
+    }>(projectAPI(slug, `/security`)),
+  createSecurityReport: (slug: string, title: string, body: string) =>
+    request<{ number: number }>(projectAPI(slug, `/security/report`), {
+      method: 'POST',
+      body: JSON.stringify({ title, body }),
+    }),
   publishProjectPages: (slug: string, source: 'docs' | 'public' = 'docs') =>
     request<{ ok: boolean; url: string }>(projectAPI(slug, `/pages?source=${source}`), { method: 'POST' }),
   createProject: (body: {

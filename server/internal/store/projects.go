@@ -164,6 +164,7 @@ type Issue struct {
 	AuthorID     uint        `gorm:"not null;index"`
 	ThreadID     uint        `gorm:"not null;index"`
 	SocialPostID *uint
+	Restricted   bool `gorm:"not null;default:false;index"`
 	ClosedAt     *time.Time
 	ClosedByID   *uint
 	CreatedAt    time.Time

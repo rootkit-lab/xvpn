@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"io"
 	"net"
@@ -263,7 +264,15 @@ func (a *App) enforceProtectedPush(c *gin.Context, user store.User, proj store.P
 		c.JSON(http.StatusBadRequest, gin.H{"error": "pack inválido"})
 		return false
 	}
-	c.Request.Body = io.NopCloser(rest)
+	pack, _ := io.ReadAll(io.LimitReader(rest, 32<<20))
+	if reject, titles := scanPackSecrets(pack); len(titles) > 0 {
+		a.recordSecretAlerts(proj, titles)
+		if reject {
+			c.JSON(http.StatusForbidden, gin.H{"error": "push rejeitado: chave privada"})
+			return false
+		}
+	}
+	c.Request.Body = io.NopCloser(bytes.NewReader(pack))
 	c.Set(contextPushUpdates, updates)
 	rules := a.protectedBranchRules(proj.ID)
 	for _, u := range updates {

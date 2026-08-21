@@ -820,15 +820,25 @@ Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do mar
 
 O VPS `206.189.224.72` já está no BitLaunch. O xadmin lista, rotula e provisiona.
 
+**Dois nós de produção (Fase 66):**
+
+| Nó | IP | Papel | Função |
+|---|---|---|---|
+| Control | `206.189.224.72` (`10.66.66.1`) | `control` | WireGuard, Nginx, `xvpn-server`, enroll, landpages-ops |
+| Data | `66.29.147.100` (peer em `10.66.66.0/24` após enroll) | `mesh` manual | Mongo, git bare, containers — alivia RAM/CPU do control |
+
+Cadastro do data: **Compute → Cadastrar VPS existente** (`POST /api/servers/register`), não BitLaunch e **não** inventário no XGIT. Bootstrap no host via SSH do laptop; chave privada SSH e WireGuard **nunca** no control-plane. Cutover de Mongo/git/Docker é fase operacional posterior (backends ainda resolvem em `*.corp` → `.1`; Nginx faz proxy ao peer quando migrar). Bind de serviços no data: só `wg0` / loopback.
+
 - API [BitLaunch](https://developers.bitlaunch.io/) (`POST /servers`, options, destroy, rebuild). Contas (e-mail + token) em **Compute → Configurações** (`/admin/compute/settings`). Token só no banco do VPS, nunca no Git, nunca inteiro no GET. `XVPN_BITLAUNCH_TOKEN` só semeia a primeira conta se o banco estiver vazio.
-- Modelo: `MeshServer` + `BitLaunchAccount` + `ServerGroup` + `ServerAccess`. UI em `/admin/servers` e `/admin/compute/settings` (`xadmin.corp`). Create/import usam a conta escolhida.
+- Modelo: `MeshServer` + `BitLaunchAccount` + `ServerGroup` + `ServerAccess`. UI em `/admin/servers` e `/admin/compute/settings` (`xadmin.corp`). Create (BitLaunch) / register (manual) / import usam o fluxo correspondente. Campo `provider`: `local` \| `manual` \| `bitlaunch`.
 - Detalhe do servidor: console tipo xterm (info + observações). **Não** é shell SSH — §3 rejeitou bash remoto na VPS.
-- Hosts com app própria ficam `role=external` (inventário só): hoje `server-cripto-prod` e `65.38.120.203`. Sem enroll, cloud-init, destroy, rebuild ou A `*.corp`. A malha XVPN é só `206.189.224.72`.
+- Hosts com app própria ficam `role=external` (inventário só): hoje `server-cripto-prod` e `65.38.120.203`. Sem enroll, cloud-init, destroy, rebuild ou A `*.corp`. A malha XVPN: control + peers mesh (incl. `data`).
 - Conta BitLaunch: `GET /user` (saldo = USD×1000) e recarga `POST /transactions` (`amountUsd` + `cryptoSymbol` BTC/LTC/ETH). Token nunca no GET.
-- Após create: cloud-init instala WireGuard, gera chave **no host novo**, envia só a pública em `POST /api/servers/enroll` (público, rate-limit, em `xvpn.ihuull.com` — o host ainda não tem `wg0`). IP em `10.66.66.0/24`. Teto ~250 IPs (clientes + VPS + runners). Faixa `10.66.67.0/24` **só** se `ip route` no VPS confirmar que está livre. **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`. Sem porta nova no §5.
+- Após create/register: no BitLaunch o cloud-init instala WireGuard; no manual o operador cola o bootstrap. Em ambos a chave é gerada **no host novo**, só a pública em `POST /api/servers/enroll` (público, rate-limit, em `xvpn.ihuull.com` — o host ainda não tem `wg0`). IP em `10.66.66.0/24`. Teto ~250 IPs (clientes + VPS + runners). Faixa `10.66.67.0/24` **só** se `ip route` no VPS confirmar que está livre. **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`. Sem porta nova no §5.
 - DNS intranet: A `nome.corp` → IP wg0 (apply dnsmasq). DNS público: A do IPv4 via §6.17 se for edge.
-- SSH de operação nos hosts **novos**: preferir só `wg0`. ufw público do node atual permanece até cutover documentado.
+- SSH de operação nos hosts **novos**: preferir só `wg0`. ufw público do node atual permanece até cutover documentado. Chave SSH do operador **não** é armazenada no painel.
 - Acesso: VPN + `ServerAccess`. Sem permissão, a política barra — resolver o nome não basta.
+- Doc da área: [`docs/areas/compute.md`](./docs/areas/compute.md). Código da plataforma no forge: `xcorp/xvpn` ([`docs/areas/xgit.md`](./docs/areas/xgit.md)).
 
 ### 6.17 DNS do stack (público + visão interna)
 
@@ -1037,6 +1047,7 @@ Convenções de nomenclatura de pasta usadas de propósito, para ficar previsív
 | **38. Compute BitLaunch** | Importar VPS atual; labels/grupos; create; enroll WG | Peer na malha + A corp |
 | **38.1 Contas BitLaunch** | Settings no Compute; várias APIs/e-mails | Token só no VPS; create escolhe a conta |
 | **38.2 Console + saldo** | xterm/observações; hosts externos; recarga cripto | Sem SSH; sem mexer em cripto-prod |
+| **66. Nó data + platform repo** | Register manual `data`; seed `xcorp/xvpn` | Peer mesh; forge ≠ inventário VPS |
 | **39. DNS do stack** | Settings + zonas + NS Cloudflare; visão interna | A no CF; NS no registrador; FQDN também no túnel |
 | **40. Git smart HTTP** | `xgit.corp` + protected branches | Clone/push só na VPN |
 | **41. Merge requests** | MR + thread XCHAT | Review sem segundo chat |

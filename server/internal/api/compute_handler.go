@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -56,8 +57,10 @@ type meshServerResponse struct {
 	Protected      bool      `json:"protected"`
 	HasRunnerToken bool      `json:"has_runner_token"`
 	HasAgentToken  bool      `json:"has_agent_token"`
+	Provider       string    `json:"provider"`
 	CreatedAt      time.Time `json:"created_at"`
 	EnrollToken    string    `json:"enroll_token,omitempty"`
+	Bootstrap      string    `json:"bootstrap,omitempty"`
 }
 
 type createMeshServerRequest struct {
@@ -71,6 +74,17 @@ type createMeshServerRequest struct {
 	Labels      []string `json:"labels"`
 	Role        string   `json:"role"`
 	AccountID   uint     `json:"account_id"`
+}
+
+// registerManualMeshServerRequest cadastra VPS já existente (sem BitLaunch).
+// Chave SSH privada nunca entra — fica no laptop do operador.
+type registerManualMeshServerRequest struct {
+	Name     string   `json:"name"`
+	Hostname string   `json:"hostname"`
+	IPv4     string   `json:"ipv4"`
+	Role     string   `json:"role"`
+	Labels   []string `json:"labels"`
+	Notes    string   `json:"notes"`
 }
 
 type updateMeshServerRequest struct {
@@ -113,10 +127,12 @@ func (a *App) meshServerJSON(s store.MeshServer, includeToken bool) meshServerRe
 		Role: s.Role, IPv4: s.IPv4, WgIP: s.WgIP, Region: s.Region, Size: s.Size,
 		Status: s.Status, Labels: labels, GroupID: s.GroupID, DeviceID: s.DeviceID,
 		AccountID: s.AccountID, Notes: s.Notes, Protected: meshProtected(s),
-		HasRunnerToken: s.RunnerTokenHash != "", HasAgentToken: s.AgentTokenHash != "", CreatedAt: s.CreatedAt,
+		HasRunnerToken: s.RunnerTokenHash != "", HasAgentToken: s.AgentTokenHash != "",
+		Provider: meshProvider(s), CreatedAt: s.CreatedAt,
 	}
 	if includeToken && s.EnrollToken != "" {
 		out.EnrollToken = s.EnrollToken
+		out.Bootstrap = meshCloudInit(s.EnrollToken, s.Hostname)
 	}
 	return out
 }
@@ -271,6 +287,107 @@ func (a *App) handleCreateMeshServer(c *gin.Context) {
 	c.JSON(http.StatusCreated, a.meshServerJSON(row, true))
 }
 
+func (a *App) handleRegisterManualMeshServer(c *gin.Context) {
+	var raw map[string]any
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	if rejectsSSHPrivateMaterial(raw) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "chave privada SSH não é aceita — fica no laptop do operador"})
+		return
+	}
+	body, err := json.Marshal(raw)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	var req registerManualMeshServerRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "corpo inválido"})
+		return
+	}
+	host := strings.ToLower(strings.TrimSpace(req.Hostname))
+	if host == "" {
+		host = strings.ToLower(strings.TrimSpace(req.Name))
+	}
+	ipv4 := strings.TrimSpace(req.IPv4)
+	if store.IsDataNode(req.Name, host, ipv4) {
+		host = store.DataHostname
+		ipv4 = store.DataNodeIPv4
+	}
+	if !store.ValidProjectSlug(host) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "hostname inválido (2–20, a-z 0-9 hífen)"})
+		return
+	}
+	if reservedMeshHostname(host) {
+		c.JSON(http.StatusConflict, gin.H{"error": "hostname reservado da intranet"})
+		return
+	}
+	if ipv4 == "" || ipv4 == controlPlaneIPv4 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ipv4 obrigatório (não use o IP do control-plane)"})
+		return
+	}
+	if store.IsExternalHost(req.Name, host, ipv4) {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host é inventário externo — não entra na malha"})
+		return
+	}
+	if err := a.assertMeshDNSAvailable(host); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "hostname já tem registro DNS"})
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = host
+	}
+	role := strings.TrimSpace(req.Role)
+	if role == "" {
+		role = store.ServerRoleMesh
+	}
+	if role != store.ServerRoleMesh && role != store.ServerRoleRunner {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "role inválida (mesh ou runner)"})
+		return
+	}
+	var existing store.MeshServer
+	if err := a.Store.DB.Where("hostname = ? OR ipv4 = ? OR bit_launch_id = ?", host, ipv4, store.ManualBitLaunchID(host)).First(&existing).Error; err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "já existe um servidor com este hostname ou IPv4"})
+		return
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	token, err := generateInviteToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	exp := time.Now().Add(24 * time.Hour)
+	labels := req.Labels
+	if store.IsDataNode(name, host, ipv4) {
+		labels = appendUniqueLabel(labels, "data")
+	}
+	row := store.MeshServer{
+		BitLaunchID: store.ManualBitLaunchID(host), Name: name, Hostname: host, Role: role,
+		IPv4: ipv4, Status: "pending-enroll", Labels: labels, Notes: strings.TrimSpace(req.Notes),
+		CreatedByUserID: callerUserID(c), EnrollToken: token, EnrollExpiresAt: &exp,
+	}
+	if err := a.Store.DB.Create(&row).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "compute.register", host)
+	c.JSON(http.StatusCreated, a.meshServerJSON(row, true))
+}
+
+func appendUniqueLabel(labels []string, want string) []string {
+	for _, l := range labels {
+		if l == want {
+			return labels
+		}
+	}
+	return append(labels, want)
+}
+
 func (a *App) handleUpdateMeshServer(c *gin.Context) {
 	s, ok := a.loadMeshServer(c)
 	if !ok {
@@ -336,7 +453,9 @@ func (a *App) handleDestroyMeshServer(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "este host não se destrói por aqui"})
 		return
 	}
-	if s.BitLaunchID != "" && !strings.HasPrefix(s.BitLaunchID, "local-") {
+	if s.BitLaunchID != "" &&
+		!strings.HasPrefix(s.BitLaunchID, "local-") &&
+		!strings.HasPrefix(s.BitLaunchID, store.ManualIDPrefix) {
 		accID := uint(0)
 		if s.AccountID != nil {
 			accID = *s.AccountID
@@ -409,6 +528,79 @@ func (a *App) handleRebuildMeshServer(c *gin.Context) {
 	}
 	_ = a.Store.LogAudit(callerUsername(c), "compute.rebuild", s.Hostname)
 	c.JSON(http.StatusOK, a.meshServerJSON(s, true))
+}
+
+// handleIssueEnrollToken regenera enroll + bootstrap (uma vez). Serve o seed do
+// nó data e qualquer mesh/runner pending — list/get nunca devolvem o token.
+func (a *App) handleIssueEnrollToken(c *gin.Context) {
+	s, ok := a.loadMeshServer(c)
+	if !ok {
+		return
+	}
+	if s.Role == store.ServerRoleControl || s.Role == store.ServerRoleExternal {
+		c.JSON(http.StatusConflict, gin.H{"error": "este host não usa enroll da malha"})
+		return
+	}
+	token, err := generateInviteToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	var oldPub string
+	var oldDevID *uint
+	if s.DeviceID != nil {
+		oldDevID = s.DeviceID
+		var dev store.Device
+		if err := a.Store.DB.First(&dev, *s.DeviceID).Error; err == nil {
+			oldPub = dev.PublicKey
+		}
+	}
+	// Revoga no kernel antes de persistir pending-enroll — falha aqui aborta
+	// sem mudar o DB (retry seguro). RemovePeer de peer já ausente é ok.
+	if oldPub != "" && a.WG != nil {
+		if err := a.WG.RemovePeer(oldPub); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "falha ao revogar peer WireGuard"})
+			return
+		}
+	}
+	exp := time.Now().Add(24 * time.Hour)
+	s.EnrollToken = token
+	s.EnrollExpiresAt = &exp
+	s.Status = "pending-enroll"
+	s.WgIP = ""
+	s.DeviceID = nil
+	if err := a.Store.DB.Save(&s).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+	if oldDevID != nil {
+		_ = a.Store.DB.Delete(&store.Device{}, *oldDevID).Error
+	}
+	_ = a.Store.LogAudit(callerUsername(c), "compute.enroll_token", s.Hostname)
+	c.JSON(http.StatusOK, a.meshServerJSON(s, true))
+}
+
+func rejectsSSHPrivateMaterial(raw map[string]any) bool {
+	for k, v := range raw {
+		lk := strings.ToLower(strings.TrimSpace(k))
+		if strings.Contains(lk, "private") ||
+			strings.Contains(lk, "identity") ||
+			strings.Contains(lk, "pem") ||
+			strings.Contains(lk, "ssh_key") ||
+			strings.Contains(lk, "sshkey") ||
+			lk == "key" {
+			return true
+		}
+		s, ok := v.(string)
+		if !ok {
+			continue
+		}
+		u := strings.ToUpper(s)
+		if strings.Contains(u, "PRIVATE KEY") || strings.Contains(u, "BEGIN OPENSSH") {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) handleSetServerAccess(c *gin.Context) {
@@ -793,7 +985,21 @@ func (a *App) assertMeshDNSAvailable(hostname string) error {
 
 func meshProtected(s store.MeshServer) bool {
 	return s.Role == store.ServerRoleControl || s.Role == store.ServerRoleExternal ||
-		s.WgIP == controlPlaneWgIP || store.IsExternalHost(s.Name, s.Hostname, s.IPv4)
+		s.WgIP == controlPlaneWgIP || store.IsExternalHost(s.Name, s.Hostname, s.IPv4) ||
+		store.IsDataNode(s.Name, s.Hostname, s.IPv4)
+}
+
+func meshProvider(s store.MeshServer) string {
+	if s.Role == store.ServerRoleControl || strings.HasPrefix(s.BitLaunchID, "local-") {
+		return "local"
+	}
+	if strings.HasPrefix(s.BitLaunchID, store.ManualIDPrefix) || store.IsDataNode(s.Name, s.Hostname, s.IPv4) {
+		return "manual"
+	}
+	if s.BitLaunchID != "" {
+		return "bitlaunch"
+	}
+	return "manual"
 }
 
 func reservedMeshHostname(host string) bool {

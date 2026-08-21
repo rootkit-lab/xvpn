@@ -29,4 +29,6 @@ Exemplo:
 
 ## Depois de criar a branch
 
-Trabalhe normalmente, fazendo commits pequenos e coerentes em [Conventional Commits](https://www.conventionalcommits.org/). Quando terminar, use a skill `ship-pr` para enviar e abrir o Pull Request.
+1. Rode a skill **`tasks`** (ou `.cursor/skills/tasks/scripts/init-tasks.sh "título"`) e preencha o [`TASKS.md`](../../../TASKS.md) da branch.
+2. Trabalhe normalmente, commits pequenos em [Conventional Commits](https://www.conventionalcommits.org/).
+3. Quando terminar, use a skill `ship-pr` para enviar e abrir o Pull Request (atualize o campo PR no `TASKS.md`).

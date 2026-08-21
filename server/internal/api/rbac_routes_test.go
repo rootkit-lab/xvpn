@@ -260,6 +260,7 @@ var rbacRouteCases = []rbacRouteCase{
 	{"list-servers", http.MethodGet, "/api/servers", nil, "viewerUp"},
 	{"get-server", http.MethodGet, "/api/servers/1", nil, "viewerUp"},
 	{"import-servers", http.MethodPost, "/api/servers/import", nil, "adminOnly"},
+	{"register-manual-server", http.MethodPost, "/api/servers/register", registerManualMeshServerRequest{Hostname: "rbac-edge", IPv4: "203.0.113.50"}, "adminOnly"},
 	{"create-server", http.MethodPost, "/api/servers", createMeshServerRequest{Hostname: "rbac"}, "adminOnly"},
 	{"update-server", http.MethodPatch, "/api/servers/1", updateMeshServerRequest{}, "adminOnly"},
 	{"destroy-server", http.MethodDelete, "/api/servers/1", nil, "adminOnly"},

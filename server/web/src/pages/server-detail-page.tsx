@@ -54,6 +54,9 @@ export function ServerDetailPage() {
         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{data.notes}</p>
       ) : null}
       {canWrite ? <ServerForm server={data} onSaved={reload} /> : <ServerRead server={data} />}
+      {canWrite && (data.role === 'mesh' || data.role === 'runner') ? (
+        <EnrollTokenCard server={data} onSaved={reload} />
+      ) : null}
       {canWrite && data.role === 'runner' ? <RunnerTokenCard server={data} onSaved={reload} /> : null}
       {canWrite && (data.role === 'mesh' || data.role === 'runner') ? (
         <AgentTokenCard server={data} onSaved={reload} />
@@ -92,7 +95,9 @@ function NotesForm({ server, onSaved }: { server: MeshServer; onSaved: () => voi
         <CardTitle className="text-base">Observações</CardTitle>
         <CardDescription>
           {server.protected
-            ? 'Host externo — só inventário. Não enroll, destroy nem rebuild.'
+            ? server.role === 'external'
+              ? 'Host externo — só inventário. Não enroll, destroy nem rebuild.'
+              : 'Host protegido (control/data). Enroll via botão abaixo; destroy não disponível aqui.'
             : 'Anotações operacionais deste host. Não é um shell SSH.'}
         </CardDescription>
       </CardHeader>
@@ -231,6 +236,58 @@ function ServerForm({ server, onSaved }: { server: MeshServer; onSaved: () => vo
             </Button>
           </div>
         </form>
+      </CardContent>
+    </Card>
+  )
+}
+
+function EnrollTokenCard({ server, onSaved }: { server: MeshServer; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [enrollToken, setEnrollToken] = useState('')
+  const [bootstrap, setBootstrap] = useState('')
+
+  async function issue() {
+    setBusy(true)
+    try {
+      const out = await api.issueEnrollToken(server.id)
+      setEnrollToken(out.enroll_token ?? '')
+      setBootstrap(out.bootstrap ?? '')
+      toast.success('Enroll gerado — rode o bootstrap no host (SSH do laptop)')
+      onSaved()
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Falha ao gerar enroll')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">WireGuard enroll</CardTitle>
+        <CardDescription>
+          Gera token + script bootstrap. A chave privada WireGuard nasce no host; a listagem da API não devolve o
+          token. Se já houver peer, este botão o revoga e pede enroll de novo.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          Status: {server.status}
+          {server.wg_ip ? ` · peer ${server.wg_ip}` : ' · sem peer ainda'}
+        </p>
+        <Button type="button" disabled={busy} onClick={() => void issue()}>
+          {busy ? 'Gerando…' : 'Gerar enroll + bootstrap'}
+        </Button>
+        {enrollToken ? (
+          <p className="rounded-md border border-border/60 bg-muted/30 p-3 font-mono text-xs break-all">
+            enroll_token: {enrollToken}
+          </p>
+        ) : null}
+        {bootstrap ? (
+          <pre className="max-h-48 overflow-auto rounded-md border border-border/60 bg-muted/30 p-3 text-xs">
+            {bootstrap}
+          </pre>
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -50,6 +50,8 @@ seed_one() {
 
 seed_one xvpn-client apps/xvpn-client
 seed_one xchat apps/xvpn-chat
+# xcorp/xvpn (plataforma) é seed do boot do xvpn-server (Fase 66) — bare fica
+# vazio até um mirror/import separado; não misturar com apps/ aqui.
 
 if [ -n "$cleanup" ]; then
   rm -rf "$cleanup"

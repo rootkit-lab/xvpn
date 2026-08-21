@@ -46,7 +46,9 @@ func (a *App) handleListProjectAgents(c *gin.Context) {
 	attention := 0
 	cutoff := time.Now().Add(-24 * time.Hour)
 	for i := range rows {
-		a.maybeIdleStop(&rows[i])
+		if rows[i].UserID == user.ID {
+			a.maybeIdleStop(&rows[i])
+		}
 		item := a.codespaceJSON(user, proj, rows[i])
 		items = append(items, item)
 		if rows[i].UserID == user.ID {

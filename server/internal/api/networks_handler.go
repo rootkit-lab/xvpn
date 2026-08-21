@@ -139,6 +139,7 @@ func (a *App) handleCreateNetwork(c *gin.Context) {
 	}
 	if req.CorpAccess {
 		if err := a.addCorpRulesFrom(row.ID); err != nil {
+			_ = a.Store.DB.Where("src_network_id = ?", row.ID).Delete(&store.NetworkRule{}).Error
 			_ = a.Store.DB.Delete(&row).Error
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 			return

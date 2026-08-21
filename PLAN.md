@@ -239,6 +239,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | xadmin (console) | `xadmin.corp.ihuull.com` | `127.0.0.1:8080` (`/admin/*`) | Gerenciador geral. **Só VPN.** JWE `aud=xadmin`. Sem A público. §6.14 |
 | xgit (forge) | `xgit.corp.ihuull.com` | `127.0.0.1:8080` (smart HTTP git + packages) | Repos `<org>/<slug>` (Fase 58). Packages em `/api/packages/:org/:slug/{npm,pypi,maven,nuget,rubygems,generic}` (45.1–45.3 + 59). Container registry = `registry.corp` (60). Blobs em `/opt/xvpn/data/packages`. **Só VPN** (`RequirePackagesHost`). Sem A público. Sem URL plana `/<slug>`. Fase 40 + 58 |
 | registry (containers) | `registry.corp.ihuull.com` | `127.0.0.1:5000` (`registry:2`) via Nginx `10.66.66.1:443` | Hostname de protocolo (sem app desktop, sem `aud` marketplace). Auth JWE → `/api/registry/token`. Scope `repository:<org>/<slug>:pull\|push`. **Só VPN.** Sem A público. Sem ufw. Sem `docker.sock` no codespace. Fase 60 |
+| pages (estático) | `pages.corp.ihuull.com` | disco `/opt/xvpn/data/pages` via Nginx `10.66.66.1:443` (ou `127.0.0.1:8080`) | Path `/<org>/<slug>/`. **Não** `<org>.pages.corp` (dois rótulos). Só VPN. Sem A público. Sem ufw. Fase 61 |
 | xcodespaces (IDE) | `xcodespaces.corp.ihuull.com` | `127.0.0.1:8080` (`/api/xcodespaces/*` + SPA) | Catálogo + editor rápido (Monaco, Fase 49). **Só VPN.** Sem A público. Sem landing pública |
 | codespace VS Code | `cs-<id>.corp.ihuull.com` | `127.0.0.1:19000–19007` (openvscode-server no container) | Um host por codespace em execução. Catch-all `*.corp` + cert `*.corp.ihuull.com`. **Só VPN.** Sem A público. Fase 50 |
 | codespace demo / ports | `demo-<nome>.corp.ihuull.com` | VIP `10.66.66.254` no `wg0` → DNAT para o IP docker0 do container (`:*` TCP/UDP) | Um rótulo (cert `*.corp`). **Não** `demo.cs-<id>.corp` (dois rótulos). Só origem `10.66.66.0/24`. Sem A público. Sem ufw. O botão Ports da Microsoft **não** entra (túnel internet). Fase 56 |
@@ -261,6 +262,7 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 | ~~FileBrowser / :8081~~ | **retirado** | XDriver nativo no `xvpn-server`. Porta 8081 livre — não reusar sem linha nova |
 | Marketplace (blobs) | Disco `/opt/xvpn/data/marketplace/` · download via `127.0.0.1:8080` em `marketplace.ihuull.com` (e xadmin) | Sem porta nova. JWE. Nunca anônimo na internet |
 | Container registry | Disco `/opt/xvpn/data/registry` · `registry:2` em `127.0.0.1:5000` · `registry.corp` | Sem porta no ufw. Sem `0.0.0.0`. Fase 60 |
+| XGIT Pages | Disco `/opt/xvpn/data/pages/<org>/<slug>/` · `pages.corp` | Estático na malha. Sem porta no ufw. Fase 61 |
 | Forge (git bare) | Disco `/opt/xvpn/data/git/` · smart HTTP em `xgit.corp` | Só VPN. Sem `git://` público. Fase 40 |
 | XCODESPACES (editor rápido) | Disco `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/` | Worktree do forge. Só VPN. Fora do bare. Sem shell no host. Fase 49 |
 | XCODESPACES (runtime) | Docker + volume `/opt/xvpn/data/codespaces/<user>/<slug>/<id>/workspace` → `/home/workspace/project` · openvscode-server `127.0.0.1:19000–19007` | Clone ≠ HOME do IDE. Shell **só** no container. Sem `docker.sock` no container. Sem `--network=host`. Sem porta no ufw. Egress git/LLM: `--add-host` `*.corp`→`10.66.66.1`; Nginx `xgit`/`xcodespaces`/`cs-*` também `allow 172.17.0.0/16` (docker0). Sem allow em xadmin/xchat. Fases 50–51 |
@@ -743,7 +745,7 @@ Não instalar GitLab CE. O xadmin é o forge; features mapeiam para o que já ex
 | Git | `internal/forge`: bare em `/opt/xvpn/data/git/<org>/<slug>.git`; smart HTTP `https://xgit.corp.ihuull.com/<org>/<slug>`. Auth: Basic (usuário + JWE) ou Bearer. Sem `git://` público. Sem shell SSH. Sem path plano `/<slug>` |
 | Protected branches | Modelo `ProtectedBranch` no projeto (`main`/`master` no create). Developer faz push; maintainer+ em branch protegida. MR (Fase 41) é o caminho de merge |
 | CI/CD | Pipeline no xadmin; **runners** = peers WG com label `runner` (não no PID do `xvpn-server`). Artifacts → XDRIVER |
-| Pages | Nginx + blob em `https://<org>.pages.corp.ihuull.com/<slug>` ou path no `xgit.corp` (Fase 61). Hostname novo só com `port-domain-registry-check` + §5 |
+| Pages | Nginx + blob em `https://pages.corp.ihuull.com/<org>/<slug>/` (Fase 61). **Não** `<org>.pages.corp`. Hostname em §5 |
 | Editor web (arquivo único) | Monaco no blob `/edit` do XGIT; salvar = commit (ou branch + PR se a ref for protegida). Fase 48 |
 | Codespaces / IDE | App `xcodespaces.corp`: editor rápido Monaco (Fase 49) + codespace Docker / openvscode-server / clone de `<org>/<slug>` (Fase 50 + 58, §3.6). `xcs-detect` (64) lê o clone e sugere langs/comandos/portas. Sem shell no host |
 | Container registry | `registry.corp` + `registry:2` em `127.0.0.1:5000`. Sem Harbor |
@@ -792,7 +794,7 @@ Um projeto = um par `<org>/<slug>` (Fase 58). Pode espelhar um `App.Slug` do mar
 
 **Packages (Fases 45 + 59).** Registry no estilo [GitHub Packages](https://docs.github.com/en/packages): o artefacto vive **ao lado do código** no `<org>/<slug>`. Auth = JWE (o PAT do GitHub). Maven: `https://xgit.corp.ihuull.com/api/packages/<org>/<slug>/maven` (`settings.xml` + `mvn deploy`, SNAPSHOT ok). npm: `…/npm/`. PyPI Simple: `…/pypi/simple/`. NuGet: `…/nuget/index.json`. RubyGems: `…/rubygems/`. Generic: upload multipart. Containers em `registry.corp.ihuull.com` (`registry:2`, Fase 60). UI da aba Packages: empty state “Get started” com um card por registry (como o GitHub).
 
-**Pages e Wiki (Fase 61).** Pages = blob estático servido na VPN (Nginx). Wiki = tree markdown first-class no XGIT (`/:org/:slug/wiki`), não FileBrowser e não um segundo social.
+**Pages e Wiki (Fase 61).** Pages = blob estático em `pages.corp.ihuull.com/<org>/<slug>/` (disco `/opt/xvpn/data/pages`, Nginx só wg0). Fonte: `docs/`/`public/` do default branch ou artifact CI (`POST /api/projects/:org/:slug/pages`). Wiki = `refs/xgit/wiki` no bare (`GET/PUT /api/projects/:org/:slug/wiki/:page`, Home.md = `#1`). Sem FileBrowser, sem segundo social, sem `<org>.pages.corp`.
 
 **Security and quality (Fase 62).** Aba no repo: Findings (Dependabot, code scanning, secret scanning) + Reporting (policy, advisories). Sem SaaS GitHub; jobs no runner da malha; alertas no Mongo.
 

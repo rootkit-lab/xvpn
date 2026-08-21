@@ -1407,6 +1407,18 @@ export const api = {
     return request<{ items: GitCommit[] }>(projectAPI(slug, `/commits${qs ? `?${qs}` : ''}`))
   },
   getProject: (slug: string) => request<Project>(projectAPI(slug, ``)),
+  listWikiPages: (slug: string) => request<{ items: { page: string }[] }>(projectAPI(slug, `/wiki`)),
+  getWikiPage: (slug: string, page: string) =>
+    request<{ page: string; content: string }>(projectAPI(slug, `/wiki/${encodeURIComponent(page)}`)),
+  putWikiPage: (slug: string, page: string, content: string, message: string) =>
+    request<{ page: string; sha: string }>(projectAPI(slug, `/wiki/${encodeURIComponent(page)}`), {
+      method: 'PUT',
+      body: JSON.stringify({ content, message }),
+    }),
+  getProjectPages: (slug: string) =>
+    request<{ url: string; published: boolean }>(projectAPI(slug, `/pages`)),
+  publishProjectPages: (slug: string, source: 'docs' | 'public' = 'docs') =>
+    request<{ ok: boolean; url: string }>(projectAPI(slug, `/pages?source=${source}`), { method: 'POST' }),
   createProject: (body: {
     org: string
     slug: string

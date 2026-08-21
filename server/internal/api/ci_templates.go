@@ -90,9 +90,9 @@ var workflowTemplates = []WorkflowTemplate{
 	},
 	{
 		ID: "deploy-pages", Name: "Deploy Pages", Category: "deployment",
-		Description: "Prepara o blob estático. Pages (Nginx) entra no backlog 45+.",
+		Description: "Publica docs/ ou public/ em pages.corp. Token só no env do runner.",
 		Languages:   []string{"HTML"}, Icon: "globe",
-		Script: "#!/bin/sh\nset -eu\nmkdir -p ci-artifacts/pages\nif [ -d public ]; then cp -a public/. ci-artifacts/pages/; elif [ -d docs ]; then cp -a docs/. ci-artifacts/pages/; else echo '<!doctype html><title>xgit</title><p>ok</p>' > ci-artifacts/pages/index.html; fi\n",
+		Script: "#!/bin/sh\nset -eu\n: \"${XVPN_PACKAGES_TOKEN:?XVPN_PACKAGES_TOKEN ausente no runner}\"\nmkdir -p ci-artifacts/pages\nif [ -d public ]; then cp -a public/. ci-artifacts/pages/; elif [ -d docs ]; then cp -a docs/. ci-artifacts/pages/; else echo '<!doctype html><title>xgit</title><p>ok</p>' > ci-artifacts/pages/index.html; fi\ntar -C ci-artifacts/pages -czf ci-artifacts/pages.tar.gz .\ncurl -fsS -X POST -H \"Authorization: Bearer ${XVPN_PACKAGES_TOKEN}\" -F \"file=@ci-artifacts/pages.tar.gz\" \"https://xgit.corp.ihuull.com/api/projects/{{REPO}}/pages\"\n",
 	},
 	{
 		ID: "govulncheck", Name: "Go vulnerability check", Category: "security",
@@ -126,9 +126,9 @@ var workflowTemplates = []WorkflowTemplate{
 	},
 	{
 		ID: "static-pages", Name: "Static HTML", Category: "pages",
-		Description: "Empacota HTML/CSS em ci-artifacts/pages.",
+		Description: "Empacota HTML/CSS e publica em pages.corp. Token só no env.",
 		Languages:   []string{"HTML", "CSS"}, Icon: "globe",
-		Script: "#!/bin/sh\nset -eu\nmkdir -p ci-artifacts/pages\nfind . -maxdepth 2 \\( -name '*.html' -o -name '*.css' \\) -exec cp {} ci-artifacts/pages/ \\; 2>/dev/null || true\nls ci-artifacts/pages || true\n",
+		Script: "#!/bin/sh\nset -eu\n: \"${XVPN_PACKAGES_TOKEN:?XVPN_PACKAGES_TOKEN ausente no runner}\"\nmkdir -p ci-artifacts/pages\nfind . -maxdepth 2 \\( -name '*.html' -o -name '*.css' \\) -exec cp {} ci-artifacts/pages/ \\; 2>/dev/null || true\nif [ ! -f ci-artifacts/pages/index.html ]; then echo '<!doctype html><title>xgit</title><p>ok</p>' > ci-artifacts/pages/index.html; fi\ntar -C ci-artifacts/pages -czf ci-artifacts/pages.tar.gz .\ncurl -fsS -X POST -H \"Authorization: Bearer ${XVPN_PACKAGES_TOKEN}\" -F \"file=@ci-artifacts/pages.tar.gz\" \"https://xgit.corp.ihuull.com/api/projects/{{REPO}}/pages\"\n",
 	},
 	{
 		ID: "npm-xgit", Name: "Publish npm to XGIT", Category: "publish",

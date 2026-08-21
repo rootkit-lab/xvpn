@@ -93,6 +93,10 @@ type Config struct {
 	// Sem hostname novo: a API vive em xgit.corp.
 	PackagesDir string
 
+	// PagesDir é o blob estático do XGIT Pages (Fase 61 —
+	// /opt/xvpn/data/pages/<org>/<slug>/). Servido em pages.corp.
+	PagesDir string
+
 	// MongoURI, se definido, torna o Mongo a fonte da verdade (Fase 28).
 	// Bind só 127.0.0.1:27017 em produção. Vazio = SQLite (testes/CI).
 	MongoURI string
@@ -193,6 +197,7 @@ func Load() (*Config, error) {
 		MarketplaceDataDir:      getEnv("XVPN_MARKETPLACE_DIR", "marketplace-data"),
 		SocialMediaDir:          getEnv("XVPN_SOCIAL_MEDIA_DIR", "social-media-data"),
 		PackagesDir:             getEnv("XVPN_PACKAGES_DIR", "/opt/xvpn/data/packages"),
+		PagesDir:                getEnv("XVPN_PAGES_DIR", "/opt/xvpn/data/pages"),
 		PublishToken:            os.Getenv("XVPN_PUBLISH_TOKEN"),
 		MongoURI:                os.Getenv("XVPN_MONGO_URI"),
 		XbotToken:               os.Getenv("XVPN_XBOT_TOKEN"),

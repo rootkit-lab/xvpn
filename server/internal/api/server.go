@@ -455,6 +455,7 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/projects/:org/:slug/pages", app.handlePublishPages)
 			authed.GET("/projects/:org/:slug/security", app.handleGetProjectSecurity)
 			authed.POST("/projects/:org/:slug/security/report", app.handleCreateSecurityReport)
+			authed.GET("/projects/:org/:slug/agents", app.handleListProjectAgents)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())

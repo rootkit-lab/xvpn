@@ -91,8 +91,8 @@ func TestSeedOverlayNetworks_KeepsMeshOnInfra(t *testing.T) {
 		t.Fatal(err)
 	}
 	infra, _ := NetworkByKind(db, NetworkKindInfra)
-	if d.NetworkID != infra.ID || !CIDRContainsIP(InfraCIDR, d.AllowedIP) {
-		t.Fatalf("mesh deveria ficar na infra, obtido net=%d ip=%s", d.NetworkID, d.AllowedIP)
+	if d.NetworkID != infra.ID || d.AllowedIP != "10.66.66.8/32" {
+		t.Fatalf("mesh deveria manter o /32 da infra, obtido net=%d ip=%s", d.NetworkID, d.AllowedIP)
 	}
 }
 
@@ -182,6 +182,48 @@ func TestForwardAllowed_UserCannotReachMongo(t *testing.T) {
 	}
 	if !ForwardAllowed(rules, pairs, infra.ID, infra.ID, "tcp", 27017) {
 		t.Fatal("infra↔infra")
+	}
+}
+
+func TestMembershipPairs_IncludesMeshServer(t *testing.T) {
+	db := overlayTestDB(t)
+	if err := db.AutoMigrate(&User{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SeedOverlayNetworks(db); err != nil {
+		t.Fatal(err)
+	}
+	u := User{Username: "ops", PasswordHash: "x"}
+	if err := db.Create(&u).Error; err != nil {
+		t.Fatal(err)
+	}
+	infra, _ := NetworkByKind(db, NetworkKindInfra)
+	users, _ := NetworkByKind(db, NetworkKindUsers)
+	d := Device{UserID: u.ID, Name: "mesh-data", PublicKey: "k3", AllowedIP: "10.66.66.8/32", NetworkID: infra.ID}
+	if err := db.Create(&d).Error; err != nil {
+		t.Fatal(err)
+	}
+	s := MeshServer{BitLaunchID: "m2", Name: "data", Hostname: "data2", Role: ServerRoleMesh, DeviceID: &d.ID}
+	if err := db.Create(&s).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&NetworkMember{
+		NetworkID: users.ID, SubjectKind: NetworkSubjectMeshServer, SubjectID: s.ID, Role: NetworkMemberRole,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	pairs, err := MembershipPairs(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, p := range pairs {
+		if p[0] == infra.ID && p[1] == users.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("mesh_server deveria gerar par infra→users: %v", pairs)
 	}
 }
 

@@ -55,7 +55,7 @@ func ParseOverlaySpec(raw []byte) (OverlaySpec, error) {
 func RenderOverlayNft(s OverlaySpec) string {
 	var b strings.Builder
 	b.WriteString("# Gerado por xvpn-user-provision overlay-apply. Não edite.\n")
-	b.WriteString("flush table inet xvpn-overlay\n")
+	b.WriteString("destroy table inet xvpn-overlay\n")
 	b.WriteString("table inet xvpn-overlay {\n")
 	b.WriteString("  chain forward {\n")
 	b.WriteString("    type filter hook forward priority 10; policy accept;\n")
@@ -83,14 +83,6 @@ func RenderOverlayNft(s OverlaySpec) string {
 			chains[sk] = &strings.Builder{}
 		}
 		return chains[sk]
-	}
-	for _, p := range s.Pairs {
-		if c := chain(p.SrcCIDR, p.DstCIDR); c != nil {
-			c.WriteString("    accept\n")
-		}
-		if c := chain(p.DstCIDR, p.SrcCIDR); c != nil {
-			c.WriteString("    accept\n")
-		}
 	}
 	for _, r := range s.Rules {
 		c := chain(r.SrcCIDR, r.DstCIDR)
@@ -140,7 +132,7 @@ func RenderOverlayNft(s OverlaySpec) string {
 		}
 	}
 	if len(exits) > 0 {
-		b.WriteString("flush table ip xvpn-overlay-nat\n")
+		b.WriteString("destroy table ip xvpn-overlay-nat\n")
 		b.WriteString("table ip xvpn-overlay-nat {\n")
 		b.WriteString("  chain postrouting {\n")
 		b.WriteString("    type nat hook postrouting priority 100; policy accept;\n")

@@ -328,22 +328,31 @@ func RehomeDevices(db *gorm.DB) error {
 		if _, ok := meshDev[devices[i].ID]; ok {
 			target = infra
 		}
-		okHome := devices[i].NetworkID == target.ID && CIDRContainsIP(target.CIDR, devices[i].AllowedIP)
-		if okHome {
+		inTarget := CIDRContainsIP(target.CIDR, devices[i].AllowedIP)
+		if devices[i].NetworkID == target.ID && inTarget {
 			if err := EnsureDeviceMember(db, target.ID, devices[i].ID, devices[i].UserID); err != nil {
 				return err
 			}
 			continue
 		}
-		ip, err := allocateIn(target.CIDR, used)
-		if err != nil {
-			return err
+		oldIP := devices[i].AllowedIP
+		if !inTarget {
+			ip, err := allocateIn(target.CIDR, used)
+			if err != nil {
+				return err
+			}
+			used = append(used, ip)
+			devices[i].AllowedIP = ip
 		}
-		used = append(used, ip)
 		devices[i].NetworkID = target.ID
-		devices[i].AllowedIP = ip
 		if err := db.Save(&devices[i]).Error; err != nil {
 			return err
+		}
+		if _, isMesh := meshDev[devices[i].ID]; isMesh && devices[i].AllowedIP != oldIP {
+			wgIP := strings.TrimSuffix(devices[i].AllowedIP, "/32")
+			if err := db.Model(&MeshServer{}).Where("device_id = ?", devices[i].ID).Update("wg_ip", wgIP).Error; err != nil {
+				return err
+			}
 		}
 		if err := EnsureDeviceMember(db, target.ID, devices[i].ID, devices[i].UserID); err != nil {
 			return err
@@ -431,11 +440,19 @@ func ClientAllowedIPs(db *gorm.DB, device Device) (string, error) {
 }
 
 func addMemberCIDRs(db *gorm.DB, device Device, cidrs map[string]struct{}) error {
-	var members []NetworkMember
-	if err := db.Where(
+	var meshIDs []uint
+	if err := db.Model(&MeshServer{}).Where("device_id = ?", device.ID).Pluck("id", &meshIDs).Error; err != nil {
+		return err
+	}
+	q := db.Where(
 		"(subject_kind = ? AND subject_id = ?) OR (subject_kind = ? AND subject_id = ?)",
 		NetworkSubjectDevice, device.ID, NetworkSubjectUser, device.UserID,
-	).Find(&members).Error; err != nil {
+	)
+	if len(meshIDs) > 0 {
+		q = q.Or("subject_kind = ? AND subject_id IN ?", NetworkSubjectMeshServer, meshIDs)
+	}
+	var members []NetworkMember
+	if err := q.Find(&members).Error; err != nil {
 		return err
 	}
 	for _, m := range members {
@@ -463,21 +480,14 @@ func addRuleDestCIDRs(db *gorm.DB, homeID uint, cidrs map[string]struct{}) error
 	return nil
 }
 
-// MembershipAllows is true if src→dst has an implicit all-ports path
-// because a subject of src is a member of dst.
-// ForwardAllowed is the hub policy: same net ok; membership pair ok;
-// otherwise only an allow rule matching proto/port. Default deny.
-func ForwardAllowed(rules []NetworkRule, pairs [][2]uint, srcID, dstID uint, proto string, port int) bool {
+// ForwardAllowed is the hub policy: same net ok; otherwise only an
+// explicit allow rule. Membership is route (AllowedIPs), not FORWARD.
+func ForwardAllowed(rules []NetworkRule, _ [][2]uint, srcID, dstID uint, proto string, port int) bool {
 	if srcID == 0 || dstID == 0 {
 		return false
 	}
 	if srcID == dstID {
 		return true
-	}
-	for _, p := range pairs {
-		if p[0] == srcID && p[1] == dstID {
-			return true
-		}
 	}
 	proto = strings.ToLower(proto)
 	for _, r := range rules {
@@ -513,14 +523,24 @@ func MembershipPairs(db *gorm.DB) ([][2]uint, error) {
 	if err := db.Find(&devices).Error; err != nil {
 		return nil, err
 	}
+	var mesh []MeshServer
+	if err := db.Find(&mesh).Error; err != nil {
+		return nil, err
+	}
 	homeByDevice := map[uint]uint{}
 	homeByUser := map[uint][]uint{}
+	homeByMesh := map[uint]uint{}
 	for _, d := range devices {
 		if d.NetworkID == 0 {
 			continue
 		}
 		homeByDevice[d.ID] = d.NetworkID
 		homeByUser[d.UserID] = append(homeByUser[d.UserID], d.NetworkID)
+	}
+	for _, s := range mesh {
+		if s.DeviceID != nil {
+			homeByMesh[s.ID] = homeByDevice[*s.DeviceID]
+		}
 	}
 	seen := map[[2]uint]struct{}{}
 	var out [][2]uint
@@ -543,6 +563,8 @@ func MembershipPairs(db *gorm.DB) ([][2]uint, error) {
 			for _, hid := range homeByUser[m.SubjectID] {
 				add(hid, m.NetworkID)
 			}
+		case NetworkSubjectMeshServer:
+			add(homeByMesh[m.SubjectID], m.NetworkID)
 		}
 	}
 	return out, nil

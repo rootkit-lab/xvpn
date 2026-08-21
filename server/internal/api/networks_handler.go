@@ -139,11 +139,15 @@ func (a *App) handleCreateNetwork(c *gin.Context) {
 	}
 	if req.CorpAccess {
 		if err := a.addCorpRulesFrom(row.ID); err != nil {
+			_ = a.Store.DB.Delete(&row).Error
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 			return
 		}
 	}
-	if err := a.applyOverlayFirewall(c.Request.Context()); err != nil {
+	if err := a.applyOverlayOrRollback(c.Request.Context(), func() {
+		_ = a.Store.DB.Where("src_network_id = ?", row.ID).Delete(&store.NetworkRule{}).Error
+		_ = a.Store.DB.Delete(&row).Error
+	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -169,6 +173,10 @@ func (a *App) handleDeleteNetwork(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "rede ainda tem peers"})
 		return
 	}
+	var members []store.NetworkMember
+	_ = a.Store.DB.Where("network_id = ?", n.ID).Find(&members).Error
+	var rules []store.NetworkRule
+	_ = a.Store.DB.Where("src_network_id = ? OR dst_network_id = ?", n.ID, n.ID).Find(&rules).Error
 	if err := a.Store.DB.Where("network_id = ?", n.ID).Delete(&store.NetworkMember{}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
@@ -181,7 +189,28 @@ func (a *App) handleDeleteNetwork(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	if err := a.applyOverlayFirewall(c.Request.Context()); err != nil {
+	if err := a.applyOverlayOrRollback(c.Request.Context(), func() {
+		saved := n
+		saved.ID = 0
+		if a.Store.DB.Create(&saved).Error != nil {
+			return
+		}
+		for i := range members {
+			members[i].ID = 0
+			members[i].NetworkID = saved.ID
+			_ = a.Store.DB.Create(&members[i]).Error
+		}
+		for i := range rules {
+			rules[i].ID = 0
+			if rules[i].SrcNetworkID == n.ID {
+				rules[i].SrcNetworkID = saved.ID
+			}
+			if rules[i].DstNetworkID == n.ID {
+				rules[i].DstNetworkID = saved.ID
+			}
+			_ = a.Store.DB.Create(&rules[i]).Error
+		}
+	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -226,7 +255,9 @@ func (a *App) handleAddNetworkMember(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "já é membro"})
 		return
 	}
-	if err := a.applyOverlayFirewall(c.Request.Context()); err != nil {
+	if err := a.applyOverlayOrRollback(c.Request.Context(), func() {
+		_ = a.Store.DB.Delete(&row).Error
+	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -253,7 +284,10 @@ func (a *App) handleDeleteNetworkMember(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	if err := a.applyOverlayFirewall(c.Request.Context()); err != nil {
+	if err := a.applyOverlayOrRollback(c.Request.Context(), func() {
+		row.ID = 0
+		_ = a.Store.DB.Create(&row).Error
+	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -311,7 +345,9 @@ func (a *App) handleCreateNetworkRule(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "regra já existe"})
 		return
 	}
-	if err := a.applyOverlayFirewall(c.Request.Context()); err != nil {
+	if err := a.applyOverlayOrRollback(c.Request.Context(), func() {
+		_ = a.Store.DB.Delete(&row).Error
+	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -338,7 +374,10 @@ func (a *App) handleDeleteNetworkRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
-	if err := a.applyOverlayFirewall(c.Request.Context()); err != nil {
+	if err := a.applyOverlayOrRollback(c.Request.Context(), func() {
+		row.ID = 0
+		_ = a.Store.DB.Create(&row).Error
+	}); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
 		return
 	}
@@ -415,9 +454,17 @@ func (a *App) ApplyOverlayFirewall(ctx context.Context) error {
 	return a.applyOverlayFirewall(ctx)
 }
 
+func (a *App) applyOverlayOrRollback(ctx context.Context, rollback func()) error {
+	err := a.applyOverlayFirewall(ctx)
+	if err != nil && rollback != nil {
+		rollback()
+	}
+	return err
+}
+
 func (a *App) applyOverlayFirewall(ctx context.Context) error {
 	if a.UserProvisioner == nil {
-		return nil
+		return errors.New("provisionador overlay ausente")
 	}
 	var nets []store.OverlayNetwork
 	if err := a.Store.DB.Find(&nets).Error; err != nil {
@@ -425,10 +472,6 @@ func (a *App) applyOverlayFirewall(ctx context.Context) error {
 	}
 	var rules []store.NetworkRule
 	if err := a.Store.DB.Find(&rules).Error; err != nil {
-		return err
-	}
-	pairs, err := store.MembershipPairs(a.Store.DB)
-	if err != nil {
 		return err
 	}
 	byID := map[uint]store.OverlayNetwork{}
@@ -450,14 +493,6 @@ func (a *App) applyOverlayFirewall(ctx context.Context) error {
 		spec.Rules = append(spec.Rules, provision.OverlayRuleSpec{
 			SrcCIDR: src.CIDR, DstCIDR: dst.CIDR, Action: r.Action, Proto: r.Proto, Ports: ports,
 		})
-	}
-	for _, p := range pairs {
-		src, okS := byID[p[0]]
-		dst, okD := byID[p[1]]
-		if !okS || !okD {
-			continue
-		}
-		spec.Pairs = append(spec.Pairs, provision.OverlayPairSpec{SrcCIDR: src.CIDR, DstCIDR: dst.CIDR})
 	}
 	raw, err := json.Marshal(spec)
 	if err != nil {

@@ -15,6 +15,12 @@ func TestRenderOverlayNft_DropsCrossNetByDefault(t *testing.T) {
 			{SrcCIDR: "10.66.80.0/24", DstCIDR: "10.66.66.0/24", Action: "allow", Proto: "tcp", Ports: []int{443, 53}},
 		},
 	})
+	if !strings.Contains(script, "destroy table inet xvpn-overlay") {
+		t.Fatal(script)
+	}
+	if strings.Contains(script, "flush table") {
+		t.Fatal("flush falha na primeira apply")
+	}
 	if !strings.Contains(script, "drop") {
 		t.Fatal(script)
 	}

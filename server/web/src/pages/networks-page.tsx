@@ -182,7 +182,7 @@ function MembersCard({
     <Card>
       <CardHeader>
         <CardTitle>Membros</CardTitle>
-        <CardDescription>Membership dá rota à CIDR e FORWARD implícito home↔rede.</CardDescription>
+        <CardDescription>Membership inclui a CIDR no AllowedIPs. Atravessar o hub exige regra.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <form className="flex flex-wrap items-end gap-2" onSubmit={onSubmit}>

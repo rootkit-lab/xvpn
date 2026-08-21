@@ -13,7 +13,7 @@ UI: `xadmin.corp` → **Redes** (`/admin/networks`). Produto `core`. Compute cad
 ## Semântica
 
 - Mesma rede: L3 entre membros.
-- Entre redes: FORWARD **nega**, salvo `NetworkRule` allow ou membership (rota + FORWARD implícito).
+- Entre redes: FORWARD **nega**, salvo `NetworkRule` allow. Membership só dá rota (`AllowedIPs`); não abre portas.
 - Seed: `users` → `infra` TCP 443/53, UDP 53, TCP 445 (`samba`). **Não** 27017.
 - Device enroll → `users`. Mesh enroll → `infra` + `AllowedIPs` = CIDR infra (sem `0.0.0.0/0`).
 - Seed no boot **move** device de usuário que ainda estiver em `10.66.66.x` para `users`. Cliente precisa reconectar/re-enroll.

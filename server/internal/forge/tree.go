@@ -451,3 +451,39 @@ func LanguageStats(root, slug, ref string) ([]LangStat, error) {
 	}
 	return items, nil
 }
+
+// ListTreeFiles lista blobs recursivos em ref:dir.
+func ListTreeFiles(root, slug, ref, dir string) ([]string, error) {
+	if !validTreePath(dir) {
+		return nil, ErrInvalidSlug
+	}
+	sha, err := resolveRev(root, slug, ref)
+	if err != nil {
+		return nil, err
+	}
+	repoDir, err := RepoPath(root, slug)
+	if err != nil {
+		return nil, err
+	}
+	bin, err := LookGit()
+	if err != nil {
+		return nil, err
+	}
+	spec := sha
+	clean := strings.Trim(dir, "/")
+	if clean != "" {
+		spec = sha + ":" + clean
+	}
+	out, err := gitCmd(bin, "--git-dir="+repoDir, "ls-tree", "-r", "--name-only", spec).Output()
+	if err != nil {
+		return nil, ErrEmptyRepo
+	}
+	var files []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}

@@ -164,7 +164,8 @@ func firstQuery(c *gin.Context, keys ...string) string {
 
 func packagesAPIPath(p string) bool {
 	p = strings.TrimPrefix(p, "/api")
-	return p == "/xgit/packages" || strings.HasSuffix(p, "/packages") || strings.Contains(p, "/packages/")
+	return p == "/xgit/packages" || strings.HasSuffix(p, "/packages") || strings.Contains(p, "/packages/") ||
+		strings.HasSuffix(p, "/pages") || strings.Contains(p, "/pages/")
 }
 
 func repoFromPackagesPath(p string) string {
@@ -173,7 +174,7 @@ func repoFromPackagesPath(p string) string {
 	if len(parts) >= 3 && parts[0] == "packages" {
 		return parts[1] + "/" + parts[2]
 	}
-	if len(parts) >= 4 && parts[0] == "projects" && parts[3] == "packages" {
+	if len(parts) >= 4 && parts[0] == "projects" && (parts[3] == "packages" || parts[3] == "pages") {
 		return parts[1] + "/" + parts[2]
 	}
 	return ""

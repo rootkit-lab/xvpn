@@ -108,6 +108,11 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/packages/:org/:slug/rubygems/gems/:filename` | sessão + ACL | download `.gem` |
 | GET | `/api/registry/token` | sessão + host `registry.corp` | Docker token (`?scope=repository:<org>/<slug>:pull,push`). JWE amarrado ao repo |
 | GET | `/api/registry/auth` | sessão ou token de packages | `auth_request` Nginx (`X-Original-URI` `/v2/<org>/<slug>/…`). GET=pull; PUT=push (developer+) |
+| GET | `/api/projects/:org/:slug/wiki` | sessão + ACL | lista páginas (`refs/xgit/wiki`) |
+| GET/PUT | `/api/projects/:org/:slug/wiki/:page` | GET=ACL; PUT=developer+ | Home.md = `#1`. Preview GFM no XGIT |
+| GET | `/api/projects/:org/:slug/pages` | sessão + ACL | `{url, published}` |
+| POST | `/api/projects/:org/:slug/pages` | developer+ ou JWE `aud=packages` | `source=docs\|public` ou multipart `file` (tar.gz/zip). Disco `/opt/xvpn/data/pages` |
+| GET | `https://pages.corp.ihuull.com/:org/:slug/` | só VPN | `index.html` estático. Sem A público |
 | POST | `/api/projects/:org/:slug/star` | sessão + ACL | toggle da estrela |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | `{org,slug,…}` — org obrigatória (`xcorp`). Sem path plano. |
 | POST | `/api/projects` | idem | `{org,slug}` obrigatórios |

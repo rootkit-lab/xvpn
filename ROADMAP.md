@@ -1788,9 +1788,9 @@ Imagens Docker no estilo GHCR — **não** no mesmo path HTTP do npm/Maven.
 
 Como o GitHub Team (Pages e Wikis). Só VPN.
 
-- [ ] **Pages:** blob estático (artifact da CI ou pasta `docs/` / `public/`). Nginx gerado. Hostname `*.corp` (um rótulo) ou path em `xgit.corp`. Hostname novo só com §5.
-- [ ] **Wiki:** aba no repo `/:org/:slug/wiki`. Tree markdown no bare (ou bare irmão `<slug>.wiki.git`). Preview GFM já existente. Sem FileBrowser. Sem segundo social.
-- [ ] Template New workflow **Pages** (já esboçado na 42.2) passa a publicar de verdade.
+- [x] **Pages:** blob estático (artifact da CI ou pasta `docs/` / `public/`). Nginx gerado. Hostname `pages.corp.ihuull.com/<org>/<slug>/` (§5). Sem `<org>.pages.corp`.
+- [x] **Wiki:** aba no repo `/:org/:slug/wiki`. Tree markdown no bare (`refs/xgit/wiki`). Preview GFM já existente. Sem FileBrowser. Sem segundo social.
+- [x] Template New workflow **Pages** (já esboçado na 42.2) passa a publicar de verdade.
 
 **Critério de saída:** wiki `#1` editável na VPN; Pages serve `index.html` só na malha.
 

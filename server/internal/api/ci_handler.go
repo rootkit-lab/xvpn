@@ -743,6 +743,10 @@ func (a *App) handleCiArtifact(c *gin.Context) {
 	}
 	job.ArtifactRel = rel
 	_ = a.Store.DB.Save(&job).Error
+	switch strings.ToLower(name) {
+	case "pages.tar.gz", "pages.tgz", "pages.zip":
+		_ = a.publishPagesBytes(a.projectOrgSlug(proj), proj.Slug, name, body)
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

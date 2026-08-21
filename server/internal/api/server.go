@@ -197,6 +197,7 @@ func NewRouter(app *App) *gin.Engine {
 
 	r.Use(gin.Recovery())
 	r.Use(requestLogger())
+	r.Use(app.maybeServePages())
 	r.Use(app.maybeCodespaceProxy())
 
 	if app.waitlistLimiter == nil {
@@ -447,6 +448,11 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/projects/:org/:slug/jobs/:n/rerun", app.handleRerunCiJob)
 			authed.GET("/projects/:org/:slug/runners", app.handleListProjectRunners)
 			authed.GET("/projects/:org/:slug/services", app.handleListProjectServices)
+			authed.GET("/projects/:org/:slug/wiki", app.handleListWiki)
+			authed.GET("/projects/:org/:slug/wiki/:page", app.handleGetWikiPage)
+			authed.PUT("/projects/:org/:slug/wiki/:page", app.handlePutWikiPage)
+			authed.GET("/projects/:org/:slug/pages", app.handleGetPagesStatus)
+			authed.POST("/projects/:org/:slug/pages", app.handlePublishPages)
 
 			driver := authed.Group("/driver")
 			driver.Use(app.RequireDriverHost())

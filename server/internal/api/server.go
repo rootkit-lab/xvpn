@@ -364,6 +364,12 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/xgit/settings", app.handleGetForgeSettings)
 			authed.GET("/xgit/overview", app.handleXgitOverview)
 			authed.GET("/xgit/stars", app.handleXgitStars)
+			registry := authed.Group("")
+			registry.Use(app.RequireRegistryHost())
+			{
+				registry.GET("/registry/token", app.handleRegistryToken)
+				registry.GET("/registry/auth", app.handleRegistryAuth)
+			}
 			packages := authed.Group("")
 			packages.Use(app.RequirePackagesHost())
 			{

@@ -106,6 +106,8 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `/api/packages/:org/:slug/nuget/flat/:name/:version/:file` | sessão + ACL | download `.nupkg` |
 | POST | `/api/packages/:org/:slug/rubygems` | developer+ ou `forge` | `gem push` (também `/rubygems/api/v1/gems`) |
 | GET | `/api/packages/:org/:slug/rubygems/gems/:filename` | sessão + ACL | download `.gem` |
+| GET | `/api/registry/token` | sessão + host `registry.corp` | Docker token (`?scope=repository:<org>/<slug>:pull,push`). JWE amarrado ao repo |
+| GET | `/api/registry/auth` | sessão ou token de packages | `auth_request` Nginx (`X-Original-URI` `/v2/<org>/<slug>/…`). GET=pull; PUT=push (developer+) |
 | POST | `/api/projects/:org/:slug/star` | sessão + ACL | toggle da estrela |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | `{org,slug,…}` — org obrigatória (`xcorp`). Sem path plano. |
 | POST | `/api/projects` | idem | `{org,slug}` obrigatórios |

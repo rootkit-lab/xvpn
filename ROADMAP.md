@@ -1777,8 +1777,8 @@ npm + PyPI + generic (45.1–45.2) já vivem em `/api/packages/:org/:slug/…` (
 
 Imagens Docker no estilo GHCR — **não** no mesmo path HTTP do npm/Maven.
 
-- [ ] `registry:2` ou Harbor, bind só `wg0` / `127.0.0.1`. Hostname novo **só** depois de `port-domain-registry-check` + linha em `PLAN.md` §5.
-- [ ] Auth JWE. ACL da org/repo. Sem `docker.sock` no codespace. Sem porta pública no ufw.
+- [x] `registry:2` bind `127.0.0.1:5000`. Hostname `registry.corp.ihuull.com` (PLAN §5.2/§5.3). Sem Harbor.
+- [x] Auth JWE (`GET /api/registry/token` + Nginx `auth_request`). ACL do Project. Sem `docker.sock` no codespace. Sem porta pública no ufw.
 
 **Critério de saída:** `docker pull` na VPN de uma imagem do `xcorp`. Fora da VPN o nome não resolve.
 

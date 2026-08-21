@@ -2,6 +2,7 @@ package auth
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -75,6 +76,18 @@ func RejectPackagesScopedToken() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if registryAPIPath(c.Request.URL.Path) {
+			want, _ := c.Get(ContextRepoKey)
+			repo, _ := want.(string)
+			got := repoFromRegistryRequest(c)
+			from := mountFromRegistryRequest(c)
+			if repo == "" || (got != "" && got != repo) || (from != "" && from != repo) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token só vale neste repositório"})
+				return
+			}
+			c.Next()
+			return
+		}
 		if !packagesAPIPath(c.Request.URL.Path) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "token só vale no registry de packages"})
 			return
@@ -88,6 +101,65 @@ func RejectPackagesScopedToken() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+func registryAPIPath(p string) bool {
+	p = strings.TrimPrefix(p, "/api")
+	return p == "/registry/token" || p == "/registry/auth" || strings.HasPrefix(p, "/registry/")
+}
+
+func repoFromRegistryRequest(c *gin.Context) string {
+	raw := firstQuery(c, "scope", "scopes")
+	if strings.HasPrefix(raw, "repository:") {
+		rest := strings.TrimPrefix(raw, "repository:")
+		name, _, ok := strings.Cut(rest, ":")
+		if ok && strings.Count(name, "/") == 1 {
+			return name
+		}
+	}
+	uri := c.GetHeader("X-Original-URI")
+	if uri == "" {
+		uri = c.Query("uri")
+	}
+	path := uri
+	if i := strings.Index(uri, "?"); i >= 0 {
+		path = uri[:i]
+	}
+	path = strings.Trim(path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) >= 3 && parts[0] == "v2" && parts[1] != "" && parts[2] != "" {
+		return parts[1] + "/" + parts[2]
+	}
+	return ""
+}
+
+func mountFromRegistryRequest(c *gin.Context) string {
+	uri := c.GetHeader("X-Original-URI")
+	if uri == "" {
+		uri = c.Query("uri")
+	}
+	i := strings.Index(uri, "?")
+	if i < 0 {
+		return ""
+	}
+	q, err := url.ParseQuery(uri[i+1:])
+	if err != nil {
+		return ""
+	}
+	from := strings.TrimSpace(q.Get("from"))
+	if strings.Count(from, "/") != 1 {
+		return ""
+	}
+	return from
+}
+
+func firstQuery(c *gin.Context, keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(c.Query(k)); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func packagesAPIPath(p string) bool {

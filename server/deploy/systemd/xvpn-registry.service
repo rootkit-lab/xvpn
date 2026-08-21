@@ -1,0 +1,19 @@
+[Unit]
+Description=XVPN container registry (registry:2, loopback only)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=3
+ExecStartPre=/usr/bin/mkdir -p /opt/xvpn/data/registry
+ExecStartPre=-/usr/bin/docker rm -f xvpn-registry
+ExecStart=/usr/bin/docker run --name xvpn-registry --rm \
+  -p 127.0.0.1:5000:5000 \
+  -v /opt/xvpn/data/registry:/var/lib/registry \
+  registry:2
+ExecStop=/usr/bin/docker stop xvpn-registry
+
+[Install]
+WantedBy=multi-user.target

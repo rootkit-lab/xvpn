@@ -503,7 +503,7 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/backups/destinations", app.handleListBackupDestinations)
 			viewerUp.GET("/backups/jobs", app.handleListBackupJobs)
 			coreRead := viewerUp.Group("")
-			coreRead.Use(auth.RequireProduct(store.ProductCore))
+			coreRead.Use(auth.RequireReadableProduct(store.ProductCore))
 			{
 				coreRead.GET("/networks", app.handleListNetworks)
 			}

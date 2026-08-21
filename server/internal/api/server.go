@@ -502,7 +502,11 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/backups/settings", app.handleGetBackupSettings)
 			viewerUp.GET("/backups/destinations", app.handleListBackupDestinations)
 			viewerUp.GET("/backups/jobs", app.handleListBackupJobs)
-			viewerUp.GET("/networks", app.handleListNetworks)
+			coreRead := viewerUp.Group("")
+			coreRead.Use(auth.RequireProduct(store.ProductCore))
+			{
+				coreRead.GET("/networks", app.handleListNetworks)
+			}
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.

@@ -125,6 +125,12 @@ func run() error {
 	// estado do DB para o sistema. Best-effort — não bloqueia o boot;
 	// se falhar, o admin vê no log e pode re-rodar (ou corrigir à mão).
 	// Ver api.ReconcileUnixAccounts pra detalhes e limitações.
+	if err := app.ApplyOverlayFirewall(context.Background()); err != nil {
+		slog.Error("apply overlay FORWARD falhou (servidor continua; ver log)",
+			"err", err.Error())
+	} else {
+		slog.Info("overlay firewall applied")
+	}
 	if err := app.ReconcileUnixAccounts(context.Background()); err != nil {
 		slog.Error("reconcile de contas Unix falhou (servidor continua subindo; ver log)",
 			"err", err.Error())

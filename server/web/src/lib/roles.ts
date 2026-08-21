@@ -31,7 +31,7 @@ export const PRODUCT_LABELS: Record<Product, string> = {
 }
 
 export const PRODUCT_DESCRIPTIONS: Record<Product, string> = {
-  core: 'Peers WireGuard, lista de espera e TTLs do painel.',
+  core: 'Peers WireGuard, redes overlay, lista de espera e TTLs do painel.',
   marketplace: 'ACL da loja (quem vê app restrito).',
   xgroup: 'Operação da rede social.',
   xdriver: 'Shares Samba, SFTP e cota de disco.',

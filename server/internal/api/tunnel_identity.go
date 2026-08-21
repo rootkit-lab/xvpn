@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -36,26 +35,9 @@ const contextTunnelDeviceKey = "xvpn_tunnel_device"
 // por construção. Um segundo gin.Engine só acrescentaria a possibilidade
 // de registrar uma rota na árvore errada — falha silenciosa.
 func (a *App) RequireTunnelOrigin() gin.HandlerFunc {
-	var subnet *net.IPNet
-	if _, parsed, err := net.ParseCIDR(a.Config.WireGuardAllowedSubnet); err == nil {
-		subnet = parsed
-	} else {
-		// Config quebrada: falha fechada em vez de aberta. Não abortamos o
-		// boot porque o resto da API (painel, enrollment) continua
-		// utilizável, mas estas rotas ficam indisponíveis e o motivo fica
-		// no journal.
-		slog.Error("sub-rede da VPN inválida — rotas de identidade por túnel desabilitadas",
-			"subnet", a.Config.WireGuardAllowedSubnet, "err", err)
-	}
-
 	return func(c *gin.Context) {
-		if subnet == nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError,
-				gin.H{"error": "sub-rede da VPN mal configurada no servidor"})
-			return
-		}
 		ip := net.ParseIP(c.RemoteIP())
-		if ip == nil || !subnet.Contains(ip) {
+		if ip == nil || !a.overlayIPAllowed(ip) {
 			// Mensagem deliberadamente genérica: quem chegou aqui de fora
 			// do túnel não precisa saber que existe um caminho interno.
 			c.AbortWithStatusJSON(http.StatusForbidden,

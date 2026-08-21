@@ -100,6 +100,7 @@ const MergeRequestPage = lazy(() =>
   import('@/pages/merge-request-page').then((m) => ({ default: m.MergeRequestPage })),
 )
 const CiJobPage = lazy(() => import('@/pages/ci-job-page').then((m) => ({ default: m.CiJobPage })))
+const NetworksPage = lazy(() => import('@/pages/networks-page').then((m) => ({ default: m.NetworksPage })))
 const ServersPage = lazy(() => import('@/pages/servers-page').then((m) => ({ default: m.ServersPage })))
 const ServerDetailPage = lazy(() =>
   import('@/pages/server-detail-page').then((m) => ({ default: m.ServerDetailPage })),
@@ -414,6 +415,7 @@ function XAdminCorpApp() {
               <Route path="users/:id" element={<UserDetailPage />} />
               <Route path="rbac" element={<RbacPage />} />
               <Route path="devices" element={<DevicesPage />} />
+              <Route path="networks" element={<NetworksPage />} />
               <Route path="shares" element={<SharesPage />} />
               <Route path="waitlist" element={<WaitlistPage />} />
               <Route path="download" element={<HostRedirect to={MARKETPLACE_ORIGIN} />} />

@@ -649,6 +649,37 @@ export interface ProjectMember {
   role: ProjectRole
 }
 
+export type OverlayNetworkKind = 'infra' | 'users' | 'custom'
+
+export interface OverlayNetwork {
+  id: number
+  slug: string
+  name: string
+  kind: OverlayNetworkKind | string
+  cidr: string
+  system: boolean
+  exit: boolean
+}
+
+export interface NetworkMember {
+  id: number
+  network_id: number
+  subject_kind: 'user' | 'device' | 'mesh_server' | string
+  subject_id: number
+  role: string
+}
+
+export interface NetworkRule {
+  id: number
+  slug: string
+  src_network_id: number
+  dst_network_id: number
+  action: string
+  proto: string
+  ports: string
+  system: boolean
+}
+
 export type MeshServerRole = 'control' | 'mesh' | 'runner' | 'external'
 
 export interface MeshServer {
@@ -1701,6 +1732,25 @@ export const api = {
     request<{ items: CiRunner[] }>(projectAPI(slug, `/runners`)),
   downloadCiArtifact: (slug: string, n: number) =>
     downloadBinary(projectAPI(slug, `/jobs/${n}/artifact`), `job-${n}-artifact`),
+
+  listNetworks: () =>
+    request<{ items: OverlayNetwork[]; members: NetworkMember[]; rules: NetworkRule[]; pool: string }>('/networks'),
+  createNetwork: (body: { slug: string; name?: string; cidr?: string; exit?: boolean; corp_access?: boolean }) =>
+    request<OverlayNetwork>('/networks', { method: 'POST', body: JSON.stringify(body) }),
+  deleteNetwork: (id: number) => request<{ ok: boolean }>(`/networks/${id}`, { method: 'DELETE' }),
+  addNetworkMember: (id: number, body: { subject_kind: string; subject_id: number; role?: string }) =>
+    request<NetworkMember>(`/networks/${id}/members`, { method: 'POST', body: JSON.stringify(body) }),
+  deleteNetworkMember: (id: number, mid: number) =>
+    request<{ ok: boolean }>(`/networks/${id}/members/${mid}`, { method: 'DELETE' }),
+  createNetworkRule: (body: {
+    slug: string
+    src_network_id: number
+    dst_network_id: number
+    action?: string
+    proto?: string
+    ports?: string
+  }) => request<NetworkRule>('/networks/rules', { method: 'POST', body: JSON.stringify(body) }),
+  deleteNetworkRule: (id: number) => request<{ ok: boolean }>(`/networks/rules/${id}`, { method: 'DELETE' }),
 
   listServers: () => request<{ items: MeshServer[]; bitlaunch: boolean; accounts: BitLaunchAccount[] }>('/servers'),
   getServer: (id: number) => request<MeshServer>(`/servers/${id}`),

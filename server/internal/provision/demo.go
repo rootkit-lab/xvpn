@@ -215,8 +215,10 @@ func applyDemoNAT(r CsRunner, containerIP string) error {
 	_ = r.HostCmd("iptables", "-N", demoFwdChain)
 	_ = r.HostCmd("iptables", "-t", "nat", "-F", demoNatChain)
 	_ = r.HostCmd("iptables", "-F", demoFwdChain)
-	if err := jumpIfMissing(r, "nat", "PREROUTING", "-s", "10.66.66.0/24", "-d", DemoVIP, "-j", demoNatChain); err != nil {
-		return err
+	for _, src := range []string{"10.66.66.0/24", "10.66.80.0/20"} {
+		if err := jumpIfMissing(r, "nat", "PREROUTING", "-s", src, "-d", DemoVIP, "-j", demoNatChain); err != nil {
+			return err
+		}
 	}
 	if err := jumpIfMissing(r, "", "FORWARD", "-j", demoFwdChain); err != nil {
 		return err
@@ -233,11 +235,15 @@ func applyDemoNAT(r CsRunner, containerIP string) error {
 	if err := r.HostCmd("iptables", "-A", demoFwdChain, "-m", "conntrack", "--ctstate", "RELATED,ESTABLISHED", "-j", "ACCEPT"); err != nil {
 		return err
 	}
-	if err := r.HostCmd("iptables", "-A", demoFwdChain, "-s", "10.66.66.0/24", "-d", containerIP, "-j", "ACCEPT"); err != nil {
-		return err
-	}
-	if err := r.HostCmd("iptables", "-t", "nat", "-C", "POSTROUTING", "-s", "10.66.66.0/24", "-d", containerIP, "-j", "MASQUERADE"); err != nil {
-		return r.HostCmd("iptables", "-t", "nat", "-A", "POSTROUTING", "-s", "10.66.66.0/24", "-d", containerIP, "-j", "MASQUERADE")
+	for _, src := range []string{"10.66.66.0/24", "10.66.80.0/20"} {
+		if err := r.HostCmd("iptables", "-A", demoFwdChain, "-s", src, "-d", containerIP, "-j", "ACCEPT"); err != nil {
+			return err
+		}
+		if err := r.HostCmd("iptables", "-t", "nat", "-C", "POSTROUTING", "-s", src, "-d", containerIP, "-j", "MASQUERADE"); err != nil {
+			if err := r.HostCmd("iptables", "-t", "nat", "-A", "POSTROUTING", "-s", src, "-d", containerIP, "-j", "MASQUERADE"); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -268,6 +274,7 @@ server {
     listen %s:80;
     server_name %s;
     allow 10.66.66.0/24;
+    allow 10.66.80.0/20;
     deny all;
     root /var/www/xvpn-demo;
     default_type text/html;
@@ -280,6 +287,7 @@ server {
     ssl_certificate     /etc/letsencrypt/live/corp.ihuull.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/corp.ihuull.com/privkey.pem;
     allow 10.66.66.0/24;
+    allow 10.66.80.0/20;
     deny all;
     root /var/www/xvpn-demo;
     default_type text/html;

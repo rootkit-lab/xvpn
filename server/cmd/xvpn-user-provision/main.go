@@ -14,6 +14,7 @@
 //	xvpn-user-provision dns-apply                  # JSON no stdin (zona corp)
 //	xvpn-user-provision svc-apply                  # JSON no stdin (serviço gerenciado)
 //	xvpn-user-provision cs-apply                   # JSON no stdin (codespace Docker)
+//	xvpn-user-provision overlay-apply              # JSON no stdin (FORWARD overlay)
 //
 // O username é validado via regex (ver provision.ValidUsername) ANTES de
 // qualquer chamada de sistema — defesa em profundidade contra injeção
@@ -80,6 +81,12 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 			return errUsage
 		}
 		return provision.ApplyCodespace(csRunnerFn(), stdin, "", "")
+	}
+	if args[0] == "overlay-apply" {
+		if len(args) != 1 {
+			return errUsage
+		}
+		return provision.ApplyOverlay(runnerFn(), stdin)
 	}
 	if len(args) < 2 {
 		return errUsage

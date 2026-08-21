@@ -4,7 +4,7 @@ Checklist de execução do projeto, fase a fase. Baseado nas decisões arquitetu
 
 Convenção: `[ ]` pendente · `[x]` concluído · `[~]` em andamento/parcial.
 
-> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–65** na `main` e no VPS. **Fase 66** = nó data (`66.29.147.100`) na malha + repo `xcorp/xvpn`. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
+> **Status:** Ciclos **v0.2**–**v0.7** (Fases 0–34) em código. **Fases 35–66** na `main` e no VPS. **Fase 67** = redes overlay (infra ≠ users) + cutover do nó `data` + **xmonitor**. Auth: **só JWE**. Fases 0–21 são históricas (hostname era `vpn.officeempresa.com`).
 >
 > **Único item parcial da Fase 15:** `[~]` E2E Windows real + helper como Windows Service (rota `/32` já corrigida no código — falta máquina/VM).
 >
@@ -1859,9 +1859,24 @@ O VPS `66.29.147.100` alivia o control-plane: Mongo, bare git e containers. Entr
 - [x] Seed `data` (`66.29.147.100`) + seed projeto `xcorp/xvpn` (restricted/vpn).
 - [x] UI Compute: formulário “Cadastrar VPS existente”; `provider` na listagem.
 - [x] Docs: `PLAN.md` §6.16, `docs/areas/compute.md` + `xgit.md`, skill `tasks` + `TASKS.md`.
-- [ ] Cutover operacional (Mongo/git/Docker no peer) — fases seguintes; bind só `wg0`.
+- [x] Cutover operacional → **Fase 67**.
 
 **Critério de saída:** xadmin lista `data` pending-enroll; bootstrap no host cria peer `10.66.66.0/24`; `xcorp/xvpn` existe no XGIT. Sem chave SSH no Git/API.
+
+---
+
+## Fase 67 — Redes overlay + cutover data + xmonitor
+
+Um `/24` mistura notebook e Mongo. Antes do cutover: redes no xadmin (infra ≠ users), regras de participação, FORWARD default-deny entre CIDRs. Depois: `data` na **infra**; git/Docker/Mongo; xmonitor.
+
+- [x] **67.1** Overlay: seed `infra` `10.66.66.0/24` + `users` `10.66.80.0/24` (pool `10.66.80.0/20`); xadmin `/admin/networks` (CRUD, membros, regras); enroll device→users, mesh→infra; sem `10.10`/`10.136`
+- [ ] **67.2** Enroll `data` na infra + `data.corp` + inventário dos dois VPS
+- [ ] **67.3** Migrar git bare + Docker/registry/codespaces (Nginx proxy; bind só wg0 no data)
+- [ ] **67.4** Migrar Mongo do CP para o data (só alcançável da infra); desligar daemons migrados no `.72`
+- [ ] **67.5** **xmonitor** — `xmonitor.corp.ihuull.com`, repo `xcorp/xmonitor`, checks tipo Nagios (HTTP/WG/disco)
+- [ ] **67.6** PLAN §5.3/§6.16, `docs/areas/networks.md`, skills (`data-node-ops` / `new-intranet-app`), AGENTS
+
+**Critério de saída:** user sem regra não alcança `:27017` no data; data é peer infra; git/containers (e Mongo após 67.4) via Nginx no control; xmonitor na VPN; sem bind público de Mongo/git/Docker.
 
 ---
 
@@ -1883,7 +1898,8 @@ O VPS `66.29.147.100` alivia o control-plane: Mongo, bare git e containers. Entr
 - **Parte XIV (35–57):** xadmin + forge + malha. Ordem: 35 (host) → 36 (catálogo/ACL) → 37 (projeto) → 38 (compute) → 39 (DNS público) → 40–42 (git/MR/CI) → 43 (serviços) → 43.1 (console XGIT) → 44 (backups). **46–49** (Issues → 46.1 Projects → PRs GitHub-like → editor Monaco → editor rápido XCODESPACES) é o trilho de UX do forge. **50** (VS Code remoto + Docker) vem depois da 49. **51–55** DX/agente. **56** (demo ports `demo-<nome>.corp:*`) → **57** (canário Flask no repo `teste` + espelho de terminal).
 - **Parte XV (58–64):** org `<org>/<slug>` (sem fallback) → registries + Actions publish → containers → Pages/Wiki → Security and quality → aba Agents → `xcs-detect`. Não misturar Harbor (60) com Maven (59) nem BitLaunch com git na mesma PR.
 - **Parte XVI (65):** camadas IAM ≠ ACL no xadmin. Sem reescrever `HasProduct(forge)` nos handlers de git/CI nesta fase.
-- **Parte XVII (66):** nó `data` na malha + `xcorp/xvpn` no forge. Cutover Mongo/git/containers fica depois.
+- **Parte XVII (66):** nó `data` na malha + `xcorp/xvpn` no forge. Cutover → Fase 67.
+- **Parte XVIII (67):** redes overlay (67.1) **antes** do cutover. Depois data na infra (git/Docker/Mongo) + xmonitor. Control fica hub WG/Nginx/`xvpn-server`/Samba/landpages.
 - Trabalho → branch → PR → squash (`CONTRIBUTING.md`). Atualize checkboxes **na mesma PR**.
 - Mudança de arquitetura → atualizar `PLAN.md` na mesma branch.
 

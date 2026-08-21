@@ -143,6 +143,9 @@ func (f *fakeRunner) RemoveFile(path string) error {
 func (f *fakeRunner) ReloadSSH() error     { return f.record("ReloadSSH()") }
 func (f *fakeRunner) ReloadSamba() error   { return f.record("ReloadSamba()") }
 func (f *fakeRunner) ReloadDnsmasq() error { return f.record("ReloadDnsmasq()") }
+func (f *fakeRunner) NftFile(path string) error {
+	return f.record("NftFile(" + path + ")")
+}
 func (f *fakeRunner) SetUserQuota(username string, blocksKB uint64) error {
 	return f.record("SetUserQuota(" + username + "," + strconv.FormatUint(blocksKB, 10) + ")")
 }
@@ -273,7 +276,7 @@ Server role: ROLE_STANDALONE
 [home-alice]
 	force user = alice
 	guest ok = Yes
-	hosts allow = 10.66.66.0/24 127.0.0.1
+	hosts allow = 10.66.66.0/24 10.66.80.0/20 127.0.0.1
 	hosts deny = 0.0.0.0/0
 	path = /home/alice/files
 	read only = No
@@ -314,7 +317,7 @@ Server role: ROLE_STANDALONE
 	server string = XVPN File Share
 	smb ports = 445
 	idmap config * : backend = tdb
-	hosts allow = 10.66.66.0/24 127.0.0.1
+	hosts allow = 10.66.66.0/24 10.66.80.0/20 127.0.0.1
 	hosts deny = 0.0.0.0/0
 	printing = bsd
 
@@ -390,7 +393,7 @@ Server role: ROLE_STANDALONE
 	server smb transports = 445
 	server string = XVPN File Share
 	idmap config * : backend = tdb
-	hosts allow = 10.66.66.0/24 127.0.0.1
+	hosts allow = 10.66.66.0/24 10.66.80.0/20 127.0.0.1
 	hosts deny = 0.0.0.0/0
 	include = /etc/samba/smb.conf.d/xvpn-shares.conf
 	printing = bsd

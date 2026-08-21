@@ -32,6 +32,7 @@ type Runner interface {
 	ReloadSSH() error
 	ReloadSamba() error
 	ReloadDnsmasq() error
+	NftFile(path string) error
 	// SetUserQuota aplica quota de disco (ext4 usrquota) em KB soft=0
 	// hard=blocksKB. blocksKB=0 remove a quota do usuário.
 	SetUserQuota(username string, blocksKB uint64) error
@@ -209,6 +210,14 @@ func (osRunner) ReloadDnsmasq() error {
 	// dns-apply reescreve xvpn-corp.conf — precisa de restart.
 	if err := exec.Command("systemctl", "restart", "dnsmasq").Run(); err != nil {
 		return fmt.Errorf("reiniciando dnsmasq: %w", err)
+	}
+	return nil
+}
+
+func (osRunner) NftFile(path string) error {
+	out, err := exec.Command("nft", "-f", path).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("nft -f %s: %w: %s", path, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }

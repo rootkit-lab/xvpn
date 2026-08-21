@@ -15,6 +15,7 @@ import {
   Server,
   Boxes,
   Archive,
+  Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/auth-context'
@@ -39,6 +40,7 @@ const ADMIN_NAV: { id: string; label: string; product?: Product; items: AdminNav
     items: [
       { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, roles: VIEWER_UP_ROLES, always: true, end: true },
       { to: '/admin/devices', label: 'Dispositivos', icon: Laptop, roles: VIEWER_UP_ROLES, product: 'core' },
+      { to: '/admin/networks', label: 'Redes', icon: Network, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/waitlist', label: 'Lista de espera', icon: ListChecks, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/settings', label: 'Gerais', icon: Settings, roles: VIEWER_UP_ROLES, product: 'core' },
       { to: '/admin/backups', label: 'Backups', icon: Archive, roles: VIEWER_UP_ROLES, product: 'core' },

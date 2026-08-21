@@ -154,6 +154,7 @@ func TestCreateMeshServerAndEnroll(t *testing.T) {
 	var enrolled struct {
 		AssignedIP string `json:"assigned_ip"`
 		Hostname   string `json:"hostname"`
+		AllowedIPs string `json:"allowed_ips"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &enrolled); err != nil {
 		t.Fatal(err)
@@ -163,6 +164,9 @@ func TestCreateMeshServerAndEnroll(t *testing.T) {
 	}
 	if enrolled.Hostname != "laba.corp.ihuull.com" {
 		t.Fatalf("hostname: %s", enrolled.Hostname)
+	}
+	if enrolled.AllowedIPs != "10.66.66.0/24" {
+		t.Fatalf("malha não pode ser full-tunnel: %s", enrolled.AllowedIPs)
 	}
 	if _, ok := wg.peers[testPublicKey]; !ok {
 		t.Fatal("peer não entrou no wg")

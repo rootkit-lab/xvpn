@@ -115,6 +115,7 @@ Smart HTTP (não é `/api`). Fora da VPN o Nginx recusa. Sem `git://`.
 | GET | `https://pages.corp.ihuull.com/:org/:slug/` | só VPN | `index.html` estático. Sem A público |
 | GET | `/api/projects/:org/:slug/security` | sessão + ACL | findings (`SecAlert`) + policy `SECURITY.md` + empty states |
 | POST | `/api/projects/:org/:slug/security/report` | reporter+ | issue `restricted` (só maintainer + autor) |
+| GET | `/api/projects/:org/:slug/agents` | sessão + ACL | codespaces do repo; `filter=mine|attention|active|completed`. Maintainer vê todos |
 | POST | `/api/projects/:org/:slug/star` | sessão + ACL | toggle da estrela |
 | POST | `/api/xgit/repos` | admin + `forge`, ou `member` se a flag permitir | `{org,slug,…}` — org obrigatória (`xcorp`). Sem path plano. |
 | POST | `/api/projects` | idem | `{org,slug}` obrigatórios |

@@ -1612,6 +1612,12 @@ export const api = {
     const q = ref ? `?ref=${encodeURIComponent(ref)}` : ''
     return downloadBinary(projectAPI(slug, `/archive${q}`), `${slug}.zip`)
   },
+  listProjectAgents: (repo: string, filter?: string) => {
+    const q = filter ? `?filter=${encodeURIComponent(filter)}` : ''
+    return request<{ items: Codespace[]; mine: number; attention: number; see_all: boolean }>(
+      projectAPI(repo, `/agents${q}`),
+    )
+  },
   listCodespaces: (repo?: string) => {
     if (!repo) return request<{ items: Codespace[] }>('/xcodespaces')
     const [org, slug] = repo.split('/')

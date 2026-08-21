@@ -1815,9 +1815,9 @@ Aba no repo no estilo GitHub **Security and quality**. Findings + Reporting. Job
 
 Aba **Agents** no repo (entre Pull requests e Actions), no estilo GitHub Copilot Sessions — **sem Copilot**. Lista as sessões do agente ihuull (Fases 52–55) daquele `<org>/<slug>`.
 
-- [ ] Sidebar: Created by me, Needs attention. Filtros Active / Completed. Sort Newest.
-- [ ] Empty state quando não há sessão. Configure / Customize environment apontam para Settings → Codespaces (já existe).
-- [ ] Abrir sessão = codespace do repo (50) com o chat à direita. Sem segundo runtime de agente no `xvpn-server`.
+- [x] Sidebar: Created by me, Needs attention. Filtros Active / Completed. Sort Newest.
+- [x] Empty state quando não há sessão. Configure / Customize environment apontam para Settings → Codespaces (já existe).
+- [x] Abrir sessão = codespace do repo (50) com o chat à direita. Sem segundo runtime de agente no `xvpn-server`.
 
 **Critério de saída:** em `xgit.corp/xcorp/hello-js/agents` o dono vê as sessões do codespace. Membro sem codespace vê o empty state.
 

@@ -39,6 +39,7 @@ const TABS = [
   { to: '', label: 'Code', end: true },
   { to: 'issues', label: 'Issues', end: false },
   { to: 'pulls', label: 'Pull requests', end: false },
+  { to: 'agents', label: 'Agents', end: false },
   { to: 'projects', label: 'Projects', end: false },
   { to: 'packages', label: 'Packages', end: false },
   { to: 'wiki', label: 'Wiki', end: false },

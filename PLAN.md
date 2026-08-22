@@ -231,7 +231,7 @@ Fonte da verdade de portas, hostnames e bind. Qualquer serviço novo no VPS **en
 
 ### 5.2 Hostnames de intranet (`*.corp` — só com VPN)
 
-Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1:443 ssl` + `allow 10.66.66.0/24; deny all;`. Cert `*.corp.ihuull.com` via **DNS-01** (não precisa de A público).
+Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1:443 ssl` + `allow 10.66.66.0/24; allow 10.66.80.0/20; deny all;`. Cert `*.corp.ihuull.com` via **DNS-01** (não precisa de A público).
 
 | Recurso | Hostname | Backend | Observação |
 |---|---|---|---|
@@ -251,12 +251,15 @@ Resolvem **somente** no DNS interno (`10.66.66.1:53`). Nginx: `listen 10.66.66.1
 
 | Recurso | Valor | Observação |
 |---|---|---|
-| Sub-rede WireGuard | `10.66.66.0/24` | Servidor = `10.66.66.1`; clientes a partir de `10.66.66.2`; **`.254` reservado** ao preview do codespace (não peer) |
+| Overlay **infra** | `10.66.66.0/24` | Hub `10.66.66.1`; malha/data/runners; **`.254` VIP codespace**. Kind `infra`. Sem exit/NAT. Não apagável |
+| Overlay **users** | `10.66.80.0/24` | Device enroll. Kind `users`, `exit=true`. Não apagável. Sem peer de usuário em `10.66.66.x` |
+| Pool custom | `10.66.80.0/20` | `/24`–`/28` em `10.66.81.0`–`10.66.95.0`. Sem overlap, sem `10.10`/`10.136`. UI `/admin/networks` |
+| Listen WG | um `wg0` | Porta `51820/udp`. Sem `wg1`. FORWARD default-deny entre CIDRs; seed 443/53 + Samba 445. Sem 27017 |
 | ~~`10.10.0.0/24`~~ | **Evitar** | Já roteada no `eth0` |
 | ~~`10.136.0.0/16`~~ | **Evitar** | Já usada pelo `eth1` (VPC DigitalOcean) |
 | Porta WireGuard | `51820/udp` | Público — único ponto de entrada da VPN |
 | Painel/API (loopback) | `127.0.0.1:8080` → `https://xvpn.ihuull.com` | Nunca exposto direto |
-| API no túnel (Fase 14) | `10.66.66.1:8080` | Mesma porta, outra interface. Bind só `wg0`. Só `/api/me` e `/api/me/ssh-key` com `RemoteIP()` na subnet |
+| API no túnel (Fase 14) | `10.66.66.1:8080` | Mesma porta, outra interface. Bind só `wg0`. `/api/me` exige `RemoteIP()` em qualquer CIDR overlay |
 | `landpages-ops-web` | ex. `127.0.0.1:3000` → `https://ldpops.appapisip.com` | **Não usar** `8080`/`8081`/`51820`/`27017`/`53` nem `10.66.66.0/24` |
 | Samba (SMB) | `10.66.66.1:445` | Bind **somente** `wg0`. `nmbd`/139 desabilitado |
 | ~~FileBrowser / :8081~~ | **retirado** | XDriver nativo no `xvpn-server`. Porta 8081 livre — não reusar sem linha nova |
@@ -834,7 +837,7 @@ Cadastro do data: **Compute → Cadastrar VPS existente** (`POST /api/servers/re
 - Detalhe do servidor: console tipo xterm (info + observações). **Não** é shell SSH — §3 rejeitou bash remoto na VPS.
 - Hosts com app própria ficam `role=external` (inventário só): hoje `server-cripto-prod` e `65.38.120.203`. Sem enroll, cloud-init, destroy, rebuild ou A `*.corp`. A malha XVPN: control + peers mesh (incl. `data`).
 - Conta BitLaunch: `GET /user` (saldo = USD×1000) e recarga `POST /transactions` (`amountUsd` + `cryptoSymbol` BTC/LTC/ETH). Token nunca no GET.
-- Após create/register: no BitLaunch o cloud-init instala WireGuard; no manual o operador cola o bootstrap. Em ambos a chave é gerada **no host novo**, só a pública em `POST /api/servers/enroll` (público, rate-limit, em `xvpn.ihuull.com` — o host ainda não tem `wg0`). IP em `10.66.66.0/24`. Teto ~250 IPs (clientes + VPS + runners). Faixa `10.66.67.0/24` **só** se `ip route` no VPS confirmar que está livre. **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`. Sem porta nova no §5.
+- Após create/register: no BitLaunch o cloud-init instala WireGuard; no manual o operador cola o bootstrap. Em ambos a chave é gerada **no host novo**, só a pública em `POST /api/servers/enroll` (público, rate-limit, em `xvpn.ihuull.com` — o host ainda não tem `wg0`). Peer mesh recebe IP na rede **infra** (`10.66.66.0/24`). Notebooks/devices vão para **users** (`10.66.80.0/24`). **Nunca** `10.10.0.0/16` nem `10.136.0.0/16`. Sem porta nova no §5. Doc: [`docs/areas/networks.md`](./docs/areas/networks.md).
 - DNS intranet: A `nome.corp` → IP wg0 (apply dnsmasq). DNS público: A do IPv4 via §6.17 se for edge.
 - SSH de operação nos hosts **novos**: preferir só `wg0`. ufw público do node atual permanece até cutover documentado. Chave SSH do operador **não** é armazenada no painel.
 - Acesso: VPN + `ServerAccess`. Sem permissão, a política barra — resolver o nome não basta.

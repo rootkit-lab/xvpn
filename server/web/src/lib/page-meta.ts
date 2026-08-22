@@ -200,6 +200,14 @@ const ADMIN_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/admin/networks',
+    meta: {
+      kicker: 'Core VPN',
+      title: 'Redes',
+      description: 'Overlay: infra 10.66.66.0/24, users 10.66.80.0/24, custom no pool /20. Sem legado.',
+    },
+  },
+  {
     prefix: '/admin/servers',
     meta: {
       kicker: 'Compute',

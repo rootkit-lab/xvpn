@@ -39,6 +39,7 @@ describe('documentTitle', () => {
       'Configurações · XADMIN',
     )
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/servers' })).toBe('Servidores · XADMIN')
+    expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/networks' })).toBe('Redes · XADMIN')
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/services' })).toBe('Instâncias · XADMIN')
     expect(documentTitle({ hostname: 'xadmin.corp.ihuull.com', pathname: '/admin/compute/settings' })).toBe(
       'Configurações · XADMIN',

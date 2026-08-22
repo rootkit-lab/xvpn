@@ -88,19 +88,14 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 		return
 	}
 
-	var devices []store.Device
-	if err := a.Store.DB.Find(&devices).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+	usersNet, err := store.NetworkByKind(a.Store.DB, store.NetworkKindUsers)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "rede users ausente"})
 		return
 	}
-	usedIPs := make([]string, 0, len(devices))
-	for _, d := range devices {
-		usedIPs = append(usedIPs, d.AllowedIP)
-	}
-
-	assignedIP, err := wireguard.AllocateIP(a.Config.WireGuardAllowedSubnet, usedIPs)
+	assignedIP, err := a.allocateInNetwork(usersNet)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "nenhum IP disponível na sub-rede da VPN"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "nenhum IP disponível na rede users"})
 		return
 	}
 
@@ -108,11 +103,15 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 		UserID:    invite.UserID,
 		Name:      req.DeviceName,
 		PublicKey: req.PublicKey,
+		NetworkID: usersNet.ID,
 		AllowedIP: assignedIP,
 	}
 
 	err = a.Store.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&device).Error; err != nil {
+			return err
+		}
+		if err := store.EnsureDeviceMember(tx, usersNet.ID, device.ID, invite.UserID); err != nil {
 			return err
 		}
 		now := time.Now()
@@ -152,15 +151,20 @@ func (a *App) handleDeviceEnroll(c *gin.Context) {
 			"device_id", device.ID, "user_id", device.UserID, "err", err)
 	}
 
+	allowed, err := store.ClientAllowedIPs(a.Store.DB, device)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
 	c.JSON(http.StatusCreated, enrollResponse{
 		AssignedIP:          device.AllowedIP,
 		ServerPublicKey:     a.ServerPublicKey,
 		Endpoint:            a.Config.WireGuardEndpoint,
-		AllowedIPs:          "0.0.0.0/0, ::/0",
+		AllowedIPs:          allowed,
 		Username:            owner.Username,
 		PersistentKeepalive: 25,
 		APIVersion:          APIVersion,
-		DNS:                 []string{"10.66.66.1"},
+		DNS:                 []string{store.ControlPlaneIP},
 		IntranetHosts:       a.enabledIntranetHosts(),
 	})
 }

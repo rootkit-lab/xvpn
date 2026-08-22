@@ -119,6 +119,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		&store.ForgePackage{}, &store.ForgePackageVersion{},
 		&store.MeshServer{}, &store.ServerGroup{}, &store.ServerAccess{}, &store.BitLaunchAccount{},
 		&store.ServiceInstance{},
+		&store.OverlayNetwork{}, &store.NetworkMember{}, &store.NetworkRule{},
 		&store.BackupSettings{}, &store.BackupDestination{}, &store.BackupJob{},
 	); err != nil {
 		t.Fatalf("erro migrando schema: %v", err)
@@ -128,6 +129,9 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 	}
 	if err := store.SeedXcorp(db); err != nil {
 		t.Fatalf("erro semeando xcorp: %v", err)
+	}
+	if err := store.SeedOverlayNetworks(db); err != nil {
+		t.Fatalf("erro semeando overlay: %v", err)
 	}
 
 	fakeWG := newFakePeerManager()

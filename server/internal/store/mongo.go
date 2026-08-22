@@ -44,6 +44,7 @@ func allModels() []any {
 		&ForgePackage{}, &ForgePackageVersion{},
 		&MeshServer{}, &ServerGroup{}, &ServerAccess{}, &BitLaunchAccount{},
 		&ServiceInstance{},
+		&OverlayNetwork{}, &NetworkMember{}, &NetworkRule{},
 		&BackupSettings{}, &BackupDestination{}, &BackupJob{},
 	}
 }
@@ -89,6 +90,9 @@ func openSQLite(path string) (*Store, error) {
 	}
 	if err := SeedBackupSettings(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando backups: %w", err)
+	}
+	if err := SeedOverlayNetworks(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando redes overlay: %w", err)
 	}
 	return st, nil
 }
@@ -149,6 +153,9 @@ func OpenMongo(uri, sqlitePath string) (*Store, error) {
 	}
 	if err := SeedBackupSettings(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando backups: %w", err)
+	}
+	if err := SeedOverlayNetworks(st.DB); err != nil {
+		return nil, fmt.Errorf("semeando redes overlay: %w", err)
 	}
 	return st, nil
 }

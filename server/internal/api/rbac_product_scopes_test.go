@@ -41,6 +41,14 @@ func TestAdminWithMarketplaceScopeCanWriteStoreACL(t *testing.T) {
 	}
 }
 
+func TestAdminWithoutCoreScopeCannotListNetworks(t *testing.T) {
+	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
+	rec := doJSON(t, f.router, http.MethodGet, "/api/networks", nil, f.token)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("admin só-loja não deveria listar overlay, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAdminWithoutCoreScopeCannotDeleteDevice(t *testing.T) {
 	f := setupScopedAdmin(t, []store.Product{store.ProductMarketplace})
 	path := "/api/devices/" + strconv.FormatUint(uint64(f.targetDeviceID), 10)

@@ -44,8 +44,11 @@ func TestHandleDeviceEnroll_Success(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("erro decodificando resposta: %v", err)
 	}
-	if resp.AssignedIP != "10.66.66.2/32" {
-		t.Fatalf("esperado IP 10.66.66.2/32, obtido %s", resp.AssignedIP)
+	if resp.AssignedIP != "10.66.80.2/32" {
+		t.Fatalf("esperado IP 10.66.80.2/32, obtido %s", resp.AssignedIP)
+	}
+	if resp.AllowedIPs != "0.0.0.0/0, ::/0" {
+		t.Fatalf("users com exit deve ser full-tunnel, obtido %s", resp.AllowedIPs)
 	}
 	if resp.ServerPublicKey != app.ServerPublicKey {
 		t.Fatalf("chave pública do servidor não confere")

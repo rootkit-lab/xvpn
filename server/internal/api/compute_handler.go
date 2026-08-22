@@ -687,23 +687,14 @@ func (a *App) handleMeshServerEnroll(c *gin.Context) {
 		return
 	}
 
-	var devices []store.Device
-	if err := a.Store.DB.Find(&devices).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-	used := make([]string, 0, len(devices)+1)
-	for _, d := range devices {
-		used = append(used, d.AllowedIP)
-	}
-	used = append(used, controlPlaneWgIP+"/32")
-	assigned, err := wireguard.AllocateIP(a.Config.WireGuardAllowedSubnet, used)
+	infraNet, err := store.NetworkByKind(a.Store.DB, store.NetworkKindInfra)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "nenhum IP disponível na sub-rede da VPN"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "rede infra ausente"})
 		return
 	}
-	if strings.HasPrefix(assigned, "10.10.") || strings.HasPrefix(assigned, "10.136.") {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+	assigned, err := a.allocateInNetwork(infraNet)
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "nenhum IP disponível na rede infra"})
 		return
 	}
 
@@ -718,12 +709,13 @@ func (a *App) handleMeshServerEnroll(c *gin.Context) {
 	}
 	dev := store.Device{
 		UserID: ownerID, Name: "mesh-" + match.Hostname,
-		PublicKey: req.PublicKey, AllowedIP: assigned,
+		PublicKey: req.PublicKey, NetworkID: infraNet.ID, AllowedIP: assigned,
 	}
 	if err := a.Store.DB.Create(&dev).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
+	_ = store.EnsureDeviceMember(a.Store.DB, infraNet.ID, dev.ID, ownerID)
 	if err := a.WG.AddPeer(wireguard.PeerSpec{PublicKey: dev.PublicKey, AllowedIP: dev.AllowedIP}); err != nil {
 		_ = a.Store.DB.Delete(&dev).Error
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
@@ -747,7 +739,8 @@ func (a *App) handleMeshServerEnroll(c *gin.Context) {
 		"assigned_ip":       assigned,
 		"server_public_key": a.ServerPublicKey,
 		"endpoint":          a.Config.WireGuardEndpoint,
-		"dns":               []string{controlPlaneWgIP},
+		"dns":               []string{store.ControlPlaneIP},
+		"allowed_ips":       infraNet.CIDR,
 		"hostname":          match.Hostname + ".corp.ihuull.com",
 	})
 }
@@ -1043,6 +1036,8 @@ RESP=$(curl -fsS -X POST https://xvpn.ihuull.com/api/servers/enroll \
 IP=$(printf '%%s' "$RESP" | sed -n 's/.*"assigned_ip":"\([^"]*\)".*/\1/p')
 SPUB=$(printf '%%s' "$RESP" | sed -n 's/.*"server_public_key":"\([^"]*\)".*/\1/p')
 EP=$(printf '%%s' "$RESP" | sed -n 's/.*"endpoint":"\([^"]*\)".*/\1/p')
+AIPS=$(printf '%%s' "$RESP" | sed -n 's/.*"allowed_ips":"\([^"]*\)".*/\1/p')
+test -n "$IP" && test -n "$SPUB" && test -n "$EP" && test -n "$AIPS"
 cat >/etc/wireguard/wg0.conf <<EOF
 [Interface]
 Address = $IP
@@ -1052,7 +1047,7 @@ DNS = 10.66.66.1
 [Peer]
 PublicKey = $SPUB
 Endpoint = $EP
-AllowedIPs = 10.66.66.0/24
+AllowedIPs = $AIPS
 PersistentKeepalive = 25
 EOF
 systemctl enable --now wg-quick@wg0

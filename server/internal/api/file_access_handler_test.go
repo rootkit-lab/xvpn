@@ -59,6 +59,9 @@ func (f *fakeUserProvisioner) ApplySvc(_ context.Context, payload string) error 
 func (f *fakeUserProvisioner) ApplyCodespace(_ context.Context, payload string) error {
 	return f.record("ApplyCodespace(" + payload + ")")
 }
+func (f *fakeUserProvisioner) ApplyOverlay(_ context.Context, payload string) error {
+	return f.record("ApplyOverlay(" + payload + ")")
+}
 
 // withProvisioner retorna um App de teste com o provisioner fake injetado.
 // Reuso do newTestApp existente, só sobrescrevendo o campo novo.

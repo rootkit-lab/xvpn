@@ -102,17 +102,9 @@ type ciFinishRequest struct {
 }
 
 func (a *App) RequireVPN() gin.HandlerFunc {
-	var subnet *net.IPNet
-	if _, parsed, err := net.ParseCIDR(a.Config.WireGuardAllowedSubnet); err == nil {
-		subnet = parsed
-	}
 	return func(c *gin.Context) {
-		if subnet == nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "sub-rede da VPN mal configurada no servidor"})
-			return
-		}
 		ip := net.ParseIP(c.RemoteIP())
-		if ip == nil || !subnet.Contains(ip) {
+		if ip == nil || !a.overlayIPAllowed(ip) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "esta rota só responde na VPN"})
 			return
 		}

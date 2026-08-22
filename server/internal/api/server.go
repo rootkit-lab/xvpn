@@ -502,6 +502,11 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/backups/settings", app.handleGetBackupSettings)
 			viewerUp.GET("/backups/destinations", app.handleListBackupDestinations)
 			viewerUp.GET("/backups/jobs", app.handleListBackupJobs)
+			coreRead := viewerUp.Group("")
+			coreRead.Use(auth.RequireReadableProduct(store.ProductCore))
+			{
+				coreRead.GET("/networks", app.handleListNetworks)
+			}
 		}
 
 		// adminOnly: escrita nas telas de admin — admin e super_admin.
@@ -540,6 +545,12 @@ func NewRouter(app *App) *gin.Engine {
 				coreWrite.PATCH("/backups/destinations/:id", app.handlePatchBackupDestination)
 				coreWrite.DELETE("/backups/destinations/:id", app.handleDeleteBackupDestination)
 				coreWrite.POST("/backups/destinations/:id/run", app.handleRunBackup)
+				coreWrite.POST("/networks", app.handleCreateNetwork)
+				coreWrite.DELETE("/networks/:id", app.handleDeleteNetwork)
+				coreWrite.POST("/networks/:id/members", app.handleAddNetworkMember)
+				coreWrite.DELETE("/networks/:id/members/:mid", app.handleDeleteNetworkMember)
+				coreWrite.POST("/networks/rules", app.handleCreateNetworkRule)
+				coreWrite.DELETE("/networks/rules/:rid", app.handleDeleteNetworkRule)
 			}
 
 			// DNS intranet (Fase 35) + público do stack (Fase 39).

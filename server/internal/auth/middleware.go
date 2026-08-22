@@ -216,6 +216,19 @@ func ProductsFromContext(c *gin.Context) []store.Product {
 // RequireProduct bloqueia escrita de um admin sem o produto no escopo
 // (Fase 33). super_admin e admin sem lista passam. Deve rodar depois de
 // RequireRole(AdminRoles) — viewer nunca chega aqui.
+// RequireReadableProduct is the GET gate: viewer and unrestricted admin
+// may read; a product-scoped admin needs `want`. Writes stay on RequireProduct.
+func RequireReadableProduct(want store.Product) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := RoleFromContext(c)
+		if role == store.RoleViewer || store.HasProduct(role, ProductsFromContext(c), want) {
+			c.Next()
+			return
+		}
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "seu escopo não inclui este produto"})
+	}
+}
+
 func RequireProduct(want store.Product) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, _ := RoleFromContext(c)

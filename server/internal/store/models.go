@@ -129,10 +129,10 @@ type Device struct {
 	UserID    uint   `gorm:"not null;index"`
 	Name      string `gorm:"not null"`
 	PublicKey string `gorm:"uniqueIndex;not null"`
-	// AllowedIP é o /32 alocado a este peer dentro da sub-rede WireGuard,
-	// ex.: "10.66.66.5/32". Único por design (uma IP, um device) — é o que
-	// permite resolver a identidade do dispositivo pelo IP de origem dentro
-	// do túnel, sem JWT (Fase 14, ver internal/api/tunnel_identity.go).
+	// NetworkID é a rede overlay home (users para device, infra para mesh).
+	// Obrigatória — sem peer órfão em 10.66.66.0/24.
+	NetworkID uint `gorm:"not null;index"`
+	// AllowedIP é o /32 na NetworkID, ex.: "10.66.80.5/32".
 	AllowedIP string `gorm:"uniqueIndex;not null"`
 	CreatedAt time.Time
 

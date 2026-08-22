@@ -73,6 +73,7 @@ func (n *noopRunner) RemoveFile(path string) error      { delete(n.writes, path)
 func (n *noopRunner) ReloadSSH() error                  { return nil }
 func (n *noopRunner) ReloadSamba() error                { return nil }
 func (n *noopRunner) ReloadDnsmasq() error              { return nil }
+func (n *noopRunner) NftFile(string) error              { return nil }
 func (n *noopRunner) SetUserQuota(string, uint64) error { return nil }
 func (n *noopRunner) GrantXvpnACL(string, string) error { return nil }
 

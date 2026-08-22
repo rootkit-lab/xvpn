@@ -41,7 +41,7 @@ type OverlayNetwork struct {
 	Slug   string `gorm:"uniqueIndex;not null"`
 	Name   string `gorm:"not null"`
 	Kind   string `gorm:"not null"`
-	CIDR   string `gorm:"uniqueIndex;not null"`
+	CIDR   string `gorm:"column:cidr;uniqueIndex;not null"`
 	System bool   `gorm:"not null;default:false"`
 	Exit   bool   `gorm:"not null;default:false"`
 }

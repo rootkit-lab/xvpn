@@ -212,3 +212,48 @@ func TestOpen_AddsNetworkIDToLegacyDevices(t *testing.T) {
 		t.Fatalf("device deveria estar no CIDR users, ip=%s", d.AllowedIP)
 	}
 }
+
+// TestOpen_RenamesLegacyOverlayCIDRColumn cobre o SQLite pós-#179: a
+// coluna veio como c_id_r (serialização GORM de CIDR). Open() renomeia.
+func TestOpen_RenamesLegacyOverlayCIDRColumn(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "pre-cidr.db")
+
+	pre, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("erro na primeira abertura: %v", err)
+	}
+	if err := pre.DB.Exec(`CREATE TABLE overlay_legacy AS SELECT id, slug, name, kind, cidr AS c_id_r, system, exit FROM overlay_networks`).Error; err != nil {
+		t.Fatalf("clone: %v", err)
+	}
+	if err := pre.DB.Exec("DROP TABLE overlay_networks").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := pre.DB.Exec("ALTER TABLE overlay_legacy RENAME TO overlay_networks").Error; err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := pre.DB.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	migrated, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open com c_id_r: %v", err)
+	}
+	if !migrated.DB.Migrator().HasColumn(&OverlayNetwork{}, "cidr") {
+		t.Fatal("esperava coluna cidr após rename")
+	}
+	if migrated.DB.Migrator().HasColumn(&OverlayNetwork{}, "c_id_r") {
+		t.Fatal("c_id_r deveria ter sumido")
+	}
+	infra, err := NetworkByKind(migrated.DB, NetworkKindInfra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if infra.CIDR != InfraCIDR {
+		t.Fatalf("cidr=%q", infra.CIDR)
+	}
+}

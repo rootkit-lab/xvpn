@@ -176,6 +176,9 @@ func finishOpen(db *gorm.DB) (*Store, error) {
 	if err := migrateDevicesNetworkID(db); err != nil {
 		return nil, fmt.Errorf("migrando devices.network_id: %w", err)
 	}
+	if err := migrateOverlayNetworkCIDRColumn(db); err != nil {
+		return nil, fmt.Errorf("migrando overlay_networks.cidr: %w", err)
+	}
 	if err := db.AutoMigrate(allModels()...); err != nil {
 		return nil, fmt.Errorf("migrando schema: %w", err)
 	}

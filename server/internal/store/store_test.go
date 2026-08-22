@@ -153,3 +153,62 @@ func TestOpen_AddsOrganizationIDToLegacyProjects(t *testing.T) {
 		t.Fatalf("esperava organization_id=0 no legado (cutover no seed), obtido %d", row.OrganizationID)
 	}
 }
+
+// TestOpen_AddsNetworkIDToLegacyDevices reproduz o SQLite de produção
+// pré-#179: devices já existe com linhas, sem network_id. AutoMigrate
+// sozinho faz ADD COLUMN NOT NULL sem default e aborta o boot.
+func TestOpen_AddsNetworkIDToLegacyDevices(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "pre-net.db")
+
+	pre, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("erro na primeira abertura: %v", err)
+	}
+	u := User{Username: "legacy", PasswordHash: "x", Role: RoleAdmin}
+	if err := pre.DB.Create(&u).Error; err != nil {
+		t.Fatalf("erro criando user: %v", err)
+	}
+	now := time.Now()
+	if err := pre.DB.Exec(`INSERT INTO devices (user_id, name, public_key, allowed_ip, created_at)
+		VALUES (?, ?, ?, ?, ?)`, u.ID, "note", "legacy-pk", "10.66.66.9/32", now).Error; err != nil {
+		t.Fatalf("erro inserindo device legado: %v", err)
+	}
+	if err := pre.DB.Exec(`CREATE TABLE devices_legacy AS SELECT id, user_id, name, public_key, allowed_ip, created_at, ssh_public_key, ssh_key_updated_at FROM devices`).Error; err != nil {
+		t.Fatalf("erro clonando devices sem network_id: %v", err)
+	}
+	if err := pre.DB.Exec("DROP TABLE devices").Error; err != nil {
+		t.Fatalf("erro derrubando devices: %v", err)
+	}
+	if err := pre.DB.Exec("ALTER TABLE devices_legacy RENAME TO devices").Error; err != nil {
+		t.Fatalf("erro renomeando devices legado: %v", err)
+	}
+	sqlDB, err := pre.DB.DB()
+	if err != nil {
+		t.Fatalf("erro obtendo *sql.DB: %v", err)
+	}
+	if err := sqlDB.Close(); err != nil {
+		t.Fatalf("erro fechando conexão de setup: %v", err)
+	}
+
+	migrated, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("erro reabrindo banco legado (network_id): %v", err)
+	}
+	if !migrated.DB.Migrator().HasColumn(&Device{}, "network_id") {
+		t.Fatal("esperava coluna network_id após Open()")
+	}
+	var d Device
+	if err := migrated.DB.Where("public_key = ?", "legacy-pk").First(&d).Error; err != nil {
+		t.Fatalf("erro lendo device legado: %v", err)
+	}
+	users, err := NetworkByKind(migrated.DB, NetworkKindUsers)
+	if err != nil {
+		t.Fatalf("rede users: %v", err)
+	}
+	if d.NetworkID != users.ID {
+		t.Fatalf("esperava rehome para users id=%d, obtido %d ip=%s", users.ID, d.NetworkID, d.AllowedIP)
+	}
+	if !CIDRContainsIP(UsersCIDR, d.AllowedIP) {
+		t.Fatalf("device deveria estar no CIDR users, ip=%s", d.AllowedIP)
+	}
+}

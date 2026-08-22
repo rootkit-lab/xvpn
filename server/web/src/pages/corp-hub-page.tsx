@@ -1,4 +1,4 @@
-import { Code2, ExternalLink, GitBranch, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
+import { Activity, Code2, ExternalLink, GitBranch, HardDrive, LayoutDashboard, MessageCircle, MessagesSquare, Shield } from 'lucide-react'
 import { ProductHeader } from '@xvpn/ui/react/product-header'
 import {
   PANEL_ORIGIN,
@@ -8,11 +8,13 @@ import {
   XGIT_CORP_ORIGIN,
   XCODESPACES_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
+  XMONITOR_CORP_ORIGIN,
 } from '@/lib/product-host'
 import { AccountMenu } from '@/components/layout/account-menu'
 import { AppLauncher } from '@/components/layout/app-launcher'
 import { AppSettingsButton } from '@/components/layout/app-settings-button'
 import { useAuth } from '@/lib/auth-context'
+import { isViewerUpRole } from '@/lib/roles'
 
 const APPS = [
   {
@@ -59,6 +61,13 @@ const APPS = [
     icon: Code2,
     needCs: true,
   },
+  {
+    href: XMONITOR_CORP_ORIGIN,
+    label: 'XMONITOR',
+    description: 'Saúde da malha',
+    icon: Activity,
+    needViewer: true,
+  },
 ] as const
 
 export function CorpHubPage() {
@@ -92,6 +101,7 @@ export function CorpHubPage() {
           {APPS.filter((app) => {
             if ('needXgit' in app && app.needXgit) return Boolean(user?.xgit_enabled)
             if ('needCs' in app && app.needCs) return Boolean(user?.xcodespaces_enabled)
+            if ('needViewer' in app && app.needViewer) return isViewerUpRole(user?.role)
             return true
           }).map(
             ({ href, label, description, icon: Icon }) => (

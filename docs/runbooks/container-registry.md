@@ -4,21 +4,24 @@ Imagens Docker no estilo GHCR. **Não** é Harbor. Hostname de protocolo — sem
 
 ## Bind
 
-- Disco: `/opt/xvpn/data/registry`
-- Container: `registry:2` via `server/deploy/systemd/xvpn-registry.service`
-- Porta: `127.0.0.1:5000` (sem ufw, sem `0.0.0.0`)
-- Nginx: `listen 10.66.66.1:443` + `allow 10.66.66.0/24` + `allow 172.17.0.0/16`
+- Disco: `/opt/xvpn/data/registry` (nó **data**, `10.66.66.2`)
+- Container: `registry:2` no data (`-p 10.66.66.2:5000:5000`)
+- Nginx no **control**: `listen 10.66.66.1:443` → `proxy_pass http://10.66.66.2:5000`
 - DNS: A `registry.corp.ihuull.com` → `10.66.66.1` (dnsmasq). Sem A público.
 
-## Apply (só no deploy final da Parte XV)
+## Apply (nó data + proxy no control)
+
+Ver [`data-node-cutover.md`](./data-node-cutover.md). Resumo:
 
 ```sh
-install -d -m 0750 /opt/xvpn/data/registry
-install -m 0644 server/deploy/systemd/xvpn-registry.service /etc/systemd/system/
-systemctl daemon-reload
-systemctl enable --now xvpn-registry
-# corp.conf já tem o server block; nginx -t && systemctl reload nginx
-# DNS: seed DefaultIntranetHosts + dns-apply no xadmin
+# data
+docker run -d --name xvpn-registry --restart unless-stopped \
+  -p 10.66.66.2:5000:5000 \
+  -v /opt/xvpn/data/registry:/var/lib/registry registry:2
+
+# control — corp.conf bloco registry.corp
+# proxy_pass http://10.66.66.2:5000;
+nginx -t && systemctl reload nginx
 ```
 
 Auth: `docker login registry.corp.ihuull.com` com usuário + JWE. Scope `repository:<org>/<slug>:pull|push` amarra na ACL do Project (`canSeeProject` / developer+).

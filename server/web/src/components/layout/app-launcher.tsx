@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Code2, GitBranch, HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, MessagesSquare, Shield, Store } from 'lucide-react'
+import { Activity, Code2, GitBranch, HardDrive, LayoutDashboard, LayoutGrid, MessageCircle, MessagesSquare, Shield, Store } from 'lucide-react'
 import { PRODUCT_META } from '@xvpn/ui/react/products'
 import { useAuth } from '@/lib/auth-context'
 import { isViewerUpRole } from '@/lib/roles'
@@ -12,6 +12,7 @@ import {
   XGIT_CORP_ORIGIN,
   XCODESPACES_CORP_ORIGIN,
   XGROUP_CORP_ORIGIN,
+  XMONITOR_CORP_ORIGIN,
   productKind,
 } from '@/lib/product-host'
 import { Button } from '@/components/ui/button'
@@ -138,6 +139,13 @@ export function AppLauncher({ variant }: { variant: LauncherVariant }) {
             ...(kind === 'xadmin-corp' ? { to: '/admin' } : { href: `${XADMIN_CORP_ORIGIN}/admin` }),
             icon: LayoutDashboard,
             current: kind === 'xadmin-corp' && !onMarketplace && !onXDriver,
+          } satisfies LauncherTile,
+          {
+            id: 'xmonitor',
+            label: PRODUCT_META.xmonitor.label,
+            ...(kind === 'xmonitor-corp' ? { to: '/' } : { href: XMONITOR_CORP_ORIGIN }),
+            icon: Activity,
+            current: kind === 'xmonitor-corp',
           } satisfies LauncherTile,
         ]
       : []),

@@ -1870,10 +1870,10 @@ O VPS `66.29.147.100` alivia o control-plane: Mongo, bare git e containers. Entr
 Um `/24` mistura notebook e Mongo. Antes do cutover: redes no xadmin (infra ≠ users), regras de participação, FORWARD default-deny entre CIDRs. Depois: `data` na **infra**; git/Docker/Mongo; xmonitor.
 
 - [x] **67.1** Overlay: seed `infra` `10.66.66.0/24` + `users` `10.66.80.0/24` (pool `10.66.80.0/20`); xadmin `/admin/networks` (CRUD, membros, regras); enroll device→users, mesh→infra; sem `10.10`/`10.136`
-- [ ] **67.2** Enroll `data` na infra + `data.corp` + inventário dos dois VPS
-- [ ] **67.3** Migrar git bare + Docker/registry/codespaces (Nginx proxy; bind só wg0 no data)
-- [ ] **67.4** Migrar Mongo do CP para o data (só alcançável da infra); desligar daemons migrados no `.72`
-- [ ] **67.5** **xmonitor** — `xmonitor.corp.ihuull.com`, repo `xcorp/xmonitor`, checks tipo Nagios (HTTP/WG/disco)
+- [x] **67.2** Enroll `data` na infra + `data.corp` + inventário dos dois VPS
+- [x] **67.3** Migrar git bare + registry no data (Nginx proxy; codespaces Docker ainda no control)
+- [ ] **67.4** Migrar Mongo do CP para o data — **adiado** (prod usa SQLite; sem `mongod`/`XVPN_MONGO_URI`)
+- [x] **67.5** **xmonitor** — `xmonitor.corp.ihuull.com`, repo `xcorp/xmonitor`, checks tipo Nagios (HTTP/WG/disco) — deployado 2026-08-22
 - [ ] **67.6** PLAN §5.3/§6.16, `docs/areas/networks.md`, skills (`data-node-ops` / `new-intranet-app`), AGENTS
 
 **Critério de saída:** user sem regra não alcança `:27017` no data; data é peer infra; git/containers (e Mongo após 67.4) via Nginx no control; xmonitor na VPN; sem bind público de Mongo/git/Docker.

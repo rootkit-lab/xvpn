@@ -43,6 +43,7 @@ var DefaultIntranetHosts = []DNSRecord{
 	{Hostname: "xcodespaces.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "ide + vscode remoto"},
 	{Hostname: "registry.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "container registry"},
 	{Hostname: "pages.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "xgit pages"},
+	{Hostname: "xmonitor.corp.ihuull.com", IPv4: "10.66.66.1", System: true, Enabled: true, Comment: "monitoramento da malha"},
 }
 
 // SeedIntranetDNS cria settings + records oficiais se a tabela estiver vazia.

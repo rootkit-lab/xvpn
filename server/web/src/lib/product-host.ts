@@ -15,6 +15,7 @@ export const CORP_ORIGIN = 'https://corp.ihuull.com'
 export const XAUTH_ORIGIN = 'https://xauth.ihuull.com'
 export const XGIT_CORP_ORIGIN = 'https://xgit.corp.ihuull.com'
 export const XCODESPACES_CORP_ORIGIN = 'https://xcodespaces.corp.ihuull.com'
+export const XMONITOR_CORP_ORIGIN = 'https://xmonitor.corp.ihuull.com'
 
 export type ProductKind =
   | 'marketplace'
@@ -29,6 +30,7 @@ export type ProductKind =
   | 'xadmin-corp'
   | 'xgit-corp'
   | 'xcodespaces-corp'
+  | 'xmonitor-corp'
   | 'xauth'
   | 'core'
 
@@ -46,6 +48,7 @@ const SAFE_RETURN_HOSTS = new Set([
   'xadmin.corp.ihuull.com',
   'xgit.corp.ihuull.com',
   'xcodespaces.corp.ihuull.com',
+  'xmonitor.corp.ihuull.com',
   'www.ihuull.com',
   'ihuull.com',
   'xauth.localhost',
@@ -53,6 +56,7 @@ const SAFE_RETURN_HOSTS = new Set([
   'xadmin.corp.localhost',
   'xgit.corp.localhost',
   'xcodespaces.corp.localhost',
+  'xmonitor.corp.localhost',
   'marketplace.localhost',
   'xdriver.localhost',
   'xdriver.corp.localhost',
@@ -79,6 +83,7 @@ export function productKind(hostname = window.location.hostname): ProductKind {
   if (host === 'xadmin.corp.ihuull.com' || host === 'xadmin.corp.localhost') return 'xadmin-corp'
   if (host === 'xgit.corp.ihuull.com' || host === 'xgit.corp.localhost') return 'xgit-corp'
   if (host === 'xcodespaces.corp.ihuull.com' || host === 'xcodespaces.corp.localhost') return 'xcodespaces-corp'
+  if (host === 'xmonitor.corp.ihuull.com' || host === 'xmonitor.corp.localhost') return 'xmonitor-corp'
   if (/^cs-[a-f0-9]{12}\.corp\.(ihuull\.com|localhost)$/.test(host)) return 'xcodespaces-corp'
   if (host === 'xvpn.ihuull.com' || host === 'xvpn.localhost' || host === 'localhost' || host === '127.0.0.1') {
     return 'xvpn'
@@ -100,6 +105,7 @@ export function headerProduct(
   if (kind === 'xadmin-corp') return 'xadmin'
   if (kind === 'xgit-corp') return 'xgit'
   if (kind === 'xcodespaces-corp') return 'xcodespaces'
+  if (kind === 'xmonitor-corp') return 'xmonitor'
   if (kind === 'corp') return 'xvpn'
   const host = hostname.toLowerCase()
   if (
@@ -132,6 +138,7 @@ export function isProductAppHost(hostname = window.location.hostname): boolean {
     kind === 'xgroup-corp' ||
     kind === 'xgit-corp' ||
     kind === 'xcodespaces-corp' ||
+    kind === 'xmonitor-corp' ||
     kind === 'corp'
   )
 }
@@ -202,6 +209,7 @@ export function loginAudience(hostname = window.location.hostname): string {
   if (kind === 'xadmin-corp') return 'xadmin'
   if (kind === 'xgit-corp') return 'xgit'
   if (kind === 'xcodespaces-corp') return 'xcodespaces'
+  if (kind === 'xmonitor-corp') return 'xmonitor'
   if (kind === 'xchat' || kind === 'xchat-corp') return 'xchat'
   if (kind === 'xgroup' || kind === 'xgroup-corp') return 'xgroup'
   if (kind === 'xdriver' || kind === 'xdriver-corp') return 'xdriver'

@@ -143,6 +143,10 @@ func run() error {
 		slog.Error("seed do repo xcorp/xvpn falhou (servidor continua subindo; ver log)",
 			"err", err.Error())
 	}
+	if err := app.SeedXmonitorRepo(); err != nil {
+		slog.Error("seed do repo xcorp/xmonitor falhou (servidor continua subindo; ver log)",
+			"err", err.Error())
+	}
 	if err := app.SeedDataNode(); err != nil {
 		slog.Error("seed do nó data falhou (servidor continua subindo; ver log)",
 			"err", err.Error())

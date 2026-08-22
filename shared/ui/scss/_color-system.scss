@@ -49,6 +49,7 @@ $dark: (
   product-xadmin: oklch(0.74 0.16 280),
   product-xgit: oklch(0.74 0.14 195),
   product-xcodespaces: oklch(0.76 0.16 300),
+  product-xmonitor: oklch(0.74 0.16 25),
 );
 
 $light: (
@@ -89,6 +90,7 @@ $light: (
   product-xadmin: oklch(0.52 0.16 280),
   product-xgit: oklch(0.52 0.14 195),
   product-xcodespaces: oklch(0.52 0.16 300),
+  product-xmonitor: oklch(0.52 0.16 25),
 );
 
 // Opcional no messenger — nunca identidade de produto.
@@ -131,6 +133,7 @@ $icq: (
   product-xadmin: oklch(0.74 0.16 280),
   product-xgit: oklch(0.74 0.14 195),
   product-xcodespaces: oklch(0.76 0.16 300),
+  product-xmonitor: oklch(0.74 0.16 25),
 );
 
 @mixin apply-palette($palette) {

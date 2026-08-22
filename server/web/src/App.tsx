@@ -96,6 +96,7 @@ const XcodespacesHomePage = lazy(() =>
 const XcodespacesIdePage = lazy(() =>
   import('@/pages/xcodespaces-ide-page').then((m) => ({ default: m.XcodespacesIdePage })),
 )
+const XmonitorPage = lazy(() => import('@/pages/xmonitor-page').then((m) => ({ default: m.XmonitorPage })))
 const MergeRequestPage = lazy(() =>
   import('@/pages/merge-request-page').then((m) => ({ default: m.MergeRequestPage })),
 )
@@ -353,6 +354,20 @@ function XcodespacesCorpApp() {
   )
 }
 
+function XmonitorCorpApp() {
+  return (
+    <Routes>
+      <Route path="/login" element={<SSOLoginRedirect />} />
+      <Route path="/admin" element={<AdminHostRedirect />} />
+      <Route path="/admin/*" element={<AdminHostRedirect />} />
+      <Route element={<ProtectedRoute allowedRoles={VIEWER_UP_ROLES} />}>
+        <Route index element={<XmonitorPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
+
 /** Membro usa o app em xgit.corp — o console lista todos os repos. */
 function MemberLeaveXadminXgit() {
   const { user } = useAuth()
@@ -573,6 +588,8 @@ export default function App() {
               <XGitCorpApp />
             ) : kind === 'xcodespaces-corp' ? (
               <XcodespacesCorpApp />
+            ) : kind === 'xmonitor-corp' ? (
+              <XmonitorCorpApp />
             ) : kind === 'xvpn' ? (
               <PanelApp />
             ) : (

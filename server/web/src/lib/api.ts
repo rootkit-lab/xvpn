@@ -820,6 +820,32 @@ export interface BitLaunchTopUp {
   status_url: string
 }
 
+export interface MonitorCheck {
+  slug: string
+  name: string
+  status: 'ok' | 'warn' | 'critical' | 'skipped' | string
+  summary: string
+  detail?: string
+  checked_at: string
+}
+
+export interface MonitorNode {
+  hostname: string
+  mesh_server_id: number
+  load1: number
+  disk_used_pct: number
+  disk_avail_gb: number
+  reported_at?: string
+  wg_ip?: string
+  role?: string
+}
+
+export interface MonitorDashboard {
+  checks: MonitorCheck[]
+  nodes: MonitorNode[]
+  updated_at?: string
+}
+
 export interface ServerGroup {
   id: number
   name: string
@@ -1830,6 +1856,8 @@ export const api = {
       body: JSON.stringify({ user_ids: userIds }),
     }),
   getComputeSettings: () => request<{ accounts: BitLaunchAccount[]; bitlaunch: boolean }>('/compute/settings'),
+  getXmonitorDashboard: () => request<MonitorDashboard>('/xmonitor/dashboard'),
+  refreshXmonitor: () => request<MonitorDashboard>('/xmonitor/refresh', { method: 'POST' }),
   createBitLaunchAccount: (body: { name: string; email: string; token: string }) =>
     request<BitLaunchAccount>('/compute/settings/accounts', { method: 'POST', body: JSON.stringify(body) }),
   updateBitLaunchAccount: (id: number, body: { name: string; email: string; token?: string }) =>

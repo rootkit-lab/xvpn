@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.1.1](https://github.com/rootkit-lab/xvpn/compare/xvpn-server-v0.1.0...xvpn-server-v0.1.1) (2026-08-22)
+
+
+### Features
+
+* **server:** adiciona aba Security and quality ([#173](https://github.com/rootkit-lab/xvpn/issues/173)) ([ad2af14](https://github.com/rootkit-lab/xvpn/commit/ad2af14a667f84ffe54a7a65861122fbebbdea21))
+* **server:** adiciona Maven, NuGet e RubyGems no registry XGIT ([#170](https://github.com/rootkit-lab/xvpn/issues/170)) ([b90eed6](https://github.com/rootkit-lab/xvpn/commit/b90eed6091eb8cab7241808739b1138c3bc0b3be))
+* **server:** adiciona registry npm/generic no xgit.corp ([#164](https://github.com/rootkit-lab/xvpn/issues/164)) ([8548b96](https://github.com/rootkit-lab/xvpn/commit/8548b9666048c640b98dcb5f03aca6bc52dc1fad))
+* **server:** adiciona registry:2 em registry.corp ([#171](https://github.com/rootkit-lab/xvpn/issues/171)) ([4625c9b](https://github.com/rootkit-lab/xvpn/commit/4625c9b15f475d16f14e4cbbd6193f6c3bb0c366))
+* **server:** adiciona Simple API PyPI no xgit.corp ([#165](https://github.com/rootkit-lab/xvpn/issues/165)) ([59a8711](https://github.com/rootkit-lab/xvpn/commit/59a87118580468a5e33e886649a5de7094755318))
+* **server:** adiciona wiki e pages.corp ([#172](https://github.com/rootkit-lab/xvpn/issues/172)) ([c9e4726](https://github.com/rootkit-lab/xvpn/commit/c9e4726988bcd637728dafb5ab99232d06a05fe0))
+* **server:** cadastra nó data na malha e seed xcorp/xvpn ([#177](https://github.com/rootkit-lab/xvpn/issues/177)) ([06ca18a](https://github.com/rootkit-lab/xvpn/commit/06ca18ab086ee80e1f19b7a9a2421ff60d03a710))
+* **server:** cutover git/registry no data e app xmonitor (fase 67) ([#182](https://github.com/rootkit-lab/xvpn/issues/182)) ([922ffc6](https://github.com/rootkit-lab/xvpn/commit/922ffc63d6f231b19a938d2621e34e98185f24a5))
+* **server:** home da org XGIT com times e ACL explícita ([#169](https://github.com/rootkit-lab/xvpn/issues/169)) ([2aea129](https://github.com/rootkit-lab/xvpn/commit/2aea1292214811b004447c1daa324948e67ab4c4))
+* **server:** ícones por tipo e tabs Markdown no XGIT ([#162](https://github.com/rootkit-lab/xvpn/issues/162)) ([5254a62](https://github.com/rootkit-lab/xvpn/commit/5254a625a435e0aaefbf016d8a759c6ba44e5931))
+* **server:** isola overlay infra e users no xadmin ([#179](https://github.com/rootkit-lab/xvpn/issues/179)) ([e2a15fe](https://github.com/rootkit-lab/xvpn/commit/e2a15feee768f9f2594ac0c384b97154af76f3ef))
+* **server:** lista sessões do agente na aba Agents ([#174](https://github.com/rootkit-lab/xvpn/issues/174)) ([0640873](https://github.com/rootkit-lab/xvpn/commit/06408734ce889a95dc12f0f5447b592568bfac04))
+* **server:** passa o XGIT para org/slug e detecta langs no codespace ([#167](https://github.com/rootkit-lab/xvpn/issues/167)) ([79133d0](https://github.com/rootkit-lab/xvpn/commit/79133d03deab9b9ea4ff0b60087d7cd0518e79e1))
+* **server:** seed de packages hello-* e galeria New workflow no XGIT ([#166](https://github.com/rootkit-lab/xvpn/issues/166)) ([85dc949](https://github.com/rootkit-lab/xvpn/commit/85dc94901a5d9279a02f05436fd2c64d3f359bbb))
+* **server:** separa IAM e ACL em camadas no xadmin ([#176](https://github.com/rootkit-lab/xvpn/issues/176)) ([7e5c93b](https://github.com/rootkit-lab/xvpn/commit/7e5c93b856a002606e1013880cbf712454526754))
+
+
+### Bug Fixes
+
+* **codespace:** grava o A do demo em addn-hosts para o SIGHUP aplicar ([#159](https://github.com/rootkit-lab/xvpn/issues/159)) ([27fe206](https://github.com/rootkit-lab/xvpn/commit/27fe206a0a596bc3082486f29adec76f0ba39e36))
+* **codespace:** resolve demoHost no Ports e abre o preview HTTP ([#161](https://github.com/rootkit-lab/xvpn/issues/161)) ([9d79f9c](https://github.com/rootkit-lab/xvpn/commit/9d79f9cc80665370bc80fc2a559a5979c14a0293))
+* **server:** faz pages.corp passar pelo Go em vez do disco ([#175](https://github.com/rootkit-lab/xvpn/issues/175)) ([58135a4](https://github.com/rootkit-lab/xvpn/commit/58135a49fd702ac8bb3d08b0abe0f53cd3bbf1a6))
+* **server:** migra devices.network_id com DEFAULT 0 no SQLite ([#180](https://github.com/rootkit-lab/xvpn/issues/180)) ([2d3fb49](https://github.com/rootkit-lab/xvpn/commit/2d3fb49422f161768266dfd076b897ca2a4d5519))
+* **server:** permite migrar organization_id em SQLite já populado ([#168](https://github.com/rootkit-lab/xvpn/issues/168)) ([7969fe5](https://github.com/rootkit-lab/xvpn/commit/7969fe5bbfec4e323136a9648986306979f8d398))
+* **server:** renderiza README do XGIT com GFM de verdade ([#163](https://github.com/rootkit-lab/xvpn/issues/163)) ([10fed2e](https://github.com/rootkit-lab/xvpn/commit/10fed2e4faaa0cc6417442aaa04fe4d135706347))
+* **server:** renomeia c_id_r→cidr e deploya user-provision junto ([#181](https://github.com/rootkit-lab/xvpn/issues/181)) ([dcf75ef](https://github.com/rootkit-lab/xvpn/commit/dcf75ef450c9930690b5a496aacce74d541deff6))
+
 ## 0.1.0 (2026-08-19)
 
 

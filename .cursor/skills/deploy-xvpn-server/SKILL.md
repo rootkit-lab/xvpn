@@ -13,7 +13,7 @@ VPS real: `root@206.189.224.72`. `go-sqlite3` exige **cgo** — nunca `CGO_ENABL
 .cursor/skills/deploy-xvpn-server/scripts/deploy.sh
 ```
 
-O script: baseline read-only → `npm ci` (chat frontend + `server/web`) → `npm run build` → `CGO_ENABLED=1 go build` → backup em `/opt/xvpn/bin/xvpn-server.bak-*` → `install` + `systemctl restart` → health.
+O script: baseline read-only → `npm ci` (chat frontend + `server/web`) → `npm run build` → `CGO_ENABLED=1 go build` do **xvpn-server** + `xvpn-user-provision` (precisa do subcomando `overlay-apply`) → backup em `/opt/xvpn/bin/*.bak-*` → `install` + `systemctl restart` → health.
 
 ## Regras
 

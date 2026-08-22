@@ -126,6 +126,21 @@ func migrateDevicesNetworkID(db *gorm.DB) error {
 	return db.Exec("ALTER TABLE devices ADD COLUMN network_id integer NOT NULL DEFAULT 0").Error
 }
 
+// migrateOverlayNetworkCIDRColumn renomeia c_id_r → cidr. O GORM serializa
+// o campo CIDR como c_id_r sem column: tag; a #179 criou assim em produção.
+func migrateOverlayNetworkCIDRColumn(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&OverlayNetwork{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&OverlayNetwork{}, "cidr") {
+		return nil
+	}
+	if !db.Migrator().HasColumn(&OverlayNetwork{}, "c_id_r") {
+		return nil
+	}
+	return db.Exec("ALTER TABLE overlay_networks RENAME COLUMN c_id_r TO cidr").Error
+}
+
 // SeedXcorp cria a org principal, times e o owner (primeiro super_admin)
 // ou admin). Não inscreve o resto da VPN — herança de repo é
 // ProjectMember / time (Fase 58.2), não OrgMember em massa.

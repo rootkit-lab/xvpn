@@ -90,10 +90,11 @@ Apply no hub: `AllocateIP` por `network_id`; reconciliar peers; gerar FORWARD (n
 - [x] Enroll/GET config devolve `AllowedIPs` pela membership + regras (não mais “todo mundo é 10.66.66.0/24”)
 - [x] Testes: user não alcança `:27017` no data; member+regra alcança a outra rede; mesh não ganha `0.0.0.0/0`
 - [x] `PLAN.md` §5.3 (pool `10.66.80.0/20` + kinds) e §6.16 (peer data ∈ infra)
+- [x] Deploy produção (#179+#180): `xvpn-server` + `xvpn-user-provision` (`overlay-apply`); nginx/Samba aceitam `10.66.80.0/20`; nft overlay ativo
 
 ### 67.2 — Data online **na infra**
 
-- [ ] Seed/`data` no Compute; Gerar enroll + bootstrap no `.100` (SSH do **laptop**)
+- [ ] Seed/`data` no Compute; Gerar enroll + bootstrap no `.100` (SSH do **laptop** — agente não alcança `66.29.147.100:22`)
 - [ ] Peer em `10.66.66.0/24`; A `data.corp` → IP wg0 do data
 - [ ] Baseline read-only (`ss`, `ufw`, disco) — `vps-security-audit` no control
 - [ ] Preencher a tabela de inventário

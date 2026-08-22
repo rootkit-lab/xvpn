@@ -25,6 +25,7 @@ const (
 	DataHostname     = "data"
 	ManualIDPrefix   = "manual-"
 	PlatformRepoSlug = "xvpn"
+	XmonitorRepoSlug = "xmonitor"
 )
 
 func IsExternalHost(name, hostname, ipv4 string) bool {

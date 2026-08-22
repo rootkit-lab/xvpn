@@ -282,6 +282,11 @@ func NewRouter(app *App) *gin.Engine {
 			svcAgent.POST("/:id/status", app.handleSvcAgentStatus)
 		}
 
+		monitorAgent := apiGroup.Group("/xmonitor", app.RequireVPN())
+		{
+			monitorAgent.POST("/report", app.handleXmonitorReport)
+		}
+
 		// Assistente do codespace: JWE (painel) ou token Git do
 		// container (extensão Node — sem cookie do browser).
 		llm := apiGroup.Group("")
@@ -496,6 +501,7 @@ func NewRouter(app *App) *gin.Engine {
 			viewerUp.GET("/servers", app.handleListMeshServers)
 			viewerUp.GET("/servers/:id", app.handleGetMeshServer)
 			viewerUp.GET("/server-groups", app.handleListServerGroups)
+			viewerUp.GET("/xmonitor/dashboard", app.handleXmonitorDashboard)
 			viewerUp.GET("/compute/settings", app.handleGetComputeSettings)
 			viewerUp.GET("/services", app.handleListServices)
 			viewerUp.GET("/services/:slug", app.handleGetService)
@@ -617,6 +623,7 @@ func NewRouter(app *App) *gin.Engine {
 				computeWrite.DELETE("/compute/settings/accounts/:id", app.handleDeleteBitLaunchAccount)
 				computeWrite.POST("/compute/settings/accounts/:id/topup", app.handleCreateBitLaunchTopUp)
 				computeWrite.POST("/servers/:id/agent-token", app.handleIssueAgentToken)
+				computeWrite.POST("/xmonitor/refresh", app.handleXmonitorRefresh)
 			}
 
 			// Serviços gerenciados (Fase 43 — PLAN.md §6.18).
@@ -655,6 +662,8 @@ func NewRouter(app *App) *gin.Engine {
 	}
 
 	registerWebUI(r)
+
+	app.startMonitorPoller()
 
 	return r
 }

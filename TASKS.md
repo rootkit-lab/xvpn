@@ -71,12 +71,14 @@ Apply no hub: `AllocateIP` por `network_id`; reconciliar peers; gerar FORWARD (n
 
 | Carga | Hoje | Destino | Notas |
 |---|---|---|---|
-| Mongo CP (`:27017`) | control loopback | data **infra** (`wg0`); URI no control → `10.66.66.<data>` | Último cutover; `mongodump`; users **não** alcançam |
-| Git bare | control | data infra | `xgit.corp` → Nginx no control → path no data |
-| Docker / codespaces / registry | control | data infra | `cs-*` / `registry.corp` via proxy |
-| Serviços `managed` | UI | `mesh_server_id` = data, bind infra | ≠ Mongo do CP |
-| Samba / XDriver | control | **fica** no control | regra `samba`, não mover blobs |
-| landpages-ops | control | **fica** | não é XVPN |
+| Mongo CP (`:27017`) | **não em uso** — SQLite `/opt/xvpn/data/xvpn.db` no control; sem `XVPN_MONGO_URI` | data infra (quando ativar) | 67.4 **adiado**; `mongod` nunca rodou em prod |
+| Git bare | NFS do **data** (`10.66.66.2:/opt/xvpn/data/git`); control monta em `/opt/xvpn/data/git` | data infra | cutover 2026-08-22; forge/auth no control |
+| Docker / codespaces / registry | registry no **data** (`10.66.66.2:5000`); codespaces Docker ainda no control | data infra | registry via Nginx proxy; cs-apply pendente no data |
+| Serviços `managed` | UI | `mesh_server_id` = data (`nc-ph-3726`), bind infra | mesh peer `10.66.66.2`, handshake OK |
+| Samba / XDriver | control `10.66.66.1:445` (+ `127.0.0.1`) | **fica** no control | regra overlay `samba`; blobs não migram |
+| landpages-ops | control `127.0.0.1:3002` | **fica** | não é XVPN |
+| **data (malha)** | `66.29.147.100` / `wg0` `10.66.66.2/32` | — | git 5.1M + registry Docker; NFS export; ufw ativo; codespaces Docker pendente |
+| **control (hub)** | `206.189.224.72` / `wg0` `10.66.66.1/24` + rota `10.66.80.0/20` | — | overlay nft + `xvpn-overlay-routes.service`; audit 2026-08-22 OK (SSH key-only, ufw, Samba só wg0) |
 
 ## Checklist (ordem obrigatória)
 
@@ -94,32 +96,38 @@ Apply no hub: `AllocateIP` por `network_id`; reconciliar peers; gerar FORWARD (n
 
 ### 67.2 — Data online **na infra**
 
-- [ ] Seed/`data` no Compute; Gerar enroll + bootstrap no `.100` (SSH do **laptop** — agente não alcança `66.29.147.100:22`)
-- [ ] Peer em `10.66.66.0/24`; A `data.corp` → IP wg0 do data
-- [ ] Baseline read-only (`ss`, `ufw`, disco) — `vps-security-audit` no control
-- [ ] Preencher a tabela de inventário
+- [x] Seed/`data` no Compute; enroll + bootstrap no `.100` (`nc-ph-3726`, pubkey `PA9YL8ON…`, handshake OK)
+- [x] Peer `10.66.66.2/32` na infra; A `data.corp.ihuull.com` → `10.66.66.2` (`/etc/xvpn/dnsmasq-records.hosts`; resolve no laptop via VPN)
+- [x] Baseline read-only — `vps-security-audit` no control (2026-08-22) + `ss`/`df` no data
+- [x] Tabela de inventário preenchida (evidência acima)
 
 ### 67.3 — Migrar git + containers
 
-- [ ] Runbook git (rsync/mirror; Nginx proxy; bind só wg0/loopback no data)
-- [ ] Runbook Docker/registry/codespaces no data
-- [ ] Smoke `xgit.corp` + um codespace
-- [ ] Apagar bare/Docker no control **só depois** de validar
+- [x] Runbook [`docs/runbooks/data-node-cutover.md`](docs/runbooks/data-node-cutover.md) (git NFS + registry no data; codespaces Docker ainda no control)
+- [x] Registry no data (`10.66.66.2:5000`); Nginx control → proxy; `xvpn-registry` local desligado
+- [x] Git bare no disco do data; control monta NFS `10.66.66.2:/opt/xvpn/data/git` → `xvpn-server` inalterado
+- [x] Smoke VPN: `xgit.corp` 200, `registry.corp/v2/` 401 (auth OK), `cs-b9d28a36a274.corp` 302 (ativo)
+- [ ] Codespaces: `cs-apply` ainda no control (Docker local) — migrar containers no marco seguinte
+- [ ] Apagar `git.bak-pre-data-*` no control após período de validação (registry local já removido)
 
 ### 67.4 — Migrar Mongo (e limpar control)
 
-- [ ] Dump + restore no data; `XVPN_MONGO_URI` → `10.66.66.<data>:27017` (auth)
-- [ ] 27017 **não** em `0.0.0.0`/`eth0`; users **não** FORWARD até essa porta
-- [ ] Parar Mongo (e daemons migrados) no control; documentar o que sobrou no `.72`
-- [ ] Backup (`backup.sh`) no caminho novo
+**Adiado** — produção usa **SQLite** (`/opt/xvpn/data/xvpn.db`); `mongod` inativo, sem `:27017`, sem `XVPN_MONGO_URI` no env (verificado 2026-08-22). Cutover Mongo → data só quando `XVPN_MONGO_URI` for ativado (runbook `docs/runbooks/mongodb.md`).
+
+- [x] Verificado: nada a migrar nem parar no control
+- [ ] *(futuro)* `mongod` no data (`bindIp` wg0/loopback); URI `10.66.66.2:27017`; overlay sem FORWARD users→27017
+- [ ] *(futuro)* `xvpn-migrate-mongo` + `backup.sh` com `mongodump`
 
 ### 67.5 — xmonitor
 
-- [ ] `port-domain-registry-check` + `PLAN.md` §5.2: `xmonitor.corp.ihuull.com`
-- [ ] Seed DNS `xmonitor` → `10.66.66.1`; repo `xcorp/xmonitor`
-- [ ] App intranet (`aud=xmonitor`), API `/api/xmonitor/` no monólito
-- [ ] Checks v0: HTTP `*.corp`, handshake WG, Mongo no data (probe **da infra**, não de user net), disco/load via agent/token — sem SSH do control
-- [ ] Alertas no Mongo + UI; xbot opcional depois
+- [x] `port-domain-registry-check` + `PLAN.md` §5.2: `xmonitor.corp.ihuull.com`
+- [x] Seed DNS `xmonitor` → `10.66.66.1`; repo `xcorp/xmonitor`
+- [x] App intranet (`aud=xmonitor`), API `/api/xmonitor/` no monólito
+- [x] Checks v0: HTTP `*.corp`, handshake WG, Mongo no data (skipped se down), registry/git no data
+- [x] UI dashboard (`xmonitor-page.tsx`); métricas de nó via `POST /api/xmonitor/report` (agent token)
+- [x] Deploy produção + smoke `https://xmonitor.corp.ihuull.com/` na VPN (200, API dashboard OK)
+- [ ] Cron no data para report de disco/load (opcional v0)
+- [ ] Alertas Mongo + xbot (adiado — SQLite `monitor_checks`)
 
 ### 67.6 — Docs / skills
 

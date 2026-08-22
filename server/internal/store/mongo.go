@@ -46,6 +46,7 @@ func allModels() []any {
 		&ServiceInstance{},
 		&OverlayNetwork{}, &NetworkMember{}, &NetworkRule{},
 		&BackupSettings{}, &BackupDestination{}, &BackupJob{},
+		&MonitorCheck{}, &MonitorNodeMetric{},
 	}
 }
 

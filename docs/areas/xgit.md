@@ -24,7 +24,7 @@ xadmin, xgit (app), xcodespaces, marketplace, xgroup, xdriver são **produtos/ho
 ## Invariantes
 
 - Path canónico `<org>/<slug>`. Sem path plano.
-- Bare em `/opt/xvpn/data/git/<org>/<slug>.git` (cutover futuro pode morar no nó `data`).
+- Bare em `/opt/xvpn/data/git/<org>/<slug>.git` no nó **data** (NFS montado no control para o `xvpn-server`).
 - Escopo produto no xadmin: `forge`.
 
 ## Docs

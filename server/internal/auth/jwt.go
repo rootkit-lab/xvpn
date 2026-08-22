@@ -26,6 +26,7 @@ const (
 	AudXadmin      = "xadmin"
 	AudXgit        = "xgit"
 	AudXcodespaces = "xcodespaces"
+	AudXmonitor    = "xmonitor"
 	AudPackages    = "packages"
 )
 
@@ -190,6 +191,8 @@ func NormalizeAudience(aud string) string {
 		return AudXgit
 	case AudXcodespaces:
 		return AudXcodespaces
+	case AudXmonitor:
+		return AudXmonitor
 	case AudPackages:
 		return AudPackages
 	default:

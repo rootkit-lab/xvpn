@@ -44,6 +44,10 @@
   --product: var(--product-xcodespaces);
 }
 
+[data-product="xmonitor"] {
+  --product: var(--product-xmonitor);
+}
+
 [data-product="ihuull"] {
   --product: var(--product-xvpn);
 }

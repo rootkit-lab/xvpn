@@ -49,6 +49,40 @@ func (a *App) SeedPlatformRepo() error {
 	return nil
 }
 
+// SeedXmonitorRepo garante xcorp/xmonitor (dashboard de saúde da malha).
+func (a *App) SeedXmonitorRepo() error {
+	if a == nil || a.Store == nil {
+		return nil
+	}
+	if err := store.SeedXcorp(a.Store.DB); err != nil {
+		return err
+	}
+	owner, ok := a.firstProjectOwner()
+	if !ok {
+		return nil
+	}
+	org, ok := a.defaultOrganization()
+	if !ok {
+		return nil
+	}
+	var existing store.Project
+	err := a.Store.DB.Where("organization_id = ? AND slug = ?", org.ID, store.XmonitorRepoSlug).First(&existing).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	_, err = a.createProject(owner.ID, org, store.XmonitorRepoSlug, "XMONITOR",
+		"Monitoramento da malha ihuull (HTTP corp, WireGuard, nós data). UI em xmonitor.corp.",
+		store.AppVisibilityRestricted, store.AppNetworkVPN, nil, false, nil)
+	if err != nil {
+		return err
+	}
+	slog.Info("seed XGIT xmonitor repo", "repo", store.DefaultOrgSlug+"/"+store.XmonitorRepoSlug)
+	return nil
+}
+
 // SeedDataNode registra o VPS de dados (66.29.147.100) como MeshServer manual
 // pending-enroll. Não cria BitLaunch, não grava chave SSH, não é ProjectHost.
 func (a *App) SeedDataNode() error {

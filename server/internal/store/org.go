@@ -113,6 +113,19 @@ func migrateLegacyProjectOrgColumns(db *gorm.DB) error {
 	return nil
 }
 
+// migrateDevicesNetworkID adiciona network_id com DEFAULT 0 antes do
+// AutoMigrate. SQLite recusa ADD COLUMN NOT NULL sem default em tabela
+// já populada — crash do deploy pós-#179.
+func migrateDevicesNetworkID(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&Device{}) {
+		return nil
+	}
+	if db.Migrator().HasColumn(&Device{}, "network_id") {
+		return nil
+	}
+	return db.Exec("ALTER TABLE devices ADD COLUMN network_id integer NOT NULL DEFAULT 0").Error
+}
+
 // SeedXcorp cria a org principal, times e o owner (primeiro super_admin)
 // ou admin). Não inscreve o resto da VPN — herança de repo é
 // ProjectMember / time (Fase 58.2), não OrgMember em massa.

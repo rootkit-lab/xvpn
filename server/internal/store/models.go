@@ -130,8 +130,9 @@ type Device struct {
 	Name      string `gorm:"not null"`
 	PublicKey string `gorm:"uniqueIndex;not null"`
 	// NetworkID é a rede overlay home (users para device, infra para mesh).
-	// Obrigatória — sem peer órfão em 10.66.66.0/24.
-	NetworkID uint `gorm:"not null;index"`
+	// default:0 (sem NOT NULL) para SQLite aceitar ADD COLUMN em tabela
+	// já populada; SeedOverlayNetworks/RehomeDevices preenche na subida.
+	NetworkID uint `gorm:"index;default:0"`
 	// AllowedIP é o /32 na NetworkID, ex.: "10.66.80.5/32".
 	AllowedIP string `gorm:"uniqueIndex;not null"`
 	CreatedAt time.Time

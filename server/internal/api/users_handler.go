@@ -676,18 +676,8 @@ func (a *App) handleCreateInvite(c *gin.Context) {
 		return
 	}
 
-	token, err := generateInviteToken()
+	invite, err := a.createInviteForUser(user.ID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
-		return
-	}
-
-	invite := store.InviteToken{
-		UserID:    user.ID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(time.Duration(a.Config.InviteTokenTTLMinutes) * time.Minute),
-	}
-	if err := a.Store.DB.Create(&invite).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
 		return
 	}
@@ -698,6 +688,44 @@ func (a *App) handleCreateInvite(c *gin.Context) {
 	_ = a.Store.LogAudit(actorString(actor), "invite.create", "user_id="+c.Param("id"))
 
 	c.JSON(http.StatusCreated, inviteResponse{Token: invite.Token, ExpiresAt: invite.ExpiresAt})
+}
+
+// handleCreateMyInvite gera convite para o próprio usuário autenticado
+// (autosserviço em /my/devices). POST /api/me/invite
+func (a *App) handleCreateMyInvite(c *gin.Context) {
+	userID := callerUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "não autenticado"})
+		return
+	}
+
+	invite, err := a.createInviteForUser(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "erro interno"})
+		return
+	}
+
+	actor, _ := c.Get(auth.ContextUsernameKey)
+	_ = a.Store.LogAudit(actorString(actor), "invite.create", "user_id="+strconv.FormatUint(uint64(userID), 10)+",self=1")
+
+	c.JSON(http.StatusCreated, inviteResponse{Token: invite.Token, ExpiresAt: invite.ExpiresAt})
+}
+
+func (a *App) createInviteForUser(userID uint) (store.InviteToken, error) {
+	token, err := generateInviteToken()
+	if err != nil {
+		return store.InviteToken{}, err
+	}
+
+	invite := store.InviteToken{
+		UserID:    userID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(time.Duration(a.Config.InviteTokenTTLMinutes) * time.Minute),
+	}
+	if err := a.Store.DB.Create(&invite).Error; err != nil {
+		return store.InviteToken{}, err
+	}
+	return invite, nil
 }
 
 // generateInviteToken gera um código legível no formato XVPN-XXXX-XXXX,

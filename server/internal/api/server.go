@@ -307,6 +307,7 @@ func NewRouter(app *App) *gin.Engine {
 			authed.GET("/auth/me", app.handleMe)
 
 			authed.GET("/me/devices", app.handleListMyDevices)
+			authed.POST("/me/invite", app.handleCreateMyInvite)
 			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
 			authed.PUT("/me/ssh-public-key", app.handleUpdateMySSHPublicKey)
 			// Troca de senha do próprio usuário (Fase 18). Rate limit

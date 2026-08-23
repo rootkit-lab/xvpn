@@ -137,7 +137,7 @@ func RenderOverlayNft(s OverlaySpec) string {
 		b.WriteString("  chain postrouting {\n")
 		b.WriteString("    type nat hook postrouting priority 100; policy accept;\n")
 		for _, c := range exits {
-			b.WriteString("    ip saddr " + c + " oif != \"wg0\" masquerade\n")
+			b.WriteString("    iifname \"wg0\" ip saddr " + c + " masquerade\n")
 		}
 		b.WriteString("  }\n")
 		b.WriteString("}\n")

@@ -87,7 +87,7 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     meta: {
       kicker: 'xvpn',
       title: 'Dispositivos',
-      description: 'Seus dispositivos VPN. Para adicionar um novo, peça um convite a um administrador.',
+      description: 'Registre notebooks e celulares na VPN: gere um convite aqui e cole no app desktop XVPN.',
     },
   },
   {

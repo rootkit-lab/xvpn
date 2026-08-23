@@ -95,6 +95,25 @@ func TestHandleCreateInvite(t *testing.T) {
 	}
 }
 
+func TestHandleCreateMyInvite(t *testing.T) {
+	app, _ := newTestApp(t)
+	createTestUserWithRole(t, app, "member1", "senha-membro-123", store.RoleMember)
+	router := NewRouter(app)
+	token := loginAndGetToken(t, app, router, "member1", "senha-membro-123")
+
+	rec := doJSON(t, router, http.MethodPost, "/api/me/invite", nil, token)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("esperado 201, obtido %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp inviteResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("erro decodificando resposta de convite: %v", err)
+	}
+	if resp.Token == "" {
+		t.Fatalf("esperava um token de convite não vazio")
+	}
+}
+
 func TestHandleDeleteUser_RevokesDevicesToo(t *testing.T) {
 	app, wg := newTestApp(t)
 	createTestUser(t, app, "boss", "senha-admin-123")

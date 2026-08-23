@@ -120,6 +120,7 @@ type rbacRouteCase struct {
 var rbacRouteCases = []rbacRouteCase{
 	{"auth-me", http.MethodGet, "/api/auth/me", nil, "any"},
 	{"list-my-devices", http.MethodGet, "/api/me/devices", nil, "any"},
+	{"create-my-invite", http.MethodPost, "/api/me/invite", nil, "any"},
 	{"delete-my-device", http.MethodDelete, "/api/me/devices/{ownDevice}", nil, "any"},
 	{"update-my-ssh-public-key", http.MethodPut, "/api/me/ssh-public-key", updateMySSHPublicKeyRequest{SSHPublicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE5x portal@test"}, "any"},
 	{"change-my-password", http.MethodPatch, "/api/me/password", changeMyPasswordRequest{CurrentPassword: "senha-caller-123", NewPassword: "senha-nova-456"}, "any"},

@@ -69,6 +69,9 @@ func run() error {
 	if err := wgManager.EnsureInterface(privateKey, cfg.WireGuardListenPort, cfg.WireGuardAddress); err != nil {
 		return err
 	}
+	if err := wgManager.EnsureReturnRoutes([]string{store.UsersPoolCIDR}); err != nil {
+		return fmt.Errorf("rotas de retorno wg0: %w", err)
+	}
 
 	if err := reconcilePeersFromDB(db, wgManager); err != nil {
 		return err

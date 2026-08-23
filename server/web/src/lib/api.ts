@@ -1236,6 +1236,7 @@ export const api = {
   // PLAN.md §6.7): qualquer papel autenticado gerencia os próprios
   // dispositivos, sem precisar das telas administrativas.
   listMyDevices: () => request<Device[]>('/me/devices'),
+  createMyInvite: () => request<InviteResponse>('/me/invite', { method: 'POST' }),
   deleteMyDevice: (id: number) => request<void>(`/me/devices/${id}`, { method: 'DELETE' }),
   // Chave SSH manual no portal (Fase 15) — distinta das chaves automáticas
   // dos dispositivos (POST /me/ssh-key via túnel).

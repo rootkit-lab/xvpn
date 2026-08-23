@@ -1880,6 +1880,22 @@ Um `/24` mistura notebook e Mongo. Antes do cutover: redes no xadmin (infra ≠ 
 
 ---
 
+## Fase 68 — Single-node (`66.29.147.100`)
+
+Cancelar o VPS `206.189.224.72`. Consolidar hub WG, Nginx, `xvpn-server`, dnsmasq, Samba, Docker e dados em **um** host. Cloudflare reponta A públicos.
+
+- [ ] **68.1** Preparar `.100` (rsync, pacotes, registry local, sem cutover)
+- [ ] **68.2** Cloudflare — todos os A → `66.29.147.100` (DNS only)
+- [ ] **68.3** Cutover (janela): hub WG, smoke VPN + `*.corp` + públicos
+- [ ] **68.4** Docs (`AGENTS.md`, `PLAN.md`) + cancelar `.72` após validação
+- [ ] **68.5** `landpages-ops` — migrar ou rehospedar antes de apagar control
+
+Runbook: [`docs/runbooks/single-node-migration.md`](./docs/runbooks/single-node-migration.md).
+
+**Critério de saída:** só `66.29.147.100` em produção; clientes usam endpoint `66.29.147.100:51820`; sem NFS entre nós.
+
+---
+
 ## Como usar este arquivo
 
 - **Parte I (0–8):** histórica / concluída — não reabrir checkboxes sem motivo.

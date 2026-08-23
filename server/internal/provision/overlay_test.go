@@ -32,6 +32,21 @@ func TestRenderOverlayNft_DropsCrossNetByDefault(t *testing.T) {
 	}
 }
 
+func TestRenderOverlayNft_ExitNATUsesWg0Ingress(t *testing.T) {
+	script := RenderOverlayNft(OverlaySpec{
+		Networks: []OverlayNetSpec{
+			{ID: 1, CIDR: "10.66.66.0/24"},
+			{ID: 2, CIDR: "10.66.80.0/24", Exit: true},
+		},
+	})
+	if !strings.Contains(script, `iifname "wg0" ip saddr 10.66.80.0/24 masquerade`) {
+		t.Fatalf("NAT de saída deve masqueradar tráfego decapsulado em wg0, obtido:\n%s", script)
+	}
+	if strings.Contains(script, `oif != "wg0"`) {
+		t.Fatal("regra antiga oif != wg0 não deve mais ser gerada")
+	}
+}
+
 func TestParseOverlaySpec_RequiresNetworks(t *testing.T) {
 	if _, err := ParseOverlaySpec([]byte(`{"networks":[]}`)); err == nil {
 		t.Fatal("vazio")

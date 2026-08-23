@@ -134,6 +134,56 @@ func (m *Manager) EnsureInterface(privateKey wgtypes.Key, listenPort int, cidr s
 	return nil
 }
 
+// EnsureReturnRoutes instala rotas de retorno no hub para faixas de clientes
+// (ex.: 10.66.80.0/20). Sem isso o kernel envia o tráfego de volta dos peers
+// de saída pelo default gateway WAN em vez de wg0.
+func (m *Manager) EnsureReturnRoutes(cidrs []string) error {
+	return m.ensureReturnRoutes(cidrs)
+}
+
+func (m *Manager) ensureReturnRoutes(cidrs []string) error {
+	link, err := netlink.LinkByName(m.ifaceName)
+	if err != nil {
+		return fmt.Errorf("consultando interface %q: %w", m.ifaceName, err)
+	}
+	for _, cidr := range cidrs {
+		if cidr == "" {
+			continue
+		}
+		_, dst, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return fmt.Errorf("cidr de retorno %q inválido: %w", cidr, err)
+		}
+		route := &netlink.Route{
+			Dst:       dst,
+			LinkIndex: link.Attrs().Index,
+		}
+		if err := netlink.RouteReplace(route); err != nil {
+			return fmt.Errorf("rota %s dev %s: %w", cidr, m.ifaceName, err)
+		}
+	}
+	return nil
+}
+
+func (m *Manager) ensurePeerRoute(allowedIP string) error {
+	link, err := netlink.LinkByName(m.ifaceName)
+	if err != nil {
+		return fmt.Errorf("consultando interface %q: %w", m.ifaceName, err)
+	}
+	_, dst, err := net.ParseCIDR(allowedIP)
+	if err != nil {
+		return fmt.Errorf("allowed-ip %q inválido: %w", allowedIP, err)
+	}
+	route := &netlink.Route{
+		Dst:       dst,
+		LinkIndex: link.Attrs().Index,
+	}
+	if err := netlink.RouteReplace(route); err != nil {
+		return fmt.Errorf("rota peer %s dev %s: %w", allowedIP, m.ifaceName, err)
+	}
+	return nil
+}
+
 // PeerSpec descreve um peer esperado, na forma que a camada de persistência
 // (store.Device) fornece.
 type PeerSpec struct {
@@ -156,10 +206,18 @@ func (m *Manager) ReconcilePeers(specs []PeerSpec) error {
 		peers = append(peers, peer)
 	}
 
-	return m.client.ConfigureDevice(m.ifaceName, wgtypes.Config{
+	if err := m.client.ConfigureDevice(m.ifaceName, wgtypes.Config{
 		ReplacePeers: true,
 		Peers:        peers,
-	})
+	}); err != nil {
+		return err
+	}
+	for _, spec := range specs {
+		if err := m.ensurePeerRoute(spec.AllowedIP); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // AddPeer registra um novo peer na interface, sem afetar os demais.
@@ -168,9 +226,12 @@ func (m *Manager) AddPeer(spec PeerSpec) error {
 	if err != nil {
 		return err
 	}
-	return m.client.ConfigureDevice(m.ifaceName, wgtypes.Config{
+	if err := m.client.ConfigureDevice(m.ifaceName, wgtypes.Config{
 		Peers: []wgtypes.PeerConfig{peer},
-	})
+	}); err != nil {
+		return err
+	}
+	return m.ensurePeerRoute(spec.AllowedIP)
 }
 
 // RemovePeer revoga um peer imediatamente (o dispositivo para de conseguir

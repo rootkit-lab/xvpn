@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
-HOST="${XVPN_DEPLOY_HOST:-root@206.189.224.72}"
+HOST="${XVPN_DEPLOY_HOST:-root@66.29.147.100}"
 BIN_SERVER="/tmp/xvpn-server-new"
 BIN_PROVISION="/tmp/xvpn-user-provision-new"
 BIN_GIT_SHELL="/tmp/xvpn-git-shell-new"

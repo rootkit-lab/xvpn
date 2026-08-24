@@ -2,6 +2,14 @@
 
 Changelog do componente `client`, mantido automaticamente pelo [release-please](https://github.com/googleapis/release-please) a partir da Fase 4. Ver [`../CHANGELOG.md`](../CHANGELOG.md) para mudanças "de projeto" que não pertencem a um componente específico.
 
+## [0.1.8](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.7...xvpn-client-v0.1.8) (2026-08-24)
+
+
+### Features
+
+* **server:** single-node migration, self-invite e fix exit VPN ([#183](https://github.com/rootkit-lab/xvpn/issues/183)) ([377757e](https://github.com/rootkit-lab/xvpn/commit/377757ec967e6212e7f22feb6c61c4b5f814979c))
+* **xgit:** SSH forge keys, xvpn-git-shell e atalho /:slug ([#185](https://github.com/rootkit-lab/xvpn/issues/185)) ([ce37525](https://github.com/rootkit-lab/xvpn/commit/ce37525096c870d2cb949d75bf2daa1895bc7655))
+
 ## [0.1.7](https://github.com/rootkit-lab/xvpn/compare/xvpn-client-v0.1.6...xvpn-client-v0.1.7) (2026-08-19)
 
 

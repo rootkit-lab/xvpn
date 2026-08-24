@@ -88,6 +88,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		}
 		return provision.ApplyOverlay(runnerFn(), stdin)
 	}
+	if args[0] == "git-ssh-apply" {
+		if len(args) != 1 {
+			return errUsage
+		}
+		body, err := io.ReadAll(stdin)
+		if err != nil {
+			return fmt.Errorf("lendo authorized_keys do stdin: %w", err)
+		}
+		return provision.ApplyGitSSHKeys(runnerFn(), string(body))
+	}
 	if len(args) < 2 {
 		return errUsage
 	}

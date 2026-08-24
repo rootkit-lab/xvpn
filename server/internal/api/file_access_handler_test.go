@@ -62,6 +62,9 @@ func (f *fakeUserProvisioner) ApplyCodespace(_ context.Context, payload string) 
 func (f *fakeUserProvisioner) ApplyOverlay(_ context.Context, payload string) error {
 	return f.record("ApplyOverlay(" + payload + ")")
 }
+func (f *fakeUserProvisioner) ApplyGitSSHKeys(_ context.Context, content string) error {
+	return f.record("ApplyGitSSHKeys(" + content + ")")
+}
 
 // withProvisioner retorna um App de teste com o provisioner fake injetado.
 // Reuso do newTestApp existente, só sobrescrevendo o campo novo.

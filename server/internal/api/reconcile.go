@@ -50,6 +50,12 @@ func (a *App) ReconcileUnixAccounts(ctx context.Context) error {
 	if len(failed) > 0 {
 		return fmt.Errorf("reconcile falhou para %d usuário(s): %s", len(failed), joinComma(failed))
 	}
+	if err := a.reconcileForgeSSHKeysFromDevices(ctx); err != nil {
+		return fmt.Errorf("reconcile forge ssh keys from devices: %w", err)
+	}
+	if err := a.applyForgeAuthorizedKeys(ctx); err != nil {
+		return fmt.Errorf("reconcile forge ssh keys: %w", err)
+	}
 	return nil
 }
 

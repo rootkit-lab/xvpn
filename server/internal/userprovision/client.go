@@ -239,3 +239,28 @@ func (c *Client) ApplySvc(ctx context.Context, payload string) error {
 	}
 	return nil
 }
+
+// ApplyGitSSHKeys reescreve o authorized_keys do usuário Unix git
+// (git@xgit.corp). payload é o arquivo completo, uma linha por chave.
+func (c *Client) ApplyGitSSHKeys(ctx context.Context, payload string) error {
+	if c.binaryPath == "" {
+		return ErrBinaryMissing
+	}
+	args := []string{"-n", c.binaryPath, "git-ssh-apply"}
+	out, err := c.executor(ctx, "sudo", args, payload)
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			msg := strings.TrimSpace(string(out))
+			if msg == "" {
+				msg = fmt.Sprintf("xvpn-user-provision git-ssh-apply falhou (exit %d)", exitErr.ExitCode())
+			}
+			return fmt.Errorf("%s: %w", msg, err)
+		}
+		if strings.Contains(err.Error(), "no such file") || strings.Contains(strings.ToLower(err.Error()), "not found") {
+			return ErrBinaryMissing
+		}
+		return fmt.Errorf("executando sudo: %w", err)
+	}
+	return nil
+}

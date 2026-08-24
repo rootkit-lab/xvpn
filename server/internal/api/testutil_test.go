@@ -104,7 +104,7 @@ func newTestApp(t *testing.T) (*App, *fakePeerManager) {
 		t.Fatalf("erro abrindo sqlite em memória: %v", err)
 	}
 	if err := db.AutoMigrate(
-		&store.User{}, &store.Device{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
+		&store.User{}, &store.Device{}, &store.ForgeSSHKey{}, &store.InviteToken{}, &store.AuditLog{}, &store.WaitlistEntry{},
 		&store.App{}, &store.AppVersion{}, &store.AppAsset{}, &store.AppAccess{},
 		&store.PanelSettings{}, &store.ForgeSettings{}, &store.CodespaceSettings{},
 		&store.DNSSettings{}, &store.DNSRecord{},

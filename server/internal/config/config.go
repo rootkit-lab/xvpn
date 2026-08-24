@@ -139,6 +139,14 @@ type Config struct {
 	// /opt/xvpn/data/git/<org>/<slug>.git). Smart HTTP só em xgit.corp.
 	GitDir string
 
+	// GitSSHAuthorizedKeysPath é o authorized_keys do usuário Unix `git`
+	// para git@xgit.corp (Fase 7). Vazio desabilita apply no sistema.
+	GitSSHAuthorizedKeysPath string
+
+	// GitShellPath é o wrapper forçado em cada linha do authorized_keys
+	// do forge (recebe o username do painel como argumento).
+	GitShellPath string
+
 	// CodespacesDir é a raiz dos worktrees do XCODESPACES (Fase 49 —
 	// /opt/xvpn/data/codespaces/<user>/<slug>/<id>/). Fora do bare.
 	CodespacesDir string
@@ -206,6 +214,8 @@ func Load() (*Config, error) {
 		DriverHomeRoot:          getEnv("XVPN_DRIVER_HOME_ROOT", "/home"),
 		DriverProjectsDir:       getEnv("XVPN_DRIVER_PROJECTS_DIR", "/opt/xvpn/data/projects"),
 		GitDir:                  getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
+		GitSSHAuthorizedKeysPath: getEnv("XVPN_GIT_SSH_AUTHORIZED_KEYS", "/home/git/.ssh/authorized_keys"),
+		GitShellPath:            getEnv("XVPN_GIT_SHELL", "/opt/xvpn/bin/xvpn-git-shell"),
 		CodespacesDir:           getEnv("XVPN_CODESPACES_DIR", "/opt/xvpn/data/codespaces"),
 		BackupDir:               getEnv("XVPN_BACKUP_DIR", "/opt/xvpn/data/backups"),
 		BitLaunchToken:          os.Getenv("XVPN_BITLAUNCH_TOKEN"),
@@ -243,6 +253,18 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	return cfg, nil
+}
+
+// LoadGitShell lê só o necessário para xvpn-git-shell (sem JWT/WG).
+func LoadGitShell() (*Config, error) {
+	cfg := &Config{
+		DBPath: getEnv("XVPN_DB_PATH", "xvpn.db"),
+		GitDir: getEnv("XVPN_GIT_DIR", "/opt/xvpn/data/git"),
+	}
+	if cfg.DBPath == "" {
+		return nil, fmt.Errorf("XVPN_DB_PATH é obrigatório")
+	}
 	return cfg, nil
 }
 

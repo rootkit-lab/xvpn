@@ -190,9 +190,10 @@ func (c *Client) Me(ctx context.Context) (*MeResult, error) {
 // e guardada mesmo desligado, e passa a valer no instante em que o admin
 // liga o acesso.
 type SSHKeyResult struct {
-	Fingerprint string `json:"fingerprint"`
-	SFTPEnabled bool   `json:"sftp_enabled"`
-	Changed     bool   `json:"changed"`
+	Fingerprint     string `json:"fingerprint"`
+	SFTPEnabled     bool   `json:"sftp_enabled"`
+	Changed         bool   `json:"changed"`
+	ForgeRegistered bool   `json:"forge_registered"`
 }
 
 type sshKeyRequest struct {

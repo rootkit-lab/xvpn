@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/rootkit-lab/xvpn/server/internal/store"
 	"github.com/rootkit-lab/xvpn/server/internal/webui"
 )
 
@@ -23,7 +24,7 @@ const notBuiltPlaceholderHTML = `<!DOCTYPE html>
 // registerWebUI monta a UI (painel React embutido) para todas as rotas que
 // não são /api/*. Se o painel não foi compilado, devolve uma página de
 // aviso em vez de falhar.
-func registerWebUI(r *gin.Engine) {
+func registerWebUI(r *gin.Engine, app *App) {
 	if !webui.Built() {
 		r.NoRoute(func(c *gin.Context) {
 			if strings.HasPrefix(c.Request.URL.Path, "/api/") {
@@ -50,6 +51,14 @@ func registerWebUI(r *gin.Engine) {
 			return
 		}
 
+		// URL curta /:slug → /org/slug quando o slug é um repo único.
+		if app != nil {
+			if redir := app.shortRepoPathRedirect(c.Request.URL.Path); redir != "" {
+				c.Redirect(http.StatusFound, redir)
+				return
+			}
+		}
+
 		// Roteamento client-side (react-router): se o caminho não bate com
 		// um arquivo real do build (JS/CSS/imagens), cai para index.html.
 		requestPath := strings.TrimPrefix(c.Request.URL.Path, "/")
@@ -62,4 +71,27 @@ func registerWebUI(r *gin.Engine) {
 		}
 		fileServer.ServeHTTP(c.Writer, c.Request)
 	})
+}
+
+// shortRepoPathRedirect resolve /evilsuite-v3 → /rootkit-lab/evilsuite-v3
+// (um único segmento que é slug de projeto, não org nem rota reservada).
+func (a *App) shortRepoPathRedirect(path string) string {
+	path = strings.Trim(path, "/")
+	if path == "" || strings.Contains(path, "/") {
+		return ""
+	}
+	if store.ReservedOrgSlug(path) {
+		return ""
+	}
+	if _, ok := a.loadOrganization(path); ok {
+		return "" // é org de verdade
+	}
+	var projects []store.Project
+	if err := a.Store.DB.Preload("Organization").Where("slug = ? AND archived_at IS NULL", path).Find(&projects).Error; err != nil {
+		return ""
+	}
+	if len(projects) != 1 || projects[0].Organization.Slug == "" {
+		return ""
+	}
+	return "/" + projects[0].Organization.Slug + "/" + projects[0].Slug
 }

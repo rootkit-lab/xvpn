@@ -37,7 +37,7 @@ func TestSeedOverlayNetworks_CreatesInfraUsersAndRules(t *testing.T) {
 		t.Fatalf("users: %+v %v", users, err)
 	}
 	var n int64
-	if err := db.Model(&NetworkRule{}).Count(&n).Error; err != nil || n != 3 {
+	if err := db.Model(&NetworkRule{}).Count(&n).Error; err != nil || n != 4 {
 		t.Fatalf("regras: %d %v", n, err)
 	}
 }

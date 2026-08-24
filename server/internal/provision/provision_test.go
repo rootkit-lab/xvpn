@@ -82,6 +82,14 @@ func (f *fakeRunner) LookupUser(username string) (string, string, error) {
 	return home, shell, nil
 }
 
+func (f *fakeRunner) SetUserShell(username, shell string) error {
+	return f.record("SetUserShell(" + username + "," + shell + ")")
+}
+
+func (f *fakeRunner) AddUserToGroup(username, group string) error {
+	return f.record("AddUserToGroup(" + username + "," + group + ")")
+}
+
 func (f *fakeRunner) MkdirAll(path string, perm os.FileMode) error {
 	return f.record("MkdirAll(" + path + "," + perm.String() + ")")
 }

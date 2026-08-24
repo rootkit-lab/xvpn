@@ -10,6 +10,9 @@ import (
 // produto e não existe hostname xcorp.corp.
 const DefaultOrgSlug = "xcorp"
 
+// RootkitLabOrgSlug é a org de lab/produtos (EvilSuite, etc.).
+const RootkitLabOrgSlug = "rootkit-lab"
+
 // OrgRole é o papel de um membro na organização (não no repo).
 type OrgRole string
 
@@ -182,5 +185,29 @@ func SeedXcorp(db *gorm.DB) error {
 		return err
 	}
 	tm := OrgTeamMember{TeamID: exemplos.ID, UserID: owner.ID}
-	return db.Where("team_id = ? AND user_id = ?", exemplos.ID, owner.ID).FirstOrCreate(&tm).Error
+	if err := db.Where("team_id = ? AND user_id = ?", exemplos.ID, owner.ID).FirstOrCreate(&tm).Error; err != nil {
+		return err
+	}
+	return SeedRootkitLab(db)
+}
+
+// SeedRootkitLab cria a org rootkit-lab e torna o usuário rootkit owner.
+func SeedRootkitLab(db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	org := ForgeOrganization{
+		Slug:        RootkitLabOrgSlug,
+		Name:        "rootkit-lab",
+		Description: "Lab e produtos (EvilSuite, …).",
+	}
+	if err := db.Where("slug = ?", RootkitLabOrgSlug).FirstOrCreate(&org).Error; err != nil {
+		return err
+	}
+	var owner User
+	if err := db.Where("username = ?", "rootkit").First(&owner).Error; err != nil {
+		return nil
+	}
+	row := OrgMember{OrganizationID: org.ID, UserID: owner.ID, Role: OrgRoleOwner}
+	return db.Where("organization_id = ? AND user_id = ?", org.ID, owner.ID).FirstOrCreate(&row).Error
 }

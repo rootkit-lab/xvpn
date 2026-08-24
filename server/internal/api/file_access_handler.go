@@ -24,6 +24,7 @@ type UserProvisioner interface {
 	ApplySvc(ctx context.Context, payload string) error
 	ApplyCodespace(ctx context.Context, payload string) error
 	ApplyOverlay(ctx context.Context, payload string) error
+	ApplyGitSSHKeys(ctx context.Context, content string) error
 }
 
 // fileAccessRequest é o corpo do PUT /api/users/:id/file-access. Os

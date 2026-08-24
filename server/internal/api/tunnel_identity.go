@@ -132,11 +132,13 @@ type registerSSHKeyRequest struct {
 // Fingerprint permite o cliente exibir/logar qual chave está valendo;
 // SFTPEnabled informa se o acesso já vale de fato (o admin pode não ter
 // ligado o toggle ainda, e isso não é erro); Changed distingue um
-// registro novo de um no-op.
+// registro novo de um no-op; ForgeRegistered indica se a mesma chave
+// está no git@xgit (authorized_keys do forge).
 type registerSSHKeyResponse struct {
-	Fingerprint string `json:"fingerprint"`
-	SFTPEnabled bool   `json:"sftp_enabled"`
-	Changed     bool   `json:"changed"`
+	Fingerprint     string `json:"fingerprint"`
+	SFTPEnabled     bool   `json:"sftp_enabled"`
+	Changed         bool   `json:"changed"`
+	ForgeRegistered bool   `json:"forge_registered"`
 }
 
 // handleRegisterDeviceSSHKey grava a chave pública SSH que o dispositivo
@@ -177,10 +179,12 @@ func (a *App) handleRegisterDeviceSSHKey(c *gin.Context) {
 
 	fingerprint := sshKeyFingerprint(key)
 	if sameSSHKey(device.SSHPublicKey, key) {
+		forgeOK := a.registerForgeSSHKeyFromDevice(c, device, owner, key)
 		c.JSON(http.StatusOK, registerSSHKeyResponse{
-			Fingerprint: fingerprint,
-			SFTPEnabled: owner.SFTPEnabled,
-			Changed:     false,
+			Fingerprint:     fingerprint,
+			SFTPEnabled:     owner.SFTPEnabled,
+			Changed:         false,
+			ForgeRegistered: forgeOK,
 		})
 		return
 	}
@@ -213,9 +217,12 @@ func (a *App) handleRegisterDeviceSSHKey(c *gin.Context) {
 	_ = a.Store.LogAudit("device:"+strconv.FormatUint(uint64(device.ID), 10), "sshkey.autoregister",
 		"user_id="+strconv.FormatUint(uint64(owner.ID), 10)+" fingerprint="+fingerprint)
 
+	forgeOK := a.registerForgeSSHKeyFromDevice(c, device, owner, key)
+
 	c.JSON(http.StatusOK, registerSSHKeyResponse{
-		Fingerprint: fingerprint,
-		SFTPEnabled: owner.SFTPEnabled,
-		Changed:     true,
+		Fingerprint:     fingerprint,
+		SFTPEnabled:     owner.SFTPEnabled,
+		Changed:         true,
+		ForgeRegistered: forgeOK,
 	})
 }

@@ -310,6 +310,9 @@ func NewRouter(app *App) *gin.Engine {
 			authed.POST("/me/invite", app.handleCreateMyInvite)
 			authed.DELETE("/me/devices/:id", app.handleDeleteMyDevice)
 			authed.PUT("/me/ssh-public-key", app.handleUpdateMySSHPublicKey)
+			authed.GET("/me/forge-ssh-keys", app.handleListMyForgeSSHKeys)
+			authed.POST("/me/forge-ssh-keys", app.handleCreateMyForgeSSHKey)
+			authed.DELETE("/me/forge-ssh-keys/:id", app.handleDeleteMyForgeSSHKey)
 			// Troca de senha do próprio usuário (Fase 18). Rate limit
 			// reusa o do login: a senha atual é o mesmo segredo que o
 			// POST /auth/login protege contra força bruta.
@@ -662,7 +665,7 @@ func NewRouter(app *App) *gin.Engine {
 		git.POST("/:org/:slug/git-receive-pack", app.handleGitSmartHTTP)
 	}
 
-	registerWebUI(r)
+	registerWebUI(r, app)
 
 	app.startMonitorPoller()
 

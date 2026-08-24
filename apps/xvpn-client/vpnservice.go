@@ -189,6 +189,32 @@ func (s *VPNService) Enroll(args EnrollArgs) error {
 	return client.Call(ipc.MethodEnroll, req, nil)
 }
 
+// ConnectWithPanelAuth autentica no painel (JWT em memória) e sobe o túnel.
+// Usado no modo --managed-by-rootsec quando RootSec passa credenciais via env.
+func (s *VPNService) ConnectWithPanelAuth(username, password string) error {
+	if username == "" || password == "" {
+		return fmt.Errorf("credenciais vazias")
+	}
+	status, err := s.Status()
+	if err != nil {
+		return err
+	}
+	if !status.HelperReachable {
+		return fmt.Errorf("xvpn-client-helper indisponível")
+	}
+	if status.ServerBaseURL == "" {
+		return fmt.Errorf("dispositivo não enrollado — configure o XVPN primeiro")
+	}
+	if _, err := s.MarketplaceLogin(MarketplaceLoginArgs{
+		ServerBaseURL: status.ServerBaseURL,
+		Username:      username,
+		Password:      password,
+	}); err != nil {
+		return fmt.Errorf("login no painel: %w", err)
+	}
+	return s.Connect()
+}
+
 // Connect estabelece o túnel usando as credenciais do último enrollment.
 func (s *VPNService) Connect() error {
 	client, err := ipc.Dial()
@@ -346,6 +372,8 @@ type SSHKeyStatus struct {
 	// Changed=false significa que esta mesma chave já estava registrada
 	// (o servidor é idempotente).
 	Changed bool `json:"changed"`
+	// ForgeRegistered indica se a chave também está no git@xgit.
+	ForgeRegistered bool `json:"forgeRegistered"`
 }
 
 // RegisterSSHKey garante o par de chaves local, registra a pública no
@@ -379,9 +407,10 @@ func (s *VPNService) RegisterSSHKey() (SSHKeyStatus, error) {
 	}
 
 	return SSHKeyStatus{
-		Fingerprint: result.Fingerprint,
-		SFTPEnabled: result.SFTPEnabled,
-		Changed:     result.Changed,
+		Fingerprint:     result.Fingerprint,
+		SFTPEnabled:     result.SFTPEnabled,
+		Changed:         result.Changed,
+		ForgeRegistered: result.ForgeRegistered,
 	}, nil
 }
 

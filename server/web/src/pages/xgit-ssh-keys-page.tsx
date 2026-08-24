@@ -162,9 +162,17 @@ export function XgitSSHKeysPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">GPG keys</CardTitle>
+          <CardDescription>
+            Signed commits and tags. Upload of GPG keys is planned — not available yet.
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">There are no GPG keys associated with your account.</p>
+        <CardContent className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            There are no GPG keys associated with your account.
+          </p>
+          <Button type="button" variant="outline" disabled title="Coming soon">
+            New GPG key
+          </Button>
         </CardContent>
       </Card>
     </div>

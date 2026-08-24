@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { Settings } from 'lucide-react'
 import { IconButton } from '@xvpn/ui/react/icon-button'
 import { useChatSettings } from '@chat/messenger/ChatSettings'
-import { PANEL_ORIGIN, XADMIN_CORP_ORIGIN, productKind } from '@/lib/product-host'
+import { PANEL_ORIGIN, productKind } from '@/lib/product-host'
 
 export type AppSettingsKind = 'user' | 'admin' | 'social' | 'marketplace' | 'xdriver' | 'xgit'
 
@@ -22,7 +22,7 @@ function LinkedAppSettingsButton({ kind }: { kind: Exclude<AppSettingsKind, 'soc
         label="Configurações"
         filled
         onClick={() => {
-          window.location.assign(`${XADMIN_CORP_ORIGIN}/admin/xgit/settings`)
+          navigate('/settings/ssh')
         }}
       >
         <Settings className="size-4" strokeWidth={2} />

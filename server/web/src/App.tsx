@@ -62,6 +62,12 @@ const XgitRepoPackagesPage = lazy(() =>
 )
 const XgitStarsPage = lazy(() => import('@/pages/xgit-stars-page').then((m) => ({ default: m.XgitStarsPage })))
 const XgitOrgPage = lazy(() => import('@/pages/xgit-org-page').then((m) => ({ default: m.XgitOrgPage })))
+const XgitSSHKeysPage = lazy(() =>
+  import('@/pages/xgit-ssh-keys-page').then((m) => ({ default: m.XgitSSHKeysPage })),
+)
+const XgitUserSettingsLayout = lazy(() =>
+  import('@/pages/xgit-user-settings-layout').then((m) => ({ default: m.XgitUserSettingsLayout })),
+)
 const XgitSettingsPage = lazy(() =>
   import('@/pages/xgit-settings-page').then((m) => ({ default: m.XgitSettingsPage })),
 )
@@ -298,6 +304,10 @@ function XGitCorpApp() {
               <Route path="repositories" element={<XgitReposPage />} />
               <Route path="packages" element={<XgitPackagesPage />} />
               <Route path="stars" element={<XgitStarsPage />} />
+            </Route>
+            <Route path="settings" element={<XgitUserSettingsLayout />}>
+              <Route index element={<Navigate to="ssh" replace />} />
+              <Route path="ssh" element={<XgitSSHKeysPage />} />
             </Route>
             <Route path=":org" element={<XgitOrgPage />} />
             <Route path=":org/:slug" element={<XgitRepoLayout />}>

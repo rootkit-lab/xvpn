@@ -1,7 +1,7 @@
-import { useCallback } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { FolderGit2, Workflow } from 'lucide-react'
-import { api, type ForgeOrg, type Project } from '@/lib/api'
+import { ApiError, api, type ForgeOrg, type Project } from '@/lib/api'
 import { usePollingData } from '@/hooks/use-polling-data'
 import { xgitPath, xgitRepoPath } from '@/lib/xgit'
 import { RepoListRow } from '@/pages/xgit-repo-card'
@@ -32,8 +32,43 @@ function RepoGroup({ title, hint, repos }: { title: string; hint?: string; repos
 
 export function XgitOrgPage() {
   const { org = '' } = useParams()
-  const fetchOrg = useCallback(() => api.getForgeOrg(org), [org])
+  const [repoRedirect, setRepoRedirect] = useState<string | null>(null)
+  const fetchOrg = useCallback(async () => {
+    try {
+      return await api.getForgeOrg(org)
+    } catch (err) {
+      if (err instanceof ApiError && err.redirect) {
+        setRepoRedirect(xgitPath(err.redirect))
+      }
+      throw err
+    }
+  }, [org])
   const { data, loading, error } = usePollingData(fetchOrg, 20_000)
+
+  // Fallback se a API não enviar redirect (client antigo / ambíguo).
+  useEffect(() => {
+    if (!error || !org || repoRedirect) return
+    let cancelled = false
+    void api
+      .listProjects('mine')
+      .then((res) => {
+        if (cancelled) return
+        const matches = (res.items ?? []).filter((p) => p.slug === org)
+        if (matches.length === 1) {
+          setRepoRedirect(xgitRepoPath(matches[0].org, matches[0].slug))
+        }
+      })
+      .catch(() => {
+        /* mantém erro de org */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [error, org, repoRedirect])
+
+  if (repoRedirect) {
+    return <Navigate to={repoRedirect} replace />
+  }
 
   if (loading || !data) {
     return error ? <p className="text-sm text-destructive">{error}</p> : <Skeleton className="h-64 w-full" />

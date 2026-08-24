@@ -32,6 +32,9 @@ const (
 	// ou caminho de chave.
 	hostAlias = "xvpn-files"
 
+	// xgitHost é o hostname do forge para git clone/push via SSH.
+	xgitHost = "xgit.corp.ihuull.com"
+
 	// serverVPNAddress é o IP fixo do servidor dentro do túnel (ver
 	// AGENTS.md) — o sshd só é alcançável por fora do túnel via o
 	// endereço público, que não é o caminho que este atalho descreve.
@@ -60,7 +63,7 @@ func Ensure() (string, error) {
 
 // EnsureSSHConfigEntry escreve (ou atualiza) o bloco "Host xvpn-files" no
 // ~/.ssh/config apontando para este par de chaves e para o usuário do
-// painel.
+// painel. Também adiciona Host xgit.corp.ihuull.com para git@xgit.
 func EnsureSSHConfigEntry(username string) error {
 	dir, err := defaultSSHDir()
 	if err != nil {
@@ -199,9 +202,10 @@ func renderBlock(sshDir, username string) string {
 	b.WriteString("    HostName " + serverVPNAddress + "\n")
 	b.WriteString("    User " + username + "\n")
 	b.WriteString("    IdentityFile " + filepath.Join(sshDir, privateKeyName) + "\n")
-	// Sem IdentitiesOnly, o ssh oferece antes todas as chaves do agente e
-	// pode estourar o limite de tentativas do servidor antes de chegar na
-	// nossa.
+	b.WriteString("    IdentitiesOnly yes\n")
+	b.WriteString("Host " + xgitHost + "\n")
+	b.WriteString("    User git\n")
+	b.WriteString("    IdentityFile " + filepath.Join(sshDir, privateKeyName) + "\n")
 	b.WriteString("    IdentitiesOnly yes\n")
 	b.WriteString(blockEnd + "\n")
 	return b.String()

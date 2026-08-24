@@ -423,6 +423,7 @@ func (a *App) addCorpRulesFrom(srcID uint) error {
 	rules := []store.NetworkRule{
 		{Slug: src.Slug + "-corp", SrcNetworkID: srcID, DstNetworkID: infra.ID, Action: store.NetworkRuleAllow, Proto: "tcp", Ports: "443,53"},
 		{Slug: src.Slug + "-dns", SrcNetworkID: srcID, DstNetworkID: infra.ID, Action: store.NetworkRuleAllow, Proto: "udp", Ports: "53"},
+		{Slug: src.Slug + "-tunnel", SrcNetworkID: srcID, DstNetworkID: infra.ID, Action: store.NetworkRuleAllow, Proto: "tcp", Ports: "8080"},
 	}
 	for _, r := range rules {
 		if err := a.Store.DB.Create(&r).Error; err != nil {

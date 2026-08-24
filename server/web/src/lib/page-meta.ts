@@ -51,6 +51,14 @@ const USER_PAGES: { prefix: string; exact?: boolean; meta: PageMeta }[] = [
     },
   },
   {
+    prefix: '/settings/ssh',
+    meta: {
+      kicker: 'XGIT',
+      title: 'SSH and GPG keys',
+      description: 'Chaves SSH para git@xgit.corp.ihuull.com.',
+    },
+  },
+  {
     prefix: '/my/profile',
     meta: {
       kicker: 'xvpn',

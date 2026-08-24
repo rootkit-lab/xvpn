@@ -21,10 +21,12 @@ export function clearToken(): void {
 
 export class ApiError extends Error {
   status: number
+  redirect?: string
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, redirect?: string) {
     super(message)
     this.status = status
+    this.redirect = redirect
   }
 }
 
@@ -34,15 +36,21 @@ export class ApiError extends Error {
 // downloadMarketplaceAsset baixa o blob autenticado (JWT) e dispara o
 // save-as do browser — não passa por request() porque a resposta é
 // binária, não JSON.
-async function parseErrorMessage(res: Response): Promise<string> {
+async function parseErrorPayload(res: Response): Promise<{ message: string; redirect?: string }> {
   let message = `Erro ${res.status}`
+  let redirect: string | undefined
   try {
-    const body = (await res.json()) as { error?: string }
+    const body = (await res.json()) as { error?: string; redirect?: string }
     if (body?.error) message = body.error
+    if (body?.redirect) redirect = body.redirect
   } catch {
     // corpo não é JSON (ex.: 502 do Nginx) — mantém mensagem genérica
   }
-  return message
+  return { message, redirect }
+}
+
+async function parseErrorMessage(res: Response): Promise<string> {
+  return (await parseErrorPayload(res)).message
 }
 
 // handleUnauthorized centraliza o que request()/upload/download fazem
@@ -75,7 +83,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   if (!res.ok) {
-    throw new ApiError(res.status, await parseErrorMessage(res))
+    const err = await parseErrorPayload(res)
+    throw new ApiError(res.status, err.message, err.redirect)
   }
 
   if (res.status === 204) {
@@ -90,7 +99,10 @@ async function requestText(path: string): Promise<string> {
   if (token) headers.set('Authorization', `Bearer ${token}`)
   const res = await fetch(`/api${path}`, { headers, credentials: 'include' })
   if (res.status === 401) handleUnauthorized(path)
-  if (!res.ok) throw new ApiError(res.status, await parseErrorMessage(res))
+  if (!res.ok) {
+    const err = await parseErrorPayload(res)
+    throw new ApiError(res.status, err.message, err.redirect)
+  }
   return res.text()
 }
 
@@ -279,6 +291,15 @@ export interface DeviceSSHKey {
   device_name: string
   fingerprint: string
   updated_at?: string
+}
+
+export interface ForgeSSHKey {
+  id: number
+  title: string
+  fingerprint: string
+  device_id?: number
+  last_used_at?: string | null
+  created_at: string
 }
 
 export interface Device {
@@ -1245,6 +1266,13 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ ssh_public_key: sshPublicKey }),
     }),
+  listMyForgeSSHKeys: () => request<{ keys: ForgeSSHKey[] }>('/me/forge-ssh-keys'),
+  createMyForgeSSHKey: (body: { title: string; public_key: string }) =>
+    request<ForgeSSHKey>('/me/forge-ssh-keys', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteMyForgeSSHKey: (id: number) => request<void>(`/me/forge-ssh-keys/${id}`, { method: 'DELETE' }),
   // Autosserviço de senha (Fase 18). 204 sem corpo — a senha nova nunca
   // volta na resposta (diferente do reset administrativo, que devolve a
   // gerada uma única vez).

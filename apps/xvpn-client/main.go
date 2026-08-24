@@ -22,6 +22,33 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+type cliFlags struct {
+	helper           bool
+	managedByRootsec bool
+	disconnect       bool
+	quit             bool
+}
+
+func parseFlags() cliFlags {
+	var f cliFlags
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "--helper":
+			f.helper = true
+		case "--managed-by-rootsec":
+			f.managedByRootsec = true
+		case "--disconnect":
+			f.disconnect = true
+		case "--quit":
+			f.quit = true
+		}
+	}
+	if os.Getenv("ROOTSEC_SESSION") == "1" {
+		f.managedByRootsec = true
+	}
+	return f
+}
+
 func main() {
 	// Um único binário serve dois papéis (ver PLAN.md §7.3 e
 	// .cursor/rules/go-client.mdc): rodando com --helper, é o processo
@@ -29,11 +56,25 @@ func main() {
 	// sistema — ver deploy/systemd/xvpn-client-helper.service); sem essa
 	// flag, é a GUI Wails sem privilégio, que só conversa com o helper via
 	// IPC.
-	if len(os.Args) > 1 && os.Args[1] == "--helper" {
+	flags := parseFlags()
+	if flags.helper {
 		runHelper()
 		return
 	}
-	runGUI()
+	if flags.disconnect && flags.quit {
+		runDisconnectQuit()
+		return
+	}
+	runGUI(flags.managedByRootsec)
+}
+
+func runDisconnectQuit() {
+	applog.Setup("xvpn-client-gui")
+	svc := &VPNService{}
+	if err := svc.Disconnect(); err != nil {
+		slog.Warn("disconnect on quit", "err", err)
+	}
+	os.Exit(0)
 }
 
 func runHelper() {
@@ -49,7 +90,7 @@ func runHelper() {
 	}
 }
 
-func runGUI() {
+func runGUI(managedByRootsec bool) {
 	applog.Setup("xvpn-client-gui")
 	var mainWindow application.Window
 
@@ -69,7 +110,7 @@ func runGUI() {
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID: "com.ihuull.xvpn",
 			OnSecondInstanceLaunch: func(_ application.SecondInstanceData) {
-				if mainWindow == nil {
+				if mainWindow == nil || managedByRootsec {
 					return
 				}
 				mainWindow.Show()
@@ -104,6 +145,11 @@ func runGUI() {
 
 	tray := setupTray(app, window)
 	go monitorTray(tray)
+
+	if managedByRootsec {
+		window.Hide()
+		go managedAutoConnect()
+	}
 
 	if err := app.Run(); err != nil {
 		slog.Error("gui exited", "err", err)
@@ -285,6 +331,7 @@ func registerSSHKeyInBackground() {
 		"fingerprint", result.Fingerprint,
 		"changed", result.Changed,
 		"sftp_enabled", result.SFTPEnabled,
+		"forge_registered", result.ForgeRegistered,
 	)
 }
 
@@ -324,4 +371,30 @@ func applyTrayStatus(h *trayHandles, status StatusView) {
 	h.sharedFilesItem.SetEnabled(status.Connected && status.SambaEnabled)
 	h.filebrowserItem.SetEnabled(status.Connected)
 	h.menu.Update()
+}
+
+// managedAutoConnect sobe o túnel quando RootSec passou credenciais via env.
+// Credenciais ficam só em memória do processo — nunca logadas.
+func managedAutoConnect() {
+	user := os.Getenv("ROOTSEC_XVPN_USER")
+	pass := os.Getenv("ROOTSEC_XVPN_PASS")
+	if user == "" || pass == "" {
+		return
+	}
+	// Helper pode demorar um pouco após o spawn do GUI.
+	for attempt := 0; attempt < 10; attempt++ {
+		time.Sleep(2 * time.Second)
+		svc := &VPNService{}
+		status, err := svc.Status()
+		if err != nil || !status.HelperReachable {
+			continue
+		}
+		if err := svc.ConnectWithPanelAuth(user, pass); err != nil {
+			slog.Warn("managed auto-connect failed", "err", err)
+		} else {
+			slog.Info("managed auto-connect ok")
+		}
+		return
+	}
+	slog.Warn("managed auto-connect: helper indisponível após espera")
 }

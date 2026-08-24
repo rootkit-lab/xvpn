@@ -39,10 +39,45 @@ func (a *App) loadOrgParam(c *gin.Context) (store.ForgeOrganization, store.User,
 	}
 	org, ok := a.loadOrganization(c.Param("org"))
 	if !ok {
+		// URL curta /:slug — se bate um único projeto visível, sugere /org/slug.
+		if redir := a.uniqueProjectRedirect(user, c.Param("org")); redir != "" {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":    "organização não encontrada",
+				"redirect": redir,
+			})
+			return store.ForgeOrganization{}, user, false
+		}
 		c.JSON(http.StatusNotFound, gin.H{"error": "organização não encontrada"})
 		return store.ForgeOrganization{}, user, false
 	}
 	return org, user, true
+}
+
+// uniqueProjectRedirect devolve "org/slug" se exatamente um projeto visível
+// tiver esse slug (atalho para /evilsuite-v3 → /rootkit-lab/evilsuite-v3).
+func (a *App) uniqueProjectRedirect(user store.User, slug string) string {
+	slug = strings.TrimSpace(slug)
+	if slug == "" || store.ReservedOrgSlug(slug) {
+		return ""
+	}
+	var projects []store.Project
+	if err := a.Store.DB.Preload("Organization").Where("slug = ? AND archived_at IS NULL", slug).Find(&projects).Error; err != nil {
+		return ""
+	}
+	var hit *store.Project
+	for i := range projects {
+		if !a.canSeeProject(user, projects[i]) {
+			continue
+		}
+		if hit != nil {
+			return "" // ambíguo
+		}
+		hit = &projects[i]
+	}
+	if hit == nil || hit.Organization.Slug == "" {
+		return ""
+	}
+	return hit.Organization.Slug + "/" + hit.Slug
 }
 
 func (a *App) handleGetOrg(c *gin.Context) {

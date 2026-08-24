@@ -29,7 +29,7 @@ type mongoSync struct {
 
 func allModels() []any {
 	return []any{
-		&User{}, &Device{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
+		&User{}, &Device{}, &ForgeSSHKey{}, &InviteToken{}, &AuditLog{}, &WaitlistEntry{},
 		&App{}, &AppVersion{}, &AppAsset{}, &AppAccess{},
 		&PanelSettings{}, &ForgeSettings{}, &CodespaceSettings{},
 		&DNSSettings{}, &DNSRecord{},
@@ -63,19 +63,35 @@ func Open(path string) (*Store, error) {
 	if uri := os.Getenv("XVPN_MONGO_URI"); uri != "" {
 		return OpenMongo(uri, path)
 	}
-	return openSQLite(path)
+	return openSQLite(path, false)
 }
 
-func openSQLite(path string) (*Store, error) {
-	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{
+// OpenReadOnly abre o banco sem semear nem escrever — usado por
+// xvpn-git-shell (usuário git só precisa ler ACL/repos).
+func OpenReadOnly(path string) (*Store, error) {
+	if uri := os.Getenv("XVPN_MONGO_URI"); uri != "" {
+		return OpenMongo(uri, path)
+	}
+	return openSQLite(path, true)
+}
+
+func openSQLite(path string, readOnly bool) (*Store, error) {
+	dsn := path
+	if readOnly {
+		dsn = "file:" + path + "?mode=ro"
+	}
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("abrindo banco %q: %w", path, err)
 	}
-	st, err := finishOpen(db)
+	st, err := finishOpenReadOnly(db)
 	if err != nil {
 		return nil, err
+	}
+	if readOnly {
+		return st, nil
 	}
 	if err := SeedIntranetDNS(st.DB); err != nil {
 		return nil, fmt.Errorf("semeando DNS da intranet: %w", err)
@@ -188,6 +204,12 @@ func finishOpen(db *gorm.DB) (*Store, error) {
 			return nil, fmt.Errorf("migrando papéis (Fase 10): %w", err)
 		}
 	}
+	return &Store{DB: db}, nil
+}
+
+// finishOpenReadOnly abre o schema sem AutoMigrate — xvpn-git-shell usa
+// SQLite mode=ro e não pode bloquear o writer do xvpn-server.
+func finishOpenReadOnly(db *gorm.DB) (*Store, error) {
 	return &Store{DB: db}, nil
 }
 

@@ -278,6 +278,8 @@ func ensureSystemRules(db *gorm.DB) error {
 		{Slug: "corp", SrcNetworkID: users.ID, DstNetworkID: infra.ID, Action: NetworkRuleAllow, Proto: "tcp", Ports: "443,53", System: true},
 		{Slug: "corp-dns", SrcNetworkID: users.ID, DstNetworkID: infra.ID, Action: NetworkRuleAllow, Proto: "udp", Ports: "53", System: true},
 		{Slug: "samba", SrcNetworkID: users.ID, DstNetworkID: infra.ID, Action: NetworkRuleAllow, Proto: "tcp", Ports: "445", System: true},
+		// Listener do túnel (10.66.66.1:8080): /api/me, /api/me/ssh-key, CI runner, svc agent.
+		{Slug: "tunnel-api", SrcNetworkID: users.ID, DstNetworkID: infra.ID, Action: NetworkRuleAllow, Proto: "tcp", Ports: "8080", System: true},
 	}
 	for _, spec := range rules {
 		var row NetworkRule

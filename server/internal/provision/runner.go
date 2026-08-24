@@ -22,6 +22,8 @@ type Runner interface {
 	// /home/<user>, shell /usr/sbin/nologin) de uma conta de sistema
 	// pré-existente (ex.: root) que não devemos tocar.
 	LookupUser(username string) (home, shell string, err error)
+	SetUserShell(username, shell string) error
+	AddUserToGroup(username, group string) error
 	MkdirAll(path string, perm os.FileMode) error
 	Chown(path string, uid, gid int) error
 	Chmod(path string, perm os.FileMode) error
@@ -121,6 +123,22 @@ func (osRunner) LookupUser(username string) (string, string, error) {
 		return "", "", fmt.Errorf("saída inesperada de getent para %q: %q", username, string(out))
 	}
 	return fields[5], fields[6], nil
+}
+
+func (osRunner) SetUserShell(username, shell string) error {
+	cmd := exec.Command("usermod", "--shell", shell, username)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("usermod --shell %q %q: %w: %s", shell, username, err, string(out))
+	}
+	return nil
+}
+
+func (osRunner) AddUserToGroup(username, group string) error {
+	cmd := exec.Command("usermod", "--append", "--groups", group, username)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("usermod -aG %q %q: %w: %s", group, username, err, string(out))
+	}
+	return nil
 }
 
 // splitFields quebra uma linha de getent passwd por ':' — separada de

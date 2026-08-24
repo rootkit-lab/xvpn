@@ -149,6 +149,23 @@ type Device struct {
 	User User `gorm:"foreignKey:UserID"`
 }
 
+// ForgeSSHKey é uma chave de autenticação SSH para git@xgit.corp
+// (Fase 7 — TASKS.md). Distinta das chaves SFTP (Device / User manual):
+// vive no authorized_keys do usuário git do forge. DeviceID preenchido
+// quando a chave veio do auto-registro do xvpn-client.
+type ForgeSSHKey struct {
+	ID          uint   `gorm:"primaryKey"`
+	UserID      uint   `gorm:"not null;index"`
+	Title       string `gorm:"not null"`
+	PublicKey   string `gorm:"type:text;not null"`
+	Fingerprint string `gorm:"not null;index"`
+	DeviceID    *uint  `gorm:"index"`
+	LastUsedAt  *time.Time
+	CreatedAt   time.Time
+
+	User User `gorm:"foreignKey:UserID"`
+}
+
 // AuditLog registra ações administrativas relevantes (quem fez o quê,
 // quando). Nunca deve conter segredos — ver go-backend.mdc.
 type AuditLog struct {
